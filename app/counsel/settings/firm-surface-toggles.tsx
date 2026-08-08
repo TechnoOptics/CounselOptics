@@ -46,7 +46,8 @@ export function FirmSurfaceToggles({
   }
 
   return (
-    <div className="card p-6 space-y-4">
+    /* No card: the settings page wraps this in a PanelCard. */
+    <div className="space-y-4">
       <Toggle
         checked={hideSearch}
         disabled={pending}

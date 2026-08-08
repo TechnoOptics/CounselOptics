@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
@@ -15,6 +14,12 @@ import { RecordTransactionForm } from './record-transaction-form';
 import { ReconcileForm } from './reconcile-form';
 import { PageHeader } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import {
+  PanelCard,
+  ViewStrip,
+  relativeTime,
+  type ViewOption,
+} from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -164,8 +169,17 @@ export default async function CounselTrustPage({
     account.id,
   );
 
+  // One view per trust account. These are real subsets: everything below
+  // the header is scoped to the selected account. No counts, because the
+  // page loads the ledger for the selected account only and a per-account
+  // transaction count is a number this page does not have.
+  const accountViews: ViewOption[] = accounts.map((a) => ({
+    key: a.id,
+    label: <span data-no-translate>{a.name}</span>,
+  }));
+
   return (
-    <div className="space-y-8 animate-fade-up">
+    <div className="space-y-6 animate-fade-up">
       <PageHeader
         eyebrow={<T>Counsel · trust</T>}
         title={account.name}
@@ -176,30 +190,16 @@ export default async function CounselTrustPage({
             {account.account_number_masked && ` · ${account.account_number_masked}`}
           </>
         }
-        action={
-          accounts.length > 1 ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {accounts.map((a) => {
-                const active = a.id === account.id;
-                return (
-                  <Link
-                    key={a.id}
-                    href={`/counsel/trust?account=${a.id}`}
-                    aria-current={active ? 'page' : undefined}
-                    className={`inline-flex items-center min-h-[36px] px-3 rounded-lg text-[12px] font-medium ring-1 transition-colors ${
-                      active
-                        ? 'bg-forest-900 text-cream-100 ring-forest-900 dark:bg-cream-100 dark:text-forest-950 dark:ring-cream-100'
-                        : 'text-muted ring-edge hover:bg-surface-2'
-                    }`}
-                  >
-                    {a.name}
-                  </Link>
-                );
-              })}
-            </div>
-          ) : undefined
-        }
       />
+
+      {accounts.length > 1 && (
+        <ViewStrip
+          options={accountViews}
+          active={account.id}
+          href={(key) => `/counsel/trust?account=${key}`}
+          label="Trust accounts"
+        />
+      )}
 
       {/* Three-way reconciliation summary */}
       <section className="grid gap-3 sm:grid-cols-3">
@@ -233,8 +233,7 @@ export default async function CounselTrustPage({
 
       {/* Per-client breakdown */}
       {recon.perClient.length > 0 && (
-        <section className="card p-5 space-y-3">
-          <p className="eyebrow"><T>Per-client balances</T></p>
+        <PanelCard title={<T>Per-client balances</T>}>
           <ul className="space-y-1.5 text-[13px]">
             {recon.perClient
               .filter((c) => c.balanceCents !== 0)
@@ -242,13 +241,13 @@ export default async function CounselTrustPage({
               .map((c) => (
                 <li
                   key={c.clientLabel}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between gap-3"
                 >
-                  <span className="text-foreground">
+                  <span className="text-foreground" data-no-translate>
                     {c.clientLabel}
                   </span>
                   <span
-                    className={`font-mono tabular-nums font-semibold ${
+                    className={`font-mono font-semibold tabular-nums ${
                       c.balanceCents < 0
                         ? 'text-rose-700 dark:text-rose-300'
                         : 'text-foreground'
@@ -259,14 +258,14 @@ export default async function CounselTrustPage({
                 </li>
               ))}
           </ul>
-          <p className="text-[11px] text-muted leading-relaxed">
+          <p className="mt-3 text-[11px] leading-relaxed text-muted">
             <T>
               Negative balances mean the firm has disbursed more than was on
               deposit for that client. This must NEVER happen on an IOLTA
               account; investigate immediately.
             </T>
           </p>
-        </section>
+        </PanelCard>
       )}
 
       {/* Record a new transaction */}
@@ -282,35 +281,35 @@ export default async function CounselTrustPage({
       />
 
       {pastReconciliations.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-medium text-foreground">
-            <T>Reconciliation history</T>
-          </h2>
-          <div className="card overflow-x-auto">
-            <table className="w-full min-w-[520px] text-[13px]">
-              <thead className="bg-surface-2 text-foreground text-left">
-                <tr>
-                  <th className="font-semibold px-4 py-2.5"><T>Statement date</T></th>
-                  <th className="font-semibold px-4 py-2.5 text-right"><T>Bank</T></th>
-                  <th className="font-semibold px-4 py-2.5 text-right"><T>Cleared</T></th>
-                  <th className="font-semibold px-4 py-2.5 text-right"><T>Difference</T></th>
-                  <th className="font-semibold px-4 py-2.5"><T>Status</T></th>
+        <PanelCard title={<T>Reconciliation history</T>} bodyClassName="">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[34rem] border-collapse text-left">
+              <thead className="border-b border-edge">
+                <tr className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  <th scope="col" className="px-3 py-2"><T>Statement date</T></th>
+                  <th scope="col" className="px-3 py-2 text-right"><T>Bank</T></th>
+                  <th scope="col" className="px-3 py-2 text-right"><T>Cleared</T></th>
+                  <th scope="col" className="px-3 py-2 text-right"><T>Difference</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Status</T></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-edge">
+              <tbody>
                 {pastReconciliations.map((r) => (
-                  <tr key={r.id}>
-                    <td className="px-4 py-2.5 text-foreground">
+                  <tr
+                    key={r.id}
+                    className="border-b border-edge last:border-0 transition-colors hover:bg-surface-2"
+                  >
+                    <td className="px-3 py-2.5 text-[13px] text-foreground">
                       {new Date(r.statementDate).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                    <td className="px-3 py-2.5 text-right font-mono text-[12.5px] tabular-nums text-foreground">
                       {fmtCents(r.bankBalanceCents)}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                    <td className="px-3 py-2.5 text-right font-mono text-[12.5px] tabular-nums text-foreground">
                       {fmtCents(r.reconciledBalanceCents)}
                     </td>
                     <td
-                      className={`px-4 py-2.5 text-right font-mono tabular-nums ${
+                      className={`px-3 py-2.5 text-right font-mono text-[12.5px] tabular-nums ${
                         r.differenceCents === 0
                           ? 'text-muted'
                           : 'text-amber-700 dark:text-amber-300'
@@ -318,9 +317,10 @@ export default async function CounselTrustPage({
                     >
                       {fmtCents(r.differenceCents)}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-2.5">
                       <StatusPill
                         size="sm"
+                        dot
                         color={
                           r.status === 'balanced'
                             ? PILL_COLORS.good
@@ -335,65 +335,94 @@ export default async function CounselTrustPage({
               </tbody>
             </table>
           </div>
-        </section>
+        </PanelCard>
       )}
 
-      {/* Transactions ledger */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium text-foreground">
-          <T>Ledger</T>
-        </h2>
-        {transactions.length === 0 ? (
-          <p className="card p-5 text-[13px] text-muted italic">
+      {/* Transactions ledger, on the list pattern's table. Every amount
+          keeps its sign, its colour and its label; only the row geometry
+          changed. */}
+      {transactions.length === 0 ? (
+        <PanelCard title={<T>Ledger</T>}>
+          <p className="text-[13px] italic text-muted">
             <T>No transactions yet.</T>
           </p>
-        ) : (
-          <ul className="space-y-2">
-            {transactions.slice(0, 100).map((t) => {
-              const isPositive = POSITIVE.has(t.kind);
-              return (
-                <li
-                  key={t.id}
-                  className="card p-4 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-foreground truncate">
-                        {t.clientLabel}
-                      </p>
-                      <StatusPill
-                        size="sm"
-                        color={KIND_COLOR[t.kind] ?? KIND_COLOR.correction}
+        </PanelCard>
+      ) : (
+        <PanelCard
+          title={<T>Ledger</T>}
+          bodyClassName=""
+          action={
+            <p className="text-[12px] tabular-nums text-muted">
+              {Math.min(transactions.length, 100)}
+            </p>
+          }
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[48rem] border-collapse text-left">
+              <thead className="border-b border-edge">
+                <tr className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  <th scope="col" className="px-3 py-2"><T>Client</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Kind</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Description</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Recorded</T></th>
+                  <th scope="col" className="px-3 py-2 text-right"><T>Amount</T></th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.slice(0, 100).map((t) => {
+                  const isPositive = POSITIVE.has(t.kind);
+                  return (
+                    <tr
+                      key={t.id}
+                      className="border-b border-edge last:border-0 transition-colors hover:bg-surface-2"
+                    >
+                      <td
+                        className="max-w-[14rem] truncate px-3 py-2.5 text-[13px] font-medium text-foreground"
+                        data-no-translate
                       >
-                        {t.kind.replace(/_/g, ' ')}
-                      </StatusPill>
-                    </div>
-                    {t.description && (
-                      <p className="text-[12.5px] text-muted mt-0.5 truncate">
-                        {t.description}
-                      </p>
-                    )}
-                    <p className="text-[10.5px] text-muted mt-0.5 font-mono tabular-nums">
-                      {new Date(t.createdAt).toLocaleString()}
-                      {t.reference && ` · ref ${t.reference}`}
-                    </p>
-                  </div>
-                  <p
-                    className={`shrink-0 font-mono tabular-nums font-semibold ${
-                      isPositive
-                        ? 'text-emerald-700 dark:text-emerald-300'
-                        : 'text-rose-700 dark:text-rose-300'
-                    }`}
-                  >
-                    {isPositive ? '+' : '-'}
-                    {fmtCents(t.amountCents)}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                        {t.clientLabel}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StatusPill
+                          size="sm"
+                          dot
+                          color={KIND_COLOR[t.kind] ?? KIND_COLOR.correction}
+                        >
+                          {t.kind.replace(/_/g, ' ')}
+                        </StatusPill>
+                      </td>
+                      <td
+                        className="max-w-[18rem] truncate px-3 py-2.5 text-[12.5px] text-muted"
+                        data-no-translate
+                      >
+                        {t.description ?? ''}
+                        {t.reference ? ` · ref ${t.reference}` : ''}
+                      </td>
+                      <td
+                        className="px-3 py-2.5 text-[12px] text-muted"
+                        title={new Date(t.createdAt).toLocaleString()}
+                        suppressHydrationWarning
+                      >
+                        {relativeTime(t.createdAt) ?? ''}
+                      </td>
+                      <td
+                        className={`px-3 py-2.5 text-right font-mono text-[12.5px] font-semibold tabular-nums ${
+                          isPositive
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-rose-700 dark:text-rose-300'
+                        }`}
+                      >
+                        {isPositive ? '+' : '-'}
+                        {fmtCents(t.amountCents)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </PanelCard>
+      )}
     </div>
   );
 }

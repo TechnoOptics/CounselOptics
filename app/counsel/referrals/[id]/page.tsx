@@ -6,7 +6,13 @@ import { RespondToReferralForm } from './respond-form';
 import { RecordPaymentForm } from './record-payment-form';
 import { referralStatusColor } from '@/lib/referral-status';
 import { StatusPill } from '@/components/counsel/StatusPill';
-import { PageHeader } from '@/components/counsel/ui';
+import {
+  PanelCard,
+  Chip,
+  MonoRef,
+  shortRef,
+  relativeTime,
+} from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -62,45 +68,68 @@ export default async function ReferralDetailPage({
   );
 
   return (
+    /*
+      The detail pattern from PARITY-SPEC.md section 3: breadcrumb with
+      a mono reference, title, meta chip row, then cards with uppercase
+      letterspaced headers.
+
+      No action bar, and no aside column. The action bar is a row of
+      controls that change the record in place, and this record has
+      none: responding to a referral and recording a payment are both
+      multi-field forms that already frame themselves, and they appear
+      only in the one state each applies to. There is no related-record
+      list to put in an aside either - a referral points at two firms
+      and nothing else.
+    */
     <div className="space-y-6 animate-fade-up">
-      <p className="text-sm">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex flex-wrap items-center gap-2 text-[12.5px]"
+      >
         <Link
           href="/counsel/referrals"
-          className="text-muted hover:text-foreground"
+          className="text-muted transition-colors hover:text-foreground"
         >
-          <T>&larr; Referrals</T>
+          <T>Referrals</T>
         </Link>
-      </p>
+        <span aria-hidden className="text-muted">
+          /
+        </span>
+        <MonoRef title={r.id}>{shortRef(r.id)}</MonoRef>
+      </nav>
 
-      <PageHeader
-        align="start"
-        eyebrow={<T>Referral</T>}
-        title={
-          <>
-            {names.get(r.referring_firm_id)} &rarr;{' '}
-            {names.get(r.referred_firm_id)}
-          </>
-        }
-        meta={
-          <>
-            {r.state} · <T>proposed split</T> {r.proposed_split_percent}% ·{' '}
-            <T>created</T>{' '}
-            {new Date(r.created_at).toLocaleString()}
-          </>
-        }
-        action={
-          <StatusPill color={referralStatusColor(r.status)}>
+      <header className="min-w-0">
+        <h1
+          className="break-words text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-3xl"
+          data-no-translate
+        >
+          {names.get(r.referring_firm_id)} &rarr;{' '}
+          {names.get(r.referred_firm_id)}
+        </h1>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <StatusPill dot color={referralStatusColor(r.status)}>
             {r.status}
           </StatusPill>
-        }
-      />
+          <Chip>
+            <span data-no-translate>{r.state}</span>
+          </Chip>
+          <Chip tone="accent">
+            <T>Proposed split</T> {r.proposed_split_percent}%
+          </Chip>
+        </div>
+        <p className="mt-2 text-[12px] text-muted" suppressHydrationWarning>
+          <T>created</T> {relativeTime(r.created_at)}
+        </p>
+      </header>
 
-      <section className="card p-5 space-y-2">
-        <p className="eyebrow text-[10px]"><T>Matter brief</T></p>
-        <p className="text-[14px] text-foreground leading-relaxed whitespace-pre-wrap">
+      <PanelCard title={<T>Matter brief</T>}>
+        <p
+          className="whitespace-pre-wrap text-[14px] leading-relaxed text-foreground"
+          data-no-translate
+        >
           {r.matter_summary}
         </p>
-      </section>
+      </PanelCard>
 
       {r.status === 'proposed' && isReferred && (
         <RespondToReferralForm firmId={ctx.firm.id} referralId={r.id} />
@@ -108,29 +137,31 @@ export default async function ReferralDetailPage({
 
       {r.status === 'accepted' && (
         <>
-          <section className="card p-5 ring-1 ring-emerald-300/40 dark:ring-emerald-700/40 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-2">
-            <p className="eyebrow text-emerald-700 dark:text-emerald-300">
-              <T>Accepted · client consent on file</T>
-            </p>
+          <PanelCard
+            title={<T>Accepted · client consent on file</T>}
+            className="ring-1 ring-emerald-300/40 dark:ring-emerald-700/40"
+          >
             {r.client_consent_at && (
-              <p className="text-[12px] text-muted font-mono">
+              <p className="font-mono text-[12px] text-muted">
                 <T>Consent recorded</T>{' '}
                 {new Date(r.client_consent_at).toLocaleString()}
               </p>
             )}
             {r.client_consent_audit && (
-              <p className="text-[13px] text-foreground leading-relaxed whitespace-pre-wrap">
+              <p
+                className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-foreground"
+                data-no-translate
+              >
                 {r.client_consent_audit}
               </p>
             )}
-          </section>
+          </PanelCard>
 
-          <section className="grid sm:grid-cols-2 gap-3">
-            <div className="card p-5">
-              <p className="eyebrow text-[10px] mb-2">
-                <T>Referring firm received</T>
-              </p>
-              <p className="text-2xl font-medium text-foreground tabular-nums">
+          {/* Both amounts keep their label and their units. The card
+              header carries the label the eyebrow used to. */}
+          <section className="grid gap-3 sm:grid-cols-2">
+            <PanelCard title={<T>Referring firm received</T>}>
+              <p className="text-2xl font-medium tabular-nums text-foreground">
                 {fmtCents(r.referring_paid_cents)}
               </p>
               {isReferring && (
@@ -141,10 +172,9 @@ export default async function ReferralDetailPage({
                   current={r.referring_paid_cents}
                 />
               )}
-            </div>
-            <div className="card p-5">
-              <p className="eyebrow text-[10px] mb-2"><T>Referred firm received</T></p>
-              <p className="text-2xl font-medium text-foreground tabular-nums">
+            </PanelCard>
+            <PanelCard title={<T>Referred firm received</T>}>
+              <p className="text-2xl font-medium tabular-nums text-foreground">
                 {fmtCents(r.referred_paid_cents)}
               </p>
               {isReferred && (
@@ -155,7 +185,7 @@ export default async function ReferralDetailPage({
                   current={r.referred_paid_cents}
                 />
               )}
-            </div>
+            </PanelCard>
           </section>
         </>
       )}

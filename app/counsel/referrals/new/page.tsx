@@ -25,16 +25,21 @@ export default async function NewReferralPage() {
     jurisdictions: string[] | null;
   }>;
   return (
+    /*
+      A form page: the back link, the page header, and the form. No
+      metric strip, no view strip and no cards of its own - there is one
+      form here and the form frames itself.
+    */
     <div className="max-w-2xl space-y-6 animate-fade-up">
-      <p className="text-sm">
-        <Link
-          href="/counsel/referrals"
-          className="text-muted hover:text-foreground"
-        >
-          <T>&larr; Referrals</T>
-        </Link>
-      </p>
       <PageHeader
+        backLink={
+          <Link
+            href="/counsel/referrals"
+            className="text-sm text-muted transition-colors hover:text-foreground"
+          >
+            <T>&larr; Referrals</T>
+          </Link>
+        }
         eyebrow={<T>Counsel · referrals · new</T>}
         title={<T>Propose a co-counsel referral</T>}
         subtitle={

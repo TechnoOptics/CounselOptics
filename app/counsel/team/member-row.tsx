@@ -9,6 +9,7 @@ import {
 } from '@/lib/firm-actions';
 import type { FirmMember, FirmRole } from '@/lib/firm-types';
 import { FIRM_ROLES, FIRM_ROLE_LABEL } from '@/lib/firm-types';
+import { relativeTime } from '@/components/counsel/patterns';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 // 'owner' is excluded here on purpose: it can only change via
@@ -102,19 +103,22 @@ export function TeamMemberRow({
   }
 
   return (
-    <tr>
-      <td className="px-4 py-2.5 text-foreground">
-        {member.displayName ?? '-'}
+    <tr className="border-b border-edge last:border-0 transition-colors hover:bg-surface-2">
+      <td className="px-3 py-2.5 text-[13px] font-medium text-foreground">
+        <span data-no-translate>{member.displayName ?? '-'}</span>
         {isMe && (
-          <span className="ml-2 text-[10px] uppercase tracking-wider text-muted">
+          <span className="ml-2 text-[10px] uppercase tracking-[0.12em] text-muted">
             <T>(you)</T>
           </span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-foreground">
+      <td
+        className="px-3 py-2.5 font-mono text-[12px] text-muted"
+        data-no-translate
+      >
         {member.email ?? '-'}
       </td>
-      <td className="px-4 py-2.5">
+      <td className="px-3 py-2.5 text-[12.5px]">
         {member.role === 'owner' ? (
           <div>
             <span className="text-foreground">{FIRM_ROLE_LABEL.owner}</span>
@@ -171,10 +175,14 @@ export function TeamMemberRow({
           </span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-muted font-mono text-[11px] tabular-nums">
-        {new Date(member.joinedAt).toLocaleDateString()}
+      <td
+        className="px-3 py-2.5 text-[12px] text-muted"
+        title={new Date(member.joinedAt).toLocaleString()}
+        suppressHydrationWarning
+      >
+        {relativeTime(member.joinedAt) ?? ''}
       </td>
-      <td className="px-4 py-2.5 text-right">
+      <td className="px-3 py-2.5 text-right">
         {(canManage || isMe) && !(member.role === 'owner' && isLastOwner) && (
           <button
             type="button"

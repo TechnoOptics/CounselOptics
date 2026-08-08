@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { TokenTopUpButton } from './topup-button';
 import { PageHeader } from '@/components/counsel/ui';
+import { PanelCard, relativeTime } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -83,17 +84,16 @@ export default async function FirmTokenPoolPage() {
   const balance = firm?.token_pool_balance ?? 0;
 
   return (
-    <div className="space-y-8 animate-fade-up">
-      <p className="text-sm">
-        <Link
-          href="/counsel/billing"
-          className="text-muted hover:text-foreground"
-        >
-          <T>&larr; Billing</T>
-        </Link>
-      </p>
-
+    <div className="space-y-6 animate-fade-up">
       <PageHeader
+        backLink={
+          <Link
+            href="/counsel/billing"
+            className="text-sm text-muted transition-colors hover:text-foreground"
+          >
+            <T>&larr; Billing</T>
+          </Link>
+        }
         eyebrow={<T>Counsel · Bella tokens</T>}
         title={<T>Firm pool</T>}
         subtitle={
@@ -131,11 +131,8 @@ export default async function FirmTokenPoolPage() {
       </section>
 
       {memberRanking.some((m) => m.usage > 0) && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-medium text-foreground">
-            <T>Top consumers (this period)</T>
-          </h2>
-          <ul className="space-y-1.5">
+        <PanelCard title={<T>Top consumers (this period)</T>}>
+          <ul className="space-y-2">
             {memberRanking.slice(0, 10).map((m) => {
               const total = Array.from(userUsage.values()).reduce(
                 (s, n) => s + n,
@@ -145,68 +142,91 @@ export default async function FirmTokenPoolPage() {
               return (
                 <li
                   key={m.user_id}
-                  className="card p-3 flex items-center justify-between gap-3 text-[13px]"
+                  className="flex items-center justify-between gap-3 text-[13px]"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground truncate">
+                    <p
+                      className="truncate font-medium text-foreground"
+                      data-no-translate
+                    >
                       {m.display_name ?? m.user_id.slice(0, 8)}
                     </p>
-                    <div className="mt-1 h-1 rounded-full bg-surface-2 overflow-hidden">
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-surface-2">
                       <span
                         className="block h-full bg-emerald-500"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                   </div>
-                  <span className="shrink-0 font-mono tabular-nums text-foreground font-semibold">
+                  <span className="shrink-0 font-mono font-semibold tabular-nums text-foreground">
                     {formatTokens(m.usage)}
                   </span>
                 </li>
               );
             })}
           </ul>
-        </section>
+        </PanelCard>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium text-foreground">
-          <T>Recent ledger</T>
-        </h2>
-        {ledger.length === 0 ? (
-          <p className="card p-4 text-[13px] text-muted italic">
+      {ledger.length === 0 ? (
+        <PanelCard title={<T>Recent ledger</T>}>
+          <p className="text-[13px] italic text-muted">
             <T>No firm-pool activity yet. Tokens consumed by users in firm
             context will land here.</T>
           </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {ledger.slice(0, 25).map((r) => (
-              <li
-                key={r.id}
-                className="card p-3 flex items-center justify-between gap-3 text-[13px]"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-mono text-[10.5px] uppercase tracking-wider text-muted">
-                    {r.reason.replace(/_/g, ' ')}
-                  </p>
-                  <p className="text-foreground font-mono tabular-nums">
-                    {new Date(r.occurred_at).toLocaleString()}
-                  </p>
-                </div>
-                <p
-                  className={`shrink-0 font-mono tabular-nums font-semibold ${
-                    r.delta > 0
-                      ? 'text-emerald-700 dark:text-emerald-300'
-                      : 'text-rose-700 dark:text-rose-300'
-                  }`}
-                >
-                  {r.delta > 0 ? '+' : ''}
-                  {r.delta.toLocaleString()}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        </PanelCard>
+      ) : (
+        <PanelCard
+          title={<T>Recent ledger</T>}
+          bodyClassName=""
+          action={
+            <p className="text-[12px] tabular-nums text-muted">
+              {Math.min(ledger.length, 25)}
+            </p>
+          }
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[32rem] border-collapse text-left">
+              <thead className="border-b border-edge">
+                <tr className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  <th scope="col" className="px-3 py-2"><T>Reason</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Occurred</T></th>
+                  <th scope="col" className="px-3 py-2 text-right"><T>Change</T></th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledger.slice(0, 25).map((r) => (
+                  <tr
+                    key={r.id}
+                    className="border-b border-edge last:border-0 transition-colors hover:bg-surface-2"
+                  >
+                    <td className="px-3 py-2.5 font-mono text-[11.5px] uppercase tracking-[0.1em] text-foreground">
+                      {r.reason.replace(/_/g, ' ')}
+                    </td>
+                    <td
+                      className="px-3 py-2.5 text-[12px] text-muted"
+                      title={new Date(r.occurred_at).toLocaleString()}
+                      suppressHydrationWarning
+                    >
+                      {relativeTime(r.occurred_at) ?? ''}
+                    </td>
+                    <td
+                      className={`px-3 py-2.5 text-right font-mono text-[12.5px] font-semibold tabular-nums ${
+                        r.delta > 0
+                          ? 'text-emerald-700 dark:text-emerald-300'
+                          : 'text-rose-700 dark:text-rose-300'
+                      }`}
+                    >
+                      {r.delta > 0 ? '+' : ''}
+                      {r.delta.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </PanelCard>
+      )}
     </div>
   );
 }

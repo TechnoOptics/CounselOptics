@@ -5,8 +5,13 @@ import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { TimerWidget } from '@/components/TimerWidget';
-import { PageHeader } from '@/components/counsel/ui';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import {
+  PanelCard,
+  MonoRef,
+  relativeTime,
+} from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -123,66 +128,109 @@ export default async function CounselTimePage() {
         />
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium text-foreground">
-          <T>Recent entries</T>
-        </h2>
-        {entries.length === 0 ? (
-          <p className="card p-5 text-[13px] text-muted italic">
-            <T>No time entries yet. Start a timer to log work.</T>
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {entries.slice(0, 100).map((e) => {
-              const cents = Math.round(
-                (e.rate_cents ?? 0) * ((e.duration_seconds ?? 0) / 3600),
-              );
-              return (
-                <li
-                  key={e.id}
-                  className="card p-4 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-foreground truncate">
-                        {e.description ?? <T>Time entry</T>}
-                      </p>
-                      {e.invoice_id && (
-                        <StatusPill color={PILL_COLORS.good} size="sm">
-                          <T>Invoiced</T>
-                        </StatusPill>
-                      )}
-                      {!e.billable && (
-                        <StatusPill color={PILL_COLORS.neutral} size="sm">
-                          <T>Non-billable</T>
-                        </StatusPill>
-                      )}
-                    </div>
-                    <p className="text-[12px] text-muted mt-0.5 font-mono tabular-nums">
-                      {new Date(e.started_at).toLocaleString()}
-                      {e.case_id && ` · case ${e.case_id.slice(0, 8)}...`}
-                      {' · '}
-                      {e.source}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="font-mono tabular-nums text-foreground font-semibold">
-                      {e.duration_seconds
-                        ? fmtDuration(e.duration_seconds)
-                        : 'running'}
-                    </p>
-                    {cents > 0 && (
-                      <p className="text-[11px] text-muted font-mono tabular-nums">
-                        {fmtCents(cents)}
-                      </p>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      {/* Entries, on the list pattern's table. Every duration and amount
+          is the same figure under the same label as before; only the row
+          geometry changed. */}
+      {entries.length === 0 ? (
+        <EmptyState
+          title={<T>No time entries yet.</T>}
+          sub={<T>Start a timer to log work.</T>}
+        />
+      ) : (
+        <PanelCard
+          title={<T>Recent entries</T>}
+          bodyClassName=""
+          action={
+            <p className="text-[12px] tabular-nums text-muted">
+              {Math.min(entries.length, 100)}
+            </p>
+          }
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[52rem] border-collapse text-left">
+              <thead className="border-b border-edge">
+                <tr className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  <th scope="col" className="px-3 py-2"><T>Entry</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Case</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Source</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Started</T></th>
+                  <th scope="col" className="px-3 py-2 text-right"><T>Duration</T></th>
+                  <th scope="col" className="px-3 py-2 text-right"><T>Value</T></th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.slice(0, 100).map((e) => {
+                  const cents = Math.round(
+                    (e.rate_cents ?? 0) * ((e.duration_seconds ?? 0) / 3600),
+                  );
+                  return (
+                    <tr
+                      key={e.id}
+                      className="border-b border-edge last:border-0 transition-colors hover:bg-surface-2"
+                    >
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {e.description ? (
+                            <span
+                              className="text-[13px] font-medium text-foreground"
+                              data-no-translate
+                            >
+                              {e.description}
+                            </span>
+                          ) : (
+                            <span className="text-[13px] font-medium text-foreground">
+                              <T>Time entry</T>
+                            </span>
+                          )}
+                          {e.invoice_id && (
+                            <StatusPill color={PILL_COLORS.good} size="sm" dot>
+                              <T>Invoiced</T>
+                            </StatusPill>
+                          )}
+                          {!e.billable && (
+                            <StatusPill color={PILL_COLORS.neutral} size="sm" dot>
+                              <T>Non-billable</T>
+                            </StatusPill>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {e.case_id ? (
+                          <MonoRef title={e.case_id}>
+                            {e.case_id.slice(0, 8)}
+                          </MonoRef>
+                        ) : (
+                          <span className="text-[12px] text-muted">
+                            <T>None</T>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-[12px] text-muted">
+                        {e.source}
+                      </td>
+                      <td
+                        className="px-3 py-2.5 text-[12px] text-muted"
+                        title={new Date(e.started_at).toLocaleString()}
+                        suppressHydrationWarning
+                      >
+                        {relativeTime(e.started_at) ?? ''}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono text-[12.5px] font-semibold tabular-nums text-foreground">
+                        {e.duration_seconds
+                          ? fmtDuration(e.duration_seconds)
+                          : 'running'}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono text-[12px] tabular-nums text-muted">
+                        {cents > 0 ? fmtCents(cents) : ''}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </PanelCard>
+      )}
     </div>
   );
 }
