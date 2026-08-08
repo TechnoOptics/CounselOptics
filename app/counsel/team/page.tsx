@@ -6,6 +6,7 @@ import {
 } from '@/lib/firm-storage';
 import { FIRM_ROLES, FIRM_ROLE_LABEL, FIRM_ROLE_DESCRIPTION } from '@/lib/firm-types';
 import { listFirmEmployeesAction } from '@/lib/firm-actions';
+import { listFirmMemberRatesAction } from '@/lib/time-tracking';
 import { readPortalRoles } from '@/lib/portal-features';
 import { InviteMemberForm } from './invite-form';
 import { TeamMemberRow } from './member-row';
@@ -31,6 +32,12 @@ export default async function CounselTeamPage() {
     ? await listFirmEmployeesAction(ctx.firm.id)
     : [];
   const portalRoles = canManage ? readPortalRoles(ctx.firm.metadata) : [];
+  // Rates are drawn only for an owner/admin, and only fetched for one. The
+  // action refuses anyone else, so a failed read leaves an empty map and the
+  // cells simply read as unset rather than the page failing.
+  const rates = canManage
+    ? (await listFirmMemberRatesAction(ctx.firm.id)).rates ?? {}
+    : {};
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -49,6 +56,15 @@ export default async function CounselTeamPage() {
               Roles control what each person can do across cases, documents,
               signing, and chat.
             </T>
+            {canManage && (
+              <>
+                {' '}
+                <T>
+                  An hourly rate prices the time that person logs from the
+                  moment it is set.
+                </T>
+              </>
+            )}
           </>
         }
       />
@@ -57,12 +73,19 @@ export default async function CounselTeamPage() {
 
       <PanelCard title={<T>Members</T>} bodyClassName="">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[36rem] border-collapse text-left">
+          <table
+            className={`w-full border-collapse text-left ${
+              canManage ? 'min-w-[46rem]' : 'min-w-[36rem]'
+            }`}
+          >
             <thead className="border-b border-edge">
               <tr className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted">
                 <th scope="col" className="px-3 py-2"><T>Name</T></th>
                 <th scope="col" className="px-3 py-2"><T>Email</T></th>
                 <th scope="col" className="px-3 py-2"><T>Role</T></th>
+                {canManage && (
+                  <th scope="col" className="px-3 py-2"><T>Hourly rate</T></th>
+                )}
                 <th scope="col" className="px-3 py-2"><T>Joined</T></th>
                 <th scope="col" className="px-3 py-2"></th>
               </tr>
@@ -80,6 +103,7 @@ export default async function CounselTeamPage() {
                     members.filter((x) => x.role === 'owner').length === 1
                   }
                   otherMembers={members.filter((x) => x.userId !== m.userId)}
+                  rateCents={canManage ? rates[m.userId] ?? null : undefined}
                 />
               ))}
             </tbody>

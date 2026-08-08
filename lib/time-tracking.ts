@@ -2,6 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
+import { createAdminSupabase } from './supabase/admin';
+import { callerIsFirmAdmin, requireActiveFirm } from './firm-authz';
+import { isStorableRateCents, rateRangeError } from './billing-rates';
 
 export type TimeEntry = {
   id: string;
@@ -48,6 +51,159 @@ function fromRow(r: TimeEntryRow): TimeEntry {
     rateCents: r.rate_cents,
     source: r.source as TimeEntry['source'],
   };
+}
+
+/**
+ * WHERE A BILLING RATE LIVES, AND WHY IT LIVES IN TWO PLACES
+ *
+ * The rate that decides what a client pays is `firm_time_entries.rate_cents`,
+ * copied onto the entry when the entry is created (both insert paths below).
+ * That copy is deliberate and must stay: an invoice is a statement of what the
+ * work cost at the time it was done, so changing a rate today must not silently
+ * restate an invoice sent last month.
+ *
+ * The source of that copy is `firm_members.default_rate_cents` - per member.
+ * Per member is the right axis for the default, because the thing being priced
+ * is an hour of a particular person's time, and because it is the only axis the
+ * whole downstream flow already reads: the two inserts here, /counsel/time,
+ * /counsel/billing, the matter page, the Impact page and Bella all price an
+ * entry from the rate stamped on it, and none of them consults the matter.
+ * A per-matter rate is a real thing firms want (a negotiated rate for one
+ * client), but nothing in this flow can read one today, so adding that column
+ * now would only be a second column nobody writes - which is exactly the defect
+ * being fixed.
+ *
+ * Per member is NOT sufficient on its own, and this is the part worth saying
+ * out loud. Because the rate is copied at insert time, setting a default only
+ * governs hours logged from now on. Every hour already on the books was stamped
+ * with the null this column has always held, so a default alone would leave the
+ * existing ledger unbillable and the drafter's "set a rate" warning still
+ * pointing at nothing. So this action also does the second half: on request it
+ * re-stamps the member's UNINVOICED entries. That, and not the default, is what
+ * makes the existing hours recoverable.
+ */
+
+/**
+ * Set the hourly rate a member's time is billed at.
+ *
+ * Authorization is `callerIsFirmAdmin`, from lib/firm-authz.ts - the one place
+ * that answers "may this caller act on this firm?". No second membership check
+ * is written here, deliberately: this module already contains two hand-rolled
+ * firm_members lookups (in the timer paths below) that exist to READ a rate,
+ * and adding a third shape for a gate is how gates drift apart. Owner/admin
+ * also matches the live `firm_members_owner_admin_update` RLS policy, so the
+ * code gate and the database gate agree on the default write.
+ *
+ * The re-stamp does NOT agree with RLS, because it cannot: the
+ * firm_time_entries write policy is self-scoped (user_id = auth.uid()), so an
+ * RLS-scoped update could only ever reprice the admin's own hours, silently
+ * leaving everyone else's at zero. It goes through the service-role client
+ * instead, which means this function is the only authorization on that path.
+ * That is why the admin check is above it and unconditional.
+ *
+ * `.is('invoice_id', null)` on the re-stamp is load-bearing. An entry that has
+ * been claimed by an invoice was already summed into that invoice's
+ * subtotal_cents; repricing it would leave the invoice's own total disagreeing
+ * with its own lines, on a document that may already have been sent to a
+ * client. Entries on an invoice are out of reach here by design - a wrongly
+ * priced draft is recovered by deleting the draft, which releases its entries.
+ */
+export async function setFirmMemberRateAction(
+  firmId: string,
+  memberUserId: string,
+  rateCents: number | null,
+  opts: { applyToUnbilled?: boolean } = {},
+): Promise<{ ok: boolean; error?: string; repricedEntries?: number }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return {
+      ok: false,
+      error: 'Only an owner or admin can set billing rates.',
+    };
+  }
+  await requireActiveFirm(firmId);
+
+  // Validate, never coerce. `rateCents` arrives over the wire from a caller of
+  // its own choosing, so the browser's parser is not a check.
+  if (!isStorableRateCents(rateCents)) {
+    return { ok: false, error: rateRangeError() };
+  }
+
+  const supabase = createServerSupabase();
+  const { data: updated, error } = await supabase
+    .from('firm_members')
+    .update({ default_rate_cents: rateCents })
+    .eq('firm_id', firmId)
+    .eq('user_id', memberUserId)
+    .select('user_id');
+  if (error) return { ok: false, error: error.message };
+  if (!updated || (updated as unknown[]).length === 0) {
+    return { ok: false, error: 'That person is not a member of this firm.' };
+  }
+
+  let repricedEntries = 0;
+  if (opts.applyToUnbilled) {
+    const admin = createAdminSupabase();
+    if (!admin) {
+      return {
+        ok: false,
+        error:
+          'The rate is saved, but existing time cannot be repriced on this deployment. Ask an administrator to set the Supabase service role key.',
+      };
+    }
+    const { data: rows, error: repriceError } = await admin
+      .from('firm_time_entries')
+      .update({ rate_cents: rateCents })
+      .eq('firm_id', firmId)
+      .eq('user_id', memberUserId)
+      .is('invoice_id', null)
+      .select('id');
+    if (repriceError) return { ok: false, error: repriceError.message };
+    repricedEntries = ((rows ?? []) as unknown[]).length;
+  }
+
+  revalidatePath('/counsel/team');
+  revalidatePath('/counsel/time');
+  revalidatePath('/counsel/billing');
+  return { ok: true, repricedEntries };
+}
+
+/**
+ * The current default rate for every member of a firm, keyed by user id.
+ *
+ * Owner/admin only, through the same gate as the write. Any member can already
+ * SELECT the firm_members rows under RLS, so this is not a confidentiality
+ * boundary the database enforces - it is a decision that what a colleague
+ * charges is not something the whole legal team is shown by default, made once
+ * here rather than in the page that renders it.
+ */
+export async function listFirmMemberRatesAction(
+  firmId: string,
+): Promise<{
+  ok: boolean;
+  error?: string;
+  rates?: Record<string, number | null>;
+}> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can see billing rates.' };
+  }
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('firm_members')
+    .select('user_id, default_rate_cents')
+    .eq('firm_id', firmId);
+  if (error) return { ok: false, error: error.message };
+  const rates: Record<string, number | null> = {};
+  for (const row of (data ?? []) as Array<{
+    user_id: string;
+    default_rate_cents: number | null;
+  }>) {
+    rates[row.user_id] = row.default_rate_cents ?? null;
+  }
+  return { ok: true, rates };
 }
 
 /**

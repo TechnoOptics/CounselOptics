@@ -47,9 +47,10 @@ export function DraftInvoiceButton({
         name.trim() || null,
       );
       if (res.ok && res.invoiceId) {
-        // Some entries had no rate and were billed at $0. Hold on the
-        // page and show the warning so the drafter can fix rates before
-        // sending, rather than silently navigating away.
+        // Some entries had no rate and are on the draft at $0.00. Hold on
+        // the page and show the warning, which names the recovery path
+        // (delete the draft, set the rate, draft again), rather than
+        // silently navigating away from it.
         if (res.warning) {
           setWarning(res.warning);
         } else {
@@ -100,7 +101,7 @@ export function DraftInvoiceButton({
             onClick={() => router.push('/counsel/billing')}
             className="text-[11px] font-semibold underline text-amber-900 dark:text-amber-100"
           >
-            <T>Open billing to review the draft</T> &rarr;
+            <T>Open billing to delete this draft</T> &rarr;
           </button>
         </div>
       )}

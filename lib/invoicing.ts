@@ -181,10 +181,23 @@ export async function buildDraftInvoiceAction(
 
   // Entries with no rate get billed at $0 but are still stamped as
   // invoiced (so they can never be re-billed). That silent write-off is
-  // almost always a data-entry miss - surface it so the drafter can fix
-  // the rate before sending rather than discovering it on the client's
-  // bill. We still draft (the invoice is editable while draft), but the
-  // caller gets a warning + count to show.
+  // almost always a missing rate rather than free work - surface it so
+  // the drafter can fix it rather than discovering it on the client's
+  // bill.
+  //
+  // The recovery path in the warning below is the one that actually
+  // exists, and it is worth being exact about, because this comment
+  // previously said the draft was "editable while draft" and it is not:
+  // app/counsel/billing offers delete, void, send and mark-paid, and
+  // nothing that changes a line. What a draft supports is DELETION -
+  // deleteDraftInvoiceAction releases every entry it claimed back to
+  // invoice_id = null. So the entries become repriceable again only
+  // after the draft is deleted, which is why the copy says delete first.
+  // Setting the rate is setFirmMemberRateAction (lib/time-tracking.ts),
+  // surfaced on /counsel/team for an owner or admin; its
+  // "apply to unbilled time" option is what re-stamps hours that were
+  // logged before the rate existed. Released entries qualify, because
+  // the release put their invoice_id back to null.
   const unratedCount = entries.filter(
     (e) => e.rate_cents == null || e.rate_cents === 0,
   ).length;
@@ -192,7 +205,11 @@ export async function buildDraftInvoiceAction(
     unratedCount > 0
       ? `${unratedCount} time ${
           unratedCount === 1 ? 'entry has' : 'entries have'
-        } no billing rate and will be invoiced at $0. Set a rate before sending if that's not intended.`
+        } no billing rate, so ${
+          unratedCount === 1 ? 'it is' : 'they are'
+        } on this draft at $0.00. To price ${
+          unratedCount === 1 ? 'it' : 'them'
+        }: delete this draft on the billing page, set the hourly rate on the Team page and apply it to unbilled time, then draft again.`
       : undefined;
 
   // Next invoice number for this firm. Derive from the HIGHEST existing
