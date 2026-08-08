@@ -7,6 +7,15 @@ import { appendSignatureEvent, sha256 } from './esign-audit';
 import { createNotification } from './notifications';
 import { checkRateLimit } from './rate-limit';
 import { requireActiveFirm } from './firm-authz';
+import { getRealCurrentUser } from './supabase/server';
+import { loadSignerOrder } from './signature-write';
+import { SIGNER_NOT_YET_YOUR_TURN, resolveSignerTurn } from './signer-order';
+import {
+  INTERNAL_SIGNER_GATE_COPY,
+  accessCodeStillRequired,
+  maskSignerEmail,
+  resolveInternalSignerGate,
+} from './signer-view';
 
 /**
  * Signing lifecycle actions beyond the happy-path sign flow:
@@ -298,6 +307,36 @@ export async function verifyAccessCodeAction(
   return { ok: true };
 }
 
+/**
+ * Decline to sign, or ask the firm for changes.
+ *
+ * This is the OTHER thing a signing token can do, and what it does is not
+ * small: it puts the whole instrument on hold, stops every other signer's
+ * link working, and writes an event into the tamper-evident chain
+ * attributed by name and address to the person the signature row names.
+ * That chain is offered as evidence, so an event in it must never be
+ * attributable to somebody who did not perform it.
+ *
+ * The gates below are lib/signature-write.ts's gates, in that file's own
+ * order, deliberately and not by coincidence. That path had them and this
+ * one did not, so a token that was forwarded, leaked out of an inbox or
+ * copied from a notification could reject another firm's instrument in an
+ * employee's name: the external signer's access code was never asked for,
+ * and the internal signer's session was never checked. /sign/[token]
+ * refuses all of this before it renders the buttons, but the page is not
+ * the gate, because every 'use server' export is a public HTTP endpoint
+ * that takes its arguments from the caller.
+ *
+ * Two things it deliberately does NOT take from that file, both because
+ * they are about MAKING a mark rather than about who is asking:
+ *
+ *   - The conditional claim on signed_at. There is no race to lose here;
+ *     a response is not a signature and does not fork the chain.
+ *   - requireActiveFirm. The recall and reopen actions above call it,
+ *     because those are the firm continuing to work. A signer declining
+ *     is the signer, and trapping them in a request they want out of
+ *     because the firm's access lapsed would be the wrong direction.
+ */
 export async function respondToSignatureAction(
   token: string,
   response: 'rejected' | 'changes_requested',
@@ -309,9 +348,14 @@ export async function respondToSignatureAction(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
+  // access_code_hash, access_code_verified_at and response are on this
+  // list because the gates below are the only things enforcing them on
+  // this path. Dropping one from the select passes its gate silently.
   const { data: sigRow } = await admin
     .from('firm_signatures')
-    .select('id, signing_request_id, signer_email, signer_name, signed_at')
+    .select(
+      'id, signing_request_id, signer_email, signer_name, signed_at, access_code_hash, access_code_verified_at, response',
+    )
     .eq('token', token)
     .maybeSingle();
   const sig = sigRow as {
@@ -320,10 +364,38 @@ export async function respondToSignatureAction(
     signer_email: string;
     signer_name: string | null;
     signed_at: string | null;
+    access_code_hash: string | null;
+    access_code_verified_at: string | null;
+    response: 'rejected' | 'changes_requested' | null;
   } | null;
   if (!sig) return { ok: false, error: 'Sign link not found.' };
   if (sig.signed_at) {
     return { ok: false, error: 'You already signed this document.' };
+  }
+  // An external signer's proof of identity, asked here for the same
+  // reason the write asks it: a link forwarded without its code must not
+  // be able to act on the request behind it. Same predicate, so the two
+  // cannot come to disagree about it.
+  if (
+    accessCodeStillRequired({
+      accessCodeHash: sig.access_code_hash,
+      accessCodeVerifiedAt: sig.access_code_verified_at,
+    })
+  ) {
+    return {
+      ok: false,
+      error: 'Enter the access code from your email before you respond.',
+    };
+  }
+  // Already on hold. The signer page shows a terminal screen in this
+  // state rather than the response buttons, and the write refuses a
+  // signature on it, so a second response can only arrive from something
+  // that is not the page.
+  if (sig.response) {
+    return {
+      ok: false,
+      error: 'This signing link is on hold. Ask the firm for a new request.',
+    };
   }
 
   const { data: reqRow } = await admin
@@ -341,6 +413,64 @@ export async function respondToSignatureAction(
   if (!request) return { ok: false, error: 'Signing request not found.' };
   if (request.status === 'canceled' || request.status === 'completed') {
     return { ok: false, error: 'This request is no longer open.' };
+  }
+
+  // Is this really the person the row names?
+  //
+  // An internal signer is issued no access code on purpose, so for them
+  // the durable /sign/[token] URL was the only credential in play, and
+  // that URL is emailed, forwarded, copied out of a notification and kept
+  // alive for the whole retention window. Without this, anyone who came
+  // into possession of one could decline in that employee's name and the
+  // chain would carry a 'rejected' event bearing their address with
+  // nothing anywhere saying it was not them.
+  //
+  // getRealCurrentUser, not getCurrentUser, for the same reason the write
+  // uses it: the HQ "act as" overlay resolves to the target user, and an
+  // operator viewing as an employee must not thereby be able to answer
+  // for them.
+  const sessionEmail = await getRealCurrentUser()
+    .then((u) => u?.email ?? null)
+    .catch(() => null);
+  const gate = resolveInternalSignerGate({
+    accessCodeRequired: Boolean(sig.access_code_hash),
+    signerEmail: sig.signer_email,
+    sessionEmail,
+  });
+  if (gate !== 'allow') {
+    return {
+      ok: false,
+      error:
+        gate === 'sign-in-required'
+          ? INTERNAL_SIGNER_GATE_COPY['sign-in-required']
+          : INTERNAL_SIGNER_GATE_COPY['wrong-account'](
+              maskSignerEmail(sig.signer_email),
+            ),
+    };
+  }
+
+  // Whose turn it is.
+  //
+  // Read through the same loader the write uses, over the same rows, so
+  // the page, the signature and the response cannot disagree about
+  // whether this signer may act at all. A signer whose turn has not come
+  // has not been invited yet: the page refuses to render anything for
+  // them, and letting a link that is not live yet put the whole
+  // instrument on hold would be the same defect one door along.
+  //
+  // Unreadable fails closed and retryably, exactly as it does on the
+  // write. Not knowing whose turn it is, is not the same as it being
+  // theirs, and nothing has been written at this point.
+  const order = await loadSignerOrder(admin, request.id);
+  if (order.kind === 'unreadable') {
+    return {
+      ok: false,
+      error: 'This could not be recorded just now. Please try again shortly.',
+    };
+  }
+  const selfIndex = order.rows.findIndex((r) => r.id === sig.id);
+  if (resolveSignerTurn(order.rows, selfIndex) === 'waiting') {
+    return { ok: false, error: SIGNER_NOT_YET_YOUR_TURN };
   }
 
   const trimmedNote = note.trim().slice(0, 2000) || null;

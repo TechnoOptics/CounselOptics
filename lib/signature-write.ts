@@ -4,6 +4,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
 import {
   INTERNAL_SIGNER_GATE_COPY,
+  accessCodeStillRequired,
   isUnknownColumnError,
   maskSignerEmail,
   projectSignerConsentMetadata,
@@ -231,7 +232,17 @@ export async function recordSignature(
   // is already satisfied on the laptop, so this should never fire on
   // that path, but a handoff must not become a way around the gate even
   // if the minting side is one day changed.
-  if (sig.access_code_hash && !sig.access_code_verified_at) {
+  //
+  // The condition itself is accessCodeStillRequired rather than a local
+  // pair of field tests, because respondToSignatureAction asks the same
+  // question about the same two columns and the two must not be able to
+  // drift into disagreeing about who has proved themselves.
+  if (
+    accessCodeStillRequired({
+      accessCodeHash: sig.access_code_hash,
+      accessCodeVerifiedAt: sig.access_code_verified_at,
+    })
+  ) {
     return {
       ok: false,
       status: 403,

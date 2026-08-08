@@ -168,8 +168,17 @@ describe('the phone never receives the durable signer token', () => {
     expect(src).toMatch(
       /from\('firm_signatures'\)\s*\.select\(\s*'[^']*access_code_hash[^']*access_code_verified_at[^']*'/,
     );
-    expect(src).toMatch(
-      /if \(sig\.access_code_hash && !sig\.access_code_verified_at\)/,
+    // The gate itself is now accessCodeStillRequired, shared with
+    // respondToSignatureAction so the decline path cannot come to
+    // disagree with the signature path about who has proved themselves.
+    // What is pinned is the CALL AND ITS ARGUMENTS, over source with the
+    // comments stripped: a guard that accepted the bare function name
+    // would be satisfied by the import line, and one that read the raw
+    // file would be satisfied by a comment describing the call. Both
+    // columns have to reach it, because a call handed a constant is the
+    // gate deleted with its name left behind.
+    expect(withoutComments(src)).toMatch(
+      /accessCodeStillRequired\(\{\s*accessCodeHash:\s*sig\.access_code_hash,\s*accessCodeVerifiedAt:\s*sig\.access_code_verified_at,?\s*\}\)/,
     );
   });
 });

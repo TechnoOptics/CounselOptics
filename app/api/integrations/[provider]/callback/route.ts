@@ -8,6 +8,8 @@ import {
 } from '@/lib/integration-oauth';
 import { encryptTokenForDb } from '@/lib/integration-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { getCurrentUser } from '@/lib/supabase/server';
+import { callerIsFirmAdmin } from '@/lib/firm-authz';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +19,10 @@ export const dynamic = 'force-dynamic';
  * Provider redirects here with `code` + `state` after the user clicks
  * "Allow" on the consent screen. We:
  *   1. Verify the state nonce matches the cookie set by /authorize
- *      (CSRF + replay protection).
+ *      (CSRF + replay protection), then resolve WHO is completing the
+ *      flow from their session and check that they may act for the firm
+ *      the state names. See the block that does it for why the state
+ *      alone establishes neither.
  *   2. Exchange the code for an access_token + refresh_token at the
  *      provider's token endpoint.
  *   3. Hit the provider's profile endpoint so we can store the
@@ -82,6 +87,64 @@ export async function GET(
     return redirectWithError(
       request,
       'OAuth state mismatch. Try connecting again.',
+    );
+  }
+
+  // Who is actually completing this flow, and may they act for this firm.
+  //
+  // Everything above this point is the caller's own material. The state is
+  // a bearer blob: it leaves on a URL, travels through the provider, and
+  // comes back on a URL, so a caller can write whatever they like into it,
+  // including another firm's id. The cookie nonce does not fix that. It
+  // proves only that this browser started SOME flow, and the person who
+  // started it reads their own nonce straight off their own consent URL,
+  // so an attacker with a self-serve account can present their own cookie
+  // beside a state naming somebody else's firm and the comparison passes.
+  // The write below is a service-role upsert keyed on that firm id, which
+  // would hand the victim firm's mailbox and calendar to the attacker's
+  // tokens.
+  //
+  // So identity is resolved from the session rather than read out of the
+  // state, and the firm is authorized against that session through
+  // lib/firm-authz.ts, which is the one place in this codebase that
+  // answers "may this caller act on this firm" and reads firm_members
+  // through the USER-scoped client. Two separate facts have to hold: the
+  // person finishing the flow is the person who started it (userId), and
+  // they are entitled to the firm the state names (firmId). Either one
+  // alone is not enough, and with both, forging the state buys nothing,
+  // because every field that decides the write is now checked against the
+  // caller rather than believed.
+  //
+  // Owner/admin, matching firm_integrations_admin_update in
+  // supabase/fixes/2026-05-12-firm-integrations-and-rls-check.sql and the
+  // disconnect action, so the code gate and the database gate agree about
+  // who owns a firm-wide connection.
+  //
+  // Replay and expiry, stated rather than left to be discovered: the state
+  // carries no lifetime of its own and is not meant to. Its window is the
+  // nonce cookie's 30 minutes, a fresh /authorize overwrites the cookie,
+  // and the success path below spends it. A replay after any of those
+  // fails the comparison above; a replay inside the window still has to
+  // pass this session check, and the provider's authorization code is
+  // single-use in any case.
+  const user = await getCurrentUser();
+  if (!user) {
+    return redirectWithError(
+      request,
+      'Sign in and start the connection again.',
+    );
+  }
+  if (user.id !== parsedState.userId) {
+    return redirectWithError(
+      request,
+      'This connection was started by a different account. Start it again from your own sign-in.',
+    );
+  }
+  const stateFirmId = parsedState.firmId;
+  if (!(await callerIsFirmAdmin(stateFirmId))) {
+    return redirectWithError(
+      request,
+      'Only an owner or admin of that organization can connect an integration for it.',
     );
   }
 
@@ -249,9 +312,12 @@ export async function GET(
 
   // Upsert by (firm_id, provider) so re-connecting overwrites the
   // old credentials cleanly. Clear revoked_at on re-connect.
+  //
+  // The firm is the one the state named AND the one the caller was just
+  // authorized for; the connecting user is the session, not the state.
   const { error: upsertErr } = await admin.from('firm_integrations').upsert(
     {
-      firm_id: parsedState.firmId,
+      firm_id: stateFirmId,
       provider: provider.id,
       account_email: accountEmail,
       account_display_name: accountDisplayName,
@@ -259,7 +325,7 @@ export async function GET(
       refresh_token_encrypted: refreshEnc,
       expires_at: expiresAt,
       scope: tokens.scope ?? provider.scopes.join(' '),
-      connected_by: parsedState.userId,
+      connected_by: user.id,
       connected_at: new Date().toISOString(),
       revoked_at: null,
       revoked_by: null,
@@ -295,8 +361,13 @@ export async function GET(
   );
   // Clear the state cookie - it's been spent. Match the domain
   // attribute used at /authorize so the browser actually drops it.
+  //
+  // Set on the response being returned rather than through cookies(), so
+  // the expiry rides on THIS redirect and the nonce is spent once for
+  // certain. That is what makes the replay window above end at the first
+  // successful use rather than at the cookie's own 30 minutes.
   const cookieDomain = getOAuthCookieDomain();
-  cookies().set(`adv_oauth_${provider.id}`, '', {
+  res.cookies.set(`adv_oauth_${provider.id}`, '', {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',

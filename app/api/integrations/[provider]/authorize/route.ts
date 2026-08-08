@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { cookies } from 'next/headers';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { callerIsFirmAdmin } from '@/lib/firm-authz';
 import {
   buildRedirectUri,
   getOAuthCookieDomain,
@@ -53,6 +54,20 @@ export async function GET(
   const firmCtx = await getActiveFirmContext();
   if (!firmCtx) {
     return NextResponse.redirect(new URL('/counsel', request.url));
+  }
+  // A courtesy, NOT the gate. The callback authorizes the firm again
+  // against the session that arrives there, because that is the request
+  // which writes, and it is reachable without ever passing through here.
+  // This check exists so somebody whose role cannot connect an
+  // integration is told before they hand a provider their consent, rather
+  // than after.
+  if (!(await callerIsFirmAdmin(firmCtx.firm.id))) {
+    const dest = new URL('/counsel/calendar', request.url);
+    dest.searchParams.set(
+      'integration_error',
+      'Only an owner or admin of this organization can connect an integration.',
+    );
+    return NextResponse.redirect(dest);
   }
 
   // CSRF / replay protection: random state, stored in a httpOnly cookie
