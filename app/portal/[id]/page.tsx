@@ -112,6 +112,18 @@ export default async function PortalRequestPage({
   const priority = String(ans.priority ?? '').trim();
   const confidentiality = String(ans.confidentiality ?? '').trim();
 
+  // The firm's decision, when there is one. Stored on intake_answers by
+  // decideIntakeAction, cleared again by reopenIntakeAction, so this block
+  // disappears if the request is put back.
+  const rawDecision = (ans.decision ?? null) as Record<string, unknown> | null;
+  const decision =
+    rawDecision && typeof rawDecision === 'object' && rawDecision.outcome
+      ? {
+          outcome: String(rawDecision.outcome),
+          reason: String(rawDecision.reason ?? ''),
+        }
+      : null;
+
   return (
     <div className="space-y-6 animate-fade-up">
       <PortalRequestHeader
@@ -156,6 +168,37 @@ export default async function PortalRequestPage({
           ) : null
         }
       >
+        {/* What the firm decided, in the words it used. The milestone strip
+            above can say "Decision" but it cannot say why, and a person
+            reading that their request was declined with nothing after it has
+            been told less than nothing. Rendered only when there is a real
+            decision on the record; see decideIntakeAction. */}
+        {decision && (
+          <RecordSection id="portal-decision" title="The decision">
+            {/* The token classes rather than this page's `text-cream-100/xx`
+                siblings. The Hub has a light theme too, and a bare cream is
+                near-white text on a near-white card there; `text-foreground`
+                and `text-muted` are the pair that follows the shell. */}
+            <p className="text-[14px] leading-relaxed text-foreground">
+              {decision.outcome === 'declined'
+                ? 'Your legal team is not taking this on.'
+                : 'Your legal team has closed this out.'}
+            </p>
+            {decision.reason && (
+              <p
+                data-no-translate
+                className="mt-3 max-w-[70ch] whitespace-pre-wrap text-[14px] leading-relaxed text-foreground"
+              >
+                {decision.reason}
+              </p>
+            )}
+            <p className="mt-3 text-[12.5px] leading-relaxed text-muted">
+              If something here is not right, reply in the conversation and
+              your legal team can pick it back up.
+            </p>
+          </RecordSection>
+        )}
+
         {meta.length > 0 && (
           <RecordSection id="portal-details" title="Request details">
             <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">

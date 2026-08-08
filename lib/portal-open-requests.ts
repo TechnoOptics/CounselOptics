@@ -5,6 +5,7 @@ import { cache } from 'react';
 import { createAdminSupabase } from './supabase/admin';
 import { visibleIntakeIds, intakesAwaitingReply } from './portal-scope';
 import { parseDueBy, isDueCurrent } from './portal-due';
+import { DECIDED_INTAKE_STATUSES } from './intake-lanes';
 import {
   PORTAL_REQUEST_FAMILIES,
   familyOfType,
@@ -36,10 +37,18 @@ import {
  * everything else is open. This is stated once here rather than as a
  * `!== 'rejected'` on each page, which is what the home page used to
  * do and which counted a closed request as open.
+ *
+ * The two names are no longer written out here. They were a second copy
+ * of lib/intake-lanes.ts's `closed` lane, and for a long time neither
+ * copy could move because nothing in the codebase wrote either status:
+ * this count could only ever grow, and an employee whose request had
+ * been declined in a meeting still read "1 request open" forever. The
+ * writer is decideIntakeAction; the list it writes into is
+ * DECIDED_INTAKE_STATUSES, and this reads the same one.
  */
 
 /** Statuses an employee sees as finished. Everything else is open. */
-const DECIDED = new Set(['rejected', 'closed']);
+const DECIDED = new Set<string>(DECIDED_INTAKE_STATUSES);
 
 export type PortalRequestRow = {
   id: string;

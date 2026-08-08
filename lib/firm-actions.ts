@@ -47,6 +47,20 @@ import {
   removeCollaboratorAsFirm,
 } from './storage';
 import { logSecurityEvent } from './security-audit';
+import {
+  DECIDED_INTAKE_STATUSES,
+  INTAKE_DECISIONS,
+  INTAKE_DECISION_NOTE_MAX,
+  reopenedIntakeStatus,
+  type IntakeDecision,
+} from './intake-lanes';
+import {
+  INTAKE_COLS,
+  hydratePeople,
+  insertIntakeMessage,
+  revalidateIntake,
+  type IntakeRow,
+} from './intake-notify';
 import { checkRateLimit } from './rate-limit';
 import {
   SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
@@ -1859,6 +1873,307 @@ export async function convertIntakeToCaseAction(
   revalidatePath(`/counsel/intake/${intakeId}`);
   revalidatePath('/counsel/cases');
   return { ok: true, caseId };
+}
+
+// =====================================================================
+// Deciding a request: decline it, close it out, put it back
+// =====================================================================
+
+/**
+ * What is stored on the request when the firm decides it.
+ *
+ * It lives in `intake_answers`, the schema-less column this table already
+ * uses for the reminder, the folder and the filed attachments, so nothing
+ * here needs a migration. `previousStatus` is the only field the code reads
+ * back; the rest is the firm's record and what the two pages render.
+ */
+type StoredIntakeDecision = {
+  outcome: IntakeDecision;
+  reason: string;
+  byUserId: string;
+  byName: string;
+  at: string;
+  previousStatus: string;
+};
+
+/**
+ * Move a request out of the queue, or put it back, and tell the person who
+ * filed it.
+ *
+ * WHY THIS EXISTS. `firm_matter_intakes.status` allowed seven values and only
+ * two were ever written. `engaged`, `rejected` and `closed` were declared in
+ * the CHECK constraint, mapped into lanes, coloured, and counted, and no code
+ * path could reach any of them. The cost landed on the employee rather than
+ * on the firm: lib/portal-open-requests.ts calls a request decided when it is
+ * `rejected` or `closed`, so with no writer for either, "You have N requests
+ * open with your legal team" could only ever grow, and a request declined in
+ * a meeting stayed open on the employee's home page forever.
+ *
+ * Four properties, each of which is a defect this repo has already paid for.
+ *
+ *   - AUTHORIZED THROUGH lib/firm-authz, the only firm authorization axis.
+ *     Every export of this module is a public HTTP endpoint callable with
+ *     arguments of the caller's choosing, and the write below goes through
+ *     the service-role client, which bypasses RLS entirely. Which button
+ *     renders is not a gate. FIRM_MANAGE_ROLES is owner/admin/attorney: the
+ *     set that already decides whether the firm takes work on, since this
+ *     writes a refusal in the firm's name and the requester is told about it.
+ *
+ *   - CONFIRMED. `.select('id')` is what separates "wrote a row" from
+ *     "matched nothing". postgrest-js resolves an UPDATE that matches zero
+ *     rows with `error: null`, so an unconfirmed write reports success for a
+ *     change that did not happen. That exact shape has silently dropped
+ *     writes across this codebase; nothing here is reported as ok, and no
+ *     record is written, until a row comes back.
+ *
+ *   - RECORDED, the way this product already records decisions on a request.
+ *     Assignment, invitation and document requests each post an event into
+ *     firm_intake_messages, which is the request's permanent trail and is
+ *     what both the counsel page and the employee's portal page show. A
+ *     decision on a legal matter is recorded the same way, with the reason in
+ *     it. insertIntakeMessage returns null rather than throwing when that
+ *     insert fails, because supabase-js resolves with `{ error }`; the null
+ *     is checked, and the caller is told, rather than the record quietly
+ *     going missing while the status moves.
+ *
+ *   - REVERSIBLE. A request closed by mistake with no way back would be a new
+ *     trap replacing the old one. reopenIntakeAction restores the status the
+ *     request held before the decision, and the decision event stays on the
+ *     trail so the record shows both that it happened and that it was undone.
+ *
+ * Returns rather than throws on refusal, for the reason
+ * app/counsel/cases/set-status.ts gives: a thrown server action replaces the
+ * surrounding surface with an error boundary instead of telling the control
+ * what happened. requireActiveFirm still throws, and the client calls this
+ * through runGatedAction, which is what turns that one into calm copy.
+ */
+export async function decideIntakeAction(
+  firmId: string,
+  intakeId: string,
+  decision: string,
+  reason: string,
+): Promise<{ ok: boolean; error?: string; warning?: string }> {
+  const user = await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const outcome = decision as IntakeDecision;
+  const status = INTAKE_DECISIONS[outcome];
+  if (!status) {
+    return { ok: false, error: 'That is not a decision a request can carry.' };
+  }
+  if (!(await callerHasFirmRole(firmId, FIRM_MANAGE_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only firm owners, admins or attorneys can decide a request.',
+    };
+  }
+  await requireActiveFirm(firmId);
+
+  const note = String(reason ?? '').trim().slice(0, INTAKE_DECISION_NOTE_MAX);
+  // Required on a decline, optional on a close-out. A person reading "your
+  // request was declined" with nothing after it has been told less than
+  // nothing, and the firm's own record of a refusal should say why. A
+  // close-out is usually "you withdrew it" or "handled elsewhere", where
+  // insisting on a sentence would only produce a filler one.
+  if (outcome === 'declined' && note.length === 0) {
+    return {
+      ok: false,
+      error: 'Add a short reason. The person who filed this will read it.',
+    };
+  }
+
+  const { data: row } = await admin
+    .from('firm_matter_intakes')
+    .select(INTAKE_COLS)
+    .eq('id', intakeId)
+    .maybeSingle();
+  const intake = (row as IntakeRow | null) ?? null;
+  if (!intake || intake.firm_id !== firmId) {
+    return { ok: false, error: 'Request not found.' };
+  }
+  if (intake.status === status) return { ok: true };
+
+  const at = new Date().toISOString();
+  const byName = await firmActorName(admin, user.id);
+  const stored: StoredIntakeDecision = {
+    outcome,
+    reason: note,
+    byUserId: user.id,
+    byName,
+    at,
+    previousStatus: intake.status,
+  };
+  const answers = { ...(intake.intake_answers ?? {}), decision: stored };
+
+  // `.eq('firm_id', firmId)` alongside the id is belt and braces: firmId was
+  // read off the request just above, so the two cannot disagree, but it keeps
+  // the write inside the firm the caller was actually authorized for.
+  const { data: written, error } = await admin
+    .from('firm_matter_intakes')
+    .update({ status, intake_answers: answers, updated_at: at })
+    .eq('id', intakeId)
+    .eq('firm_id', firmId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!written || written.length === 0) {
+    return {
+      ok: false,
+      error: 'That decision could not be saved. Nothing on the request has changed.',
+    };
+  }
+
+  // Only now. The row moved, so the trail is describing something that
+  // happened rather than something that was attempted.
+  const recorded = await recordIntakeDecisionEvent({
+    admin,
+    intake: { ...intake, status },
+    authorUserId: user.id,
+    authorName: byName,
+    eventType: 'decision_recorded',
+    body:
+      outcome === 'declined'
+        ? `${byName} declined this request.${note ? `\n\nReason: ${note}` : ''}`
+        : `${byName} closed this request out.${note ? `\n\nNote: ${note}` : ''}`,
+  });
+
+  return recorded
+    ? { ok: true }
+    : {
+        ok: true,
+        warning:
+          'The decision was saved, but it could not be added to the request trail. Tell the requester directly.',
+      };
+}
+
+/**
+ * Put a decided request back on the queue.
+ *
+ * Same gate, same confirmation, same trail. The status restored is the one
+ * the request held before the decision; anything unrecognised or itself
+ * decided falls back to the queue rather than to a lane nobody watches. The
+ * stored decision is cleared so the pages stop reporting a decision that no
+ * longer holds, and the two events stay on the trail, which is where the
+ * record of both the decision and the reversal lives.
+ */
+export async function reopenIntakeAction(
+  firmId: string,
+  intakeId: string,
+): Promise<{ ok: boolean; error?: string; warning?: string }> {
+  const user = await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  if (!(await callerHasFirmRole(firmId, FIRM_MANAGE_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only firm owners, admins or attorneys can reopen a request.',
+    };
+  }
+  await requireActiveFirm(firmId);
+
+  const { data: row } = await admin
+    .from('firm_matter_intakes')
+    .select(INTAKE_COLS)
+    .eq('id', intakeId)
+    .maybeSingle();
+  const intake = (row as IntakeRow | null) ?? null;
+  if (!intake || intake.firm_id !== firmId) {
+    return { ok: false, error: 'Request not found.' };
+  }
+  if (!DECIDED_INTAKE_STATUSES.includes(intake.status as never)) {
+    return { ok: false, error: 'This request is already open.' };
+  }
+
+  const answers = { ...(intake.intake_answers ?? {}) };
+  const prior = (answers.decision ?? null) as StoredIntakeDecision | null;
+  delete answers.decision;
+  const status = reopenedIntakeStatus(prior?.previousStatus);
+
+  const at = new Date().toISOString();
+  const { data: written, error } = await admin
+    .from('firm_matter_intakes')
+    .update({ status, intake_answers: answers, updated_at: at })
+    .eq('id', intakeId)
+    .eq('firm_id', firmId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!written || written.length === 0) {
+    return {
+      ok: false,
+      error: 'That could not be saved. The request is still closed.',
+    };
+  }
+
+  const byName = await firmActorName(admin, user.id);
+  const recorded = await recordIntakeDecisionEvent({
+    admin,
+    intake: { ...intake, status },
+    authorUserId: user.id,
+    authorName: byName,
+    eventType: 'decision_reopened',
+    body: `${byName} reopened this request. It is back with the legal team.`,
+  });
+
+  return recorded
+    ? { ok: true }
+    : {
+        ok: true,
+        warning:
+          'The request was reopened, but it could not be added to the request trail.',
+      };
+}
+
+/** The display name the conversation already shows for a firm member. */
+async function firmActorName(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  userId: string,
+): Promise<string> {
+  const people = await hydratePeople(admin, [userId]);
+  return people.get(userId)?.name ?? 'The legal team';
+}
+
+/**
+ * Post the decision onto the request's trail.
+ *
+ * `authorRole: 'legal'` rather than `'system'` is load-bearing and not
+ * cosmetic: a person decided this, and notifyIntakeActivity routes a shared
+ * legal-authored message to the requester, where a system-authored one goes
+ * to the legal team only. Getting that wrong would announce the decision to
+ * everyone except the one person it is about.
+ *
+ * Returns false when nothing was written. insertIntakeMessage inspects the
+ * postgrest result and returns null on failure, because supabase-js resolves
+ * with `{ error }` rather than throwing and a try/catch around it would catch
+ * nothing at all.
+ */
+async function recordIntakeDecisionEvent(input: {
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>;
+  intake: IntakeRow;
+  authorUserId: string;
+  authorName: string;
+  eventType: string;
+  body: string;
+}): Promise<boolean> {
+  const message = await insertIntakeMessage({
+    admin: input.admin,
+    intake: input.intake,
+    authorUserId: input.authorUserId,
+    authorName: input.authorName,
+    authorRole: 'legal',
+    visibility: 'shared',
+    body: input.body,
+    kind: 'event',
+    eventType: input.eventType,
+  });
+  if (!message) {
+    console.error(
+      `[intake-decision] request ${input.intake.id} moved to ${input.intake.status} but the trail entry was not written`,
+    );
+  }
+  revalidateIntake(input.intake.id);
+  revalidatePath('/counsel');
+  return Boolean(message);
 }
 
 // =====================================================================
