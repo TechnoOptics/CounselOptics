@@ -53,7 +53,8 @@ export function SettingsForm({
   }
 
   return (
-    <div className="card p-6 space-y-6">
+    /* No card: the settings page wraps this in a PanelCard. */
+    <div className="space-y-6">
       <LogoUploader firmId={firmId} currentUrl={defaultValues.logoUrl} />
       <LetterheadUploader
         firmId={firmId}

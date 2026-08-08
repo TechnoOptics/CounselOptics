@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { updateProfileAction } from '@/lib/actions';
 import { PERSONAL_PROFILE_HREF } from '@/lib/counsel-account-routes';
-import { PageHeader } from '@/components/counsel/ui';
+import { PageHeader, SectionTitle } from '@/components/counsel/ui';
+import { PanelCard } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 // The account controls are SHARED with the consumer profile at
 // /app/profile, not copied. Only the shell and the choice of sections
@@ -37,8 +38,16 @@ export type AccountPanelProps = {
  */
 export function AccountPanel(props: AccountPanelProps) {
   return (
-    <div className="max-w-2xl space-y-8 animate-fade-up">
+    /*
+      A configuration surface: the page header, then one card per thing
+      that can be set, each with the uppercase letterspaced header the
+      detail pattern uses. No metric strip and no segmented views - an
+      account page has no metrics, and its cards are settings that are
+      all in force at once rather than views of one set.
+    */
+    <div className="max-w-2xl space-y-4 animate-fade-up">
       <PageHeader
+        className="mb-6"
         eyebrow={
           props.firmName ? (
             <span data-no-translate>{props.firmName}</span>
@@ -55,50 +64,44 @@ export function AccountPanel(props: AccountPanelProps) {
         }
       />
 
-      <section className="card p-6 space-y-5">
-        <div>
-          <p className="eyebrow mb-1">
-            <T>Signed in as</T>
-          </p>
-          <p
-            className="font-semibold text-foreground truncate"
-            data-no-translate
-          >
-            {props.displayName || props.email}
-          </p>
-          <p
-            className="text-sm text-muted truncate"
-            data-no-translate
-          >
-            {props.email}
-          </p>
-          {props.firmName ? (
+      <PanelCard title={<T>Signed in as</T>}>
+        <div className="space-y-5">
+          <div>
             <p
-              className="text-[12px] text-muted mt-1 truncate"
+              className="truncate font-semibold text-foreground"
               data-no-translate
             >
-              {props.firmName}
-              {props.firmRoleLabel ? ` · ${props.firmRoleLabel}` : ''}
+              {props.displayName || props.email}
             </p>
-          ) : null}
-        </div>
-        <AvatarUpload userId={props.userId} currentUrl={props.avatarUrl} />
-        <p className="text-xs text-muted">
-          <T>
-            Upload a photo, or leave it and Advottic uses the picture from the
-            account you signed in with.
-          </T>
-        </p>
-      </section>
-
-      <form action={updateProfileAction} className="card p-6 space-y-5">
-        <div>
-          <p className="eyebrow mb-1">
-            <T>Details</T>
+            <p className="truncate text-sm text-muted" data-no-translate>
+              {props.email}
+            </p>
+            {props.firmName ? (
+              <p
+                className="mt-1 truncate text-[12px] text-muted"
+                data-no-translate
+              >
+                {props.firmName}
+                {props.firmRoleLabel ? ` · ${props.firmRoleLabel}` : ''}
+              </p>
+            ) : null}
+          </div>
+          <AvatarUpload userId={props.userId} currentUrl={props.avatarUrl} />
+          <p className="text-xs text-muted">
+            <T>
+              Upload a photo, or leave it and Advottic uses the picture from the
+              account you signed in with.
+            </T>
           </p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
+        </div>
+      </PanelCard>
+
+      <PanelCard title={<T>Details</T>}>
+      <form action={updateProfileAction} className="space-y-5">
+        <div>
+          <p className="text-[13.5px] font-semibold text-foreground">
             <T>Name and title</T>
-          </h2>
+          </p>
           <p className="text-sm text-muted mt-1 leading-relaxed">
             <T>
               These appear in the firm header and on the cover page of exported
@@ -159,15 +162,19 @@ export function AccountPanel(props: AccountPanelProps) {
           </button>
         </div>
       </form>
+      </PanelCard>
 
-      <section className="space-y-4">
+      {/* Security is a band of three cards rather than one PanelCard,
+          because MfaSettings, BiometricSettings and PhoneVerifyForm are
+          SHARED with the consumer profile and each frames itself. Putting
+          them inside a card would draw a border around three borders, and
+          stripping theirs would restyle a surface this page does not own.
+          So the band gets the shared section heading instead. */}
+      <section className="space-y-4 pt-2">
         <div>
-          <p className="eyebrow mb-1">
-            <T>Security</T>
-          </p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
+          <SectionTitle>
             <T>How you sign in</T>
-          </h2>
+          </SectionTitle>
           <p className="text-sm text-muted mt-1 leading-relaxed">
             <T>
               Two-factor authentication protects every matter you can reach.
@@ -192,56 +199,42 @@ export function AccountPanel(props: AccountPanelProps) {
         />
       </section>
 
-      <section className="card p-6 space-y-3">
-        <div>
-          <p className="eyebrow mb-1">
-            <T>Integrations</T>
-          </p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
-            <T>API tokens</T>
-          </h2>
-          <p className="text-sm text-muted mt-1 leading-relaxed">
-            <T>
-              Issue a token so another system can read and file work through
-              the Advottic API. Owners and admins can scope a token to the
-              firm.
-            </T>
-          </p>
-        </div>
-        <div>
-          <Link href="/counsel/profile/api-tokens" className="btn-secondary">
-            <T>Manage tokens</T>
-          </Link>
-        </div>
-      </section>
+      <PanelCard title={<T>Integrations</T>}>
+        <p className="text-[13.5px] font-semibold text-foreground">
+          <T>API tokens</T>
+        </p>
+        <p className="mb-4 mt-1 text-sm leading-relaxed text-muted">
+          <T>
+            Issue a token so another system can read and file work through
+            the Advottic API. Owners and admins can scope a token to the
+            firm.
+          </T>
+        </p>
+        <Link href="/counsel/profile/api-tokens" className="btn-secondary">
+          <T>Manage tokens</T>
+        </Link>
+      </PanelCard>
 
       {/* The way back. /counsel/profile is a strict subset of the consumer
           profile, and /profile now redirects a firm member here, so without
           this link the sections this page drops would have no route at all.
           PERSONAL_PROFILE_HREF is the URL that opts out of that redirect and
           is stable enough to bookmark. */}
-      <section className="card p-6 space-y-3">
-        <div>
-          <p className="eyebrow mb-1">
-            <T>Personal account</T>
-          </p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
-            <T>Your own Advottic settings</T>
-          </h2>
-          <p className="text-sm text-muted mt-1 leading-relaxed">
-            <T>
-              Theme, language, Safe Witness contacts and paired devices belong
-              to you rather than to the firm, so they stay on your personal
-              profile in the main app.
-            </T>
-          </p>
-        </div>
-        <div>
-          <Link href={PERSONAL_PROFILE_HREF} className="btn-secondary">
-            <T>Open personal settings</T>
-          </Link>
-        </div>
-      </section>
+      <PanelCard title={<T>Personal account</T>}>
+        <p className="text-[13.5px] font-semibold text-foreground">
+          <T>Your own Advottic settings</T>
+        </p>
+        <p className="mb-4 mt-1 text-sm leading-relaxed text-muted">
+          <T>
+            Theme, language, Safe Witness contacts and paired devices belong
+            to you rather than to the firm, so they stay on your personal
+            profile in the main app.
+          </T>
+        </p>
+        <Link href={PERSONAL_PROFILE_HREF} className="btn-secondary">
+          <T>Open personal settings</T>
+        </Link>
+      </PanelCard>
 
       <AccountActions />
     </div>

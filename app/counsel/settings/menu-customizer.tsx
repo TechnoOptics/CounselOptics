@@ -144,12 +144,14 @@ export function MenuCustomizer({
   }
 
   return (
-    <section className="card p-6 space-y-4">
+    /* No card and no eyebrow of its own: the settings page wraps this in
+       a PanelCard whose header names the section, and a card inside a
+       card drew two borders around one control. */
+    <section className="space-y-4">
       <div>
-        <p className="eyebrow mb-1"><T>Menu &amp; navigation</T></p>
-        <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
+        <p className="text-[13.5px] font-semibold text-foreground">
           <T>Tailor the sidebar to your team</T>
-        </h2>
+        </p>
         <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
           <T>
             Hide what you don&rsquo;t use, rename items to your own terms, and
