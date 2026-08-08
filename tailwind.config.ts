@@ -50,6 +50,24 @@ const config: Config = {
         'accent-on': 'var(--accent-on)',
         'warn-text': 'var(--warn-text)',
         'danger-text': 'var(--danger-text)',
+        'info-text': 'var(--info-text)',
+        // Surface + neutral tokens. Same `var()` form and the same
+        // caveat: no opacity modifier, pick a fixed token instead of
+        // fading one. `--border` is exposed as `edge` because Tailwind
+        // already owns `border-*` for the border-WIDTH utilities, so a
+        // colour named `border` would compile `border-border`.
+        background: 'var(--background)',
+        surface: 'var(--surface)',
+        'surface-2': 'var(--surface-2)',
+        edge: 'var(--border)',
+        'edge-bright': 'var(--border-bright)',
+        foreground: 'var(--foreground)',
+        muted: 'var(--muted)',
+        // Fills. Words that should read as the accent use accent-text.
+        accent: 'var(--accent)',
+        'accent-2': 'var(--accent-2)',
+        'code-bg': 'var(--code-bg)',
+        'code-fg': 'var(--code-fg)',
         // Advottic brand - deep forest green base, warm gold accent.
         //
         // Driven by CSS custom properties (space-separated RGB
