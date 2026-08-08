@@ -6,6 +6,10 @@ import { callerFirmRole } from '@/lib/firm-authz';
 import { authorizeFirmActor } from '@/lib/portal-entitlements';
 import { buildBrandedDocumentPdf } from '@/lib/branded-document-pdf';
 import { firmLetterheadDesign } from '@/lib/letterhead-design';
+import {
+  firmDocumentLayoutInput,
+  resolveDocumentLayout,
+} from '@/lib/document-layout';
 import { canRenderFilledTemplate } from '@/lib/template-approval';
 import { loadPublishedTemplate, sanitizeTemplateValues } from '@/lib/template-fill';
 import {
@@ -179,6 +183,19 @@ async function renderTemplate(
       letterheadDesign: firmLetterheadDesign(firm?.metadata),
       logoUrl: firm?.logoUrl ?? undefined,
       signatureImage: decoded.ok ? { png: decoded.bytes } : undefined,
+      // The firm's layout with this template's partial override on top, which
+      // is the same resolution lib/submission-document.ts runs, so the employee
+      // previews the page they will actually be sending.
+      layout: resolveDocumentLayout(
+        firmDocumentLayoutInput(firm?.metadata),
+        template.documentLayout,
+      ),
+      // THIS is where a DRAFT mark belongs. The bytes are never stored, never
+      // hashed into the audit chain and never served to a signer, so a mark
+      // drawn here can be gone from the next render, which is the property the
+      // stored instrument does not have. Signed the moment the employee has
+      // made their mark, because at that point the document is not a draft.
+      state: decoded.ok ? 'signed' : 'unsigned',
     },
   };
 }
@@ -216,6 +233,15 @@ async function renderFreeText(body: {
       // whole of what this line claims; see above for what still can be.
       letterheadDesign: firmLetterheadDesign(ctx.firm.metadata),
       logoUrl: body.logoUrl,
+      // Read off the caller's own active firm rather than the body, exactly as
+      // the design above is, so this one cannot be dictated by the request
+      // either. No template override: there is no template here, only text the
+      // legal team is drafting.
+      layout: resolveDocumentLayout(firmDocumentLayoutInput(ctx.firm.metadata), null),
+      // A studio draft is a draft. Nothing has been signed and nothing is
+      // stored, so if the firm has switched the watermark on this is where it
+      // says DRAFT.
+      state: 'unsigned',
     },
   };
 }

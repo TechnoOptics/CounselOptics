@@ -14,6 +14,14 @@ import {
   isReservedFirmKey,
 } from '@/lib/firm-template-placeholders';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
+import {
+  resolveDocumentLayout,
+  type DocumentLayout,
+} from '@/lib/document-layout';
+import {
+  DocumentLayoutFields,
+  type LetterheadAvailability,
+} from '@/components/counsel/DocumentLayoutFields';
 import { EmptyState } from '@/components/counsel/ui';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
@@ -26,9 +34,17 @@ import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 export function FormsManageClient({
   firmId,
   initialTemplates,
+  firmLayout,
+  letterhead,
+  brandName,
 }: {
   firmId: string;
   initialTemplates: FirmTemplate[];
+  /** The firm's own page layout. Every template starts from it and inherits
+   *  every band it does not override. */
+  firmLayout: DocumentLayout;
+  letterhead: LetterheadAvailability;
+  brandName: string;
 }) {
   const [templates, setTemplates] = useState(initialTemplates);
   const [editing, setEditing] = useState<FirmTemplate | 'new' | null>(null);
@@ -45,6 +61,7 @@ export function FormsManageClient({
     status: 'draft' | 'published';
     requiresApproval: boolean;
     deliveryMode: DeliveryMode;
+    documentLayout: Record<string, unknown> | null;
   }) => {
     setBusy(true);
     setError(null);
@@ -88,6 +105,9 @@ export function FormsManageClient({
           firmId={firmId}
           initial={editing === 'new' ? null : editing}
           busy={busy}
+          firmLayout={firmLayout}
+          letterhead={letterhead}
+          brandName={brandName}
           onCancel={() => setEditing(null)}
           onSave={save}
         />
@@ -177,16 +197,31 @@ function extractKeys(body: string): string[] {
   return keys;
 }
 
+const LAYOUT_BANDS = ['margins', 'letterhead', 'watermark', 'footer'] as const;
+type LayoutBand = (typeof LAYOUT_BANDS)[number];
+const LAYOUT_BAND_LABELS: Record<LayoutBand, string> = {
+  margins: 'Margins',
+  letterhead: 'Letterhead',
+  watermark: 'Watermark',
+  footer: 'Footer',
+};
+
 function TemplateEditor({
   firmId,
   initial,
   busy,
+  firmLayout,
+  letterhead,
+  brandName,
   onCancel,
   onSave,
 }: {
   firmId: string;
   initial: FirmTemplate | null;
   busy: boolean;
+  firmLayout: DocumentLayout;
+  letterhead: LetterheadAvailability;
+  brandName: string;
   onCancel: () => void;
   onSave: (draft: {
     id?: string;
@@ -198,6 +233,7 @@ function TemplateEditor({
     status: 'draft' | 'published';
     requiresApproval: boolean;
     deliveryMode: DeliveryMode;
+    documentLayout: Record<string, unknown> | null;
   }) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
@@ -216,6 +252,48 @@ function TemplateEditor({
     for (const f of initial?.fields ?? []) m[f.key] = f;
     return m;
   });
+
+  /**
+   * Which BANDS this template overrides, and what it sets them to.
+   *
+   * Band by band rather than field by field, and that is the granularity on
+   * purpose. "This template sets its own footer" is a sentence an author can
+   * hold; "this template sets its own footer alignment but inherits its text"
+   * is not, and an author who could not see which half was inherited would have
+   * no way to predict what a change in firm settings does to their template.
+   *
+   * Every band NOT on this list is inherited live: change the firm's margins
+   * tomorrow and this template moves with them.
+   */
+  const [overriddenBands, setOverriddenBands] = useState<Set<LayoutBand>>(
+    () => new Set(LAYOUT_BANDS.filter((b) => initial?.documentLayout?.[b] !== undefined)),
+  );
+  const [layoutDraft, setLayoutDraft] = useState<DocumentLayout>(() =>
+    resolveDocumentLayout(firmLayout, initial?.documentLayout ?? null),
+  );
+  // What actually gets written: only the bands the author took over. Null when
+  // they took over none, which is the same value as "follow the firm".
+  const documentLayout = (() => {
+    const out: Record<string, unknown> = {};
+    for (const band of LAYOUT_BANDS) {
+      if (overriddenBands.has(band)) out[band] = layoutDraft[band];
+    }
+    return Object.keys(out).length > 0 ? out : null;
+  })();
+  const toggleBand = (band: LayoutBand, on: boolean) => {
+    setOverriddenBands((current) => {
+      const next = new Set(current);
+      if (on) next.add(band);
+      else next.delete(band);
+      return next;
+    });
+    // Handing a band back to the firm puts the firm's own settings on screen
+    // straight away, rather than leaving the author looking at values that are
+    // no longer going to be saved.
+    if (!on) {
+      setLayoutDraft((draft) => ({ ...draft, [band]: firmLayout[band] }));
+    }
+  };
 
   // What came back from an import, if one has run. `imported` drives the
   // banner: it stays up until the editor is closed, because the reviewer is
@@ -419,6 +497,46 @@ function TemplateEditor({
         <textarea rows={14} className={`${inputCls} font-mono text-[12.5px]`} value={body} onChange={(e) => setBody(e.target.value)} />
       </label>
 
+      <div className="rounded-lg border border-ink-200 p-3.5 dark:border-forest-700/50">
+        <p className="text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
+          <T>Page layout</T>
+        </p>
+        <p className="mt-1 text-[12px] leading-relaxed text-ink-500 dark:text-cream-100/55">
+          <T>
+            This template follows your firm layout unless you take a part of it
+            over here. Anything you leave to the firm keeps following it, so a
+            change in firm settings reaches this template too.
+          </T>
+        </p>
+        <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-2">
+          {LAYOUT_BANDS.map((band) => (
+            <label
+              key={band}
+              className="flex items-center gap-2 text-[12.5px] text-forest-900 dark:text-cream-100"
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-gold-500"
+                disabled={busy}
+                checked={overriddenBands.has(band)}
+                onChange={(e) => toggleBand(band, e.target.checked)}
+              />
+              <span data-no-translate>{LAYOUT_BAND_LABELS[band]}</span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-3">
+          <DocumentLayoutFields
+            layout={layoutDraft}
+            onChange={setLayoutDraft}
+            has={letterhead}
+            brandName={brandName}
+            disabled={busy}
+            lockedBands={LAYOUT_BANDS.filter((b) => !overriddenBands.has(b))}
+          />
+        </div>
+      </div>
+
       {fields.length > 0 && (
         <div>
           <p className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
@@ -540,6 +658,7 @@ function TemplateEditor({
               status: 'published',
               requiresApproval,
               deliveryMode,
+              documentLayout,
             })
           }
           className="btn-primary disabled:opacity-50"
@@ -560,6 +679,7 @@ function TemplateEditor({
               status: 'draft',
               requiresApproval,
               deliveryMode,
+              documentLayout,
             })
           }
           className="btn-secondary text-sm disabled:opacity-50"

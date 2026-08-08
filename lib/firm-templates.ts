@@ -10,6 +10,11 @@ import {
   type DeliveryMode,
 } from './submission-dispatch';
 import { parseTemplateFieldParty } from './counterparty-fields';
+import { sanitizeDocumentLayoutOverride } from './document-layout';
+import {
+  DOCUMENT_LAYOUT_UNSAVED_ERROR,
+  resolveDocumentLayoutColumnFallback,
+} from './template-document-layout';
 import { extractFileText } from './doc-review';
 import { checkRateLimit } from './rate-limit';
 import { AiUnavailableError } from './ai-errors';
@@ -71,6 +76,17 @@ export type FirmTemplate = {
    * reads as, so nothing changes until a firm opts a template in.
    */
   deliveryMode: DeliveryMode;
+  /**
+   * This template's PARTIAL override of the firm's page layout, or null when
+   * it does not override anything.
+   *
+   * Partial is the whole point: a template that names only the watermark
+   * inherits the firm's margins, letterhead and footer, and keeps inheriting
+   * them when the firm changes its mind. resolveDocumentLayout
+   * (lib/document-layout.ts) is what merges the two, and it is the only thing
+   * that turns this into a layout.
+   */
+  documentLayout: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string | null;
 };
@@ -87,6 +103,8 @@ type Row = {
   requires_approval: boolean | null;
   /** Absent until the owner applies 20260807_flow_join.sql. */
   delivery_mode?: string | null;
+  /** Absent until the owner applies 20260809_template_document_layout.sql. */
+  document_layout?: unknown;
   created_at: string;
   updated_at: string | null;
 };
@@ -106,6 +124,10 @@ function toTemplate(r: Row): FirmTemplate {
     // Absent (or anything unrecognised) reads as a read-only share, which is
     // the fail-safe direction and today's behaviour. See parseDeliveryMode.
     deliveryMode: parseDeliveryMode(r.delivery_mode),
+    // Absent (or unusable) reads as "no override", which resolves to exactly
+    // the firm's own layout. Sanitized rather than trusted: this column is
+    // read back by a client component that will show the author what it says.
+    documentLayout: sanitizeDocumentLayoutOverride(r.document_layout),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -174,6 +196,8 @@ export async function createFirmTemplateAction(
     status?: 'draft' | 'published';
     requiresApproval?: boolean;
     deliveryMode?: DeliveryMode;
+    /** A partial page-layout override. Sanitized here, never trusted as sent. */
+    documentLayout?: unknown;
   },
 ): Promise<{ ok: boolean; error?: string; template?: FirmTemplate }> {
   const gate = await requireAuthor(firmId);
@@ -182,6 +206,7 @@ export async function createFirmTemplateAction(
   const body = input.body.trim().slice(0, 100000);
   if (!name || !body) return { ok: false, error: 'Give the template a name and a body.' };
   const deliveryMode = parseDeliveryMode(input.deliveryMode);
+  const documentLayout = sanitizeDocumentLayoutOverride(input.documentLayout);
   const insert = {
     firm_id: firmId,
     name,
@@ -193,16 +218,28 @@ export async function createFirmTemplateAction(
     requires_approval: input.requiresApproval !== false,
     created_by: gate.user.id,
   };
+  // The layout column is named only when there is something to put in it, so a
+  // template that overrides nothing never touches a column that may not exist.
+  const withLayout = documentLayout ? { ...insert, document_layout: documentLayout } : insert;
   let { data, error } = await gate.admin
     .from('firm_templates')
-    .insert({ ...insert, delivery_mode: deliveryMode })
+    .insert({ ...withLayout, delivery_mode: deliveryMode })
     .select('*')
     .single();
-  // The column arrives with a migration the owner applies, and there is a
-  // further window after it runs while PostgREST holds a stale schema cache.
-  // See resolveDeliveryModeColumnFallback for why the recovery is right in
-  // one direction only.
+  // Both columns arrive with migrations the owner applies, and there is a
+  // further window after each runs while PostgREST holds a stale schema cache.
+  // See resolveDeliveryModeColumnFallback and
+  // resolveDocumentLayoutColumnFallback for why each recovery is right in one
+  // direction only.
   if (error) {
+    if (
+      resolveDocumentLayoutColumnFallback({
+        hasOverride: documentLayout !== null,
+        error,
+      }) === 'abort-layout-unsaved'
+    ) {
+      return { ok: false, error: DOCUMENT_LAYOUT_UNSAVED_ERROR };
+    }
     const fallback = resolveDeliveryModeColumnFallback({ deliveryMode, error });
     if (fallback === 'abort-mode-unsaved') {
       return { ok: false, error: DELIVERY_MODE_UNSAVED_ERROR };
@@ -210,7 +247,7 @@ export async function createFirmTemplateAction(
     if (fallback === 'retry-without-column') {
       ({ data, error } = await gate.admin
         .from('firm_templates')
-        .insert(insert)
+        .insert(withLayout)
         .select('*')
         .single());
     }
@@ -231,6 +268,12 @@ export async function updateFirmTemplateAction(
     status: 'draft' | 'published' | 'archived';
     requiresApproval: boolean;
     deliveryMode: DeliveryMode;
+    /**
+     * A partial page-layout override, or null to go back to the firm's own
+     * layout. Undefined leaves whatever is stored alone, the same way every
+     * other field on this patch does.
+     */
+    documentLayout: unknown;
   }>,
 ): Promise<{ ok: boolean; error?: string; template?: FirmTemplate }> {
   const gate = await requireAuthor(firmId);
@@ -245,6 +288,14 @@ export async function updateFirmTemplateAction(
   if (input.requiresApproval !== undefined) patch.requires_approval = input.requiresApproval;
   const deliveryMode =
     input.deliveryMode === undefined ? null : parseDeliveryMode(input.deliveryMode);
+  // Undefined means "leave it alone" and null means "go back to the firm's
+  // layout", which are different writes, so the two are kept apart here rather
+  // than collapsed into a falsy check.
+  const layoutTouched = input.documentLayout !== undefined;
+  const documentLayout = layoutTouched
+    ? sanitizeDocumentLayoutOverride(input.documentLayout)
+    : null;
+  if (layoutTouched) patch.document_layout = documentLayout;
   const write = (extra: Record<string, unknown>) =>
     gate.admin
       .from('firm_templates')
@@ -256,7 +307,25 @@ export async function updateFirmTemplateAction(
   let { data, error } = await write(
     deliveryMode === null ? {} : { delivery_mode: deliveryMode },
   );
-  // Same recovery as the insert above, and for the same reason.
+  // Same recovery as the insert above, and for the same reason. Setting a
+  // layout the column cannot hold aborts; CLEARING one is survivable, because
+  // a column that does not exist holds no override to clear, so the retry
+  // lands on exactly the behaviour the author asked for.
+  if (error && layoutTouched) {
+    const fallback = resolveDocumentLayoutColumnFallback({
+      hasOverride: documentLayout !== null,
+      error,
+    });
+    if (fallback === 'abort-layout-unsaved') {
+      return { ok: false, error: DOCUMENT_LAYOUT_UNSAVED_ERROR };
+    }
+    if (fallback === 'retry-without-column') {
+      delete patch.document_layout;
+      ({ data, error } = await write(
+        deliveryMode === null ? {} : { delivery_mode: deliveryMode },
+      ));
+    }
+  }
   if (error && deliveryMode !== null) {
     const fallback = resolveDeliveryModeColumnFallback({ deliveryMode, error });
     if (fallback === 'abort-mode-unsaved') {

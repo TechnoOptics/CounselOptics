@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FirmTemplate, TemplateField } from './firm-templates';
 import { parseDeliveryMode } from './submission-dispatch';
 import { employeeFieldsOf } from './counterparty-fields';
+import { sanitizeDocumentLayoutOverride } from './document-layout';
 
 /**
  * Reading a published firm template on the server, for the two places that
@@ -25,6 +26,10 @@ import { employeeFieldsOf } from './counterparty-fields';
  * `delivery_mode` is absent until 20260807_flow_join.sql runs and reads as
  * 'share', which is the same direction and is exactly what every template did
  * before that column existed.
+ *
+ * `document_layout` is absent until 20260809_template_document_layout.sql runs
+ * and reads as no override, so the document is laid out on the firm's own
+ * layout. Same direction again: the page the firm was already getting.
  */
 export async function loadPublishedTemplate(
   admin: SupabaseClient,
@@ -52,6 +57,7 @@ export async function loadPublishedTemplate(
     status: r.status as FirmTemplate['status'],
     requiresApproval: r.requires_approval !== false,
     deliveryMode: parseDeliveryMode(r.delivery_mode),
+    documentLayout: sanitizeDocumentLayoutOverride(r.document_layout),
     createdAt: String(r.created_at),
     updatedAt: (r.updated_at as string | null) ?? null,
   };

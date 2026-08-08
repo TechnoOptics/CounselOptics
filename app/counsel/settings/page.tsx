@@ -3,6 +3,10 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmWebhooksAction } from '@/lib/firm-actions';
 import { readMenuConfig } from '@/lib/menu-config';
 import { firmLetterheadDesign } from '@/lib/letterhead-design';
+import {
+  firmDocumentLayoutInput,
+  normalizeDocumentLayout,
+} from '@/lib/document-layout';
 import { getFirmSurfaceSettings, getFirmTicketPrefix } from '@/lib/firm-settings';
 import { readPartnerConfig } from '@/lib/partner-config-core';
 import { SettingsForm } from './settings-form';
@@ -10,6 +14,7 @@ import { WebhookManager } from './webhook-manager';
 import { PartnerIntegrationManager } from './partner-integration-manager';
 import { MenuCustomizer } from './menu-customizer';
 import { FirmSurfaceToggles } from './firm-surface-toggles';
+import { DocumentLayoutBuilder } from './document-layout-builder';
 import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -31,6 +36,11 @@ export default async function CounselSettingsPage() {
   // in that read's column list would take the toggles down with it.
   const ticketPrefix = await getFirmTicketPrefix(ctx.firm.id);
   const partnerConfig = readPartnerConfig(ctx.firm.metadata);
+  const letterheadDesign = firmLetterheadDesign(ctx.firm.metadata);
+  // Null when the firm has never configured one, which is what lets the builder
+  // offer "go back to the standard layout" only where there is something to go
+  // back from.
+  const storedLayout = firmDocumentLayoutInput(ctx.firm.metadata);
   return (
     <div className="space-y-10 animate-fade-up">
       <PageHeader
@@ -42,7 +52,7 @@ export default async function CounselSettingsPage() {
       />
       <SettingsForm
         firmId={ctx.firm.id}
-        letterheadDesign={firmLetterheadDesign(ctx.firm.metadata)}
+        letterheadDesign={letterheadDesign}
         defaultValues={{
           name: ctx.firm.name,
           accentColor: ctx.firm.accentColor,
@@ -63,6 +73,31 @@ export default async function CounselSettingsPage() {
           ),
         }}
       />
+      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+        <header>
+          <p className="eyebrow mb-1"><T>Document layout</T></p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+            <T>Where things sit on the page</T>
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+            <T>Set the margins, place your letterhead, and add a watermark and a
+            footer to the documents Advottic produces. A single template can
+            override any part of this in the forms editor. Changes apply to
+            documents produced from now on; anything already sent for signature
+            keeps the layout it went out with.</T>
+          </p>
+        </header>
+        <DocumentLayoutBuilder
+          firmId={ctx.firm.id}
+          initial={storedLayout === null ? null : normalizeDocumentLayout(storedLayout)}
+          has={{
+            design: letterheadDesign,
+            hasImage: Boolean(ctx.firm.letterheadUrl),
+            hasLogo: Boolean(ctx.firm.logoUrl),
+          }}
+          brandName={ctx.firm.name}
+        />
+      </section>
       <MenuCustomizer
         firmId={ctx.firm.id}
         initial={readMenuConfig(ctx.firm.metadata)}

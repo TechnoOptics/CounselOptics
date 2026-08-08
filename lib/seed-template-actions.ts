@@ -6,6 +6,7 @@ import {
   type FirmTemplate,
 } from './firm-templates';
 import { findSeedTemplate } from './seed-templates';
+import { findTemplateNameClash } from './template-name-match';
 
 /**
  * Install a standard template into a firm's own template list.
@@ -24,28 +25,35 @@ import { findSeedTemplate } from './seed-templates';
 export async function installSeedTemplateAction(
   firmId: string,
   slug: string,
-): Promise<{ ok: boolean; error?: string; template?: FirmTemplate }> {
+): Promise<{ ok: boolean; error?: string; warning?: string; template?: FirmTemplate }> {
   const seed = findSeedTemplate(slug);
   if (!seed) return { ok: false, error: 'That standard template is not available.' };
 
-  // Refuse a second copy under the same name. Two templates called "Mutual
+  // Refuse a second copy of the same document. Two templates called "Mutual
   // Nondisclosure Agreement" in an employee's Forms list is a person picking
   // the wrong one, and only one of them carries the firm's later edits.
   // listFirmTemplatesAction runs the same authorization gate, so an
   // unauthorized caller stops here rather than at the insert.
+  //
+  // THE COMPARISON USED TO BE A TRIMMED LOWERCASE EQUALITY, and that is how a
+  // firm ended up holding "Mutual Nondisclosure Agreement" and "Mutual
+  // Non-Disclosure Agreement" side by side: one hyphen apart, and the check
+  // passed. findTemplateNameClash reduces both to what the name actually is,
+  // punctuation and spacing removed, so the two are one template again.
   const existing = await listFirmTemplatesAction(firmId);
   if (existing.error) return { ok: false, error: existing.error };
-  const clash = (existing.templates ?? []).some(
-    (t) => t.status !== 'archived' && t.name.trim().toLowerCase() === seed.name.toLowerCase(),
+  const clash = findTemplateNameClash(
+    seed.name,
+    (existing.templates ?? []).filter((t) => t.status !== 'archived').map((t) => t.name),
   );
-  if (clash) {
+  if (clash?.kind === 'same') {
     return {
       ok: false,
-      error: `You already have a template called "${seed.name}". Edit that one, or archive it first.`,
+      error: `You already have a template called "${clash.name}". Edit that one, or archive it first.`,
     };
   }
 
-  return createFirmTemplateAction(firmId, {
+  const created = await createFirmTemplateAction(firmId, {
     name: seed.name,
     description: seed.description,
     category: seed.category,
@@ -59,4 +67,16 @@ export async function installSeedTemplateAction(
     requiresApproval: seed.requiresApproval,
     deliveryMode: seed.deliveryMode,
   });
+
+  // A near-identical name is a legitimate thing to have: a short-form NDA
+  // beside a full one is two real templates. It is not a legitimate thing to
+  // acquire by accident, so it is said out loud at the moment it happens
+  // rather than left for an employee to discover in the Forms list.
+  if (created.ok && clash?.kind === 'near') {
+    return {
+      ...created,
+      warning: `This was added, but you already have a template called "${clash.name}". Two templates with names this close are easy to confuse, so it is worth renaming one of them.`,
+    };
+  }
+  return created;
 }

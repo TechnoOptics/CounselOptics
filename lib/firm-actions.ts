@@ -27,6 +27,10 @@ import {
   parseLetterheadDesignReply,
   type LetterheadDesign,
 } from './letterhead-design';
+import {
+  DOCUMENT_LAYOUT_METADATA_KEY,
+  normalizeDocumentLayout,
+} from './document-layout';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 import { CASE_TYPES, type CaseType, type Posture } from './types';
@@ -645,6 +649,94 @@ export async function removeFirmLetterheadDesignAction(
   if (!current.ok) return { ok: false, error: current.error };
   const next = { ...current.metadata };
   delete next[LETTERHEAD_DESIGN_METADATA_KEY];
+  const { error } = await admin
+    .from('firms')
+    .update({ metadata: next, updated_at: new Date().toISOString() })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+const DOCUMENT_LAYOUT_DENIED =
+  'Only an owner or admin can change the document layout.';
+
+/**
+ * The firm's default page layout: where the letterhead, watermark and footer
+ * sit, and the state rule that stops a DRAFT mark once a document is signed.
+ *
+ * Stored on firms.metadata.document_layout, following the letterhead design
+ * precedent above, so this half needs no migration. The per-template override
+ * does need one, and it lives on firm_templates.document_layout.
+ *
+ * The same two properties are load bearing here as for the letterhead:
+ *
+ *   1. The write is a read-modify-write of the metadata OBJECT, through
+ *      readFirmMetadataForMerge, which reports a failed read rather than
+ *      collapsing it into `{}`. Posting only this key would delete the ticket
+ *      prefix, the surface toggles and the letterhead design with it.
+ *   2. Every read goes back through normalizeDocumentLayout, which clamps every
+ *      number to a real bound, so a value some other writer left in the bag can
+ *      only ever resolve to the default layout.
+ *
+ * WHAT THIS CANNOT DO, AND THE REASON IT IS SAFE TO OFFER AT ALL. Saving a
+ * layout cannot move a document that has already been rendered. A document's
+ * bytes are stored at first render and every counterparty blank's geometry is
+ * recorded in the same write (lib/submission-document.ts); the live signing
+ * overlay and the stamp on the executed copy read those recorded coordinates,
+ * and nothing re-renders a stored document. A layout is an input to a render
+ * that has not happened yet.
+ */
+export async function saveFirmDocumentLayoutAction(
+  firmId: string,
+  layout: unknown,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: DOCUMENT_LAYOUT_DENIED };
+  }
+  // Normalized before it is stored as well as after it is read. This is a
+  // `'use server'` export and therefore a public HTTP endpoint, so what lands
+  // in the column is whatever a direct caller sent, not whatever the builder's
+  // controls permit.
+  const normalized = normalizeDocumentLayout(layout);
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const current = await readFirmMetadataForMerge(admin, firmId);
+  if (!current.ok) return { ok: false, error: current.error };
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: {
+        ...current.metadata,
+        [DOCUMENT_LAYOUT_METADATA_KEY]: normalized,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+/** Go back to the layout the renderer had before any of it was configurable.
+ *  The key is removed rather than written as the default, so a firm that has
+ *  never configured one and a firm that has reset are the same firm. */
+export async function removeFirmDocumentLayoutAction(
+  firmId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: DOCUMENT_LAYOUT_DENIED };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const current = await readFirmMetadataForMerge(admin, firmId);
+  if (!current.ok) return { ok: false, error: current.error };
+  const next = { ...current.metadata };
+  delete next[DOCUMENT_LAYOUT_METADATA_KEY];
   const { error } = await admin
     .from('firms')
     .update({ metadata: next, updated_at: new Date().toISOString() })

@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getFirmByIdAdmin } from './firm-storage';
 import { buildBrandedDocumentPdf } from './branded-document-pdf';
 import { firmLetterheadDesign } from './letterhead-design';
+import { firmDocumentLayoutInput, resolveDocumentLayout } from './document-layout';
 import { sendEmail, buildShareLinkEmailHtml, buildShareKeyEmailHtml } from './email';
 import { siteUrl } from './intake-notify';
 import {
@@ -181,6 +182,16 @@ export async function releaseApprovedSubmission(
       letterheadDesign: firmLetterheadDesign(firm?.metadata),
       logoUrl: firm?.logoUrl ?? undefined,
       signatureImage: markBytes ? { png: markBytes } : undefined,
+      // This share path renders from the firm's own layout only. It has no
+      // template id on the row to look an override up by, and the encrypted
+      // share is a read-only copy rather than an instrument, so falling back to
+      // the firm layout loses nothing that could be signed.
+      layout: resolveDocumentLayout(firmDocumentLayoutInput(firm?.metadata), null),
+      // A copy of a signed document when the employee's mark is on it, and an
+      // unsigned draft when it is not. Nothing here is stored as an instrument,
+      // so unlike lib/submission-document.ts this render can say what is
+      // actually true of the document in the recipient's hands.
+      state: markBytes ? 'copy' : 'unsigned',
     });
     if (!rendering) {
       return await unclaim('The document could not be prepared for sending.', false);

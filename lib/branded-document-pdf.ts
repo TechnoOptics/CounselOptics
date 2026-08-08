@@ -1,8 +1,20 @@
 import 'server-only';
 
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
 import { cleanLegalText } from './legal-templates';
 import { isWinAnsiEncodable } from './counterparty-fields';
+import {
+  DEFAULT_DOCUMENT_LAYOUT,
+  bandAppearsOnPage,
+  composeFooterText,
+  resolveContentBox,
+  resolveFooterPlacement,
+  resolveLetterheadBandTop,
+  resolveWatermark,
+  resolveWatermarkPlacement,
+  type DocumentLayout,
+  type DocumentState,
+} from './document-layout';
 import {
   LETTERHEAD_LINE_GAP_PT,
   letterheadDesignLines,
@@ -125,6 +137,28 @@ export type BrandedDocumentInput = {
    * `Signed:` line is a valid signature on its own.
    */
   signatureImage?: { png: Uint8Array };
+  /**
+   * Where the letterhead, watermark and footer sit, already resolved from the
+   * firm default and any template override by resolveDocumentLayout.
+   *
+   * Absent means DEFAULT_DOCUMENT_LAYOUT, which is the layout this renderer
+   * had before any of it was configurable, to the point. That is what makes an
+   * un-configured firm's next document identical to its last one.
+   *
+   * A LAYOUT CANNOT MOVE A DOCUMENT THAT ALREADY EXISTS. It is an input to a
+   * render, and a rendered document's bytes and the geometry of its
+   * counterparty blanks are both stored at that one moment
+   * (lib/submission-document.ts). Nothing re-renders a stored document, so a
+   * firm editing its layout changes only what the NEXT document looks like.
+   */
+  layout?: DocumentLayout;
+  /**
+   * Where this document is in its life, which is what decides whether the
+   * watermark appears. The caller is the only thing that knows.
+   *
+   * Absent means 'unsigned', the honest default: nothing has been signed.
+   */
+  state?: DocumentState;
 };
 
 /** The box the mark is fitted inside, in points. */
@@ -172,10 +206,22 @@ export async function buildBrandedDocumentPdf(
   // copies of the page size is the drift that module exists to prevent.
   const W = RENDERED_PAGE_WIDTH_PT;
   const H = RENDERED_PAGE_HEIGHT_PT;
-  const M = 64; // margin
+  const PAGE = { widthPt: W, heightPt: H };
+  const layout = input.layout ?? DEFAULT_DOCUMENT_LAYOUT;
+  const state: DocumentState = input.state ?? 'unsigned';
+  // The measure, from the one module that computes one. The builder preview
+  // calls the same function against the same page, which is what stops it from
+  // telling a firm something the document will not do.
+  const content = resolveContentBox(layout, PAGE);
+  const M = content.xPt; // left margin
   const SIZE = 11;
   const LEAD = 16;
-  const maxW = W - M * 2;
+  const maxW = content.widthPt;
+  /** Where the body stops and a new page starts. */
+  const FLOOR = content.bottomYPt;
+  /** The top edge of the letterhead band, which every offset inside it hangs
+   *  from. Flush to the page top unless the firm has pushed it down. */
+  const BAND_TOP = resolveLetterheadBandTop(layout, PAGE);
   const accentColor = rgb(accent.r, accent.g, accent.b);
   const ink = rgb(0.1, 0.1, 0.1);
 
@@ -252,39 +298,77 @@ export async function buildBrandedDocumentPdf(
   const designAlignment = safeDesign?.alignment ?? 'left';
   const designRule = safeDesign?.showRule ?? true;
 
+  /**
+   * The firm's logo, fetched and embedded at most once.
+   *
+   * Two callers want it now: the synthesized letterhead below, and a watermark
+   * whose source is the logo. Fetching it twice would be two network calls for
+   * one image and, worse, two embedded copies in the same file.
+   */
+  type LogoImage = Awaited<ReturnType<PDFDocument['embedPng']>>;
+  let logoImage: LogoImage | null = null;
+  let logoLoaded = false;
+  async function loadLogoImage(): Promise<LogoImage | null> {
+    if (logoLoaded) return logoImage;
+    logoLoaded = true;
+    if (!input.logoUrl || !/^https?:\/\//i.test(input.logoUrl)) return null;
+    try {
+      const r = await fetch(input.logoUrl);
+      if (!r.ok) return null;
+      const buf = new Uint8Array(await r.arrayBuffer());
+      const mime = (r.headers.get('content-type') ?? '').toLowerCase();
+      // pdf-lib decodes PNG + JPG only; SVG/WebP logos fall through to the
+      // text banner.
+      if (!mime.includes('png') && !mime.includes('jpeg') && !mime.includes('jpg')) {
+        return null;
+      }
+      logoImage =
+        mime.includes('jpeg') || mime.includes('jpg')
+          ? await pdf.embedJpg(buf)
+          : await pdf.embedPng(buf);
+      return logoImage;
+    } catch {
+      return null;
+    }
+  }
+
   // No uploaded letterhead? Synthesize one from the firm's logo (#13).
   // The logo is drawn small at the top-left with the brand name beside
   // it, over the accent rule - a clean "generated letterhead".
   let logo: Embedded | null = null;
-  if (
-    !letterhead &&
-    designLines.length === 0 &&
-    input.logoUrl &&
-    /^https?:\/\//i.test(input.logoUrl)
-  ) {
-    try {
-      const r = await fetch(input.logoUrl);
-      if (r.ok) {
-        const buf = new Uint8Array(await r.arrayBuffer());
-        const mime = (r.headers.get('content-type') ?? '').toLowerCase();
-        // pdf-lib decodes PNG + JPG only; SVG/WebP logos fall through
-        // to the text banner.
-        if (mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg')) {
-          const img =
-            mime.includes('jpeg') || mime.includes('jpg')
-              ? await pdf.embedJpg(buf)
-              : await pdf.embedPng(buf);
-          const targetH = 36;
-          const ratio = targetH / img.height;
-          const drawW = Math.min(180, img.width * ratio);
-          const drawH = drawW * (img.height / img.width);
-          logo = { img, width: drawW, height: drawH };
-        }
-      }
-    } catch {
-      logo = null;
+  if (!letterhead && designLines.length === 0) {
+    const img = await loadLogoImage();
+    if (img) {
+      const targetH = 36;
+      const ratio = targetH / img.height;
+      const drawW = Math.min(180, img.width * ratio);
+      const drawH = drawW * (img.height / img.width);
+      logo = { img, width: drawW, height: drawH };
     }
   }
+
+  /**
+   * The watermark for THIS document's state, or nothing.
+   *
+   * Resolved once, before the first page, because the state rule cannot change
+   * partway through a document. Null is the ordinary answer: the mark is off by
+   * default, and it is off in the signed state by the rule the owner chose.
+   *
+   * The text is sanitized here for the same reason the letterhead design is.
+   * pdf-lib's standard fonts do not drop a character WinAnsi cannot encode,
+   * they THROW from inside drawText, and a watermark of Cyrillic would take
+   * down every document the firm produces. A mark that empties out is no mark,
+   * which is the right outcome: a document without a watermark is recoverable,
+   * a document that failed to render is not.
+   */
+  const watermark = resolveWatermark(layout, state);
+  const watermarkText = watermark ? winAnsiSafe(watermark.text) : '';
+  const watermarkLogo =
+    watermark && watermark.source === 'logo' ? await loadLogoImage() : null;
+  const watermarkDrawable =
+    watermark && (watermark.source === 'logo' ? watermarkLogo !== null : watermarkText !== '')
+      ? watermark
+      : null;
 
   function wrap(line: string, f = font, size = SIZE): string[] {
     if (line.trim() === '') return [''];
@@ -308,9 +392,64 @@ export async function buildBrandedDocumentPdf(
   let y = 0;
   let pageNo = 0;
 
+  /**
+   * The watermark, drawn BEHIND everything else on the page.
+   *
+   * Behind is not a preference. pdf-lib paints in call order, so this has to
+   * run before the letterhead and before the first line of body text, or the
+   * mark would sit on top of the words at eight percent opacity and make them
+   * harder to read rather than easier. It is called from the top of header(),
+   * which is the first thing every page does.
+   *
+   * It advances no cursor and reserves no space, which is what keeps it from
+   * moving a single counterparty blank.
+   */
+  function drawWatermark() {
+    if (!watermarkDrawable) return;
+    if (!bandAppearsOnPage(watermarkDrawable.pages, pageNo)) return;
+    // Both sources are measured as "how tall is the mark", so the one Size
+    // control in the builder means the same thing whichever is chosen.
+    //
+    // For text that is the height of the INK, not of the em box. A 96 point em
+    // box is about half again as tall as the capitals inside it and the
+    // baseline sits at its foot, so centring the em box hangs the letters
+    // visibly low and, once the mark is turned, visibly to one side as well.
+    // Centring what a reader can actually see is the only version of "centred"
+    // worth having. This is why the placement function takes a measurement
+    // rather than a point size: only this module has the font.
+    const markHeightPt = watermarkLogo
+      ? watermarkDrawable.sizePt
+      : bold.heightAtSize(watermarkDrawable.sizePt, { descender: false });
+    const markWidthPt = watermarkLogo
+      ? (watermarkLogo.width / watermarkLogo.height) * watermarkDrawable.sizePt
+      : bold.widthOfTextAtSize(watermarkText, watermarkDrawable.sizePt);
+    const at = resolveWatermarkPlacement({ layout, page: PAGE, markWidthPt, markHeightPt });
+    const common = {
+      x: at.xPt,
+      y: at.yPt,
+      opacity: at.opacity,
+      rotate: degrees(at.rotationDeg),
+    };
+    if (watermarkLogo) {
+      page.drawImage(watermarkLogo, { ...common, width: markWidthPt, height: markHeightPt });
+      return;
+    }
+    page.drawText(watermarkText, {
+      ...common,
+      size: watermarkDrawable.sizePt,
+      font: bold,
+      color: rgb(0.45, 0.45, 0.45),
+    });
+  }
+
   function header() {
     pageNo += 1;
-    if (letterhead) {
+    drawWatermark();
+    if (!layout.letterhead.show || !bandAppearsOnPage(layout.letterhead.pages, pageNo)) {
+      // No band on this page. The body starts at the top margin, which is the
+      // only thing that can tell it where to start once the band is gone.
+      y = content.topYPt;
+    } else if (letterhead) {
       // Painted letterhead path. Center horizontally, anchor near
       // the top, then drop the body cursor below it. We skip the
       // text-only "BRAND NAME" banner since the letterhead is
@@ -318,7 +457,7 @@ export async function buildBrandedDocumentPdf(
       // is kept so the body still feels structurally tied to the
       // header.
       const x = (W - letterhead.width) / 2;
-      const yTop = H - 24 - letterhead.height;
+      const yTop = BAND_TOP - 24 - letterhead.height;
       page.drawImage(letterhead.img, {
         x,
         y: yTop,
@@ -327,7 +466,7 @@ export async function buildBrandedDocumentPdf(
       });
       page.drawLine({
         start: { x: M, y: yTop - 14 },
-        end: { x: W - M, y: yTop - 14 },
+        end: { x: content.rightXPt, y: yTop - 14 },
         thickness: 0.5,
         color: rgb(0.8, 0.8, 0.8),
       });
@@ -337,8 +476,8 @@ export async function buildBrandedDocumentPdf(
       // zoom and needs no image asset at all. The order and the weights come
       // from letterheadDesignLines, which the on-screen preview also reads, so
       // the two cannot describe different stationery.
-      page.drawRectangle({ x: 0, y: H - 8, width: W, height: 8, color: accentColor });
-      let lineY = H - 34;
+      page.drawRectangle({ x: 0, y: BAND_TOP - 8, width: W, height: 8, color: accentColor });
+      let lineY = BAND_TOP - 34;
       let lastY = lineY;
       for (const line of designLines) {
         const lineFont = line.bold ? bold : font;
@@ -356,7 +495,7 @@ export async function buildBrandedDocumentPdf(
       if (designRule) {
         page.drawLine({
           start: { x: M, y: lastY - 12 },
-          end: { x: W - M, y: lastY - 12 },
+          end: { x: content.rightXPt, y: lastY - 12 },
           thickness: 0.5,
           color: rgb(0.8, 0.8, 0.8),
         });
@@ -367,12 +506,12 @@ export async function buildBrandedDocumentPdf(
       // logo at top-left, brand name to its right, then the rule.
       page.drawRectangle({
         x: 0,
-        y: H - 8,
+        y: BAND_TOP - 8,
         width: W,
         height: 8,
         color: accentColor,
       });
-      const logoY = H - 30 - logo.height;
+      const logoY = BAND_TOP - 30 - logo.height;
       page.drawImage(logo.img, {
         x: M,
         y: logoY,
@@ -388,7 +527,7 @@ export async function buildBrandedDocumentPdf(
       });
       page.drawLine({
         start: { x: M, y: logoY - 12 },
-        end: { x: W - M, y: logoY - 12 },
+        end: { x: content.rightXPt, y: logoY - 12 },
         thickness: 0.5,
         color: rgb(0.8, 0.8, 0.8),
       });
@@ -398,39 +537,72 @@ export async function buildBrandedDocumentPdf(
       // haven't uploaded a letterhead yet).
       page.drawRectangle({
         x: 0,
-        y: H - 8,
+        y: BAND_TOP - 8,
         width: W,
         height: 8,
         color: accentColor,
       });
       page.drawText(brand.toUpperCase(), {
         x: M,
-        y: H - 40,
+        y: BAND_TOP - 40,
         size: 10,
         font: bold,
         color: accentColor,
       });
       page.drawText(title, {
         x: M,
-        y: H - 58,
+        y: BAND_TOP - 58,
         size: 9,
         font,
         color: rgb(0.4, 0.4, 0.4),
       });
       page.drawLine({
-        start: { x: M, y: H - 70 },
-        end: { x: W - M, y: H - 70 },
+        start: { x: M, y: BAND_TOP - 70 },
+        end: { x: content.rightXPt, y: BAND_TOP - 70 },
         thickness: 0.5,
         color: rgb(0.8, 0.8, 0.8),
       });
-      y = H - 96;
+      y = BAND_TOP - 96;
     }
   }
+  /**
+   * The footer line, composed by lib/document-layout.ts and placed by it.
+   *
+   * Composed rather than assembled here, because the builder preview shows the
+   * firm the same line and two hand-written versions of "brand, then generated,
+   * then page" is how a preview starts disagreeing with the document. Empty
+   * parts produce no separator: the letterhead contact line was fixed for
+   * exactly that defect, a dangling `-` pointing at nothing.
+   *
+   * Sanitized here rather than in the composer, because the composer has no
+   * imports and isWinAnsiEncodable lives in lib/counterparty-fields.ts. The
+   * builder warns about the characters this drops at the moment they are typed,
+   * which is the other half of the same fix the letterhead designer got.
+   */
   function footer() {
-    page.drawText(
-      `${brand}  -  Generated ${new Date().toLocaleDateString()}  -  Page ${pageNo}`,
-      { x: M, y: 36, size: 8, font, color: rgb(0.55, 0.55, 0.55) },
+    if (!layout.footer.show) return;
+    if (!bandAppearsOnPage(layout.footer.pages, pageNo)) return;
+    const line = winAnsiSafe(
+      composeFooterText({
+        layout,
+        brandName: brand,
+        pageNo,
+        generatedOn: new Date().toLocaleDateString(),
+      }),
     );
+    if (!line) return;
+    const at = resolveFooterPlacement({
+      layout,
+      page: PAGE,
+      textWidthPt: font.widthOfTextAtSize(line, layout.footer.sizePt),
+    });
+    page.drawText(line, {
+      x: at.xPt,
+      y: at.yPt,
+      size: layout.footer.sizePt,
+      font,
+      color: rgb(0.55, 0.55, 0.55),
+    });
   }
   function newPage() {
     footer();
@@ -477,7 +649,7 @@ export async function buildBrandedDocumentPdf(
     try {
       // Reserve the mark, the gap and the line that follows it together, so
       // the mark never ends up on one page with the printed name on the next.
-      if (y - (MARK_H + MARK_GAP + LEAD * SIG_BLOCK_LINES) < 60) newPage();
+      if (y - (MARK_H + MARK_GAP + LEAD * SIG_BLOCK_LINES) < FLOOR) newPage();
       y -= MARK_H;
       const scale = Math.min(MARK_W / img.width, MARK_H / img.height);
       page.drawImage(img, {
@@ -595,12 +767,12 @@ export async function buildBrandedDocumentPdf(
     // is reserved is the head as laid out plus the two fixed lines under it.
     if (
       p === counterpartyLine &&
-      y - LEAD * (lines.length + COUNTERPARTY_BLOCK_LINES - 1) < 60
+      y - LEAD * (lines.length + COUNTERPARTY_BLOCK_LINES - 1) < FLOOR
     ) {
       newPage();
     }
     for (const ln of lines) {
-      if (y < 60) newPage();
+      if (y < FLOOR) newPage();
       // Lightly bold lines that look like section headings.
       const isHead =
         /^(article|section)\b/i.test(ln.trim()) ||
@@ -622,7 +794,7 @@ export async function buildBrandedDocumentPdf(
   // of the body under a hairline rule, so the document still carries the mark
   // the employee made and it is visibly not part of the rewritten text.
   if (mark && markLine === null) {
-    if (y - (MARK_H + MARK_GAP * 2 + LEAD) < 60) newPage();
+    if (y - (MARK_H + MARK_GAP * 2 + LEAD) < FLOOR) newPage();
     y -= MARK_GAP;
     page.drawLine({
       start: { x: M, y },
