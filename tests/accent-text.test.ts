@@ -745,6 +745,50 @@ describe('app/globals.css agrees with lib/accent-text.ts', () => {
     }
   });
 
+  /*
+   * The bug this pins shipped, passed every other test in this file,
+   * and was found by rendering the page.
+   *
+   * `--firm-accent` is an inline style on the SHELL element, never on
+   * :root, because it is per firm. A custom property resolves against
+   * the element the declaration lands on, so a derivation declared at
+   * :root reads a `--firm-accent` that is not set there and quietly
+   * falls back to Advottic gold. The dark tone was declared on `.dark`
+   * and `.counsel-shell`, which are that element, and was right. The
+   * light tone was declared only at :root, so the moment a reader
+   * switched to light EVERY firm's accent text became gold. The
+   * employee portal made it obvious: teal at hue 186 came back at 87.
+   *
+   * The arithmetic in this file could not see it, because the
+   * arithmetic was right about a colour the browser never computed.
+   */
+  it('computes each tone on an element that carries --firm-accent', () => {
+    const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    const shellScopes = new Set(
+      Object.values({
+        ...DARK_SURFACE_GROUPS,
+        ...LIGHT_SURFACE_GROUPS,
+      }).flatMap((g) => g.scopes as readonly string[]),
+    );
+    for (const tone of ['dark', 'light'] as const) {
+      const { lightness, maxChroma } = ACCENT_TEXT_TONES[tone];
+      const derivation = `oklch(from var(--firm-accent, ${DEFAULT_ACCENT}) ${lightness} min(c, ${maxChroma}) h)`;
+      const carriers: string[] = [];
+      for (const [, selectors, body] of stripped.matchAll(
+        /([^{}]+)\{([^{}]*)\}/g,
+      )) {
+        if (!body.includes(derivation)) continue;
+        for (const s of selectors.split(',').map((x) => x.trim())) {
+          if (shellScopes.has(s)) carriers.push(s);
+        }
+      }
+      expect(
+        carriers,
+        `the ${tone} derivation is declared nowhere a shell element matches, so var(--firm-accent) resolves against the fallback and every firm gets Advottic gold; declare it on a selector from DARK_SURFACE_GROUPS or LIGHT_SURFACE_GROUPS`,
+      ).not.toEqual([]);
+    }
+  });
+
   it('guards the relative-colour form behind @supports', () => {
     // Without the guard an unsupported browser resolves --accent-text to
     // the guaranteed-invalid value, which for `color` means inherit, and

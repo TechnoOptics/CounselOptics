@@ -309,6 +309,30 @@ html.dark,
     --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.84 min(c, 0.078) h);
   }
 }
+/* The light tone, re-declared ON the shell, and this is a fix rather
+   than a tidy-up.
+
+   `--firm-accent` is set as an inline style on the shell element, not
+   on :root, because it is per firm and there is one shell per page.
+   The dark declaration above lands on `.dark` / `.counsel-shell`, which
+   IS that element, so `oklch(from var(--firm-accent) ...)` resolves
+   against the firm's own hex. The light declaration was only on :root,
+   where `--firm-accent` is never set, so it resolved against the
+   fallback and every firm's accent text came out Advottic gold the
+   moment the reader switched to light. Measured on the employee portal,
+   whose accent is teal at hue 186: light mode returned hue 87.
+
+   Same four numbers, same @supports guard, same static fallback. The
+   only thing that changes is WHERE the derivation is computed, which is
+   the element that knows the accent. */
+.counsel-shell:not(.dark) {
+  --accent-text: #6a5521;
+}
+@supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
+  .counsel-shell:not(.dark) {
+    --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.46 min(c, 0.075) h);
+  }
+}
 
 /* -------------------- Surface and neutral tokens --------------------
    The rest of the token system the `-text` family above was the first
