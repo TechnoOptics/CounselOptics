@@ -10,8 +10,9 @@ import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
 import { T } from '@/components/i18n/LocaleProvider';
 import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { PILL_COLORS } from '@/components/counsel/StatusPill';
+import { parseMatterListParams, type MatterRow } from '@/lib/matter-list';
 import { NewMatterButton } from './new-matter-button';
-import { MattersTable, type MatterRow } from './matters-table';
+import { MattersTable } from './matters-table';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,7 @@ const STATUSES = Object.keys(STATUS_COLOR) as CaseStatus[];
 export default async function CounselCasesPage({
   searchParams,
 }: {
-  searchParams: { assignee?: string };
+  searchParams: Record<string, string | string[] | undefined>;
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
@@ -69,9 +70,12 @@ export default async function CounselCasesPage({
     updatedAt: c.updatedAt,
   }));
 
-  // `?assignee=` still narrows the list on arrival, so links that were
-  // handed out while the filter lived in the URL keep working. The
-  // table owns it from then on.
+  // The whole of the list's state is the query string: which view,
+  // which column filters, which sort, which page. Parsed here so the
+  // server decides what a URL means, and so a link the table writes is
+  // a link this page reads back. See lib/matter-list.ts.
+  const params = parseMatterListParams(searchParams, user?.id ?? null);
+
   const assigneeOptions = [
     { value: '', label: 'Everyone' },
     { value: 'me', label: 'Assigned to me' },
@@ -82,6 +86,14 @@ export default async function CounselCasesPage({
     })),
   ];
 
+  // The pickers that WRITE an assignee take firm members only: "me" and
+  // "unassigned" narrow a list, they are not people a matter can be
+  // given to.
+  const memberOptions = members.map((m) => ({
+    userId: m.userId,
+    label: memberLabel.get(m.userId) ?? 'Member',
+  }));
+
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
@@ -90,8 +102,8 @@ export default async function CounselCasesPage({
         subtitle={
           <>
             {allCases.length} <T>matters at</T>{' '}
-            <span data-no-translate>{ctx.firm.name}</span>,{' '}
-            <T>all on one page. Search title, client, matter type and assignee; narrow by view, status or assignee; sort the matter, status, assignee, hearing and updated columns.</T>
+            <span data-no-translate>{ctx.firm.name}</span>.{' '}
+            <T>Search, filter every column and sort the matter, status, assignee, hearing and updated columns; reassign a matter in its row, or several at once. The view, the filters and the page are in the address bar, so a narrowed queue can be sent to a colleague.</T>
           </>
         }
         action={
@@ -124,13 +136,14 @@ export default async function CounselCasesPage({
       ) : (
         <MattersTable
           rows={rows}
+          params={params}
           assigneeOptions={assigneeOptions}
+          members={memberOptions}
           statusOptions={STATUSES.map((s) => ({
             value: s,
             label: STATUS_LABEL[s] ?? s,
           }))}
           meId={user?.id ?? null}
-          initialAssignee={(searchParams.assignee ?? '').trim()}
         />
       )}
     </div>

@@ -20,10 +20,12 @@
  * `bg-accent/15` compiles to something that does not apply. StatusPill
  * derives its own alphas the same way and for the same reason.
  *
- * Everything here is presentational. Only ViewStrip takes a callback,
- * so only the modules that use ViewStrip need to be client components.
+ * Everything here is presentational. ViewStrip is the only one that can
+ * take a callback, and only that mode of it forces its caller to be a
+ * client component; the link mode renders anywhere.
  */
 
+import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 
 /** The accent at low alpha, for a selected surface. */
@@ -122,17 +124,27 @@ export type ViewOption = {
  * count is the number of records the view would show, computed from
  * the same predicate that filters them. An option whose count cannot
  * be computed does not belong here.
+ *
+ * Two modes, and the choice is not cosmetic. Pass `href` and each view
+ * is a real link that carries the view in the query string: the queue
+ * can be sent to a colleague, the back button steps between views, and
+ * a refresh keeps your place. Pass `onSelect` instead and the view is
+ * component state that a reload throws away. Prefer `href` for anything
+ * a person would want to send someone. `href` wins if both are given.
  */
 export function ViewStrip({
   options,
   active,
   onSelect,
+  href,
   label,
   className = '',
 }: {
   options: ViewOption[];
   active: string;
-  onSelect: (key: string) => void;
+  onSelect?: (key: string) => void;
+  /** The URL for a view, when the strip should navigate rather than set state. */
+  href?: (key: string) => string;
   /** Names the group for a screen reader. */
   label: string;
   className?: string;
@@ -145,31 +157,48 @@ export function ViewStrip({
     >
       {options.map((o) => {
         const on = o.key === active;
-        return (
+        const style = on
+          ? {
+              background: ACCENT_TINT,
+              boxShadow: `inset 0 0 0 1px ${ACCENT_EDGE}`,
+            }
+          : undefined;
+        const className = `rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
+          on
+            ? 'text-accent-text'
+            : 'text-muted hover:bg-surface hover:text-foreground'
+        }`;
+        const body = (
+          <>
+            {o.label}
+            {o.count != null && (
+              <span className="ml-1.5 tabular-nums opacity-70">{o.count}</span>
+            )}
+          </>
+        );
+        return href ? (
+          <Link
+            key={o.key}
+            href={href(o.key)}
+            role="tab"
+            aria-selected={on}
+            scroll={false}
+            style={style}
+            className={className}
+          >
+            {body}
+          </Link>
+        ) : (
           <button
             key={o.key}
             type="button"
             role="tab"
             aria-selected={on}
-            onClick={() => onSelect(o.key)}
-            style={
-              on
-                ? {
-                    background: ACCENT_TINT,
-                    boxShadow: `inset 0 0 0 1px ${ACCENT_EDGE}`,
-                  }
-                : undefined
-            }
-            className={`rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
-              on
-                ? 'text-accent-text'
-                : 'text-muted hover:bg-surface hover:text-foreground'
-            }`}
+            onClick={() => onSelect?.(o.key)}
+            style={style}
+            className={className}
           >
-            {o.label}
-            {o.count != null && (
-              <span className="ml-1.5 tabular-nums opacity-70">{o.count}</span>
-            )}
+            {body}
           </button>
         );
       })}
