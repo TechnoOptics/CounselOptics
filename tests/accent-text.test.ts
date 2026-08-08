@@ -25,7 +25,7 @@ import {
   tightestSurface,
   toOklch,
 } from '../lib/accent-text';
-import type { DarkSurfaceGroup } from '../lib/accent-text';
+import type { AccentTone, DarkSurfaceGroup } from '../lib/accent-text';
 import { counselShellClass } from '../lib/counsel-theme-values';
 
 const globalsCss = readFileSync(
@@ -63,6 +63,27 @@ const ACCENTS = everyAccent();
  * budget applies to the TypeScript helper and not to the paint.
  */
 const HUE_QUANTISATION_DEGREES = 3;
+
+/**
+ * The marker class every element that sets an inline `--firm-accent`
+ * wears, so the derivation is declared ON that element rather than
+ * above it. Named once here because two tests read it and app/globals.css
+ * declares it.
+ */
+const ACCENT_SCOPE = '.accent-scope';
+
+/**
+ * The marker as it appears in a call site: the FIRST class in a quoted
+ * class list, `"accent-scope min-h-screen ..."`.
+ *
+ * Deliberately not a bare search for the word. The first version of
+ * this guard counted every occurrence in the file, and it passed when
+ * the marker was taken off the signer page, because the comment above
+ * that className still named it. A guard a comment can satisfy is not a
+ * guard. Anchoring on the opening quote also rules out backticked
+ * prose, and costs only a convention that all four sites already keep.
+ */
+const MARKER_IN_CLASS_LIST = /['"]accent-scope\s/g;
 
 /**
  * The colours most likely to be picked by a real firm AND most likely
@@ -762,30 +783,92 @@ describe('app/globals.css agrees with lib/accent-text.ts', () => {
    * The arithmetic in this file could not see it, because the
    * arithmetic was right about a colour the browser never computed.
    */
-  it('computes each tone on an element that carries --firm-accent', () => {
+  /** Every selector each tone's derivation is declared on. */
+  function derivationSelectors(tone: AccentTone): string[] {
     const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
-    const shellScopes = new Set(
-      Object.values({
-        ...DARK_SURFACE_GROUPS,
-        ...LIGHT_SURFACE_GROUPS,
-      }).flatMap((g) => g.scopes as readonly string[]),
-    );
+    const { lightness, maxChroma } = ACCENT_TEXT_TONES[tone];
+    const derivation = `oklch(from var(--firm-accent, ${DEFAULT_ACCENT}) ${lightness} min(c, ${maxChroma}) h)`;
+    const out: string[] = [];
+    for (const [, selectors, body] of stripped.matchAll(
+      /([^{}]+)\{([^{}]*)\}/g,
+    )) {
+      if (!body.includes(derivation)) continue;
+      for (const s of selectors.split(',').map((x) => x.trim())) {
+        if (s) out.push(s);
+      }
+    }
+    return out;
+  }
+
+  it('computes each tone on an element that carries --firm-accent', () => {
     for (const tone of ['dark', 'light'] as const) {
-      const { lightness, maxChroma } = ACCENT_TEXT_TONES[tone];
-      const derivation = `oklch(from var(--firm-accent, ${DEFAULT_ACCENT}) ${lightness} min(c, ${maxChroma}) h)`;
-      const carriers: string[] = [];
-      for (const [, selectors, body] of stripped.matchAll(
-        /([^{}]+)\{([^{}]*)\}/g,
-      )) {
-        if (!body.includes(derivation)) continue;
-        for (const s of selectors.split(',').map((x) => x.trim())) {
-          if (shellScopes.has(s)) carriers.push(s);
+      const selectors = derivationSelectors(tone);
+      expect(
+        selectors.length,
+        `no block declares the ${tone} derivation at all`,
+      ).toBeGreaterThan(0);
+      // The marker is what makes the claim general. A shell selector
+      // covers counsel and the portal; only the marker reaches an
+      // element that sets --firm-accent and is not a shell, which is
+      // what the signer page is.
+      expect(
+        selectors.some((s) => s.split(/\s+/).some((part) => part.includes(ACCENT_SCOPE))),
+        `the ${tone} derivation is declared on [${selectors.join(', ')}], none of which is \`${ACCENT_SCOPE}\`; a derivation that does not land on the element carrying --firm-accent resolves against the gold fallback and hands every firm somebody else's brand`,
+      ).toBe(true);
+      // And it must not be reachable ONLY from the document root, which
+      // is exactly the shape the bug had.
+      expect(
+        selectors.some((s) => s !== ':root' && s !== 'html'),
+        `the ${tone} derivation is only declared at the document root`,
+      ).toBe(true);
+    }
+  });
+
+  it('marks every element that sets an inline --firm-accent', () => {
+    /*
+     * The other half of the same claim, read off the call sites rather
+     * than off the stylesheet. A selector that exists proves nothing if
+     * the element never wears it, and the signer page is exactly how
+     * that goes wrong: it set the accent for a year and matched no
+     * derivation at all.
+     */
+    const root = fileURLToPath(new URL('..', import.meta.url));
+    const sites: { file: string; sets: number; marks: number }[] = [];
+    const walk = (rel: string) => {
+      let entries;
+      try {
+        entries = readdirSync(join(root, rel), { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const next = `${rel}/${e.name}`;
+        if (e.isDirectory()) walk(next);
+        else if (/\.tsx?$/.test(e.name)) {
+          const src = readFileSync(join(root, next), 'utf8');
+          const sets = src.match(/\[['"]--firm-accent['"] as string\]/g)?.length ?? 0;
+          if (sets === 0) continue;
+          sites.push({
+            file: next.replace(/^\//, ''),
+            sets,
+            marks: src.match(MARKER_IN_CLASS_LIST)?.length ?? 0,
+          });
         }
       }
+    };
+    for (const base of ['app', 'components']) walk(base);
+
+    // Sites, not files: app/counsel/layout.tsx carries two of the four.
+    const total = sites.reduce((n, s) => n + s.sets, 0);
+    expect(
+      total,
+      `only ${total} inline --firm-accent site(s) found across ${sites.length} file(s); the sweep has stopped matching and this guard is vacuous`,
+    ).toBeGreaterThanOrEqual(4);
+    for (const site of sites) {
       expect(
-        carriers,
-        `the ${tone} derivation is declared nowhere a shell element matches, so var(--firm-accent) resolves against the fallback and every firm gets Advottic gold; declare it on a selector from DARK_SURFACE_GROUPS or LIGHT_SURFACE_GROUPS`,
-      ).not.toEqual([]);
+        site.marks,
+        `${site.file} sets --firm-accent on ${site.sets} element(s) but names \`${ACCENT_SCOPE.slice(1)}\` ${site.marks} time(s); an element that sets the accent and does not wear the marker derives its accent text somewhere above itself, which means the gold fallback`,
+      ).toBeGreaterThanOrEqual(site.sets);
     }
   });
 
@@ -1017,5 +1100,101 @@ describe('the employee portal accent is measured, not assumed', () => {
         ).toBe(true);
       }
     }
+  });
+});
+
+/*
+ * The signer page, registered.
+ *
+ * app/sign/[token]/page.tsx is the one surface outside the workspace
+ * that is deliberately painted in a firm's own colour: clients and
+ * opposing counterparties open it, and the firm's mark, its accent fill
+ * and its accent text are the whole point. It is also the page where
+ * showing the WRONG firm's brand reads worst, and it did, in both
+ * tones, because its wrapper is a plain gradient and matched no
+ * derivation at all.
+ *
+ * Fixing the cascade is not the same as proving the colour. This names
+ * the grounds that page actually paints and measures every accent a
+ * customer can pick on each of them, so the surface is in the guard by
+ * name rather than by assumption.
+ *
+ * The dark grounds are not re-derived here: the signer inherits its
+ * dark theme from `html.dark`, which is the consumer repaint family, so
+ * each one is asserted to BE a member of that group rather than being
+ * a second hand-kept copy of it. If the consumer group moves, this
+ * fails rather than drifting.
+ */
+describe('the signer page is a registered surface, not an assumed one', () => {
+  /** What app/sign/[token]/page.tsx paints, read off its own classes. */
+  const SIGNER_SURFACES = {
+    light: {
+      // `bg-gradient-to-b from-cream-50 to-white`, the header's
+      // `bg-white/95`, the footer's `bg-white`, and `.card`.
+      'signer gradient head (cream-50)': '#fefcf3',
+      'signer gradient foot, header, footer, card (white)': '#ffffff',
+    },
+    dark: {
+      // `html.dark` repaints the same utilities into the consumer
+      // family, and `bg-forest-950` is the page itself.
+      'signer dark page (bg-forest-950)': '#0a1f19',
+      'signer dark .bg-cream-50': '#173b30',
+      'signer dark .bg-white': '#1a3d31',
+    },
+  } as const;
+
+  it('paints only grounds the dark consumer group already proves', () => {
+    const consumer = new Set(
+      Object.values(DARK_SURFACE_GROUPS.consumer.surfaces).map((s) =>
+        s.toLowerCase(),
+      ),
+    );
+    for (const [name, hex] of Object.entries(SIGNER_SURFACES.dark)) {
+      expect(
+        consumer.has(hex),
+        `the signer's ${name} (${hex}) is not one of the consumer dark group's surfaces; the signer inherits its dark theme from html.dark, so if it paints something that group does not, the group is what needs updating`,
+      ).toBe(true);
+    }
+  });
+
+  it('paints only light grounds the light tone already proves', () => {
+    const light = new Set(
+      Object.values(ACCENT_TEXT_SURFACES.light).map((s) => s.toLowerCase()),
+    );
+    for (const [name, hex] of Object.entries(SIGNER_SURFACES.light)) {
+      expect(
+        light.has(hex),
+        `the signer's ${name} (${hex}) is not in ACCENT_TEXT_SURFACES.light`,
+      ).toBe(true);
+    }
+  });
+
+  for (const tone of ['dark', 'light'] as const) {
+    for (const [name, surface] of Object.entries(SIGNER_SURFACES[tone])) {
+      it(`${tone}: any firm accent is >= ${AA_SMALL_TEXT}:1 on the ${name}`, () => {
+        let worst = { ratio: Infinity, accent: '', token: '' };
+        for (const accent of ACCENTS) {
+          const token = deriveAccentText(accent, tone);
+          const ratio = contrastRatio(token, surface);
+          if (ratio < worst.ratio) worst = { ratio, accent, token };
+        }
+        expect(
+          worst.ratio,
+          `worst accent ${worst.accent} -> ${worst.token} on ${surface} measured ${worst.ratio.toFixed(3)}:1`,
+        ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+      });
+    }
+  }
+
+  it('puts a readable foreground on the firm mark, which is a fill', () => {
+    // The header mark and the signing button paint the raw accent with
+    // accentOn() on top. That is a different claim from the text one and
+    // is the half a lightness pin cannot make.
+    let worst = { ratio: Infinity, accent: '' };
+    for (const accent of ACCENTS) {
+      const ratio = contrastRatio(accentOn(accent), accent);
+      if (ratio < worst.ratio) worst = { ratio, accent };
+    }
+    expect(worst.ratio).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
   });
 });

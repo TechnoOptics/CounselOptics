@@ -408,7 +408,12 @@ export default async function SignPage({ params }: { params: { token: string } }
   return (
    <AutoTranslate initialLocale={locale}>
     <div
-      className="min-h-screen bg-gradient-to-b from-cream-50 to-white dark:from-forest-950 dark:to-forest-900"
+      // `accent-scope` is what makes `--accent-text` derive from the
+      // firm's own hex rather than from the gold fallback. The
+      // derivation has to be declared ON the element that carries
+      // `--firm-accent`, and this wrapper is deliberately not a counsel
+      // shell, so it needs the marker to get one. See app/globals.css.
+      className="accent-scope min-h-screen bg-gradient-to-b from-cream-50 to-white dark:from-forest-950 dark:to-forest-900"
       style={{
         ['--firm-accent' as string]: firm.accentColor,
         ['--accent-on' as string]: accentOn(firm.accentColor),

@@ -320,7 +320,7 @@ export default async function PortalLayout({
   return (
    <LocaleProvider initialLocale={locale}>
     <div
-      className={counselShellClass(theme, 'min-h-screen flex text-foreground')}
+      className={counselShellClass(theme, 'accent-scope min-h-screen flex text-foreground')}
       style={
         ({
           // `--firm-accent` is what the OKLCH derivation in
