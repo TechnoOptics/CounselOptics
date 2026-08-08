@@ -315,7 +315,7 @@ export function Sidebar({
         {editing && (
           <div className="pt-2 mt-2 border-t border-forest-700/40 space-y-1.5">
             {error && (
-              <p className="text-[11px] text-rose-300 leading-snug px-1">{error}</p>
+              <p className="text-[11px] text-danger-text leading-snug px-1">{error}</p>
             )}
             <button
               type="button"

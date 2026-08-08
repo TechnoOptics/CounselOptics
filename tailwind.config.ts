@@ -92,6 +92,42 @@ const config: Config = {
           50: 'rgb(var(--forest-50) / <alpha-value>)',
         },
         gold: {
+          /*
+           * The solid companion to the `gold-metal` GRADIENT declared
+           * under backgroundImage below, and the reason it has to exist.
+           *
+           * A backgroundImage key generates exactly ONE utility,
+           * `bg-<key>`. `gold-metal` was declared there and nowhere
+           * else, so `text-gold-metal`, `ring-gold-metal`,
+           * `border-gold-metal`, `via-gold-metal`, `accent-gold-metal`
+           * and `bg-gold-metal/<alpha>` - 174 occurrences across 40
+           * files - matched no rule at all and were dropped. The
+           * fallbacks were not neutral: preflight sets
+           * `--tw-ring-color: rgba(59,130,246,.5)`, so every one of
+           * those rings rendered BLUE on the gold product.
+           *
+           * Declaring the same name here does NOT collide with the
+           * gradient, which is why the fix is one key rather than 174
+           * renames. `background-color` and `background-image` are
+           * different properties: Tailwind merges the two declarations
+           * into a single `.bg-gold-metal` rule and the opaque gradient
+           * paints over the flat colour, so all 123 gradient call sites
+           * are unchanged in effect and gain a solid fallback
+           * underneath. Only the utilities that had no rule at all
+           * change. tests/tailwind-gradient-keys.test.ts compiles the
+           * real config and asserts both halves of that.
+           *
+           * The value is the gradient's own terminal stop, so a hairline
+           * or a tint next to a `bg-gold-metal` fill is the gold that
+           * fill ends on rather than an approximation of it. It measures
+           * 5.14:1 on the tightest counsel dark surface and 5.47:1 on
+           * the consumer forest, so it clears AA as small text on every
+           * dark ground it can reach. It does NOT clear it on a light
+           * one (2.33:1 on the light counsel chip), which is what the
+           * `.text-gold-metal` rule in the light counsel layer of
+           * app/globals.css is for.
+           */
+          metal: '#c79532',
           // Softer champagne-leaning gold; less saturated than the previous
           // burnished tone (#C9A85A) so it reads as warm rather than yellow.
           DEFAULT: '#D5BB7E',

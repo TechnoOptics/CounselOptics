@@ -140,7 +140,7 @@ export function UnlockForm({ token }: { token: string }) {
           <header className="flex items-center gap-3 border-b border-cream-50/10 bg-forest-950 px-4 py-2.5">
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-semibold text-cream-50" data-no-translate>{doc.filename}</p>
-              <p className="text-[10.5px] uppercase tracking-[0.14em] text-gold-metal/70">Decrypted view · Advottic</p>
+              <p className="text-[10.5px] uppercase tracking-[0.14em] text-gold-metal">Decrypted view · Advottic</p>
             </div>
             <button
               type="button"

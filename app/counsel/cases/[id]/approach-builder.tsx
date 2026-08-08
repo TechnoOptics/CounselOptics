@@ -115,7 +115,7 @@ export function ApproachBuilder({
         {/* Console header */}
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-metal/70">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-metal">
               <T>Case theories</T>
             </p>
             <h2 className="mt-1.5 text-2xl font-medium tracking-tight text-cream-50">
@@ -144,7 +144,7 @@ export function ApproachBuilder({
         {/* New approach vector */}
         {open && (
           <div className="rounded-xl border border-gold-metal/20 bg-forest-900/50 p-4 sm:p-5">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-metal/70">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-metal">
               <T>New approach</T>
             </p>
             <div className="space-y-3">
@@ -166,7 +166,7 @@ export function ApproachBuilder({
                 data-no-translate
               />
               <div>
-                <p className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.2em] text-gold-metal/60">
+                <p className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.2em] text-gold-metal">
                   <T>Connected parties</T>
                 </p>
                 <textarea
@@ -181,7 +181,7 @@ export function ApproachBuilder({
                 />
               </div>
               {error && (
-                <p className="font-mono text-[11.5px] text-rose-300" data-no-translate>
+                <p className="font-mono text-[11.5px] text-danger-text" data-no-translate>
                   {error}
                 </p>
               )}
@@ -217,7 +217,7 @@ export function ApproachBuilder({
         )}
 
         {notice && (
-          <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+          <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-warn-text">
             {notice}
           </p>
         )}
@@ -384,8 +384,8 @@ function ApproachCard({
                   running
                     ? 'bg-sky-500/12 text-sky-200/90'
                     : assembled
-                    ? 'bg-gold-metal/12 text-gold-metal/90'
-                    : 'bg-amber-500/12 text-amber-200/90'
+                    ? 'bg-gold-metal/[0.12] text-gold-metal'
+                    : 'bg-amber-500/10 text-warn-text'
                 }`}
               >
                 <span
@@ -471,7 +471,7 @@ function ApproachCard({
             </blockquote>
             {approach.connections.trim() && (
               <div className="rounded-lg border border-cream-50/10 bg-forest-950/40 px-3 py-2">
-                <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-metal/60">
+                <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-metal">
                   <T>Connected parties</T>
                 </p>
                 <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-cream-100/75" data-no-translate>
@@ -484,11 +484,11 @@ function ApproachCard({
 
         {error && (
           isUnavailable(error) ? (
-            <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+            <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-warn-text">
               <T>Advottic&apos;s analysis is temporarily unavailable right now. Please try re-running this approach shortly.</T>
             </p>
           ) : (
-            <p className="font-mono text-[11.5px] text-rose-300" data-no-translate>{error}</p>
+            <p className="font-mono text-[11.5px] text-danger-text" data-no-translate>{error}</p>
           )
         )}
 
@@ -509,7 +509,7 @@ function ApproachCard({
           </>
         ) : (
           !editing && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] px-4 py-3 text-[12.5px] text-amber-200/90">
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-[12.5px] text-warn-text">
               <span aria-hidden className="mt-0.5 text-[14px]">◇</span>
               <T>The argument has not been assembled yet. Assemble to build it from the evidence on file.</T>
             </div>
@@ -537,11 +537,11 @@ function AssembleProgress() {
   return (
     <div className="rounded-lg border border-gold-metal/25 bg-gold-metal/[0.06] px-4 py-3">
       <div className="mb-1.5 flex items-center justify-between text-[11px]">
-        <span className="inline-flex items-center gap-1.5 font-mono uppercase tracking-[0.16em] text-gold-metal/85">
+        <span className="inline-flex items-center gap-1.5 font-mono uppercase tracking-[0.16em] text-gold-metal">
           <Spinner />
           <T>Assembling the argument</T>
         </span>
-        <span className="tabular-nums text-gold-metal/70">{Math.round(pct)}%</span>
+        <span className="tabular-nums text-gold-metal">{Math.round(pct)}%</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-gold-metal/15">
         <div
@@ -561,7 +561,7 @@ function AssembleProgress() {
 /** Console section label with a hairline lead-in. */
 function ConsoleLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.13em] text-gold-metal/70">
+    <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.13em] text-gold-metal">
       {children}
     </p>
   );
@@ -587,7 +587,7 @@ function Collapsible({
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-forest-950/45"
       >
-        <span className="flex-1 text-[10.5px] font-semibold uppercase tracking-[0.13em] text-gold-metal/70">
+        <span className="flex-1 text-[10.5px] font-semibold uppercase tracking-[0.13em] text-gold-metal">
           {label}
         </span>
         <span
@@ -608,7 +608,7 @@ function Collapsible({
             <button
               type="button"
               onClick={onToggle}
-              className="inline-flex items-center gap-1 rounded-full bg-gold-metal/12 px-3 py-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-gold-metal ring-1 ring-gold-metal/30 hover:bg-gold-metal/20"
+              className="inline-flex items-center gap-1 rounded-full bg-gold-metal/[0.12] px-3 py-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-gold-metal ring-1 ring-gold-metal/30 hover:bg-gold-metal/20"
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
                 <path d="M18 15l-6-6-6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -705,7 +705,7 @@ function GeneratedArgument({
           <button
             type="button"
             onClick={() => setOpenSections(anyOpen ? new Set() : new Set(sectionKeys))}
-            className="mb-2 rounded-md px-2.5 py-1 text-[11px] font-medium text-gold-metal/85 ring-1 ring-gold-metal/30 transition-colors hover:bg-gold-metal/10"
+            className="mb-2 rounded-md px-2.5 py-1 text-[11px] font-medium text-gold-metal ring-1 ring-gold-metal/30 transition-colors hover:bg-gold-metal/10"
           >
             {anyOpen ? <T>Collapse all</T> : <T>Expand all</T>}
           </button>
@@ -942,7 +942,7 @@ function TimelinePanel({ timeline, hideHeading }: { timeline: ApproachTimelineEn
                 className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-forest-900 bg-gold-metal"
                 style={{ boxShadow: '0 0 10px 0 rgba(198,161,91,0.55)' }}
               />
-              <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-gold-metal/70" data-no-translate>{tl.when}</p>
+              <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-gold-metal" data-no-translate>{tl.when}</p>
               <p className="text-[13.5px] font-medium text-cream-50" data-no-translate>{tl.title}</p>
               {tl.significance && (
                 <p className="text-[13px] leading-relaxed text-cream-100/70" data-no-translate>{tl.significance}</p>
@@ -956,7 +956,7 @@ function TimelinePanel({ timeline, hideHeading }: { timeline: ApproachTimelineEn
             <div key={mo.key} className="rounded-lg border border-cream-50/10 bg-forest-950/40">
               <div className="flex items-center gap-2 border-b border-cream-50/10 px-3 py-1.5">
                 <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gold-metal" />
-                <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-gold-metal/80">
+                <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-gold-metal">
                   {mo.relative ? t('Relative / undated') : mo.label}
                 </p>
                 <span className="ml-auto font-mono text-[10px] text-cream-100/40">{mo.items.length}</span>
@@ -978,7 +978,7 @@ function TimelinePanel({ timeline, hideHeading }: { timeline: ApproachTimelineEn
                       )}
                     </span>
                     <div className="min-w-0">
-                      <p className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-gold-metal/60" data-no-translate>{tl.when}</p>
+                      <p className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-gold-metal" data-no-translate>{tl.when}</p>
                       <p className="text-[13.5px] font-medium text-cream-50" data-no-translate>{tl.title}</p>
                       {tl.significance && (
                         <p className="text-[12.5px] leading-relaxed text-cream-100/70" data-no-translate>{tl.significance}</p>
@@ -1041,7 +1041,7 @@ function ApproachEvidence({
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-gold-metal/70 hover:text-gold-metal"
+        className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-gold-metal hover:text-gold-metal"
       >
         <span aria-hidden className={`transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>
         <span aria-hidden className="h-px w-4 bg-gold-metal/40" />
@@ -1115,7 +1115,7 @@ function RailButton({
       disabled={disabled}
       className={`rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors disabled:opacity-50 ${
         tone === 'danger'
-          ? 'text-rose-300/70 hover:bg-rose-500/10 hover:text-rose-200'
+          ? 'text-danger-text hover:bg-rose-500/10'
           : 'text-cream-100/60 hover:bg-cream-50/10 hover:text-cream-50'
       }`}
     >

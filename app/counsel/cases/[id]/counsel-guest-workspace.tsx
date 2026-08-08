@@ -183,7 +183,7 @@ function NavTile({ href, title, blurb, icon }: { href: string; title: string; bl
       className="group block rounded-xl border border-cream-50/10 bg-forest-900/30 p-4 transition-all hover:border-gold-metal/30 hover:bg-forest-900/55"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="grid h-10 w-10 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">
+        <span className="grid h-10 w-10 place-items-center rounded-lg bg-gold-metal/[0.12] text-gold-metal ring-1 ring-gold-metal/25">
           {icon}
         </span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className="text-cream-100/40 transition-transform group-hover:translate-x-0.5">

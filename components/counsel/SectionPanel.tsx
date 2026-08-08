@@ -118,7 +118,7 @@ export function SectionPanel({
         onClick={toggle}
         className="flex w-full items-center gap-3 p-4 text-left hover:bg-forest-900/40"
       >
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gold-metal/[0.12] text-gold-metal ring-1 ring-gold-metal/25">
           {icon}
         </span>
         <span className="min-w-0 flex-1">
@@ -130,7 +130,7 @@ export function SectionPanel({
           </span>
         </span>
         {meta && (
-          <span className="hidden shrink-0 font-mono text-[11px] tracking-wide text-gold-metal/70 sm:block" data-no-translate>
+          <span className="hidden shrink-0 font-mono text-[11px] tracking-wide text-gold-metal sm:block" data-no-translate>
             {meta}
           </span>
         )}

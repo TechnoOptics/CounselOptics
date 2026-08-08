@@ -88,7 +88,7 @@ export function PreviewClient({ caseId, src, label }: { caseId: string; src: str
         </Link>
         <div className="min-w-0 flex-1 text-center">
           <p className="truncate text-[13px] font-semibold text-cream-50" data-no-translate>{label}</p>
-          <p className="text-[10.5px] uppercase tracking-[0.14em] text-gold-metal/70"><T>Preview</T> · Advottic</p>
+          <p className="text-[10.5px] uppercase tracking-[0.14em] text-gold-metal"><T>Preview</T> · Advottic</p>
         </div>
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={print} disabled={!blobUrl} className={btn} title="Print">

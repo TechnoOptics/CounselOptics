@@ -24,9 +24,14 @@ export const metadata: Metadata = {
 const CATEGORY_LABELS: Record<string, { label: string; tone: string }> = {
   feature: { label: 'Feature', tone: 'bg-emerald-500/10 text-emerald-300' },
   fix: { label: 'Fix', tone: 'bg-sky-500/10 text-sky-300' },
-  security: { label: 'Security', tone: 'bg-rose-500/10 text-rose-300' },
-  brand: { label: 'Brand', tone: 'bg-gold-metal/15 text-gold-metal' },
-  pricing: { label: 'Pricing', tone: 'bg-amber-500/10 text-amber-300' },
+  security: { label: 'Security', tone: 'bg-rose-500/10 text-danger-text' },
+  // The one `text-gold-metal` call site outside the counsel shell and
+  // the always-dark share viewer, so it is the one that needs its own
+  // light value rather than the shell repaint the others get: this page
+  // is white in the consumer light theme, where #c79532 measures
+  // 2.33:1.
+  brand: { label: 'Brand', tone: 'bg-gold-metal/15 text-gold-900 dark:text-gold-metal' },
+  pricing: { label: 'Pricing', tone: 'bg-amber-500/10 text-warn-text' },
 };
 
 export default function ChangelogPage() {

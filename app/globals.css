@@ -327,6 +327,28 @@ html.dark,
    the element that knows the accent. */
 .counsel-shell:not(.dark) {
   --accent-text: #6a5521;
+  /* The status pair needs the same re-declaration, and for the same
+     reason, which was found by rendering a light counsel under a dark
+     `html` rather than by reading the cascade.
+
+     A custom property inherits. `html.dark` above sets --danger-text to
+     #fecaca and --warn-text to #fbbf24, and a reader whose profile or OS
+     is dark carries `.dark` on <html> even when they have switched
+     counsel to LIGHT - the block further down that sets
+     `color-scheme: light` here exists for exactly that combination. With
+     no declaration on this selector the light shell inherited the dark
+     values, so a pale red error banner landed on a near-white card at
+     1.45:1: invisible, which is the defect these tokens were being
+     wired into the call sites to fix.
+
+     The values are the `:root` ones verbatim, because the light ground
+     is the light ground however the reader arrived at it. #b91c1c is
+     5.54:1 and #92400e 6.07:1 on cream-200, and
+     tests/accent-text.test.ts now measures the light counsel family
+     against THIS declaration rather than against :root, so removing it
+     fails rather than silently inheriting. */
+  --danger-text: #b91c1c;
+  --warn-text: #92400e;
 }
 @supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
   .counsel-shell:not(.dark) {
@@ -1327,6 +1349,25 @@ body > * {
 .counsel-shell:not(.dark) .header-glow-line {
   box-shadow: 0 1px 2px rgba(213, 187, 126, 0.35);
 }
+
+/* The metallic gold, as WORDS, on a near-white page.
+   `text-gold-metal` is #c79532, which is the terminal stop of the
+   `gold-metal` gradient and reads correctly against every dark counsel
+   surface (5.14:1 on the tightest of them). On this ground it measures
+   2.33:1 on the light counsel chip and cannot be read.
+   #6a5521 is the same gold at the light tone - the identical value the
+   `--accent-text` light fallback carries at the top of this file, so
+   there is no second derivation to keep in step - and it measures
+   6.18:1 on the tightest surface this shell paints.
+   The hover spelling is listed because the utility is a distinct class
+   and would otherwise take the dark value back on hover, which reads as
+   the label vanishing under the cursor.
+   Only the TEXT spelling moves. `border-gold-metal/*`,
+   `ring-gold-metal/*` and the `bg-gold-metal/*` tints are decoration
+   rather than words, carry no contrast floor, and a warm hairline is
+   what a light workspace wants from them. */
+.counsel-shell:not(.dark) .text-gold-metal,
+.counsel-shell:not(.dark) .hover\:text-gold-metal:hover { color: #6a5521; }
 
 /* TEXT */
 .counsel-shell:not(.dark) .text-forest-900 { color: #17171b; }

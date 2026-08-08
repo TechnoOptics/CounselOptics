@@ -31,7 +31,7 @@ export function CompleteTrainingButton({
         {pending ? 'Saving…' : 'Mark complete'}
       </button>
       {error && (
-        <p className="text-[11px] text-rose-300">{error}</p>
+        <p className="text-[11px] text-danger-text">{error}</p>
       )}
     </div>
   );

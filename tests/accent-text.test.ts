@@ -1542,3 +1542,420 @@ describe('every solid badge pairs a fill with a foreground that can be read on i
     expect(contrastRatio('#f43f5e', '#ffffff')).toBeLessThan(AA_SMALL_TEXT);
   });
 });
+
+/*
+ * Error and warning banners, on the ground the reader is actually on.
+ *
+ * THE DEFECT
+ * ----------
+ * Twenty-one of them were painted for the dark shell only, and light
+ * counsel is now live. `text-amber-200` on `bg-amber-500/10` over a
+ * white counsel card measures 1.01:1, which is not low contrast, it is
+ * invisible; `text-rose-100` on `bg-rose-500/20` is 1.08:1 and
+ * `text-rose-200` on `bg-rose-950/30` is 1.39:1. A user whose action
+ * failed and who cannot see why has no way forward, which is what makes
+ * this the worst class of contrast bug rather than a cosmetic one.
+ *
+ * WHAT REPLACES THEM
+ * ------------------
+ * `--danger-text` and `--warn-text`, which already exist, are already
+ * declared per ground, and are already held to the floor on the bare
+ * surfaces by the block above. Nothing new is invented here: the call
+ * sites stop naming a palette step and name the semantic token, and the
+ * token does the per-ground work it was built for.
+ *
+ * MEASURED THE WAY THE PRODUCT PAINTS
+ * -----------------------------------
+ * A tinted banner is not text on the surface. It is text on its own
+ * fill, and the fill is a step from the surface TOWARDS the tint, so
+ * the bare-surface number is optimistic. Every pair below is measured
+ * as label against `fill over surface`, on every solid surface the
+ * file's ground family paints, on BOTH tones.
+ *
+ * WHICH FAMILY A FILE IS IN is not a judgement call: it is which shell
+ * renders it. `/counsel` and `/portal` render inside `.counsel-shell`,
+ * which has two themes; everything else in the consumer app resolves
+ * `:root` light or the `.dark` green repaint.
+ *
+ * WHAT IS DELIBERATELY OUT
+ * ------------------------
+ * A surface that paints its own opaque ground in both themes has one
+ * ground, not two, and measuring it against a shell it never sits on
+ * would fail a colour that is correct. Each is named in SELF_GROUNDED
+ * with the ground it carries, so the exemption is a statement that can
+ * be checked rather than a silence.
+ */
+describe('every error and warning surface can be read on both of its grounds', () => {
+  /** The file, and which shell family decides its two grounds. */
+  const SURFACE_FILES: Record<string, 'counsel' | 'consumer'> = {
+    'app/counsel/cases/[id]/approach-builder.tsx': 'counsel',
+    'app/counsel/cases/[id]/evidence/evidence-intake.tsx': 'counsel',
+    'app/counsel/cases/[id]/evidence/evidence-viewer.tsx': 'counsel',
+    'app/counsel/request/request-form.tsx': 'counsel',
+    'app/portal/profile/profile-form.tsx': 'counsel',
+    'app/portal/trainings/complete-button.tsx': 'counsel',
+    'app/portal/trainings/page.tsx': 'counsel',
+    'components/counsel/AskAdvottic.tsx': 'counsel',
+    'components/counsel/DashboardCustomizer.tsx': 'counsel',
+    'components/counsel/GuestPasswordForm.tsx': 'counsel',
+    'components/counsel/import/ImportPanels.tsx': 'counsel',
+    // Already painting from the tokens before this change. Registered
+    // so the same proof covers them: the sweep below fails if a file
+    // uses a semantic status token and no group claims it, which is
+    // what stops the next banner being added outside the measurement.
+    'app/counsel/cases/[id]/page.tsx': 'counsel',
+    'app/counsel/contracts/page.tsx': 'counsel',
+    'app/counsel/documents/[id]/page.tsx': 'counsel',
+    'app/counsel/documents/page.tsx': 'counsel',
+    'app/counsel/forms/forms-manage-client.tsx': 'counsel',
+    'app/counsel/letters/letters-studio.tsx': 'counsel',
+    'app/counsel/policies/policies-manage-client.tsx': 'counsel',
+    'app/counsel/signing/[id]/page.tsx': 'counsel',
+    'app/counsel/templates/template-studio.tsx': 'counsel',
+    'app/portal/layout.tsx': 'counsel',
+    'components/portal/RequestHeader.tsx': 'counsel',
+    'app/cases/[id]/activity-list.tsx': 'consumer',
+    'app/cases/[id]/page.tsx': 'consumer',
+    'app/cases/page.tsx': 'consumer',
+    'app/changelog/page.tsx': 'consumer',
+    'app/example/page.tsx': 'consumer',
+    'app/guest-login/guest-login-form.tsx': 'consumer',
+    'app/join/join-form.tsx': 'consumer',
+    'components/Sidebar.tsx': 'consumer',
+  };
+
+  /**
+   * Surfaces that carry their own opaque ground in BOTH themes, and the
+   * ground each one carries. A dark-only foreground is correct on these
+   * and rewriting it to a per-ground token would put dark red on a dark
+   * red overlay.
+   */
+  const SELF_GROUNDED: Record<string, string> = {
+    'app/admin': 'the HQ shell renders `dark hq-shell`, one theme',
+    'app/enterprise/page.tsx': '`.enterprise-shell`, one theme',
+    'components/EnterpriseInquiryForm.tsx':
+      'rendered only inside app/enterprise/page.tsx',
+    'components/DistressOverlay.tsx':
+      'a full-screen `bg-rose-950/80` crisis overlay it paints itself',
+    'components/SafeWitness.tsx':
+      'a full-screen forest gradient it paints itself; gradient stops are not repainted per theme',
+    'app/page.tsx': 'the marketing tile sits on the forest hero gradient',
+  };
+
+  /** The palette steps these banners fill with, resolved to their hex. */
+  const FILL_PAINT: Record<string, string> = {
+    'rose-400': '#fb7185',
+    'rose-500': '#f43f5e',
+    'rose-950': '#4c0519',
+    'red-500': '#ef4444',
+    'amber-400': '#fbbf24',
+    'amber-500': '#f59e0b',
+    'yellow-500': '#eab308',
+  };
+
+  /**
+   * The two grounds each family paints, and the token value each one
+   * resolves. The hexes are read back out of app/globals.css rather
+   * than repeated here, so a token retuned in the stylesheet is
+   * measured at its new value instead of at a stale copy.
+   *
+   * `.bg-cream-200` is left out of both dark sets, and this is the one
+   * exclusion. It is the lightest solid either dark theme paints, and
+   * `--warn-text` clears the floor on it BARE (4.74:1) but not under a
+   * 10 percent amber tint (4.21:1). No file in SURFACE_FILES paints a
+   * `bg-cream-200` container, which the sweep below asserts rather than
+   * assumes, so no registered banner can land there. Retuning a shared
+   * status token to buy that surface is a different change from this
+   * one, and app/globals.css already records why the paler amber was
+   * rejected.
+   */
+  function tokenValue(token: string, scopes: readonly string[]): string {
+    const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    let value = '';
+    for (const [, selectors, body] of stripped.matchAll(
+      /([^{}]+)\{([^{}]*)\}/g,
+    )) {
+      const parts = selectors.split(',').map((s) => s.trim());
+      if (!parts.some((s) => scopes.includes(s))) continue;
+      const m = new RegExp(`(?:^|[;\\s])${token}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(
+        body,
+      );
+      if (m) value = m[1].toLowerCase();
+    }
+    return value;
+  }
+
+  const withoutCream200 = (surfaces: Record<string, string>) =>
+    Object.fromEntries(
+      Object.entries(surfaces).filter(([name]) => !name.endsWith('cream-200')),
+    );
+
+  const FAMILIES = {
+    counsel: [
+      {
+        tone: 'dark',
+        surfaces: withoutCream200(DARK_SURFACE_GROUPS.counsel.surfaces),
+        danger: tokenValue('--danger-text', DARK_SURFACE_GROUPS.counsel.scopes),
+        warn: tokenValue('--warn-text', DARK_SURFACE_GROUPS.counsel.scopes),
+      },
+      {
+        tone: 'light',
+        surfaces: LIGHT_SURFACE_GROUPS.counselLight.surfaces as Record<
+          string,
+          string
+        >,
+        // Resolved on the SHELL, not on :root, and that is a fix rather
+        // than a detail. A custom property inherits, so a light counsel
+        // under a dark `html` - a reader whose profile is dark who has
+        // switched this workspace to light, which the color-scheme
+        // block in app/globals.css exists for - inherited #fecaca and
+        // painted a pale red banner on a white card at 1.45:1. Reading
+        // the value off `.counsel-shell:not(.dark)` means deleting that
+        // declaration fails here instead of quietly inheriting.
+        danger: tokenValue('--danger-text', ['.counsel-shell:not(.dark)']),
+        warn: tokenValue('--warn-text', ['.counsel-shell:not(.dark)']),
+      },
+    ],
+    consumer: [
+      {
+        tone: 'dark',
+        surfaces: withoutCream200(DARK_SURFACE_GROUPS.consumer.surfaces),
+        danger: tokenValue('--danger-text', DARK_SURFACE_GROUPS.consumer.scopes),
+        warn: tokenValue('--warn-text', DARK_SURFACE_GROUPS.consumer.scopes),
+      },
+      {
+        tone: 'light',
+        surfaces: {
+          white: '#ffffff',
+          'cream-50': '#fefcf3',
+          'cream-100': '#fbf7e9',
+        },
+        danger: tokenValue('--danger-text', [':root']),
+        warn: tokenValue('--warn-text', [':root']),
+      },
+    ],
+  } as const;
+
+  const channels = (hex: string): [number, number, number] => {
+    const n = parseInt(hex.replace('#', ''), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+
+  /** The banner's fill: the tint at its own alpha over the surface. */
+  function bannerFill(tint: string, alpha: number, surface: string): string {
+    const t = channels(tint);
+    const g = channels(surface);
+    return (
+      '#' +
+      t
+        .map((v, i) =>
+          Math.round(v * alpha + g[i] * (1 - alpha))
+            .toString(16)
+            .padStart(2, '0'),
+        )
+        .join('')
+    );
+  }
+
+  function source(rel: string): string {
+    return readFileSync(
+      fileURLToPath(new URL(`../${rel}`, import.meta.url)),
+      'utf8',
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+  }
+
+  /**
+   * The quoted run a match sits inside, found by scanning outward from
+   * the match rather than by pairing every quote in the file.
+   *
+   * Pairing globally was tried and it silently loses class strings: a
+   * lone apostrophe in JSX prose ("didn't") opens a run that swallows
+   * everything to the next apostrophe, and every className in between
+   * drops out of the sweep. The bug surfaced as a mutation that stayed
+   * green, which is the failure mode this whole file exists to catch,
+   * so the scan is local and cannot desynchronise.
+   */
+  function runAround(src: string, index: number): string {
+    const DELIM = /['"`]/;
+    let start = index;
+    while (start > 0 && !DELIM.test(src[start - 1])) start -= 1;
+    let end = index;
+    while (end < src.length && !DELIM.test(src[end])) end += 1;
+    return src.slice(start, end);
+  }
+
+  const FG = /(?<![\w:-])text-(danger|warn)-text(?![\w-])/g;
+  /**
+   * A tint from the tone's OWN family. A template literal often carries
+   * several branches at once, so a run can hold a sky or emerald fill
+   * that belongs to a different branch entirely; pairing a danger label
+   * with one of those would measure a combination that never renders.
+   */
+  const FILL_FAMILY = {
+    danger: /(?<![\w:-])(?:hover:|focus:|group-hover:)?bg-((?:rose|red)-\d+)\/(\[[\d.]+\]|\d+)(?![\w-])/g,
+    warn: /(?<![\w:-])(?:hover:|focus:|group-hover:)?bg-((?:amber|yellow|orange)-\d+)\/(\[[\d.]+\]|\d+)(?![\w-])/g,
+  } as const;
+
+  type Pair = { rel: string; tone: 'danger' | 'warn'; fill: string | null; alpha: number };
+
+  function pairsIn(rel: string): Pair[] {
+    const out: Pair[] = [];
+    const src = source(rel);
+    const seen = new Set<string>();
+    for (const hit of src.matchAll(FG)) {
+      const run = runAround(src, hit.index ?? 0);
+      const key = `${hit[1]} ${run}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      {
+        const tone = hit[1] as 'danger' | 'warn';
+        const fills = [...run.matchAll(FILL_FAMILY[tone])].map((m) => ({
+          fill: m[1],
+          alpha: m[2].startsWith('[')
+            ? parseFloat(m[2].slice(1, -1))
+            : parseInt(m[2], 10) / 100,
+        }));
+        if (!fills.length) out.push({ rel, tone, fill: null, alpha: 0 });
+        for (const f of fills) out.push({ rel, tone, fill: f.fill, alpha: f.alpha });
+      }
+    }
+    return out;
+  }
+
+  const PAIRS = Object.keys(SURFACE_FILES).flatMap(pairsIn);
+
+  it('finds the surfaces at all, so an empty sweep cannot pass', () => {
+    expect(Object.keys(SURFACE_FILES).length).toBeGreaterThanOrEqual(30);
+    expect(PAIRS.length).toBeGreaterThanOrEqual(45);
+    for (const [name, family] of Object.entries(FAMILIES)) {
+      for (const g of family) {
+        expect(g.danger, `${name}/${g.tone} has no --danger-text`).toMatch(
+          /^#[0-9a-f]{6}$/,
+        );
+        expect(g.warn, `${name}/${g.tone} has no --warn-text`).toMatch(
+          /^#[0-9a-f]{6}$/,
+        );
+      }
+    }
+  });
+
+  it('knows the paint behind every fill it swept', () => {
+    for (const p of PAIRS) {
+      if (p.fill === null) continue;
+      expect(
+        FILL_PAINT[p.fill],
+        `${p.rel} fills a banner with ${p.fill}, which has no pinned hex`,
+      ).toBeDefined();
+    }
+  });
+
+  it('earns the one surface it leaves out', () => {
+    // The exclusion above is only honest if no registered banner can
+    // land on that surface. Asserted rather than assumed.
+    for (const rel of Object.keys(SURFACE_FILES)) {
+      expect(
+        source(rel).includes('bg-cream-200'),
+        `${rel} paints a bg-cream-200 container, so the excluded surface is reachable`,
+      ).toBe(false);
+    }
+  });
+
+  it(`holds every banner to ${AA_SMALL_TEXT}:1 on both of its grounds`, () => {
+    for (const p of PAIRS) {
+      for (const ground of FAMILIES[SURFACE_FILES[p.rel]]) {
+        const ink = ground[p.tone];
+        for (const [surfaceName, surface] of Object.entries(ground.surfaces)) {
+          const fill =
+            p.fill === null
+              ? surface
+              : bannerFill(FILL_PAINT[p.fill], p.alpha, surface);
+          const ratio = contrastRatio(ink, fill);
+          expect(
+            ratio,
+            `${p.rel}: --${p.tone}-text ${ink} on ${p.fill ?? 'the bare surface'}${p.fill ? `/${p.alpha}` : ''} over the ${ground.tone} ${surfaceName} (${surface}) measures ${ratio.toFixed(3)}:1`,
+          ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+        }
+      }
+    }
+  });
+
+  it('leaves no dark-only danger or warning foreground anywhere it can be painted light', () => {
+    // The half that makes this the whole family rather than the
+    // twenty-one that were reported. A pale danger or warning tone with
+    // no light counterpart is legible on exactly one ground, so it may
+    // only appear in a file that HAS one ground.
+    const DARK_ONLY =
+      /(?<![\w:-])text-(?:rose|red|amber|yellow|orange)-(?:100|200|300|400)(?![\w-])/;
+    const walk = (rel: string): string[] =>
+      readdirSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), {
+        withFileTypes: true,
+      }).flatMap((e) =>
+        e.isDirectory()
+          ? walk(`${rel}/${e.name}`)
+          : e.name.endsWith('.tsx')
+            ? [`${rel}/${e.name}`]
+            : [],
+      );
+    const files = [...walk('app'), ...walk('components')];
+    expect(files.length, 'the sweep found no files at all').toBeGreaterThan(500);
+    const offenders: string[] = [];
+    for (const rel of files) {
+      if (Object.keys(SELF_GROUNDED).some((p) => rel.startsWith(p))) continue;
+      source(rel)
+        .split('\n')
+        .forEach((line, i) => {
+          if (DARK_ONLY.test(line)) offenders.push(`${rel}:${i + 1}`);
+        });
+    }
+    expect(offenders, 'these foregrounds are legible on one ground only').toEqual(
+      [],
+    );
+  });
+
+  it('claims every file that paints from a status token', () => {
+    // The other half of the loop. Without this, dropping a file out of
+    // SURFACE_FILES silently drops its measurement while the file goes
+    // on rendering, which is the shape of a guard that stops seeing the
+    // thing it guards.
+    const walk = (rel: string): string[] =>
+      readdirSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), {
+        withFileTypes: true,
+      }).flatMap((e) =>
+        e.isDirectory()
+          ? walk(`${rel}/${e.name}`)
+          : e.name.endsWith('.tsx')
+            ? [`${rel}/${e.name}`]
+            : [],
+      );
+    const unclaimed = [...walk('app'), ...walk('components')].filter(
+      (rel) =>
+        /(?<![\w:-])text-(?:danger|warn)-text(?![\w-])/.test(source(rel)) &&
+        !(rel in SURFACE_FILES),
+    );
+    expect(
+      unclaimed,
+      'these files paint from a status token but no ground family claims them',
+    ).toEqual([]);
+  });
+
+  it('states the regression this guard exists for, as arithmetic', () => {
+    // The shipped pairs on the ground nobody measured them on. The
+    // light counsel card is the surface the reported numbers were taken
+    // against.
+    const card = LIGHT_SURFACE_GROUPS.counselLight.surfaces['light counsel card'];
+    const shipped: [string, string, string, number][] = [
+      ['approach-builder banner', '#fde68a', 'amber-500', 0.1],
+      ['evidence-viewer banner', '#ffe4e6', 'rose-500', 0.2],
+      ['guest password banner', '#fecdd3', 'rose-950', 0.3],
+    ];
+    for (const [name, ink, fill, alpha] of shipped) {
+      const ratio = contrastRatio(ink, bannerFill(FILL_PAINT[fill], alpha, card));
+      expect(
+        ratio,
+        `the ${name} was already legible on light counsel, so this change is unnecessary`,
+      ).toBeLessThan(2);
+    }
+  });
+});

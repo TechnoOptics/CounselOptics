@@ -259,7 +259,7 @@ export function EvidenceViewer({
           {isEmail ? (
             <EmailView event={event} url={url} />
           ) : loadError ? (
-            <p className="rounded-lg bg-rose-500/20 px-4 py-3 text-sm text-rose-100">{loadError}</p>
+            <p className="rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-danger-text">{loadError}</p>
           ) : !url ? (
             <div className="py-16 text-cream-100/60">
               <T>Loading…</T>

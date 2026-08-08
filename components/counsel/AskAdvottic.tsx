@@ -241,7 +241,7 @@ export function AskAdvottic() {
                 {turn.question}
               </p>
               {turn.error ? (
-                <p className="text-[13px] text-rose-300">{turn.error}</p>
+                <p className="text-[13px] text-danger-text">{turn.error}</p>
               ) : turn.answer ? (
                 <div className="text-[13.5px] leading-relaxed text-cream-100/90 whitespace-pre-wrap">
                   {turn.answer}

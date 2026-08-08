@@ -301,7 +301,7 @@ function MiniRow({ label, chevron, tall }: { label: string; chevron?: boolean; t
     >
       <span className="text-[10px] font-medium text-cream-100/70" dangerouslySetInnerHTML={{ __html: label }} />
       {chevron && (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-gold-metal/70" aria-hidden>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-gold-metal" aria-hidden>
           <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       )}
@@ -335,7 +335,7 @@ function CollapsibleDemo() {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 p-3.5 text-left hover:bg-forest-900/40"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gold-metal/[0.12] text-gold-metal ring-1 ring-gold-metal/25">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path
               d="M12 3v18M7 21h10M5 7h14M5 7l-3 6a3 3 0 006 0L5 7Zm14 0l-3 6a3 3 0 006 0l-3-6Z"
@@ -349,12 +349,12 @@ function CollapsibleDemo() {
             The assembled arguments and the exhibits they marshal.
           </span>
         </span>
-        <span className="hidden font-mono text-[11px] tracking-wide text-gold-metal/70 sm:block">
+        <span className="hidden font-mono text-[11px] tracking-wide text-gold-metal sm:block">
           2 approaches
         </span>
         <svg
           width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden
-          className={`shrink-0 text-gold-metal/70 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`shrink-0 text-gold-metal transition-transform ${open ? 'rotate-180' : ''}`}
         >
           <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -369,7 +369,7 @@ function CollapsibleDemo() {
         </div>
       )}
       {!open && (
-        <p className="px-3.5 pb-3 -mt-1 text-[11px] font-medium text-gold-metal/80">
+        <p className="px-3.5 pb-3 -mt-1 text-[11px] font-medium text-gold-metal">
           ↑ Tap this header to open it
         </p>
       )}
@@ -389,7 +389,7 @@ function NavVisual() {
           Timeline
         </span>
       </div>
-      <p className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-gold-metal/80">
+      <p className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-gold-metal">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
           <path d="M11 17l-5-5 5-5M6 12h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -438,7 +438,7 @@ function TilesVisual() {
           key={t.label}
           className="rounded-lg border border-cream-50/10 bg-forest-900/40 p-2.5"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-metal/[0.12] text-gold-metal ring-1 ring-gold-metal/25">
             {t.icon}
           </span>
           <p className="mt-2 text-[11px] font-semibold text-cream-50">{t.label}</p>

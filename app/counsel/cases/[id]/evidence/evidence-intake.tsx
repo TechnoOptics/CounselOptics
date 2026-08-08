@@ -2737,7 +2737,7 @@ function BulkBar({
           type="button"
           disabled={busy}
           onClick={onDelete}
-          className="rounded-full px-3 py-1.5 text-[13px] text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
+          className="rounded-full px-3 py-1.5 text-[13px] text-danger-text hover:bg-rose-500/10 disabled:opacity-50"
         >
           <T>Delete</T>
         </button>

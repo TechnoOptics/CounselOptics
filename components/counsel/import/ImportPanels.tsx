@@ -929,7 +929,7 @@ function ResultPanel({
       )}
       {failures.length > 0 && (
         <details className="mt-2">
-          <summary className="text-[12.5px] text-rose-300 cursor-pointer">
+          <summary className="text-[12.5px] text-danger-text cursor-pointer">
             {failures.length}{' '}
             <T>
               {failures.length === 1
