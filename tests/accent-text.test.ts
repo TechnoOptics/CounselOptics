@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -414,5 +415,126 @@ describe('app/globals.css agrees with lib/accent-text.ts', () => {
     expect(globalsCss).toContain(
       '@supports (color: oklch(from red 0.5 min(c, 0.1) h))',
     );
+  });
+});
+
+/*
+ * Slice 6: counsel and the employee portal are off the per-class theme
+ * override block in app/globals.css.
+ *
+ * That block reassigns what `text-forest-900`, `text-ink-500`, `bg-white`
+ * and thirty-three other Tailwind palette classes MEAN inside `.dark`.
+ * Any call site reading one of them is pinned to it, which is why counsel
+ * could not have a light mode: the shell is `dark counsel-shell`, so those
+ * rules always win and a theme toggle would change nothing.
+ *
+ * 1043 call sites across 99 files moved onto the tokens. This pins that,
+ * because the failure mode is silent: one reintroduced `text-ink-500` on
+ * a counsel page still looks right today (the block paints it cream) and
+ * only turns invisible on the day the block is deleted.
+ *
+ * The two allowed exceptions are call sites whose dark half is a status
+ * colour, not neutral text, so a neutral token would have flattened them.
+ */
+describe('counsel and portal do not read colour from the override block', () => {
+  const OVERRIDDEN = `text-forest-900 text-forest-800 text-forest-700 text-ink-950 text-ink-900
+text-ink-800 text-ink-700 text-ink-600 text-ink-500 text-ink-400 hover:text-forest-900
+hover:text-forest-700 hover:text-ink-900 hover:text-ink-700 bg-white bg-cream-50 bg-cream-50/40
+bg-cream-50/50 bg-cream-100 bg-cream-200 bg-ink-50 bg-ink-50/40 bg-ink-50/50 bg-forest-50
+bg-forest-100 bg-ink-100 hover:bg-white hover:bg-cream-50 hover:bg-cream-100 hover:bg-forest-50
+hover:bg-ink-50 hover:bg-ink-100 border-ink-100 border-ink-200 border-forest-200 ring-ink-200`
+    .split(/\s+/)
+    .filter(Boolean);
+
+  /**
+   * Left on the palette on purpose. Keyed by file AND class, so an
+   * exemption cannot quietly cover the next call site added to the same
+   * file.
+   */
+  const ALLOWED = new Map([
+    [
+      'app/portal/check/policy-check-client.tsx|text-forest-700',
+      'the policy score is a three-way status colour and only its green arm is a forest class',
+    ],
+    [
+      'app/counsel/settings/partner-integration-manager.tsx|text-forest-700',
+      'the "Saved." confirmation is a success colour, paired with dark:text-emerald-300',
+    ],
+  ]);
+
+  /** Rebuilt on another branch; not this slice's to hold. */
+  const NOT_OURS = [
+    'app/counsel/cases/',
+    'app/counsel/forms/',
+    'components/counsel/ui.tsx',
+  ];
+
+  function sweptFiles(): string[] {
+    const root = fileURLToPath(new URL('..', import.meta.url));
+    const out: string[] = [];
+    const walk = (rel: string) => {
+      let entries;
+      try {
+        entries = readdirSync(join(root, rel), { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const next = `${rel}/${e.name}`;
+        if (NOT_OURS.some((p) => next.startsWith(p))) continue;
+        if (e.isDirectory()) walk(next);
+        else if (/\.tsx?$/.test(e.name)) out.push(next);
+      }
+    };
+    for (const base of ['app/counsel', 'app/portal', 'components/counsel']) {
+      walk(base);
+    }
+    return out;
+  }
+
+  const bare = [...new Set(OVERRIDDEN.map((c) => c.split(':').pop() as string))]
+    .sort((a, b) => b.length - a.length)
+    .map((c) => c.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&'));
+  const pattern = new RegExp(
+    `(?<![\\w:/-])((?:[a-z-]+:)*)(${bare.join('|')})(?![\\w/-])`,
+    'g',
+  );
+  const overridden = new Set(OVERRIDDEN);
+
+  it('leaves no palette call site behind except the two documented ones', () => {
+    const offenders: string[] = [];
+    for (const rel of sweptFiles()) {
+      const src = readFileSync(
+        fileURLToPath(new URL(`../${rel}`, import.meta.url)),
+        'utf8',
+      );
+      for (const m of src.matchAll(pattern)) {
+        const cls = m[1] + m[2];
+        if (!overridden.has(cls)) continue;
+        if (ALLOWED.has(`${rel}|${cls}`)) continue;
+        offenders.push(`${rel}: ${cls}`);
+      }
+    }
+    expect(
+      offenders,
+      'these read their colour from the .dark palette overrides in app/globals.css; use a token (text-foreground, text-muted, bg-surface, bg-surface-2, border-edge, ring-edge) instead',
+    ).toEqual([]);
+  });
+
+  it('the exemption list stays honest', () => {
+    // An exemption that no longer has a call site is an exemption that
+    // will silently cover the next one added to that file.
+    for (const [key, why] of ALLOWED) {
+      const [rel, cls] = key.split('|');
+      const src = readFileSync(
+        fileURLToPath(new URL(`../${rel}`, import.meta.url)),
+        'utf8',
+      );
+      const hits = [...src.matchAll(pattern)].filter(
+        (m) => m[1] + m[2] === cls,
+      );
+      expect(hits.length, `${rel} no longer needs its ${cls} exemption: ${why}`)
+        .toBeGreaterThan(0);
+    }
   });
 });
