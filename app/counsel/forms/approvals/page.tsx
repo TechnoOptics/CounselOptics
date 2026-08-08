@@ -4,9 +4,9 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmTemplateSubmissionsAction } from '@/lib/template-submissions';
 import { isAwaitingReview } from '@/lib/template-approval';
 import { groupByCategory } from '@/lib/document-category';
-import { displayTicket } from '@/lib/ticket-numbers';
-import { PageHeader, EmptyState, SectionTitle } from '@/components/counsel/ui';
-import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
+import { PageHeader } from '@/components/counsel/ui';
+import { PanelCard } from '@/components/counsel/patterns';
+import { SubmissionList } from '@/components/counsel/SubmissionList';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,16 @@ export const metadata = { title: 'Document approvals · Counsel' };
  * the firm has not agreed to send, and releasing one, are both limited to
  * owners, admins, and attorneys: see canReadSubmissionDocument and
  * canApproveSubmissions in lib/template-approval.ts.
+ *
+ * On the shape of this page, and on the one piece of the reference it does
+ * NOT copy. The reference's approvals screen carries a request form: a card
+ * that starts a new approval. Advottic has no such thing to start. Every row
+ * in this queue is created by a colleague filling in a form on their own
+ * side, and there is no action a reviewer takes here that begins one. The
+ * card would have been four controls with nothing behind them, so it is not
+ * here. What a reviewer can actually do lives one click in, on the
+ * submission itself: approve it, edit it, send it back with a note, decline
+ * it.
  */
 export default async function CounselFormApprovalsPage() {
   const ctx = await getActiveFirmContext();
@@ -37,16 +47,16 @@ export default async function CounselFormApprovalsPage() {
         title={<T>Document approvals</T>}
         subtitle={
           <T>
-            Forms your colleagues have filled in and addressed to someone outside the
-            company. Nothing here has been sent. An owner, admin, or attorney reads the
-            finished document and either approves it to send it, or sends it back with a
-            note.
+            Approving one of these releases it: the finished document goes to the
+            outside recipient your colleague named, from the firm. Nothing here has
+            been sent yet. The other way out is to send it back with a note, which
+            keeps it alive and returns it to the person who filled it in.
           </T>
         }
       />
 
       {!res.canApprove && (
-        <p className="rounded-lg border border-ink-200 bg-cream-50/60 px-4 py-3 text-[13px] text-ink-700 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100/80">
+        <p className="rounded-lg border border-edge bg-surface-2 px-4 py-3 text-[13px] text-muted">
           <T>
             You can follow everything in this queue: who filled each form in, who it is
             addressed to, and where it has got to. Releasing a document to an outside party,
@@ -56,10 +66,26 @@ export default async function CounselFormApprovalsPage() {
         </p>
       )}
 
-      <section className="space-y-2">
-        <SectionTitle>Waiting for review</SectionTitle>
+      {/* The count lives in the heading because it is the thing a reviewer
+          came to find out. It is the length of the list underneath, not a
+          separate number that could disagree with it. */}
+      <PanelCard
+        title={
+          <>
+            <T>Awaiting decision</T>
+            {' · '}
+            <span data-no-translate>{waiting.length}</span>
+          </>
+        }
+        bodyClassName={waiting.length === 0 ? 'p-5' : 'p-0'}
+      >
         {waiting.length === 0 ? (
-          <EmptyState title="Nothing waiting" sub="Filled forms addressed to an outside party will land here." />
+          <p className="text-[13px] text-muted">
+            <T>
+              Nothing waiting on you. A form a colleague fills in and addresses to
+              someone outside the company lands here.
+            </T>
+          </p>
         ) : (
           /**
            * Grouped by the kind of document, so a reviewer can take all the
@@ -72,67 +98,40 @@ export default async function CounselFormApprovalsPage() {
            * queue reads exactly as it reads today.
            */
           groupByCategory(waiting, (s) => s.category).map((group) => (
-            <div key={group.category} className="space-y-1.5 pt-1">
+            <div key={group.category}>
               <p
-                className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55"
+                className="border-b border-edge bg-surface-2 px-4 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted"
                 data-no-translate
               >
                 {group.category}
               </p>
-              <SubmissionList items={group.rows} />
+              <SubmissionList items={group.rows} stamp="filed" />
             </div>
           ))
         )}
-      </section>
+      </PanelCard>
 
-      {decided.length > 0 && (
-        <section className="space-y-2">
-          <SectionTitle>Decided</SectionTitle>
-          <SubmissionList items={decided} />
-        </section>
-      )}
+      <PanelCard
+        title={
+          <>
+            <T>Decision history</T>
+            {' · '}
+            <span data-no-translate>{decided.length}</span>
+          </>
+        }
+        bodyClassName={decided.length === 0 ? 'p-5' : 'p-0'}
+      >
+        {decided.length === 0 ? (
+          <p className="text-[13px] text-muted">
+            <T>
+              Nothing decided yet. Once a document is approved, sent back or
+              declined it stays here with who decided it and when.
+            </T>
+          </p>
+        ) : (
+          <SubmissionList items={decided} stamp="decided" />
+        )}
+      </PanelCard>
     </div>
-  );
-}
-
-function SubmissionList({
-  items,
-}: {
-  items: Awaited<ReturnType<typeof listFirmTemplateSubmissionsAction>>['submissions'];
-}) {
-  return (
-    <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
-      {(items ?? []).map((s) => (
-        <li key={s.id} className="bg-white dark:bg-forest-900/40">
-          <Link
-            href={`/counsel/forms/approvals/${s.id}`}
-            className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-cream-50 dark:hover:bg-forest-800/40"
-          >
-            <span className="min-w-0 flex-1">
-              <span
-                className="block truncate text-[14px] font-medium text-forest-900 dark:text-cream-100"
-                data-no-translate
-              >
-                {s.templateName}
-              </span>
-              <span className="block truncate text-[12px] text-ink-500 dark:text-cream-100/55">
-                {/* The reference the legal team and the employee quote at each
-                    other. One helper decides it, so a document filed before
-                    numbering existed still has something to be called. */}
-                <span className="font-mono text-[11.5px] text-gold-700 dark:text-gold-300" data-no-translate>
-                  {displayTicket(s)}
-                </span>
-                {' · '}
-                <span data-no-translate>{s.submitterName ?? s.submitterEmail ?? 'A colleague'}</span>
-                {' · '}
-                <T>to</T> <span data-no-translate>{s.recipientEmail}</span>
-                {s.revision > 1 ? ` · v${s.revision}` : ''}
-              </span>
-            </span>
-            <SubmissionStatusPill status={s.status} />
-          </Link>
-        </li>
-      ))}
-    </ul>
   );
 }
