@@ -966,6 +966,10 @@ describe('the counsel shell redirect', () => {
       headers: () => ({
         get: (k: string) => (k === 'x-pathname' ? pathname : null),
       }),
+      // The layout reads the counsel theme preference from a cookie. No
+      // cookie is the case that matters here and it is the one every
+      // firm user is in: the shell must come back dark.
+      cookies: () => ({ get: () => undefined }),
     }));
     vi.doMock('next/link', () => ({ default: () => null }));
     vi.doMock('@/lib/supabase/server', () => ({

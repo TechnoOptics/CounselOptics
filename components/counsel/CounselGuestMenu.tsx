@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { T } from '@/components/i18n/LocaleProvider';
+import type { CounselTheme } from '@/lib/counsel-theme-values';
+import { CounselThemeToggle } from './CounselThemeToggle';
 
 /**
  * The stripped account menu for a case-scoped Counsel GUEST. Deliberately
@@ -15,12 +17,16 @@ export function CounselGuestMenu({
   email,
   initials,
   avatarUrl = null,
+  theme,
 }: {
   displayName: string;
   email: string;
   initials: string;
   /** Sign-in account's profile picture; initials are the fallback. */
   avatarUrl?: string | null;
+  /** Dark or light for the guest's copy of the counsel shell. A guest
+   *  reads long documents here, so the choice is offered to them too. */
+  theme: CounselTheme;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -66,6 +72,12 @@ export function CounselGuestMenu({
             <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-gold-300 mt-1">
               <T>Guest access</T>
             </p>
+          </div>
+          <div className="px-3 py-2 border-b border-cream-100/10 mb-1">
+            <p className="pb-1.5 text-[10px] uppercase tracking-[0.18em] font-semibold text-cream-100/55">
+              <T>Appearance</T>
+            </p>
+            <CounselThemeToggle theme={theme} />
           </div>
           <Link
             href="/counsel/guest/profile"

@@ -3,6 +3,7 @@ import { getProfile } from '@/lib/storage';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import type { LocaleCode } from '@/lib/i18n/locales';
+import { getCounselTheme } from '@/lib/counsel-theme';
 import { CounselProfileMenuClient } from './CounselProfileMenuClient';
 
 /**
@@ -40,6 +41,11 @@ export async function CounselProfileMenu({
 
   const canPreview = membership?.role === 'owner' || membership?.role === 'admin';
 
+  // Read here rather than threading a prop down from the layout: this is
+  // already a server component, the cookie is the single source of the
+  // answer, and the header has no other use for it.
+  const theme = await getCounselTheme();
+
   return (
     <CounselProfileMenuClient
       email={user.email ?? ''}
@@ -59,6 +65,7 @@ export async function CounselProfileMenu({
       }))}
       tenantMode={tenantMode}
       locale={locale}
+      theme={theme}
     />
   );
 }
