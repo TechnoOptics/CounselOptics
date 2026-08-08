@@ -4,6 +4,11 @@ import { listFirmTemplatesAction } from '@/lib/firm-templates';
 import { FormsManageClient } from './forms-manage-client';
 import { StandardTemplates } from './standard-templates';
 import { SEED_TEMPLATES } from '@/lib/seed-templates';
+import { firmLetterheadDesign } from '@/lib/letterhead-design';
+import {
+  firmDocumentLayoutInput,
+  normalizeDocumentLayout,
+} from '@/lib/document-layout';
 import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -28,6 +33,9 @@ export default async function CounselFormsPage() {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
   const res = await listFirmTemplatesAction(ctx.firm.id);
+  // The firm's own layout, so the editor can show a template author what they
+  // are inheriting and what taking a band over would change.
+  const firmLayout = normalizeDocumentLayout(firmDocumentLayoutInput(ctx.firm.metadata));
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
@@ -58,7 +66,17 @@ export default async function CounselFormsPage() {
           .filter((t) => t.status !== 'archived')
           .map((t) => t.name)}
       />
-      <FormsManageClient firmId={ctx.firm.id} initialTemplates={res.templates ?? []} />
+      <FormsManageClient
+        firmId={ctx.firm.id}
+        initialTemplates={res.templates ?? []}
+        firmLayout={firmLayout}
+        letterhead={{
+          design: firmLetterheadDesign(ctx.firm.metadata),
+          hasImage: Boolean(ctx.firm.letterheadUrl),
+          hasLogo: Boolean(ctx.firm.logoUrl),
+        }}
+        brandName={ctx.firm.name}
+      />
     </div>
   );
 }

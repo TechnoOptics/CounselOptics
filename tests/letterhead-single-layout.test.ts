@@ -95,6 +95,15 @@ const SURFACES: Array<{
     what: 'the letters studio preview',
     advancesItsOwnCursor: true,
   },
+  {
+    // The fifth, which this file predicted would arrive the same way. It draws
+    // the band on a true-scale sheet so a firm can see where the letterhead
+    // sits once it has moved the margins around it, and it walks down the block
+    // line by line, so it reads the shared layout and the shared gap.
+    path: 'components/counsel/DocumentLayoutFields.tsx',
+    what: 'the document layout preview',
+    advancesItsOwnCursor: true,
+  },
 ];
 
 const LAYOUT_CALL = /(letterheadDesignLines|letterheadDesignWordLines)\s*\(/;
