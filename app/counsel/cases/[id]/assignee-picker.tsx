@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { setCaseAssigneeAction } from '@/lib/firm-actions';
+import { assignTo } from '../assign-to';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export type AssigneeOption = { userId: string; label: string };
@@ -32,7 +32,11 @@ export function CaseAssigneePicker({
     setValue(next);
     setError(null);
     startTransition(async () => {
-      const res = await setCaseAssigneeAction(caseId, next || null);
+      // assignTo, not the action directly: requireUser() throws when the
+      // session has gone, and a throw inside a transition rejects it and
+      // replaces this whole page with an error boundary instead of telling
+      // the picker what happened. See ../assign-to.
+      const res = await assignTo(caseId, next);
       if (res.ok) {
         router.refresh();
       } else {

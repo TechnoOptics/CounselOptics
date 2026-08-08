@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { setCaseAssigneeAction } from '@/lib/firm-actions';
+import { assignTo } from './assign-to';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { StatusPill } from '@/components/counsel/StatusPill';
 import {
@@ -85,27 +85,8 @@ export type AssigneeOption = { value: string; label: string };
 /** The member picker's options: every firm member, no pseudo-values. */
 export type MemberOption = { userId: string; label: string };
 
-/**
- * setCaseAssigneeAction, as a value in every case.
- *
- * The action returns `{ ok: false, error }` for the refusals it
- * anticipates, but requireUser() THROWS when the session has gone, and
- * a server action that throws rejects the transition and takes the
- * whole table down to an error boundary rather than telling the row
- * what happened. Seen in the harness: reassigning with no session
- * replaced the list with the error page. A refusal belongs next to the
- * control that was refused, so catch it and let the caller say so.
- */
-async function assignTo(
-  caseId: string,
-  userId: string,
-): Promise<{ ok: boolean; error?: string }> {
-  try {
-    return await setCaseAssigneeAction(caseId, userId || null);
-  } catch {
-    return { ok: false };
-  }
-}
+// assignTo now lives in ./assign-to so the matter detail page's picker uses
+// the same one. See that file for why the catch exists.
 
 export function MattersTable({
   rows,
