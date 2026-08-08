@@ -3,6 +3,7 @@ import {
   getCurrentUser,
 } from '@/lib/supabase/server';
 import { NewTokenForm } from './new-token-form';
+import { RevokeTokenButton } from './revoke-token-button';
 // Rendered from the counsel route too, which runs under a LocaleProvider.
 // <T> is a client component, so a server component can render it.
 import { T } from '@/components/i18n/LocaleProvider';
@@ -60,8 +61,11 @@ export async function TokensPanel() {
       <NewTokenForm adminFirms={adminFirms} />
 
       <section className="space-y-3">
+        {/* The list holds revoked tokens as well as live ones, on purpose:
+            a token that was killed is part of the record. So the heading
+            names what is listed rather than what a reader would hope. */}
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-          <T>Active tokens</T>
+          <T>Issued tokens</T>
         </h2>
         {tokens.length === 0 ? (
           <p className="card p-5 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
@@ -100,9 +104,12 @@ export async function TokensPanel() {
                     <T>Revoked</T>
                   </span>
                 ) : (
-                  <span className="shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40">
-                    <T>Active</T>
-                  </span>
+                  <>
+                    <span className="shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40">
+                      <T>Active</T>
+                    </span>
+                    <RevokeTokenButton tokenId={t.id} />
+                  </>
                 )}
               </li>
             ))}

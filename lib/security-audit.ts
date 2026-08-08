@@ -52,7 +52,20 @@ export type SecurityEventKind =
    * POST endpoints, so a refusal here is an attempt on a commercial control
    * and not a stray click.
    */
-  | 'hq_trial_action_denied';
+  | 'hq_trial_action_denied'
+  /**
+   * An issued `adv_` API token was revoked, by the user who holds it or by an
+   * owner or admin of the firm it is bound to. Those tokens authenticate the
+   * public and partner APIs and a firm-scoped one carries the write scope, so
+   * the record of when a credential stopped working, and who stopped it, is
+   * the audit trail for a leak.
+   *
+   * Live-schema caveat, same as `hq_trial_action_denied` before it: the
+   * `security_events.kind` column has not been confirmed to accept this value
+   * on the live database. See docs/compliance/policies/trial-lapse-retention.md
+   * step 9 for the probe that confirms it without writing a row.
+   */
+  | 'api_token_revoked';
 
 export type SecuritySeverity = 'low' | 'medium' | 'high' | 'critical';
 
