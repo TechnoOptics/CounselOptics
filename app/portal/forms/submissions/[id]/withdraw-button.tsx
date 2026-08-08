@@ -27,7 +27,7 @@ export function WithdrawButton({ submissionId }: { submissionId: string }) {
           }
           router.refresh();
         }}
-        className="text-[12.5px] text-ink-500 underline hover:text-forest-900 disabled:opacity-50 dark:text-cream-100/55 dark:hover:text-cream-100"
+        className="text-[12.5px] text-muted underline hover:text-foreground disabled:opacity-50"
       >
         <T>Withdraw</T>
       </button>

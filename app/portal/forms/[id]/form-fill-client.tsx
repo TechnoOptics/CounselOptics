@@ -212,14 +212,14 @@ export function FormFillClient({
   };
 
   const inputCls =
-    'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100';
+    'w-full rounded-lg border border-edge bg-surface px-3 py-2 text-[14px] text-foreground outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25';
 
   return (
     <div className="space-y-5">
       <PageHeader
         size="sm"
         backLink={
-          <Link href="/portal/forms" className="text-[12px] text-ink-500 hover:underline dark:text-cream-100/55">
+          <Link href="/portal/forms" className="text-[12px] text-muted hover:underline">
             ← All forms
           </Link>
         }
@@ -230,13 +230,13 @@ export function FormFillClient({
 
       {submission?.decisionNote && (
         <div className="rounded-xl border border-gold-500/40 bg-gold-500/5 px-4 py-3">
-          <p className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+          <p className="text-[13px] font-semibold text-foreground">
             <T>What the legal team asked for</T>
           </p>
-          <p className="mt-1 whitespace-pre-wrap text-[13px] text-ink-700 dark:text-cream-100/80" data-no-translate>
+          <p className="mt-1 whitespace-pre-wrap text-[13px] text-foreground" data-no-translate>
             {submission.decisionNote}
           </p>
-          <p className="mt-2 text-[12px] text-ink-500 dark:text-cream-100/55">
+          <p className="mt-2 text-[12px] text-muted">
             <T>Make the change below and send it back. Nothing you already filled in is lost.</T>
           </p>
         </div>
@@ -251,11 +251,11 @@ export function FormFillClient({
       <div className="grid gap-6 lg:grid-cols-[minmax(280px,380px)_1fr]">
         {/* Fields */}
         <div className="space-y-4">
-          <section className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
+          <section className="space-y-3 rounded-xl border border-edge bg-surface p-4">
             <SectionTitle>Your details</SectionTitle>
             {ownFields.map((f) => (
               <label key={f.key} className="block">
-                <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+                <span className="mb-1 block text-[13px] font-medium text-foreground">
                   {f.label}
                   {f.required && <span className="text-rose-500"> *</span>}
                 </span>
@@ -277,7 +277,7 @@ export function FormFillClient({
               </label>
             ))}
             {recipientFields.length > 0 && (
-              <p className="border-t border-ink-100 pt-3 text-[12.5px] leading-relaxed text-ink-600 dark:border-forest-800/50 dark:text-cream-100/70">
+              <p className="border-t border-edge pt-3 text-[12.5px] leading-relaxed text-muted">
                 <T>
                   The legal team has left some parts of this document for the
                   recipient to complete: they type them on the signing page and
@@ -289,8 +289,8 @@ export function FormFillClient({
                 </span>
               </p>
             )}
-            <label className="block border-t border-ink-100 pt-3 dark:border-forest-800/50">
-              <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+            <label className="block border-t border-edge pt-3">
+              <span className="mb-1 block text-[13px] font-medium text-foreground">
                 <T>Your full legal name</T>
               </span>
               <input
@@ -300,20 +300,20 @@ export function FormFillClient({
                 onChange={(e) => setSignature(e.target.value)}
                 placeholder="Your full name"
               />
-              <span className="mt-1 block text-[12px] text-ink-500 dark:text-cream-100/55">
+              <span className="mt-1 block text-[12px] text-muted">
                 <T>This is the name printed under your signature on the document.</T>
               </span>
             </label>
           </section>
 
-          <section className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
+          <section className="space-y-3 rounded-xl border border-edge bg-surface p-4">
             <SectionTitle>Your signature</SectionTitle>
             <SignaturePad
               defaultTypedName={signature}
               onChange={setMark}
               onError={setError}
             />
-            <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
+            <p className="text-[12.5px] text-muted">
               <T>
                 Draw it, type it, or upload an image of your signature. A typed name is a valid
                 signature; drawing one is simply closer to signing on paper.
@@ -327,7 +327,7 @@ export function FormFillClient({
                 signing their employer's own paper is not a consumer under
                 15 USC 7006(1), so the paper-copy right and the withdrawal
                 notice are addressed to a situation that is not this one. */}
-            <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+            <label className="flex items-start gap-3 text-[13px] text-foreground">
               <input
                 type="checkbox"
                 checked={intentAffirmed}
@@ -353,9 +353,9 @@ export function FormFillClient({
           </section>
 
           {needsApproval && (
-            <section className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
+            <section className="space-y-3 rounded-xl border border-edge bg-surface p-4">
               <SectionTitle>Who receives it</SectionTitle>
-              <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
+              <p className="text-[12.5px] text-muted">
                 {forSignature ? (
                   <T>
                     This document goes to your legal team first. Once legal approves this, we
@@ -371,7 +371,7 @@ export function FormFillClient({
                 )}
               </p>
               <label className="block">
-                <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+                <span className="mb-1 block text-[13px] font-medium text-foreground">
                   <T>Recipient email</T>
                 </span>
                 <input
@@ -383,7 +383,7 @@ export function FormFillClient({
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+                <span className="mb-1 block text-[13px] font-medium text-foreground">
                   <T>Recipient name (optional)</T>
                 </span>
                 <input
@@ -394,7 +394,7 @@ export function FormFillClient({
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+                <span className="mb-1 block text-[13px] font-medium text-foreground">
                   <T>Note for the recipient (optional)</T>
                 </span>
                 <input
@@ -445,7 +445,7 @@ export function FormFillClient({
                   type="button"
                   disabled={!ready}
                   onClick={() => void exportPdf(false)}
-                  className="rounded-lg border border-ink-200 px-4 py-2 text-[14px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
+                  className="rounded-lg border border-edge px-4 py-2 text-[14px] font-medium text-foreground hover:bg-surface-2 disabled:opacity-50"
                 >
                   {busy ? 'Preparing…' : 'Download PDF'}
                 </button>
@@ -453,14 +453,14 @@ export function FormFillClient({
                   type="button"
                   disabled={!ready}
                   onClick={() => void exportPdf(true)}
-                  className="rounded-lg border border-ink-200 px-4 py-2 text-[14px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
+                  className="rounded-lg border border-edge px-4 py-2 text-[14px] font-medium text-foreground hover:bg-surface-2 disabled:opacity-50"
                 >
                   Print
                 </button>
                 <button
                   type="button"
                   onClick={emailDraft}
-                  className="rounded-lg border border-ink-200 px-4 py-2 text-[14px] font-medium text-forest-900 hover:bg-cream-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
+                  className="rounded-lg border border-edge px-4 py-2 text-[14px] font-medium text-foreground hover:bg-surface-2"
                 >
                   Share via email
                 </button>
@@ -469,22 +469,22 @@ export function FormFillClient({
           </div>
 
           {needsApproval && !recipientOk && ready && (
-            <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+            <p className="text-[12px] text-muted">
               <T>Add the recipient email address to send this for review.</T>
             </p>
           )}
           {missing.length > 0 && (
-            <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+            <p className="text-[12px] text-muted">
               Fill the required fields to continue: {missing.map((f) => f.label).join(', ')}.
             </p>
           )}
         </div>
 
         {/* Live preview */}
-        <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-forest-700/50 dark:bg-forest-900/40">
+        <section className="rounded-xl border border-edge bg-surface p-6">
           <SectionTitle className="mb-3">Preview</SectionTitle>
           <div
-            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
+            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-foreground"
             data-no-translate
           >
             <DocumentWithMark text={merged} markLine={markLine} markSrc={mark.dataUrl} />

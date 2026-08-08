@@ -61,16 +61,16 @@ export default async function PortalFormsPage() {
             <Link
               key={t.id}
               href={`/portal/forms/${t.id}`}
-              className="group flex flex-col rounded-xl border border-ink-200 bg-white p-4 transition-all hover:border-gold-500/60 hover:shadow-md dark:border-forest-700/50 dark:bg-forest-900/40 dark:hover:bg-forest-800/50"
+              className="group flex flex-col rounded-xl border border-edge bg-surface p-4 transition-all hover:border-gold-500/60 hover:shadow-md dark:hover:bg-forest-800/50"
             >
               {t.category && (
                 <span className="mb-2 self-start rounded-full bg-gold-500/10 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider text-gold-700 ring-1 ring-gold-500/25 dark:text-gold-300">
                   {t.category}
                 </span>
               )}
-              <span className="text-[15px] font-semibold text-forest-900 dark:text-cream-100">{t.name}</span>
+              <span className="text-[15px] font-semibold text-foreground">{t.name}</span>
               {t.description && (
-                <span className="mt-1 line-clamp-2 text-[12.5px] text-ink-500 dark:text-cream-100/55">
+                <span className="mt-1 line-clamp-2 text-[12.5px] text-muted">
                   {t.description}
                 </span>
               )}
@@ -94,26 +94,26 @@ export default async function PortalFormsPage() {
           {groupByCategory(submissions, (s) => s.category).map((group) => (
             <div key={group.category} className="space-y-1.5 pt-1">
               <p
-                className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55"
+                className="text-[10.5px] font-semibold uppercase tracking-wider text-muted"
                 data-no-translate
               >
                 {group.category}
               </p>
-              <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
+              <ul className="divide-y divide-edge overflow-hidden rounded-xl border border-edge">
                 {group.rows.map((s) => (
-                  <li key={s.id} className="bg-white dark:bg-forest-900/40">
+                  <li key={s.id} className="bg-surface">
                     <Link
                       href={`/portal/forms/submissions/${s.id}`}
-                      className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+                      className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-surface-2"
                     >
                       <span className="min-w-0 flex-1">
                         <span
-                          className="block truncate text-[14px] font-medium text-forest-900 dark:text-cream-100"
+                          className="block truncate text-[14px] font-medium text-foreground"
                           data-no-translate
                         >
                           {s.templateName}
                         </span>
-                        <span className="block truncate text-[12px] text-ink-500 dark:text-cream-100/55">
+                        <span className="block truncate text-[12px] text-muted">
                           <span
                             className="font-mono text-[11.5px] text-gold-700 dark:text-gold-300"
                             data-no-translate

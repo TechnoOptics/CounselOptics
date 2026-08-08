@@ -12,7 +12,7 @@ import { PageHeader, EmptyState } from '@/components/counsel/ui';
 const LEVEL_STYLES: Record<string, string> = {
   blocked: 'border-rose-300 bg-rose-50 dark:border-rose-700/50 dark:bg-rose-950/30',
   caution: 'border-amber-300 bg-amber-50 dark:border-amber-700/50 dark:bg-amber-950/30',
-  ok: 'border-forest-200 bg-forest-50 dark:border-forest-700/50 dark:bg-forest-900/40',
+  ok: 'border-edge-bright bg-surface-2',
 };
 const LEVEL_LABEL: Record<string, string> = {
   blocked: 'Against policy',
@@ -22,7 +22,7 @@ const LEVEL_LABEL: Record<string, string> = {
 const LEVEL_TEXT: Record<string, string> = {
   blocked: 'text-rose-700 dark:text-rose-300',
   caution: 'text-amber-700 dark:text-amber-300',
-  ok: 'text-forest-700 dark:text-cream-100/85',
+  ok: 'text-foreground',
 };
 
 export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; policyCount: number }) {
@@ -110,7 +110,7 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Paste your draft document here, or ask a question like: “Can I accept a $200 gift card from a vendor?”"
-              className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-[14px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100"
+              className="w-full rounded-xl border border-edge bg-surface px-4 py-3 text-[14px] text-foreground outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25"
             />
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -121,7 +121,7 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
               >
                 {busy ? 'Checking against your policies…' : 'Check it'}
               </button>
-              <label className="cursor-pointer text-[13px] text-ink-500 underline dark:text-cream-100/55">
+              <label className="cursor-pointer text-[13px] text-muted underline">
                 Upload a file (PDF, Word, text, or a photo)
                 <input
                   type="file"
@@ -134,7 +134,7 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
                   }}
                 />
               </label>
-              <span className="text-[12px] text-ink-400 dark:text-cream-100/40">
+              <span className="text-[12px] text-muted">
                 Checked against {policyCount} company polic{policyCount === 1 ? 'y' : 'ies'}.
               </span>
             </div>
@@ -147,15 +147,15 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
           )}
 
           {result && (
-            <section className="space-y-4 rounded-xl border border-ink-200 bg-white p-5 dark:border-forest-700/50 dark:bg-forest-900/40">
+            <section className="space-y-4 rounded-xl border border-edge bg-surface p-5">
               <div className="flex items-center gap-4">
                 <div className="text-center">
                   <p className={`text-4xl font-semibold tabular-nums ${scoreTone}`}>{result.score}</p>
-                  <p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-400 dark:text-cream-100/40">
+                  <p className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">
                     Confidence
                   </p>
                 </div>
-                <p className="flex-1 text-[13.5px] leading-relaxed text-ink-700 dark:text-cream-100/85">
+                <p className="flex-1 text-[13.5px] leading-relaxed text-foreground">
                   {result.verdict}
                 </p>
               </div>
@@ -168,17 +168,17 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
                         {LEVEL_LABEL[f.level]} · {f.policy}
                       </p>
                       {f.quote && (
-                        <blockquote className="mt-1 border-l-2 border-current pl-2 text-[12.5px] italic text-ink-600 dark:text-cream-100/70">
+                        <blockquote className="mt-1 border-l-2 border-current pl-2 text-[12.5px] italic text-muted">
                           “{f.quote}”
                         </blockquote>
                       )}
-                      <p className="mt-1 text-[12.5px] text-ink-700 dark:text-cream-100/80">{f.note}</p>
+                      <p className="mt-1 text-[12.5px] text-foreground">{f.note}</p>
                     </div>
                   ))}
                 </div>
               )}
 
-              <p className="border-t border-ink-100 pt-3 text-[12px] text-ink-500 dark:border-forest-800/50 dark:text-cream-100/55">
+              <p className="border-t border-edge pt-3 text-[12px] text-muted">
                 Still unsure?{' '}
                 <Link href="/portal/new" className="text-gold-700 underline dark:text-gold-300">
                   File a request
