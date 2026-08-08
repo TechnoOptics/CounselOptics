@@ -10,6 +10,7 @@ import {
 import type { FirmMember, FirmRole } from '@/lib/firm-types';
 import { FIRM_ROLES, FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { relativeTime } from '@/components/counsel/patterns';
+import { MemberRateCell } from './member-rate-cell';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 // 'owner' is excluded here on purpose: it can only change via
@@ -25,6 +26,7 @@ export function TeamMemberRow({
   isMe,
   isLastOwner,
   otherMembers,
+  rateCents,
 }: {
   member: FirmMember;
   firmId: string;
@@ -32,6 +34,12 @@ export function TeamMemberRow({
   isMe: boolean;
   isLastOwner: boolean;
   otherMembers: FirmMember[];
+  /**
+   * Undefined when the viewer is not an owner/admin, which is also when the
+   * page draws no rate column - so the value never reaches a client that has
+   * no cell to put it in.
+   */
+  rateCents?: number | null;
 }) {
   const t = useT();
   const router = useRouter();
@@ -175,6 +183,15 @@ export function TeamMemberRow({
           </span>
         )}
       </td>
+      {canManage && (
+        <td className="px-3 py-2.5 align-top">
+          <MemberRateCell
+            firmId={firmId}
+            memberUserId={member.userId}
+            rateCents={rateCents ?? null}
+          />
+        </td>
+      )}
       <td
         className="px-3 py-2.5 text-[12px] text-muted"
         title={new Date(member.joinedAt).toLocaleString()}
