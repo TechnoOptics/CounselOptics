@@ -9,13 +9,13 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
 import { T } from '@/components/i18n/LocaleProvider';
 import { PageHeader, EmptyState } from '@/components/counsel/ui';
-import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import { PILL_COLORS } from '@/components/counsel/StatusPill';
 import { NewMatterButton } from './new-matter-button';
-import { CasesFilter, type AssigneeFilterOption } from './cases-filter';
+import { MattersTable, type MatterRow } from './matters-table';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata = { title: 'Cases · Counsel' };
+export const metadata = { title: 'Matters · Counsel' };
 
 // One hex per case status; StatusPill derives the fill and the border
 // from it. `archived` used to share `closed`'s grey because the dimmer
@@ -31,6 +31,8 @@ const STATUS_COLOR: Record<CaseStatus, string> = {
   closed: PILL_COLORS.neutral,
   archived: PILL_COLORS.quiet,
 };
+
+const STATUSES = Object.keys(STATUS_COLOR) as CaseStatus[];
 
 export default async function CounselCasesPage({
   searchParams,
@@ -51,18 +53,26 @@ export default async function CounselCasesPage({
     memberLabel.set(m.userId, m.displayName ?? m.email ?? 'Member');
   }
 
-  // Assignee filter. `?assignee=` is: '' (all), 'me', 'unassigned', or a
-  // firm member's user id. `me` resolves to the signed-in attorney.
-  const filter = (searchParams.assignee ?? '').trim();
-  const meId = user?.id ?? null;
-  const cases = allCases.filter((c) => {
-    if (!filter) return true;
-    if (filter === 'unassigned') return !c.assignedTo;
-    if (filter === 'me') return meId != null && c.assignedTo === meId;
-    return c.assignedTo === filter;
-  });
+  const rows: MatterRow[] = allCases.map((c) => ({
+    id: c.id,
+    title: c.title,
+    subjectName: c.subjectName,
+    caseType: c.caseType,
+    status: c.status,
+    statusLabel: STATUS_LABEL[c.status] ?? c.status,
+    statusColor: STATUS_COLOR[c.status] ?? PILL_COLORS.neutral,
+    assignedTo: c.assignedTo ?? null,
+    assigneeLabel: c.assignedTo
+      ? (memberLabel.get(c.assignedTo) ?? 'Member')
+      : null,
+    hearingAt: c.hearingAt ?? null,
+    updatedAt: c.updatedAt,
+  }));
 
-  const filterOptions: AssigneeFilterOption[] = [
+  // `?assignee=` still narrows the list on arrival, so links that were
+  // handed out while the filter lived in the URL keep working. The
+  // table owns it from then on.
+  const assigneeOptions = [
     { value: '', label: 'Everyone' },
     { value: 'me', label: 'Assigned to me' },
     { value: 'unassigned', label: 'Unassigned' },
@@ -72,52 +82,31 @@ export default async function CounselCasesPage({
     })),
   ];
 
-  // Bucket by status for the firm-side view.
-  const buckets: Record<CaseStatus, typeof cases> = {
-    draft: [],
-    open: [],
-    under_review: [],
-    needs_evidence: [],
-    export_ready: [],
-    closed: [],
-    archived: [],
-  };
-  for (const c of cases) buckets[c.status]?.push(c);
-
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
-        eyebrow={<T>Cases</T>}
+        eyebrow={<T>Counsel · matters</T>}
         title={<T>Firm caseload</T>}
         subtitle={
           <>
-            <T>Every case linked to</T> {ctx.firm.name}.{' '}
-            <T>Bring your caseload in from</T>{' '}
-            <Link href="/counsel/import" className="underline">
-              <T>Import data</T>
-            </Link>{' '}
-            <T>(spreadsheet upload or a migration from another platform).</T>
+            {allCases.length} <T>matters at</T>{' '}
+            <span data-no-translate>{ctx.firm.name}</span>,{' '}
+            <T>all on one page. Search title, client, matter type and assignee; narrow by view, status or assignee; sort the matter, status, assignee, hearing and updated columns.</T>
           </>
         }
         action={
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/counsel/import" className="btn-secondary">
+              <T>Import data</T>
+            </Link>
             <NewMatterButton firmId={ctx.firm.id} />
-            <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-              {cases.length} <T>total</T>
-            </p>
           </div>
         }
       />
 
-      {allCases.length > 0 && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <CasesFilter options={filterOptions} current={filter} />
-        </div>
-      )}
-
       {allCases.length === 0 ? (
         <EmptyState
-          title={<T>No cases yet.</T>}
+          title={<T>No matters yet.</T>}
           sub={
             <>
               <T>
@@ -132,78 +121,17 @@ export default async function CounselCasesPage({
             </>
           }
         />
-      ) : cases.length === 0 ? (
-        <EmptyState
-          title={<T>No matters match this filter.</T>}
-          sub={
-            <Link href="/counsel/cases" className="underline">
-              <T>Clear the assignee filter</T>
-            </Link>
-          }
-        />
       ) : (
-        <div className="space-y-6">
-          {(Object.keys(buckets) as CaseStatus[]).map((status) =>
-            buckets[status].length === 0 ? null : (
-              <section key={status}>
-                <p className="eyebrow mb-3">
-                  {STATUS_LABEL[status]} ({buckets[status].length})
-                </p>
-                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {buckets[status].map((c) => (
-                    // Audit W20 V3 CR-31: padding lives on the Link
-                    // (not the wrapping <li>) so the entire visible
-                    // card area is clickable. Previously the p-4 sat
-                    // on the <li>, leaving a ~1rem padding band where
-                    // a click landed outside the Link and bounced.
-                    // prefetch={false} matches the rest of the Counsel
-                    // sidebar (CR-28) - the same router quirk applies
-                    // to in-page navigations into auth-shaped routes.
-                    <li key={c.id} className="card hover:shadow-card-hover hover:-translate-y-0.5 transition-all">
-                      <Link
-                        href={`/counsel/cases/${c.id}`}
-                        prefetch={false}
-                        className="block p-4 rounded-2xl"
-                      >
-                        <StatusPill size="sm" color={STATUS_COLOR[status]}>
-                          {STATUS_LABEL[status]}
-                        </StatusPill>
-                        <p className="font-semibold text-forest-900 dark:text-cream-100 mt-2 line-clamp-2">
-                          {c.title}
-                        </p>
-                        <p className="text-xs text-ink-500 dark:text-cream-100/55 mt-1">
-                          {c.subjectName} &middot; {c.caseType}
-                        </p>
-                        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1">
-                          {c.assignedTo ? (
-                            <>
-                              <T>Assigned:</T>{' '}
-                              <span data-no-translate>
-                                {memberLabel.get(c.assignedTo) ?? 'Member'}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="italic"><T>Unassigned</T></span>
-                          )}
-                        </p>
-                        {c.hearingAt && (
-                          <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1.5 font-mono tabular-nums">
-                            <T>Hearing:</T>{' '}
-                            {new Date(c.hearingAt).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })}
-                          </p>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ),
-          )}
-        </div>
+        <MattersTable
+          rows={rows}
+          assigneeOptions={assigneeOptions}
+          statusOptions={STATUSES.map((s) => ({
+            value: s,
+            label: STATUS_LABEL[s] ?? s,
+          }))}
+          meId={user?.id ?? null}
+          initialAssignee={(searchParams.assignee ?? '').trim()}
+        />
       )}
     </div>
   );
