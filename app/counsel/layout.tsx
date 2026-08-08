@@ -218,7 +218,7 @@ export default async function CounselLayout({
         <div
           className={counselShellClass(
             theme,
-            'min-h-screen flex flex-col text-cream-100',
+            'accent-scope min-h-screen flex flex-col text-cream-100',
           )}
           style={
             guest.firm
@@ -373,7 +373,7 @@ export default async function CounselLayout({
     <div
       className={counselShellClass(
         theme,
-        'min-h-screen flex flex-col text-cream-100',
+        'accent-scope min-h-screen flex flex-col text-cream-100',
       )}
       style={
         active

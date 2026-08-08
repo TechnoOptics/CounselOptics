@@ -16,8 +16,10 @@ import {
   portalStatusColor,
   portalStepIndex,
 } from '@/lib/portal-status';
-import { StatusPill } from '@/components/counsel/StatusPill';
-import { PageHeader } from '@/components/counsel/ui';
+import { PortalRequestHeader } from '@/components/portal/RequestHeader';
+import { refFor } from '@/lib/intake-notify';
+import { parseDueBy } from '@/lib/portal-due';
+import { familyOfType } from '@/lib/portal-request-families';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 
@@ -27,6 +29,9 @@ export const metadata = { title: 'Request · Portal' };
 // Plain-language status mapping is shared with the requests list - see
 // lib/portal-status.ts for why it must not be duplicated here again.
 const STEPS = PORTAL_STEPS;
+
+/** The anchor the header's "Message legal" link jumps to. */
+const CONVERSATION_ID = 'portal-conversation';
 
 export default async function PortalRequestPage({
   params,
@@ -98,81 +103,43 @@ export default async function PortalRequestPage({
   const conv = await loadIntakeConversationAction(intake.id);
   void memRows; // the conversation resolves its own mentionable people
 
+  // The reference this person and the legal team quote at each other.
+  // One helper decides it (a partner ticket keeps its own external id),
+  // so the portal and every notification say the same thing.
+  const reference = refFor(intake);
+  const family = familyOfType(intake.matter_type);
+  const due = parseDueBy(intake.intake_answers);
+  const priority = String(ans.priority ?? '').trim();
+  const confidentiality = String(ans.confidentiality ?? '').trim();
+
   return (
     <div className="space-y-6 animate-fade-up">
-      <p className="text-sm">
-        <Link
-          href="/portal"
-          className="text-cream-100/60 hover:text-cream-100"
-        >
-          &larr; My requests
-        </Link>
-      </p>
-
-      {/* The particulars line goes through `children` rather than
-          `meta`: `meta` is the mono version, and this one is not mono. */}
-      <PageHeader
-        align="start"
-        size="sm"
-        eyebrow={persona.firm.name}
+      <PortalRequestHeader
+        reference={reference}
+        requestId={intake.id}
         title={ticketTitle}
-        action={<StatusPill color={color}>{label}</StatusPill>}
-      >
-        <p className="text-[12px] text-cream-100/55 mt-1">
-          {intake.matter_type ?? 'Request'}
-          {' · filed '}
-          {new Date(intake.created_at).toLocaleDateString()}
-        </p>
-      </PageHeader>
-
-      {/* Milestone strip */}
-      <section className="card p-5">
-        <ol className="flex items-center gap-2">
-          {STEPS.map((s, i) => {
-            const done = i < currentStep;
-            const active = i === currentStep;
-            return (
-              <li key={s} className="flex-1 flex items-center gap-2">
-                <div className="flex flex-col items-center flex-1">
-                  <span
-                    className={`h-7 w-7 rounded-full inline-flex items-center justify-center text-[12px] font-bold ring-1 ${
-                      done || active
-                        ? 'bg-gold-500/20 text-gold-200 ring-gold-500/40'
-                        : 'bg-forest-900/40 text-cream-100/60 ring-forest-700/40'
-                    }`}
-                  >
-                    {done ? '✓' : i + 1}
-                  </span>
-                  <span
-                    className={`mt-1.5 text-[11px] ${
-                      active
-                        ? 'text-cream-100 font-semibold'
-                        : 'text-cream-100/55'
-                    }`}
-                  >
-                    {s === 'Decision' && isDecision ? label : s}
-                  </span>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <span
-                    className={`h-px flex-1 ${
-                      i < currentStep
-                        ? 'bg-gold-500/40'
-                        : 'bg-forest-700/40'
-                    }`}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </section>
+        firmName={persona.firm.name}
+        statusLabel={label}
+        statusColor={color}
+        familyTitle={family?.title ?? null}
+        matterType={intake.matter_type}
+        priority={priority}
+        confidentiality={confidentiality}
+        createdAt={intake.created_at}
+        dueAt={due}
+        steps={STEPS}
+        currentStep={currentStep}
+        decidedLabel={isDecision ? label : null}
+        canMessage={conv.ok && conv.canPost}
+        conversationId={CONVERSATION_ID}
+      />
 
       {/* Same shape as the legal team's view: the request in the centre with
           its own scroll, the conversation with legal down the right. */}
       <WorkspaceShell
         mainLabel="Your request"
         sideLabel="Conversation with legal"
+        sideId={CONVERSATION_ID}
         side={
           conv.ok ? (
             <IntakeConversation

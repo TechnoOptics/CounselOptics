@@ -5,24 +5,42 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ExternalLink } from '@/components/ExternalLink';
-import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
-import { visibleIntakeIds, intakesAwaitingReply } from '@/lib/portal-scope';
-import { PageHeader, SectionTitle, StatCard, EmptyState } from '@/components/counsel/ui';
+import { parseDueBy } from '@/lib/portal-due';
+import { loadPortalOpenRequests } from '@/lib/portal-open-requests';
+import { SectionTitle, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import {
+  HelpTiles,
+  UtilityTiles,
+  type UtilityTile,
+} from '@/components/portal/HelpTiles';
+import {
+  DocIcon,
+  MagnifyIcon,
+  SparkIcon,
+  TemplateIcon,
+} from '@/components/counsel/icons';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Home · Hub' };
 
-type IntakeRow = {
-  id: string;
-  client_name: string;
-  matter_type: string | null;
-  status: string;
-  created_at: string;
-  intake_answers: Record<string, unknown> | null;
-};
-
-const ACTIVE = (s: string) => s !== 'rejected';
+/**
+ * The employee hub's home.
+ *
+ * The page answers one question, which is the question an employee
+ * actually arrives with: who do I tell about this, and is the thing I
+ * already told them about moving. So it opens with their name and one
+ * true line about their own requests, gives them a way to find one, and
+ * then offers four ways in.
+ *
+ * EVERY NUMBER ON THIS PAGE IS A REAL NUMBER. The tile counts, the rail
+ * badges and the banner in the shell all come from
+ * lib/portal-open-requests.ts, computed once per request, so they
+ * cannot contradict each other in the same viewport. A tile's action
+ * link changes with that count: it offers to START something when this
+ * person has nothing open in that family, and to OPEN what they have
+ * when they do, which is the only wording that is true in both states.
+ */
 
 export default async function PortalDashboardPage() {
   const user = await getCurrentUser();
@@ -39,9 +57,13 @@ export default async function PortalDashboardPage() {
   const externalView = persona.external === true || !canCreate;
   const canReview = persona.entitlements.includes('review') && !externalView;
 
+  // The same read the shell used for its rail badges and its banner.
+  // React's per-request memo means this is the same round trip, not a
+  // second one, and the same numbers rather than a second opinion.
+  const requests = await loadPortalOpenRequests(user.id, persona.firm.id);
+  const { open, awaitingYou, dueSoon, overdue, byFamily } = requests;
+
   const admin = createAdminSupabase();
-  let intakes: IntakeRow[] = [];
-  let awaitingIds = new Set<string>();
   let meetings: Array<{
     topic: string;
     provider: string;
@@ -49,154 +71,143 @@ export default async function PortalDashboardPage() {
     join_url: string;
     intake_id: string | null;
   }> = [];
-  if (admin) {
-    // Requests you filed AND requests you were invited onto - see
-    // lib/portal-scope.ts. Filtering on created_by alone left invited
-    // colleagues with a permanently empty Home.
-    const visible = await visibleIntakeIds(admin, user.id, persona.firm.id);
-    if (visible.length > 0) {
-      const { data } = await admin
-        .from('firm_matter_intakes')
-        .select('id, client_name, matter_type, status, created_at, intake_answers')
-        .eq('firm_id', persona.firm.id)
-        .in('id', visible)
-        .order('created_at', { ascending: false })
-        .limit(100);
-      intakes = (data ?? []) as IntakeRow[];
-    }
-
-    const ids = intakes.map((i) => i.id);
-    // "Awaiting you" reads firm_intake_messages, not the legacy
-    // intake_answers.thread jsonb. That array stopped being written when the
-    // conversation moved to its own table, so this counted zero forever and
-    // the page told an employee they were all caught up while legal was
-    // waiting on them.
-    awaitingIds = await intakesAwaitingReply(admin, ids);
-    if (ids.length > 0) {
-      const { data: mtg } = await admin
-        .from('firm_meetings')
-        .select('topic, provider, start_at, join_url, intake_id')
-        .eq('firm_id', persona.firm.id)
-        .in('intake_id', ids)
-        .gte('start_at', new Date(Date.now() - 3600_000).toISOString())
-        .order('start_at', { ascending: true })
-        .limit(10);
-      meetings = (mtg ?? []) as typeof meetings;
-    }
+  const ids = requests.rows.map((r) => r.id);
+  if (admin && ids.length > 0) {
+    const { data: mtg } = await admin
+      .from('firm_meetings')
+      .select('topic, provider, start_at, join_url, intake_id')
+      .eq('firm_id', persona.firm.id)
+      .in('intake_id', ids)
+      .gte('start_at', new Date(Date.now() - 3600_000).toISOString())
+      .order('start_at', { ascending: true })
+      .limit(10);
+    meetings = (mtg ?? []) as typeof meetings;
   }
 
-  const now = Date.now();
-  const active = intakes.filter((r) => ACTIVE(r.status));
-  const awaitingYou = active.filter((r) => awaitingIds.has(r.id));
-  const dueSoon = active
-    .map((r) => ({ r, due: parseDueBy(r.intake_answers) }))
-    .filter(
-      (x): x is { r: IntakeRow; due: number } =>
-        x.due !== null && isDueCurrent(x.due, now),
-    )
-    .sort((a, b) => a.due - b.due);
-  const upcomingMeetings = meetings.filter(
-    (m) => Date.parse(m.start_at) >= now - 3600_000,
-  );
+  // One honest line about where this person stands. It says what is
+  // true and stops; it does not congratulate anybody.
+  const stateLine =
+    open.length === 0
+      ? 'Nothing is open with your legal team right now.'
+      : awaitingYou.length > 0
+        ? `You have ${open.length} ${open.length === 1 ? 'request' : 'requests'} open with your legal team, and ${awaitingYou.length === 1 ? 'one is' : `${awaitingYou.length} are`} waiting on you.`
+        : `You have ${open.length} ${open.length === 1 ? 'request' : 'requests'} open with your legal team.`;
 
-  // A stat is coloured only when its number is asking for something.
-  // At zero every tile reads neutral, so the ones that are not zero are
-  // the ones the eye lands on.
-  const stats = [
-    { label: 'Open requests', value: active.length },
-    {
-      label: 'Awaiting you',
-      value: awaitingYou.length,
-      color: awaitingYou.length > 0 ? PILL_COLORS.gold : undefined,
+  // The smaller row: everything an employee can do here that is not
+  // filing a request. Each one is gated on the same entitlement the
+  // rail gates its nav row on, so nothing appears that cannot be used.
+  const utilities = [
+    !externalView && {
+      href: '/portal/forms',
+      icon: <TemplateIcon />,
+      label: 'Forms',
+      line: 'Fill in and sign a document legal has published.',
+    },
+    !externalView && {
+      href: '/portal/check',
+      icon: <MagnifyIcon />,
+      label: 'Check a document',
+      line: 'Score a draft against your company policies.',
     },
     {
-      label: 'Due soon',
-      value: dueSoon.length,
-      color: dueSoon.length > 0 ? PILL_COLORS.waiting : undefined,
+      href: '/portal/documents',
+      icon: <DocIcon />,
+      label: 'Documents',
+      line: 'Every file on your requests, to read or download.',
     },
-    { label: 'Meetings', value: upcomingMeetings.length },
-  ];
+    canReview && {
+      href: '/review-my-document',
+      icon: <SparkIcon />,
+      label: 'Advottic Review',
+      line: 'Read a document back with the risky wording flagged.',
+    },
+  ].filter(Boolean) as UtilityTile[];
 
-  const hasAnything =
-    intakes.length > 0 || upcomingMeetings.length > 0;
+  const nothingAtAll =
+    requests.rows.length === 0 && meetings.length === 0 && externalView;
 
   return (
-    <div className="space-y-8 animate-fade-up">
-      <PageHeader
-        size="lg"
-        eyebrow={`${persona.firm.name} · Client hub`}
-        title={`Welcome back, ${firstName}.`}
-        subtitle={
-          awaitingYou.length > 0
-            ? `${awaitingYou.length} ${
-                awaitingYou.length === 1 ? 'request needs' : 'requests need'
-              } your reply. Here's everything that wants your attention.`
-            : "You're all caught up. Here's where everything stands."
-        }
-      />
+    <div className="space-y-9 animate-fade-up">
+      <header className="min-w-0">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-muted">
+          <span data-no-translate>{persona.firm.name}</span>
+        </p>
+        <h1 className="mt-1.5 break-words text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-3xl">
+          Hello, <span data-no-translate>{firstName}</span>
+        </h1>
+        <p className="mt-2 text-sm text-muted">{stateLine}</p>
+      </header>
 
-      {/* Stat tiles */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {stats.map((s) => (
-          <StatCard
-            key={s.label}
-            label={s.label}
-            value={s.value}
-            color={s.color}
-          />
-        ))}
-      </section>
-
-      {/* Quick actions */}
-      <section className="flex flex-wrap gap-3">
-        {canCreate && (
-          <Link
-            href="/portal/new"
-            className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
+      {!externalView && (
+        <section className="card p-5">
+          <label
+            htmlFor="portal-request-search"
+            className="block text-[12px] font-semibold uppercase tracking-[0.14em] text-muted"
           >
-            New request
-          </Link>
-        )}
-        <Link
-          href="/portal/requests"
-          className="btn ring-1 ring-forest-700/40 text-cream-100/85 hover:text-cream-100 hover:bg-cream-100/5"
-        >
-          View all requests
-        </Link>
-        {canReview && (
-          <Link
-            href="/review-my-document"
-            className="btn ring-1 ring-forest-700/40 text-cream-100/85 hover:text-cream-100 hover:bg-cream-100/5"
+            Find one of your requests
+          </label>
+          <form
+            action="/portal/requests"
+            method="GET"
+            className="mt-2.5 flex flex-wrap items-center gap-2"
           >
-            Run Advottic Review
-          </Link>
-        )}
-      </section>
+            <input
+              id="portal-request-search"
+              name="q"
+              type="search"
+              autoComplete="off"
+              className="input min-w-0 flex-1"
+              placeholder="Northwind NDA, litigation hold, the vendor contract from March"
+            />
+            <button
+              type="submit"
+              className="btn font-semibold"
+              style={{
+                backgroundColor: 'var(--accent)',
+                color: 'var(--accent-on)',
+              }}
+            >
+              Search
+            </button>
+          </form>
+          <p className="mt-2 text-[12px] text-muted">
+            Searches the name, the type and the priority of every request you
+            filed or were invited onto.
+          </p>
+        </section>
+      )}
 
-      {!hasAnything ? (
+      {!externalView && canCreate && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <SectionTitle variant="display">Who can help you?</SectionTitle>
+            <Link
+              href="/portal/new"
+              className="text-[12.5px] text-muted underline transition-colors hover:text-foreground"
+            >
+              Not sure? Start here
+            </Link>
+          </div>
+
+          <HelpTiles openByFamily={byFamily} />
+        </section>
+      )}
+
+      <UtilityTiles tiles={utilities} />
+
+      {nothingAtAll ? (
         <EmptyState
           title="Nothing on your plate yet"
-          sub="When you file a request, message legal, or have a meeting scheduled, it shows up here so you never miss a thing."
-          action={
-            canCreate ? (
-              <Link
-                href="/portal/new"
-                className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
-              >
-                File your first request
-              </Link>
-            ) : undefined
-          }
+          sub="When legal shares a document or schedules something with you, it shows up here."
         />
       ) : (
-        <div className="grid lg:grid-cols-2 gap-5">
-          {/* Needs your attention */}
+        <div className="grid gap-5 lg:grid-cols-2">
           <section className="space-y-3">
             <SectionTitle>Needs your attention</SectionTitle>
             {awaitingYou.length === 0 ? (
-              <p className="popup-panel p-5 text-[13px] text-cream-100/55 italic">
-                Nothing waiting on you. Legal will ping you here when
-                they need something.
+              <p className="rounded-xl border border-edge bg-surface p-5 text-[13px] text-muted">
+                Nothing waiting on you. Legal will ask you here when they need
+                something.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -204,16 +215,26 @@ export default async function PortalDashboardPage() {
                   <li key={r.id}>
                     <Link
                       href={`/portal/${r.id}`}
-                      className="block popup-panel p-4 hover:bg-cream-100/[0.03] transition-colors"
+                      className="block rounded-xl border border-edge bg-surface p-4 transition-colors hover:border-edge-bright"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-cream-100 truncate">
-                          {r.client_name}
+                        <p
+                          className="truncate font-semibold text-foreground"
+                          data-no-translate
+                        >
+                          {String(
+                            (r.intake_answers ?? {}).subject ?? '',
+                          ).trim() ||
+                            r.matter_type ||
+                            r.client_name}
                         </p>
                         <StatusPill size="sm">Reply</StatusPill>
                       </div>
-                      <p className="text-[12px] text-cream-100/55 mt-1">
-                        {r.matter_type ?? 'Request'} · legal responded
+                      <p className="mt-1 text-[12px] text-muted">
+                        <span data-no-translate>
+                          {r.matter_type ?? 'Request'}
+                        </span>
+                        {' · legal responded'}
                       </p>
                     </Link>
                   </li>
@@ -222,66 +243,88 @@ export default async function PortalDashboardPage() {
             )}
           </section>
 
-          {/* Coming up */}
           <section className="space-y-3">
             <SectionTitle>Coming up</SectionTitle>
-            {upcomingMeetings.length === 0 && dueSoon.length === 0 ? (
-              <p className="popup-panel p-5 text-[13px] text-cream-100/55 italic">
+            {meetings.length === 0 &&
+            dueSoon.length === 0 &&
+            overdue.length === 0 ? (
+              <p className="rounded-xl border border-edge bg-surface p-5 text-[13px] text-muted">
                 No deadlines or meetings on the horizon.
               </p>
             ) : (
               <ul className="space-y-2">
-                {upcomingMeetings.slice(0, 4).map((m, i) => (
+                {meetings.slice(0, 4).map((m, i) => (
                   <li
                     key={`m-${i}`}
-                    className="popup-panel p-4 flex items-center justify-between gap-3"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-edge bg-surface p-4"
                   >
                     <div className="min-w-0">
-                      <p className="font-semibold text-cream-100 truncate">
+                      <p
+                        className="truncate font-semibold text-foreground"
+                        data-no-translate
+                      >
                         {m.topic}
                       </p>
-                      <p className="text-[12px] text-cream-100/55 mt-0.5">
+                      <p className="mt-0.5 text-[12px] text-muted">
                         {m.provider === 'microsoft' ? 'Teams' : 'Zoom'} ·{' '}
                         <LocaleTime iso={m.start_at} mode="datetime" />
                       </p>
                     </div>
                     <ExternalLink
                       href={m.join_url}
-                      className="shrink-0 btn text-[12px] ring-1 ring-gold-500/40 text-gold-200 hover:bg-gold-500/10"
+                      className="btn shrink-0 border border-edge text-[12px] text-accent-text"
                     >
                       Join
                     </ExternalLink>
                   </li>
                 ))}
-                {dueSoon.slice(0, 4).map(({ r, due }) => (
-                  <li key={`d-${r.id}`}>
-                    <Link
-                      href={`/portal/${r.id}`}
-                      className="block popup-panel p-4 hover:bg-cream-100/[0.03] transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-cream-100 truncate">
-                          {r.client_name}
+                {[...overdue, ...dueSoon].slice(0, 4).map((r) => {
+                  const due = parseDueBy(r.intake_answers);
+                  const late = due != null && due < Date.now();
+                  return (
+                    <li key={`d-${r.id}`}>
+                      <Link
+                        href={`/portal/${r.id}`}
+                        className="block rounded-xl border border-edge bg-surface p-4 transition-colors hover:border-edge-bright"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p
+                            className="truncate font-semibold text-foreground"
+                            data-no-translate
+                          >
+                            {String(
+                              (r.intake_answers ?? {}).subject ?? '',
+                            ).trim() ||
+                              r.matter_type ||
+                              r.client_name}
+                          </p>
+                          <StatusPill
+                            size="sm"
+                            color={
+                              late ? PILL_COLORS.flagged : PILL_COLORS.waiting
+                            }
+                          >
+                            {late ? 'Overdue' : 'Due'}
+                          </StatusPill>
+                        </div>
+                        <p className="mt-1 text-[12px] text-muted">
+                          <span data-no-translate>
+                            {r.matter_type ?? 'Request'}
+                          </span>
+                          {due != null && (
+                            <>
+                              {' · due '}
+                              <LocaleTime
+                                iso={new Date(due).toISOString()}
+                                mode="date"
+                              />
+                            </>
+                          )}
                         </p>
-                        <StatusPill
-                          size="sm"
-                          color={
-                            due < now ? PILL_COLORS.flagged : PILL_COLORS.waiting
-                          }
-                        >
-                          {due < now ? 'Overdue' : 'Due'}
-                        </StatusPill>
-                      </div>
-                      <p className="text-[12px] text-cream-100/55 mt-1">
-                        {r.matter_type ?? 'Request'} · due{' '}
-                        <LocaleTime
-                          iso={new Date(due).toISOString()}
-                          mode="date"
-                        />
-                      </p>
-                    </Link>
-                  </li>
-                ))}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

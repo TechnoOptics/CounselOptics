@@ -114,6 +114,66 @@
 export const DEFAULT_ACCENT = '#d5bb7e';
 
 /**
+ * The employee portal's own accent.
+ *
+ * The portal is a DIFFERENT AUDIENCE, not the counsel workspace with a
+ * different nav. Counsel is the legal team's room and reads gold:
+ * heritage, authority, the people who own the matter. The portal is an
+ * ordinary employee asking for help, often about something they are
+ * anxious about, and it should read as service rather than as
+ * authority. So it takes its own accent.
+ *
+ * Teal, and specifically this teal, for three reasons that are all
+ * checkable rather than taste:
+ *
+ *   1. It is 99 degrees of hue from counsel gold (186.4 against 87.4),
+ *      so the two workspaces cannot be mistaken for each other at a
+ *      glance, which is the entire point of a second accent.
+ *   2. It collides with no semantic token. `--warn-text` sits at hue 84
+ *      and `--danger-text` at 27, so a warm accent here would read as a
+ *      warning; `--info-text` is 277 and `--code-fg` 163 at three times
+ *      this chroma.
+ *   3. It stays inside Advottic's own cool family, next to the forest
+ *      #0f2d24 the platform already uses, so the portal reads as
+ *      another room in the same building rather than another product.
+ *
+ * It goes through `deriveAccentText` exactly like a firm's accent
+ * does. Nothing about it is a second palette: it is one more input to
+ * the same derivation, so the contrast floors that hold for every hex
+ * a customer can type hold for this one too, and
+ * tests/accent-text.test.ts measures it on every surface either tone
+ * can land on rather than taking that on trust.
+ *
+ * A firm that has SET an accent still wins here. Its employees are
+ * looking at their own employer's workspace, and overriding a
+ * white-label firm's colour on the one surface its whole staff sees
+ * would be a regression. This is the default for a firm that never
+ * picked one, which today is the platform forest.
+ */
+export const PORTAL_ACCENT = '#0f766e';
+
+/**
+ * The accent a firm has not chosen. `lib/firm-cache.ts` fills a null
+ * `firms.accent_color` with the platform forest, so "unset" reaches the
+ * shells as this literal rather than as null and cannot be told apart
+ * from it any other way.
+ */
+export const PLATFORM_DEFAULT_FIRM_ACCENT = '#0f2d24';
+
+/**
+ * Which accent the employee portal paints with.
+ *
+ * One function rather than a ternary at each call site, because the
+ * portal shell, the tiles and the test all have to agree about what
+ * "the firm did not choose" means.
+ */
+export function portalAccent(firmAccent: string | null | undefined): string {
+  const raw = (firmAccent ?? '').trim().toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(raw)) return PORTAL_ACCENT;
+  return raw === PLATFORM_DEFAULT_FIRM_ACCENT ? PORTAL_ACCENT : raw;
+}
+
+/**
  * The pinned OKLCH lightness and the chroma cap for each tone.
  *
  * These four numbers are the whole contract, and they are duplicated as
