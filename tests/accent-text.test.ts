@@ -14,7 +14,10 @@ import {
   DARK_SURFACE_GROUPS,
   DEFAULT_ACCENT,
   LIGHT_SURFACE_GROUPS,
+  PLATFORM_DEFAULT_FIRM_ACCENT,
+  PORTAL_ACCENT,
   accentOn,
+  portalAccent,
   contrastRatio,
   deriveAccentText,
   relativeLuminance,
@@ -23,6 +26,7 @@ import {
   toOklch,
 } from '../lib/accent-text';
 import type { DarkSurfaceGroup } from '../lib/accent-text';
+import { counselShellClass } from '../lib/counsel-theme-values';
 
 const globalsCss = readFileSync(
   fileURLToPath(new URL('../app/globals.css', import.meta.url)),
@@ -868,6 +872,106 @@ hover:bg-ink-50 hover:bg-ink-100 border-ink-100 border-ink-200 border-forest-200
       );
       expect(hits.length, `${rel} no longer needs its ${cls} exemption: ${why}`)
         .toBeGreaterThan(0);
+    }
+  });
+});
+
+/*
+ * The employee portal's own accent.
+ *
+ * The portal is a second audience on the same shell, and it paints with
+ * PORTAL_ACCENT rather than with the firm's platform-default forest. A
+ * second accent is a second chance to ship an unreadable one, so it is
+ * held to exactly the floor every customer-chosen hex is held to, on
+ * every surface either tone can land on, rather than to a glance at a
+ * screenshot.
+ *
+ * The last test is the registration this file exists for. The portal
+ * does NOT get a shell selector of its own: it renders inside the same
+ * `.counsel-shell` neutrals that are already proved above, and that is
+ * the whole reason no new surface had to be added. If someone later
+ * gives it `.portal-shell`, this fails until that selector is added to
+ * a surface group with the backgrounds it paints, which is the same
+ * gate `attributes every shell-scoped background to a group that claims
+ * it` applies to the stylesheet.
+ */
+describe('the employee portal accent is measured, not assumed', () => {
+  it('is a plain six-digit hex', () => {
+    expect(PORTAL_ACCENT).toMatch(/^#[0-9a-f]{6}$/);
+    expect(PLATFORM_DEFAULT_FIRM_ACCENT).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  for (const tone of ['dark', 'light'] as const) {
+    for (const [surfaceName, surface] of Object.entries(
+      ACCENT_TEXT_SURFACES[tone],
+    )) {
+      it(`${tone}: portal accent text is >= ${AA_SMALL_TEXT}:1 on ${surfaceName}`, () => {
+        const token = deriveAccentText(PORTAL_ACCENT, tone);
+        expect(
+          contrastRatio(token, surface),
+          `${PORTAL_ACCENT} -> ${token} on ${surface} measured ${contrastRatio(token, surface).toFixed(3)}:1`,
+        ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+      });
+    }
+  }
+
+  it('is legible as a FILL, which is the other half of an accent', () => {
+    // Buttons, the avatar chip and the tile icon squares paint the raw
+    // hex and put accentOn() on top of it. A hue that passes as text
+    // and fails as a fill is still a broken accent.
+    expect(
+      contrastRatio(accentOn(PORTAL_ACCENT), PORTAL_ACCENT),
+    ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+  });
+
+  it('reads as a different room from counsel, in hue and not in adjective', () => {
+    // The claim the second accent is FOR. Counsel gold is hue 87.4 and
+    // the portal teal is 186.4. Anything under this and the two
+    // workspaces stop being distinguishable at a glance, which is the
+    // only thing a separate accent buys.
+    const gold = toOklch(DEFAULT_ACCENT).h;
+    const portal = toOklch(PORTAL_ACCENT).h;
+    const apart = Math.abs(((portal - gold + 540) % 360) - 180);
+    expect(apart, `gold ${gold.toFixed(1)}, portal ${portal.toFixed(1)}`)
+      .toBeGreaterThan(60);
+    for (const tone of ['dark', 'light'] as const) {
+      expect(deriveAccentText(PORTAL_ACCENT, tone)).not.toBe(
+        deriveAccentText(DEFAULT_ACCENT, tone),
+      );
+    }
+  });
+
+  it('yields to a firm that chose its own accent, and only then', () => {
+    // A white-label firm's staff are looking at their own employer's
+    // workspace. The portal accent is the default for a firm that never
+    // picked one, not an override of one that did.
+    expect(portalAccent('#e11d48')).toBe('#e11d48');
+    expect(portalAccent(PLATFORM_DEFAULT_FIRM_ACCENT)).toBe(PORTAL_ACCENT);
+    expect(portalAccent(PLATFORM_DEFAULT_FIRM_ACCENT.toUpperCase())).toBe(
+      PORTAL_ACCENT,
+    );
+    // Unparseable or absent falls to the portal accent rather than to
+    // whatever `oklch(from <garbage> ...)` would inherit.
+    expect(portalAccent(null)).toBe(PORTAL_ACCENT);
+    expect(portalAccent('')).toBe(PORTAL_ACCENT);
+    expect(portalAccent('rebeccapurple')).toBe(PORTAL_ACCENT);
+  });
+
+  it('renders on a shell every surface group already claims', () => {
+    const claimed = new Set(
+      Object.values({
+        ...DARK_SURFACE_GROUPS,
+        ...LIGHT_SURFACE_GROUPS,
+      }).flatMap((g) => g.scopes as readonly string[]),
+    );
+    for (const theme of ['dark', 'light'] as const) {
+      for (const token of counselShellClass(theme, '').trim().split(/\s+/)) {
+        if (!token) continue;
+        expect(
+          [...claimed].some((s) => s.split(/[.:]+/).includes(token)),
+          `the portal shell carries \`${token}\`, which no surface group claims; register it in DARK_SURFACE_GROUPS or LIGHT_SURFACE_GROUPS with the backgrounds it paints`,
+        ).toBe(true);
+      }
     }
   });
 });
