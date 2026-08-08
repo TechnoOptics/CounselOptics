@@ -8,8 +8,13 @@ import { isIosAppRequest } from '@/lib/ios-gate';
 import { MarkPaidButton } from './mark-paid-button';
 import { SendInvoiceButton } from './send-invoice-button';
 import { InvoiceRowActions } from './invoice-actions';
-import { PageHeader } from '@/components/counsel/ui';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import {
+  PanelCard,
+  MonoRef,
+  relativeTime,
+} from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -162,10 +167,25 @@ export default async function CounselBillingPage() {
         />
       </section>
 
-      {/* Unbilled time grouped by case */}
+      {/* Unbilled time grouped by case. The header says how many of the
+          cases with unbilled time are shown, because the list is the top
+          five by value and used to say nothing about the rest. */}
       {unbilledByCase.length > 0 && (
-        <section className="card p-5 space-y-3">
-          <p className="eyebrow"><T>Ready to invoice</T></p>
+        <PanelCard
+          title={<T>Ready to invoice</T>}
+          action={
+            unbilledByCaseEntries.size > unbilledByCase.length ? (
+              <p className="text-[12px] tabular-nums text-muted">
+                {unbilledByCase.length} <T>of</T> {unbilledByCaseEntries.size}{' '}
+                <T>cases, by value</T>
+              </p>
+            ) : (
+              <p className="text-[12px] tabular-nums text-muted">
+                {unbilledByCase.length}
+              </p>
+            )
+          }
+        >
           <ul className="space-y-2">
             {unbilledByCase.map(([caseId, cents]) => (
               <li
@@ -176,114 +196,144 @@ export default async function CounselBillingPage() {
                   href={`/counsel/cases/${caseId}`}
                   className="text-foreground underline"
                 >
-                  <T>Case</T> {caseId.slice(0, 8)}...
+                  <T>Case</T> <MonoRef>{caseId.slice(0, 8)}</MonoRef>
                 </Link>
-                <span className="font-mono tabular-nums text-foreground font-semibold">
+                <span className="font-mono font-semibold tabular-nums text-foreground">
                   {fmtCents(cents)}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="text-[11px] text-muted leading-relaxed">
+          <p className="mt-3 text-[11px] leading-relaxed text-muted">
             <T>
               Invoices are drafted from the case detail page so the engagement
               scope and client get filled in automatically.
             </T>
           </p>
-        </section>
+        </PanelCard>
       )}
 
-      {/* Invoices list */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium text-foreground">
-          <T>Recent invoices</T>
-        </h2>
-        {allInvoiceTotals.length > invoices.length && (
-          <p className="text-[12px] text-muted">
-            <T>Showing the</T> {invoices.length} <T>most recent of</T>{' '}
-            {allInvoiceTotals.length}. <T>The totals above cover all of them.</T>
-          </p>
-        )}
-        {invoices.length === 0 ? (
-          <div className="card p-8 text-center">
-            <p className="text-[15px] text-foreground">
-              <T>No invoices issued yet.</T>
-            </p>
-            <p className="text-[12.5px] text-muted mt-1">
-              <T>Open a case with billable time and use &ldquo;Draft invoice&rdquo;.</T>
-            </p>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {invoices.map((i) => {
-              const color = STATUS_COLOR[i.status] ?? STATUS_COLOR.draft;
-              return (
-                <li
-                  key={i.id}
-                  className="card p-4 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-foreground">
-                        {i.number}
-                      </p>
-                      <StatusPill color={color} size="sm">
-                        {i.status}
-                      </StatusPill>
-                    </div>
-                    <p className="text-[12.5px] text-muted truncate">
-                      {i.client_name ?? i.client_email} ·{' '}
-                      {new Date(i.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="shrink-0 flex items-center gap-3">
-                    <p className="font-mono tabular-nums text-foreground font-semibold">
-                      {fmtCents(i.total_cents)}
-                    </p>
-                    {/* Raw, live Stripe payment URL. ExternalLink routes
-                        through @capacitor/browser, which is an IN-APP
-                        SFSafariViewController on iOS, so a payment could be
-                        completed without ever leaving the app process. Even
-                        though this is firm-to-client invoicing for
-                        professional services rather than digital goods, an
-                        unguarded Stripe checkout opening inside the app is
-                        indefensible under Guideline 3.1.1, so it is removed
-                        from the iOS render entirely (server signal) and
-                        carries data-hide-on-ios as the second signal. The
-                        invoice stays fully visible and the firm can still
-                        send it by email from the row actions. */}
-                    {i.status === 'sent' && i.stripe_payment_link && !isIos && (
-                      <ExternalLink
-                        data-hide-on-ios
-                        href={i.stripe_payment_link}
-                        className="text-[11px] underline text-foreground"
+      {/* Invoices, on the list pattern's table. Every figure is the one
+          that was there before, in the same units and under the same
+          label; only the row geometry changed. */}
+      {invoices.length === 0 ? (
+        <EmptyState
+          title={<T>No invoices issued yet.</T>}
+          sub={
+            <T>Open a case with billable time and use &ldquo;Draft invoice&rdquo;.</T>
+          }
+        />
+      ) : (
+        <PanelCard
+          title={<T>Recent invoices</T>}
+          bodyClassName=""
+          action={
+            allInvoiceTotals.length > invoices.length ? (
+              <p className="text-[12px] text-muted">
+                <T>Showing the</T> {invoices.length} <T>most recent of</T>{' '}
+                {allInvoiceTotals.length}.{' '}
+                <T>The totals above cover all of them.</T>
+              </p>
+            ) : (
+              <p className="text-[12px] tabular-nums text-muted">
+                {invoices.length}
+              </p>
+            )
+          }
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[48rem] border-collapse text-left">
+              <thead className="border-b border-edge">
+                <tr className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  <th scope="col" className="px-3 py-2"><T>Invoice</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Client</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Status</T></th>
+                  <th scope="col" className="px-3 py-2 text-right"><T>Total</T></th>
+                  <th scope="col" className="px-3 py-2"><T>Issued</T></th>
+                  <th scope="col" className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((i) => {
+                  const color = STATUS_COLOR[i.status] ?? STATUS_COLOR.draft;
+                  return (
+                    <tr
+                      key={i.id}
+                      className="border-b border-edge last:border-0 transition-colors hover:bg-surface-2"
+                    >
+                      <td className="px-3 py-2.5">
+                        <MonoRef>{i.number}</MonoRef>
+                      </td>
+                      <td
+                        className="max-w-[16rem] truncate px-3 py-2.5 text-[13px] text-foreground"
+                        data-no-translate
                       >
-                        <T>Pay link</T>
-                      </ExternalLink>
-                    )}
-                    {i.status === 'draft' && (
-                      <SendInvoiceButton
-                        invoiceId={i.id}
-                        clientEmail={i.client_email}
-                      />
-                    )}
-                    {i.status !== 'paid' && i.status !== 'void' && (
-                      <MarkPaidButton invoiceId={i.id} />
-                    )}
-                    {(i.status === 'draft' || i.status === 'sent') && (
-                      <InvoiceRowActions
-                        firmId={ctx.firm.id}
-                        invoiceId={i.id}
-                        status={i.status}
-                      />
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                        {i.client_name ?? i.client_email}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StatusPill color={color} size="sm" dot>
+                          {i.status}
+                        </StatusPill>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono text-[12.5px] font-semibold tabular-nums text-foreground">
+                        {fmtCents(i.total_cents)}
+                      </td>
+                      <td
+                        className="px-3 py-2.5 text-[12px] text-muted"
+                        title={new Date(i.created_at).toLocaleString()}
+                        suppressHydrationWarning
+                      >
+                        {relativeTime(i.created_at) ?? ''}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center justify-end gap-3">
+                          {/* Raw, live Stripe payment URL. ExternalLink routes
+                              through @capacitor/browser, which is an IN-APP
+                              SFSafariViewController on iOS, so a payment could be
+                              completed without ever leaving the app process. Even
+                              though this is firm-to-client invoicing for
+                              professional services rather than digital goods, an
+                              unguarded Stripe checkout opening inside the app is
+                              indefensible under Guideline 3.1.1, so it is removed
+                              from the iOS render entirely (server signal) and
+                              carries data-hide-on-ios as the second signal. The
+                              invoice stays fully visible and the firm can still
+                              send it by email from the row actions. */}
+                          {i.status === 'sent' && i.stripe_payment_link && !isIos && (
+                            <ExternalLink
+                              data-hide-on-ios
+                              href={i.stripe_payment_link}
+                              className="text-[11px] underline text-foreground"
+                            >
+                              <T>Pay link</T>
+                            </ExternalLink>
+                          )}
+                          {i.status === 'draft' && (
+                            <SendInvoiceButton
+                              invoiceId={i.id}
+                              clientEmail={i.client_email}
+                            />
+                          )}
+                          {i.status !== 'paid' && i.status !== 'void' && (
+                            <MarkPaidButton invoiceId={i.id} />
+                          )}
+                          {(i.status === 'draft' || i.status === 'sent') && (
+                            <InvoiceRowActions
+                              firmId={ctx.firm.id}
+                              invoiceId={i.id}
+                              status={i.status}
+                            />
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </PanelCard>
+      )}
     </div>
   );
 }
