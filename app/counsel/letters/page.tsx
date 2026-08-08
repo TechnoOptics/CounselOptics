@@ -38,7 +38,8 @@ export default async function CounselLettersPage({
         subtitle={
           <>
             <T>Describe what you need and Advottic drafts a letter on</T>{' '}
-            {ctx.firm.name}<T>&rsquo;s letterhead. Choose what the signature block
+            <span data-no-translate>{ctx.firm.name}</span>
+            <T>&rsquo;s letterhead. Choose what the signature block
             includes, edit the draft, then export it as Word or PDF or attach it
             to a case.</T>
             {!hasLetterhead && (

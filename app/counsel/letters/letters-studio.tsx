@@ -321,7 +321,7 @@ export function LettersStudio({
         </div>
 
         {error && (
-          <p className="text-[12px] text-rose-600 dark:text-rose-300">{error}</p>
+          <p className="text-[12px] text-danger-text">{error}</p>
         )}
         {saved && (
           <p className="text-[12px] text-emerald-700 dark:text-emerald-300">

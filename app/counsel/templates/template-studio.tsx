@@ -8,7 +8,23 @@ import {
   cleanLegalText,
 } from '@/lib/legal-templates';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { ViewStrip, type ViewOption } from '@/components/counsel/patterns';
 import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
+
+/**
+ * The categories, with how many documents each one offers.
+ *
+ * Computed once at module scope because LEGAL_TEMPLATES is a constant:
+ * the counts cannot change between renders, and recomputing them on
+ * every keystroke in the form below would be work for no reason. A
+ * group name is the catalogue's own word, so it is not wrapped for
+ * translation.
+ */
+const GROUP_OPTIONS: ViewOption[] = TEMPLATE_GROUPS.map((g) => ({
+  key: g,
+  label: <span data-no-translate>{g}</span>,
+  count: LEGAL_TEMPLATES.filter((item) => item.group === g).length,
+}));
 
 type Meta = {
   title: string;
@@ -114,25 +130,20 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
       <div className="card p-5 space-y-4 self-start">
         <div>
           <p className="label"><T>Category</T></p>
-          <div className="flex flex-wrap gap-1.5">
-            {TEMPLATE_GROUPS.map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => {
-                  setGroup(g);
-                  setTplId('');
-                }}
-                className={`text-[12px] rounded-full px-2.5 py-1 ring-1 transition-colors ${
-                  group === g
-                    ? 'bg-gold-500/20 ring-gold-500/40 text-gold-700 dark:text-gold-200'
-                    : 'ring-edge text-foreground'
-                }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
+          {/* The segmented view strip from
+              components/counsel/patterns.tsx, which is what this row of
+              hand-rolled pills was a fourth copy of. Every option is a
+              group some template is actually in and every count is the
+              number this picker would then offer. */}
+          <ViewStrip
+            options={GROUP_OPTIONS}
+            active={group}
+            onSelect={(key) => {
+              setGroup(key);
+              setTplId('');
+            }}
+            label={t('Template categories')}
+          />
         </div>
         <div>
           <p className="label"><T>Document type</T></p>
@@ -195,9 +206,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
           ))}
 
         {error && (
-          <p className="text-[12px] text-rose-600 dark:text-rose-300">
-            {error}
-          </p>
+          <p className="text-[12px] text-danger-text">{error}</p>
         )}
         {tpl && (
           <button

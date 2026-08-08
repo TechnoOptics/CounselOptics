@@ -7,8 +7,27 @@ import {
   type FirmPolicy,
 } from '@/lib/firm-policies';
 import { EmptyState } from '@/components/counsel/ui';
+import { MonoRef, relativeTime, shortRef } from '@/components/counsel/patterns';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
-/** Paste-and-save policy library management for the legal team. */
+/**
+ * The policy library, as the configuration-list pattern in
+ * docs/TECHOTTIC-PARITY-SPEC.md section 3: one card per policy rather
+ * than one row, carrying what somebody has to know before opening it.
+ *
+ * Three parts of that pattern are absent, each because `firm_policies`
+ * has four columns and does not have the thing behind them. There is no
+ * scope chip and no scope strip, because a policy has no category to
+ * scope it by, so a strip would have been one option that filtered
+ * nothing. There is no DEFAULT badge and no status pill, because a
+ * policy has no default flag and no published state: everything in the
+ * library is live for the employee checker the moment it is saved. And
+ * there are no type chips, because a policy is one block of text rather
+ * than a set of fields.
+ *
+ * What is left is real: the two numbers on each card are counted from
+ * that policy's own text, and the date is its own `createdAt`.
+ */
 export function PoliciesManageClient({
   firmId,
   initialPolicies,
@@ -16,6 +35,7 @@ export function PoliciesManageClient({
   firmId: string;
   initialPolicies: FirmPolicy[];
 }) {
+  const t = useT();
   const [policies, setPolicies] = useState(initialPolicies);
   const [editing, setEditing] = useState<FirmPolicy | 'new' | null>(null);
   const [name, setName] = useState('');
@@ -40,7 +60,7 @@ export function PoliciesManageClient({
     });
     setBusy(false);
     if (!res.ok || !res.policy) {
-      setError(res.error ?? 'Could not save.');
+      setError(res.error ?? t('Could not save.'));
       return;
     }
     const p = res.policy;
@@ -59,69 +79,133 @@ export function PoliciesManageClient({
     const res = await deleteFirmPolicyAction(firmId, id);
     setBusy(false);
     if (res.ok) setPolicies((list) => list.filter((p) => p.id !== id));
-    else setError(res.error ?? 'Could not delete.');
+    else setError(res.error ?? t('Could not delete.'));
   };
-
-  const inputCls =
-    'w-full rounded-lg border border-edge bg-surface px-3 py-2 text-[14px] text-foreground outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25';
 
   return (
     <div className="space-y-4">
       {error && (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-800 dark:border-rose-700/40 dark:bg-rose-950/40 dark:text-rose-200">
-          {error}
-        </p>
+        <p className="card p-3 text-[13px] text-danger-text">{error}</p>
       )}
 
       {editing ? (
-        <div className="space-y-3 rounded-xl border border-edge bg-surface p-5">
+        <div className="card space-y-3 p-5">
           <label className="block">
-            <span className="mb-1 block text-[13px] font-medium text-foreground">Policy name</span>
-            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Gifts & entertainment policy" />
+            <span className="mb-1 block text-[13px] font-medium text-foreground">
+              <T>Policy name</T>
+            </span>
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('Gifts and entertainment policy')}
+            />
           </label>
           <label className="block">
             <span className="mb-1 block text-[13px] font-medium text-foreground">
-              Policy text (paste the full policy)
+              <T>Policy text (paste the full policy)</T>
             </span>
-            <textarea rows={16} className={`${inputCls} font-mono text-[12.5px]`} value={content} onChange={(e) => setContent(e.target.value)} />
+            <textarea
+              rows={16}
+              className="input font-mono text-[12.5px]"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
           </label>
           <div className="flex gap-2">
-            <button type="button" disabled={busy || !name.trim() || !content.trim()} onClick={() => void save()} className="btn-primary disabled:opacity-50">
-              {busy ? 'Saving…' : 'Save policy'}
+            <button
+              type="button"
+              disabled={busy || !name.trim() || !content.trim()}
+              onClick={() => void save()}
+              className="btn-primary disabled:opacity-50"
+            >
+              {busy ? t('Saving') : t('Save policy')}
             </button>
-            <button type="button" onClick={() => setEditing(null)} className="btn-ghost text-sm">
-              Cancel
+            <button
+              type="button"
+              onClick={() => setEditing(null)}
+              className="btn-ghost text-sm"
+            >
+              <T>Cancel</T>
             </button>
           </div>
         </div>
       ) : (
         <>
-          <button type="button" onClick={() => openEditor('new')} className="btn-primary">
-            + Add policy
-          </button>
+          {/* The count lives here rather than in the page subtitle
+              because adding or deleting a policy updates this list
+              without a reload, and a server-rendered count would sit
+              there being wrong. */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => openEditor('new')}
+              className="btn-primary"
+            >
+              <T>Add policy</T>
+            </button>
+            <p className="text-[12px] tabular-nums text-muted">
+              {policies.length}{' '}
+              {policies.length === 1 ? <T>policy</T> : <T>policies</T>}{' '}
+              <T>in the library</T>
+            </p>
+          </div>
           {policies.length === 0 ? (
             <EmptyState
-              title="No policies yet"
-              sub="Until you add some, the employee checker tells people to file a request."
+              title={<T>No policies yet.</T>}
+              sub={
+                <T>
+                  Until you add some, the employee checker tells people to file
+                  a request.
+                </T>
+              }
             />
           ) : (
-            <ul className="divide-y divide-edge overflow-hidden rounded-xl border border-edge">
-              {policies.map((p) => (
-                <li key={p.id} className="flex items-center gap-3 bg-surface px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-foreground">{p.name}</p>
-                    <p className="truncate text-[12px] text-muted">
-                      {Math.round(p.content.length / 1000)}k characters
+            <ul className="grid gap-3">
+              {policies.map((p) => {
+                const words = p.content.trim()
+                  ? p.content.trim().split(/\s+/).length
+                  : 0;
+                return (
+                  <li key={p.id} className="card p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <p
+                        className="min-w-0 text-[14px] font-semibold text-foreground"
+                        data-no-translate
+                      >
+                        {p.name}
+                      </p>
+                      <MonoRef title={`${t('Policy id')} ${p.id}`}>
+                        {shortRef(p.id)}
+                      </MonoRef>
+                    </div>
+                    <p className="mt-2 text-[12px] text-muted">
+                      {words.toLocaleString()} <T>words</T>
+                      {' · '}
+                      {p.content.length.toLocaleString()} <T>characters</T>
+                      {' · '}
+                      <T>added</T> {relativeTime(p.createdAt) ?? ''}
                     </p>
-                  </div>
-                  <button type="button" onClick={() => openEditor(p)} className="text-[13px] font-medium text-gold-700 hover:underline dark:text-gold-300">
-                    Edit
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => void remove(p.id)} className="text-[13px] text-muted hover:text-rose-600">
-                    Delete
-                  </button>
-                </li>
-              ))}
+                    <div className="mt-3 flex items-center gap-4 border-t border-edge pt-3">
+                      <button
+                        type="button"
+                        onClick={() => openEditor(p)}
+                        className="text-[13px] font-medium text-accent-text hover:underline"
+                      >
+                        <T>Edit</T>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void remove(p.id)}
+                        className="text-[13px] text-muted hover:text-danger-text"
+                      >
+                        <T>Delete</T>
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>

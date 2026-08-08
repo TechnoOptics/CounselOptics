@@ -24,11 +24,12 @@ export default async function CounselPoliciesPage() {
         eyebrow={<T>Counsel · self-service</T>}
         title={<T>Policy library</T>}
         subtitle={
-          <>
-            Paste the company&apos;s policies here. Employees check drafts and questions against them
-            from their Hub (with a confidence score and the exact passages your policies prohibit or
-            caution) before anything reaches your inbox.
-          </>
+          <T>
+            Paste the company&apos;s policies here. Employees check drafts and
+            questions against them from their Hub (with a confidence score and
+            the exact passages your policies prohibit or caution) before
+            anything reaches your inbox.
+          </T>
         }
       />
       <PoliciesManageClient firmId={ctx.firm.id} initialPolicies={res.policies ?? []} />
