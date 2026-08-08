@@ -11,6 +11,11 @@ import type { DocScorecard } from '@/lib/doc-review';
 import { resolveIntakeReviewGate } from '@/lib/intake-review-gate';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import {
+  REQUEST_TYPES,
+  requestTypesForFamily,
+  type IntakeMode as Mode,
+} from '@/lib/portal-request-families';
 
 /**
  * Generic typed intake.
@@ -36,23 +41,6 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
  * JSON column.
  */
 
-type Mode = 'client' | 'inhouse';
-
-const REQUEST_TYPES: Array<{ value: string; label: string; mode: Mode }> = [
-  { value: 'New case / matter', label: 'New case / matter (outside client)', mode: 'client' },
-  { value: 'New contract / agreement', label: 'New contract / agreement', mode: 'inhouse' },
-  { value: 'Internal review request', label: 'Internal review request', mode: 'inhouse' },
-  { value: 'Document for safekeeping', label: 'Document submission for safekeeping', mode: 'inhouse' },
-  { value: 'Trademark / IP filing', label: 'Trademark / IP filing', mode: 'inhouse' },
-  { value: 'NDA review', label: 'NDA review', mode: 'inhouse' },
-  { value: 'Vendor / MSA review', label: 'Vendor / MSA review', mode: 'inhouse' },
-  { value: 'Employment matter', label: 'Employment matter', mode: 'inhouse' },
-  { value: 'Compliance question', label: 'Compliance question', mode: 'inhouse' },
-  { value: 'Litigation hold', label: 'Litigation hold', mode: 'inhouse' },
-  { value: 'Demand letter', label: 'Demand letter', mode: 'inhouse' },
-  { value: 'Other', label: 'Other', mode: 'inhouse' },
-];
-
 const PRIORITIES = ['Low', 'Normal', 'High', 'Urgent'];
 const CONFIDENTIALITY = [
   'Standard',
@@ -73,6 +61,7 @@ export function CreateIntakeForm({
   defaultSubmittedBy = '',
   employeeMode = false,
   redirectBase = '/counsel/intake',
+  family = null,
 }: {
   firmId: string;
   /**
@@ -93,13 +82,26 @@ export function CreateIntakeForm({
    * portal has no /counsel access, so it routes back to /portal.
    */
   redirectBase?: string;
+  /**
+   * Which of the portal's four request families the employee arrived
+   * from, when they came in through a home tile rather than through the
+   * full picker. The dropdown narrows to that family's types, so a tile
+   * that says "contract review" opens a form that files contract
+   * reviews and nothing else.
+   *
+   * Employee mode only, and null for the picker. The legal team's own
+   * intake is not organised this way and keeps the full list. The value
+   * comes off a query string, so `requestTypesForFamily` treats an
+   * unknown one as no family rather than as an empty dropdown.
+   */
+  family?: string | null;
 }) {
   const router = useRouter();
   const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const availableTypes = employeeMode
-    ? REQUEST_TYPES.filter((r) => r.mode === 'inhouse')
+    ? requestTypesForFamily(family)
     : REQUEST_TYPES;
   const [requestType, setRequestType] = useState(availableTypes[0].value);
   const [opposing, setOpposing] = useState<string[]>(['']);
