@@ -972,8 +972,18 @@ body > * {
 
    Default is dark and stays dark. A counsel root renders `dark
    counsel-shell` unless the reader has opted into light, so nothing
-   moves for anyone who has not asked. */
-.dark.counsel-shell,
+   moves for anyone who has not asked.
+
+   THE RAMP ITSELF IS IDENTITY, NOT THEME, so it is one of the few
+   things here that is NOT gated. It answers "neutral or green", and the
+   enterprise answer is neutral in both themes. Gating it was tried and
+   looked wrong immediately: a light counsel fell back to the consumer
+   `:root` ramp and the primary button came back deep forest GREEN on a
+   near-white page, which is exactly what the heading above says this
+   layer exists to prevent. Keeping it also means `text-forest-900`
+   resolves to #101012 under light, which is what a light ground wants
+   from it anyway. */
+.counsel-shell,
 .enterprise-shell {
   /* Very slightly blue-shifted zinc rather than pure grey. The shift is
      small enough that nobody names it, but it is what stops the shell
@@ -1216,6 +1226,24 @@ body > * {
 .counsel-shell:not(.dark) .input:focus {
   border-color: rgba(23, 23, 27, 0.32);
   background-color: #ffffff;
+}
+
+/* The Advottic wordmark is a transparent PNG whose lettering is pure
+   WHITE, with only the pillar glyph in gold. On a near-white header the
+   word disappears entirely, and no light-backdrop horizontal wordmark
+   exists in the repo - `advottic-logo.png` has dark lettering but is a
+   stacked lockup, the wrong shape for a header row.
+
+   So light counsel renders it as a mono ink lockup, which is a normal
+   brand treatment on a light ground and legible at 17:1. It is a
+   STOPGAP and it does cost the gold pillar: a proper light-ground asset
+   should replace this, and when it does, this rule comes out rather
+   than being tuned. `brightness(0)` collapses every channel to black
+   and the opacity lands it near #17171b rather than pure black, so it
+   sits with the rest of the type instead of shouting over it. */
+.counsel-shell:not(.dark) .brand-wordmark {
+  filter: brightness(0) saturate(100%);
+  opacity: 0.92;
 }
 
 /* The header filament is a gold band with a downward gold halo, built
