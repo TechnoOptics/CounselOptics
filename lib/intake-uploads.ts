@@ -103,8 +103,12 @@ export async function uploadIntakeFilesAction(
 
 /**
  * Run an attached document through Advottic Review and return a
- * scorecard. The employee intake form calls this before submit and
- * gates the form on the resulting grade (C or higher passes).
+ * scorecard. Both intake forms call it from the "Run Advottic Review"
+ * button; what happens to the resulting grade differs by caller and is
+ * decided in lib/intake-review-gate.ts, not here. The legal team's own
+ * intake will not submit below a C. An employee filing through the
+ * portal is never blocked, and their grade is attached to the ticket
+ * for legal to read whatever it says.
  */
 export async function reviewIntakeAttachmentAction(
   firmId: string,
@@ -115,12 +119,13 @@ export async function reviewIntakeAttachmentAction(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
-  // This is the in-flow quality gate on an intake attachment (a costed
-  // AI call), not the standalone Review tool - the intake form requires
-  // a passing grade before a request with an attachment can be filed.
-  // So it shares the requests.create entitlement: a view-only employee
-  // who can't file at all must not be able to spend AI calls here, but
-  // any role that can legitimately file requests can run it.
+  // This is the in-flow review of an intake attachment (a costed AI
+  // call), not the standalone Review tool, so it shares the
+  // requests.create entitlement: a view-only employee who can't file at
+  // all must not be able to spend AI calls here, but any role that can
+  // legitimately file requests can run it. That reasoning is about who
+  // may spend the call and does not depend on whether the grade blocks
+  // the filing, which it no longer does for employees.
   const auth = await authorizeFirmActor(
     admin,
     firmId,

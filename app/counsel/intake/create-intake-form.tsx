@@ -8,6 +8,7 @@ import {
   reviewIntakeAttachmentAction,
 } from '@/lib/intake-uploads';
 import type { DocScorecard } from '@/lib/doc-review';
+import { resolveIntakeReviewGate } from '@/lib/intake-review-gate';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
@@ -184,27 +185,29 @@ export function CreateIntakeForm({
     //    so the conflict check still has every name it needs.
     if (links.length > 0) intakeAnswers.links = links;
 
-    // Advottic Review gate: a document was attached, so it must be
-    // reviewed and grade C or higher before this can be submitted.
+    // Advottic Review. Required for the legal team's own intake,
+    // offered but never required for an employee filing through the
+    // portal - see lib/intake-review-gate.ts for why the two differ.
     const filesAttached = formData
       .getAll('attachments')
       .some(
         (f) =>
           typeof f === 'object' && f !== null && (f as File).size > 0,
       );
-    if (filesAttached) {
-      if (!scorecard) {
-        setError(
-          t('Run Advottic Review on your attached document before submitting.'),
-        );
-        return;
-      }
-      if (!scorecard.passes) {
-        setError(
-          `This document graded ${scorecard.grade}. Apply the suggested revisions and re-run the review - a C or higher is required to submit.`,
-        );
-        return;
-      }
+    const reviewGate = resolveIntakeReviewGate({
+      filesAttached,
+      reviewRequired: !employeeMode,
+      scorecard,
+    });
+    if (reviewGate.blocked) {
+      setError(
+        reviewGate.reason === 'not-run'
+          ? t('Run Advottic Review on your attached document before submitting.')
+          : `This document graded ${scorecard?.grade}. Apply the suggested revisions and re-run the review - a C or higher is required to submit.`,
+      );
+      return;
+    }
+    if (reviewGate.attachReview && scorecard) {
       intakeAnswers.review = scorecard;
     }
 
@@ -514,13 +517,28 @@ export function CreateIntakeForm({
         {fileNames.length > 0 && (
           <>
             <p className="text-[12px] text-muted leading-relaxed">
-              <T>Attached contracts must pass</T>{' '}
-              <strong>Advottic Review</strong>{' '}
-              <T>
-                (grade C or higher) before this can be submitted. Review checks bias,
-                vulnerabilities, and how it squares with the relevant
-                state&rsquo;s law, and suggests fixes.
-              </T>
+              {employeeMode ? (
+                <>
+                  <T>You can run</T>{' '}
+                  <strong>Advottic Review</strong>{' '}
+                  <T>
+                    on this attachment before you file. It checks bias,
+                    vulnerabilities, and how the document squares with the
+                    relevant state&rsquo;s law, and suggests fixes. It is
+                    optional, and legal sees the result if you run it.
+                  </T>
+                </>
+              ) : (
+                <>
+                  <T>Attached contracts must pass</T>{' '}
+                  <strong>Advottic Review</strong>{' '}
+                  <T>
+                    (grade C or higher) before this can be submitted. Review checks bias,
+                    vulnerabilities, and how it squares with the relevant
+                    state&rsquo;s law, and suggests fixes.
+                  </T>
+                </>
+              )}
             </p>
             <details className="text-[12px] text-muted">
               <summary className="cursor-pointer select-none">
