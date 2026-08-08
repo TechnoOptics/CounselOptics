@@ -59,7 +59,22 @@ begin
 end;
 $$;
 
-revoke all on function public.credit_firm_token_pool(uuid, integer) from public, anon;
-revoke all on function public.credit_user_token_balance(uuid, integer) from public, anon;
-grant execute on function public.credit_firm_token_pool(uuid, integer) to authenticated, service_role;
-grant execute on function public.credit_user_token_balance(uuid, integer) to authenticated, service_role;
+-- service_role ONLY, and deliberately so.
+--
+-- These two are SECURITY DEFINER, so they run past RLS. Granting EXECUTE to
+-- `authenticated` made credit_firm_token_pool callable by any signed in user
+-- straight over PostgREST, which let them credit a firm's token pool by any
+-- amount they liked. Tokens are the paid currency. That was live in
+-- production until 2026-08-09; see
+-- supabase/migrations/20260809_revoke_credit_firm_token_pool.sql.
+--
+-- The debit_* siblings in 2026-07-03-atomic-token-debits.sql were always
+-- service_role only. These should have matched them from the start.
+--
+-- Every caller is server side: admin.rpc(...) at lib/token-economy.ts:368
+-- and :383. Nothing in the product needs a user to hold this grant, so if a
+-- future change appears to need one, the change is wrong.
+revoke all on function public.credit_firm_token_pool(uuid, integer) from public, anon, authenticated;
+revoke all on function public.credit_user_token_balance(uuid, integer) from public, anon, authenticated;
+grant execute on function public.credit_firm_token_pool(uuid, integer) to service_role;
+grant execute on function public.credit_user_token_balance(uuid, integer) to service_role;

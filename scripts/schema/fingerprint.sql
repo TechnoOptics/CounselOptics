@@ -72,6 +72,34 @@ fns as (
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.prokind in ('f', 'p')
+),
+-- Who may EXECUTE a function, and who may touch a table or a column.
+-- Kept identical to fingerprint-hash.sql; see the long note there for why.
+-- Short version: the fns block above hashes a function's DEFINITION and not
+-- its ACL, so a SECURITY DEFINER function open to `authenticated` looked the
+-- same to this gate as a private one. It was, once.
+privs as (
+  select 'execute | ' || p.proname
+       || '(' || pg_get_function_identity_arguments(p.oid) || ')'
+       || ' | ' || coalesce(array_to_string(p.proacl::text[], ','), 'default')
+         as line
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.prokind in ('f', 'p')
+  union all
+  select 'grant | ' || c.relname
+       || ' | ' || coalesce(array_to_string(c.relacl::text[], ','), 'default')
+         as line
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind in ('r', 'v', 'm', 'p')
+  union all
+  select 'grant | ' || c.relname || '.' || a.attname
+       || ' | ' || array_to_string(a.attacl::text[], ',') as line
+  from pg_attribute a
+  join pg_class c on c.oid = a.attrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and a.attacl is not null
 )
 select replace(replace(line, chr(13), ' '), chr(10), ' ') as line
 from (
@@ -81,5 +109,6 @@ from (
   union all select line from pol
   union all select line from trg
   union all select line from fns
+  union all select line from privs
 ) all_lines
 order by 1;

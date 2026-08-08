@@ -1,0 +1,47 @@
+-- Close a live token-minting hole.
+--
+-- ======================= ALREADY APPLIED TO PRODUCTION ====================
+-- Applied 2026-08-09 and verified. This file is the tracked copy so the repo
+-- and the database agree. Re-running it is a no-op.
+-- =========================================================================
+--
+-- WHAT WAS WRONG. public.credit_firm_token_pool(uuid, integer) is SECURITY
+-- DEFINER, so it runs with the definer's privileges and does not see RLS.
+-- It was also granted EXECUTE to `authenticated`. Any signed in user could
+-- therefore POST to /rest/v1/rpc/credit_firm_token_pool with a firm id and
+-- an arbitrary amount and credit that firm's token pool. Tokens are the paid
+-- currency of this product.
+--
+-- This needed no hidden identifier and no client bundle. It is a plain
+-- PostgREST call with the public anon key and an ordinary user session,
+-- which is what makes it more reachable than the server-action findings
+-- alongside it.
+--
+-- WHY IT IS AN OVERSIGHT AND NOT A DESIGN. The three sibling functions,
+-- credit_user_token_balance, debit_user_token_balance and
+-- debit_firm_token_pool, were all already service_role only.
+--
+-- HOW IT SURVIVED. Two independent gaps, and both are worth knowing:
+--
+--   1. supabase/fixes/2026-07-03-token-credit-rpcs.sql granted BOTH credit
+--      functions to `authenticated`. Production had had one of the two
+--      revoked at some point and the other not, so the committed source and
+--      the live database disagreed. Only a live check found it. The source
+--      file is corrected in the same commit as this migration, because a
+--      file that would reopen the hole if re-applied is not fixed.
+--
+--   2. The schema-drift fingerprint hashed a function's DEFINITION and not
+--      its ACL, so a SECURITY DEFINER function open to every signed in user
+--      was byte-identical, to the gate, to a private one. scripts/schema/
+--      now fingerprints function EXECUTE grants and table and column grants
+--      as well. The column grants matter for the same reason: RLS cannot
+--      express a column-level constraint, so a GRANT is the only thing
+--      stopping a collaborator from rewriting their own role, and that was
+--      equally invisible.
+--
+-- SAFE TO APPLY. The only callers in the tree are admin.rpc(...) at
+-- lib/token-economy.ts:368 and :383, both on the service-role client, which
+-- keeps its grant. Reversible with a matching grant if this is ever wrong.
+
+revoke execute on function public.credit_firm_token_pool(uuid, integer)
+  from authenticated;
