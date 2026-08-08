@@ -12,6 +12,7 @@ import {
   callerIsFirmMember,
   requireActiveFirm,
   FIRM_MANAGE_ROLES,
+  FIRM_POSTING_ROLES,
 } from './firm-authz';
 import {
   sendEmail,
@@ -33,7 +34,7 @@ import {
 } from './document-layout';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
-import { CASE_TYPES, type CaseType, type Posture } from './types';
+import { CASE_TYPES, STATUS_LABEL, type CaseStatus, type CaseType, type Posture } from './types';
 import type {
   Collaborator,
   CollaboratorRole,
@@ -5147,6 +5148,107 @@ export async function setCaseAssigneeAction(
     .update({ assigned_to: assigneeUserId })
     .eq('id', caseId);
   if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/counsel/cases/${caseId}`);
+  revalidatePath('/counsel/cases');
+  revalidatePath('/counsel');
+  return { ok: true };
+}
+
+/** The statuses a matter can be moved to, as values rather than as a type. */
+const CASE_STATUSES = Object.keys(STATUS_LABEL) as CaseStatus[];
+
+/**
+ * Move a matter to a new status, from the counsel side.
+ *
+ * There was no firm status control before this, and the reason there was none
+ * is the defect this function exists not to repeat. The consumer mutation
+ * (setCaseStatusAction) writes through the USER-scoped client, and
+ * `cases_update_own` is `auth.uid() = user_id`, so a firm attorney who is not
+ * the case row's owner updated zero rows, got no error back, and had
+ * `case_status_changed` written into the audit chain for a transition that
+ * never happened. An inline status control on a firm surface would have been
+ * that path with a button attached to it.
+ *
+ * So this is a separate mutation with the firm's own three properties:
+ *
+ *   - authorized through lib/firm-authz, the only firm authorization axis.
+ *     Every export of this module is a public HTTP endpoint, and the write
+ *     below bypasses RLS entirely, so this check is the only gate there is.
+ *     FIRM_POSTING_ROLES is the set the `cases` update policy names, and it
+ *     excludes `staff`, who are sold read-only access.
+ *   - written through the service-role client, because is_case_member RLS is
+ *     not firm-aware and every other firm write to `cases` already goes this
+ *     way.
+ *   - confirmed. `.select('id')` is what separates "wrote" from "matched
+ *     nothing", and the audit entry is a consequence of that confirmation
+ *     rather than of the call returning. Nothing is logged and nothing is
+ *     reported as ok until a row comes back.
+ *
+ * `.eq('firm_id', firmId)` alongside the id is belt and braces: firmId is
+ * read from the matter itself just above, so the two cannot disagree, but it
+ * keeps the write scoped to the firm the caller was actually authorized for.
+ */
+export async function setFirmCaseStatusAction(
+  caseId: string,
+  status: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  if (!CASE_STATUSES.includes(status as CaseStatus)) {
+    // Returned, not thrown. A thrown server action rejects the transition and
+    // replaces the surrounding surface with an error boundary instead of
+    // telling the control what happened, which is what took the matter page
+    // down once already. See app/counsel/cases/set-status.ts.
+    return { ok: false, error: 'That is not a status a matter can be in.' };
+  }
+
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('firm_id, status')
+    .eq('id', caseId)
+    .maybeSingle();
+  const cr = caseRow as { firm_id: string | null; status: CaseStatus } | null;
+  const firmId = cr?.firm_id ?? null;
+  if (!firmId) return { ok: false, error: 'Matter not found.' };
+  if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only firm owners, admins, attorneys or paralegals can change a matter status.',
+    };
+  }
+  await requireActiveFirm(firmId);
+
+  const from = cr?.status ?? null;
+  if (from === status) return { ok: true };
+
+  const { data: written, error } = await admin
+    .from('cases')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', caseId)
+    .eq('firm_id', firmId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!written || written.length === 0) {
+    return {
+      ok: false,
+      error: 'That change could not be saved. Nothing on the matter has moved.',
+    };
+  }
+
+  // Only now. The row is written, so the chain is describing an event.
+  try {
+    const { logCaseEvent } = await import('./activity');
+    await logCaseEvent({
+      caseId,
+      eventType: 'case_status_changed',
+      metadata: { from, to: status, via: 'firm' },
+    });
+  } catch {
+    /* a missing entry is a gap in the record; a false one is a wrong record */
+  }
 
   revalidatePath(`/counsel/cases/${caseId}`);
   revalidatePath('/counsel/cases');

@@ -402,11 +402,17 @@ describe('the list ships no control without an action behind it', () => {
 
   /**
    * setCaseStatusAction (lib/actions.ts) writes through the USER-scoped
-   * Supabase client, so RLS decides, and RLS on `cases` is membership
-   * based rather than firm aware. A firm attorney who is not a member
-   * of the case row updates zero rows and is told it worked. Nothing on
-   * the firm side may reach for it, and updateFirmCaseAction does not
-   * write status at all, so there is no inline status control.
+   * Supabase client, so RLS decides, and `cases_update_own` is
+   * `auth.uid() = user_id` while `cases` SELECT is membership-wide. A
+   * firm attorney who is not the case row's owner updated zero rows,
+   * was told it worked, and had the transition written into the audit
+   * chain.
+   *
+   * There IS an inline status control now, and this is the line it must
+   * not cross: it goes through setFirmCaseStatusAction, which authorizes
+   * on the firm, writes through the service-role client, and confirms
+   * the row before reporting or logging anything. Nothing on the firm
+   * side may reach for the consumer mutation instead.
    *
    * The name appears in the module's own comment explaining why, so
    * this looks for a CALL and for the module it would be imported

@@ -5,6 +5,7 @@ import { getActiveFirmContext, listFirmMembers } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { getOrCreateMatterChannelAction } from '@/lib/firm-actions';
 import { CaseAssigneePicker, type AssigneeOption } from './assignee-picker';
+import { CaseStatusPicker } from './status-picker';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { listTrustTransactions } from '@/lib/trust-accounting-queries';
 import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
@@ -108,6 +109,12 @@ const STATUS_LABEL: Record<string, string> = {
   closed: 'Closed',
   archived: 'Archived',
 };
+
+/** The picker's options, in the order a matter tends to move through them. */
+const STATUS_OPTIONS = Object.entries(STATUS_LABEL).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 // The same hex per status the matter list uses, so a matter does not
 // change colour on the way from the list to its own page.
@@ -532,6 +539,11 @@ export default async function CounselCaseDetailPage({
         }
       >
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
+          <CaseStatusPicker
+            caseId={params.id}
+            options={STATUS_OPTIONS}
+            current={c.status}
+          />
           <CaseAssigneePicker
             caseId={params.id}
             members={assigneeOptions}

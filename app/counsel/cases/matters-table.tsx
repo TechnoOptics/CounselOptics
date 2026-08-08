@@ -4,8 +4,8 @@ import { useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { assignTo } from './assign-to';
+import { setStatus } from './set-status';
 import { T, useT } from '@/components/i18n/LocaleProvider';
-import { StatusPill } from '@/components/counsel/StatusPill';
 import {
   MonoRef,
   Toolbar,
@@ -54,17 +54,17 @@ export type { MatterRow };
  *     matter has no number. See shortRef.
  *   - "Unassigned" is quiet rather than red. An unstaffed matter is a
  *     gap for the firm to close, not a failure to alarm them about.
- *   - Only the assignee is editable in the row. Assignment is the one
- *     field on a matter with a firm-gated mutation behind it
- *     (setCaseAssigneeAction, which re-reads the matter's firm and
- *     checks the CALLER's membership of it, so a call from a row is
- *     gated exactly as a call from the detail page is). Status has no
- *     such mutation: updateFirmCaseAction does not write `status` at
- *     all, and the consumer setCaseStatusAction writes through the
- *     user-scoped client, where a firm attorney who is not a member of
- *     the case row would update zero rows and be told it worked. An
- *     inline status control would therefore be a control that appears
- *     to work and does not, so there is not one.
+ *   - The assignee and the status are editable in the row, and nothing
+ *     else is. Both have a firm-gated mutation behind them that
+ *     re-reads the matter's firm and checks the CALLER's role in it, so
+ *     a call from a row is gated exactly as a call from the detail page
+ *     is, and both confirm the row was written before reporting
+ *     success. The status one had to be built for this: the consumer
+ *     mutation writes through the user-scoped client, where a firm
+ *     attorney who is not the case row's owner updated zero rows, was
+ *     told it worked, and had the transition written into the audit
+ *     chain. Nothing on this surface may reach for it, which
+ *     tests/matter-list.test.ts pins.
  *
  * The checkbox column exists because there is a real thing to do with
  * a set of matters: reassign them, one call to setCaseAssigneeAction
@@ -437,9 +437,12 @@ export function MattersTable({
                       <MonoRef title={r.id}>{shortRef(r.id)}</MonoRef>
                     </td>
                     <td className="px-3 py-2.5">
-                      <StatusPill size="sm" dot color={r.statusColor}>
-                        {r.statusLabel}
-                      </StatusPill>
+                      <RowStatus
+                        caseId={r.id}
+                        current={r.status}
+                        color={r.statusColor}
+                        options={statusOptions}
+                      />
                     </td>
                     <td className="px-3 py-2.5 text-[12.5px]">
                       <RowAssignee
@@ -580,6 +583,80 @@ function RowAssignee({
           </option>
         ))}
       </select>
+      {error && (
+        <p className="text-[11px] text-rose-700 dark:text-rose-300">{error}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The status cell, which is also the control that sets it.
+ *
+ * Keeps the state's colour as a dot beside the select. The pill this
+ * replaced carried that colour, and it is what lets a person read a
+ * column of thirty matters without reading thirty words; a bare select
+ * would have traded that away for the control.
+ *
+ * Reverts and says why on refusal, exactly as RowAssignee does. The
+ * refusals a firm member will actually meet here are a role that may
+ * not post (staff are sold read-only) and an organization whose access
+ * has ended, and both deserve a sentence rather than a silent snap-back.
+ */
+function RowStatus({
+  caseId,
+  current,
+  color,
+  options,
+}: {
+  caseId: string;
+  current: string;
+  color: string;
+  options: { value: string; label: string }[];
+}) {
+  const t = useT();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [value, setValue] = useState(current);
+  const [error, setError] = useState<string | null>(null);
+
+  function onChange(next: string) {
+    const prev = value;
+    setValue(next);
+    setError(null);
+    startTransition(async () => {
+      const res = await setStatus(caseId, next);
+      if (res.ok) {
+        router.refresh();
+      } else {
+        setValue(prev);
+        setError(res.error ?? t('Could not change the matter status.'));
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1.5">
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 flex-none rounded-full"
+          style={{ background: color }}
+        />
+        <select
+          value={value}
+          disabled={pending}
+          onChange={(e) => onChange(e.currentTarget.value)}
+          aria-label={t('Matter status')}
+          className="input h-7 w-full min-w-[8rem] px-2 py-0 disabled:opacity-60"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {t(o.label)}
+            </option>
+          ))}
+        </select>
+      </div>
       {error && (
         <p className="text-[11px] text-rose-700 dark:text-rose-300">{error}</p>
       )}

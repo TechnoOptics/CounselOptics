@@ -1380,6 +1380,7 @@ describe('the enforcement wiring', () => {
       'uploadFirmDocumentAction',
       'createSigningRequestAction',
       'createFirmCaseAction',
+      'setFirmCaseStatusAction',
       'convertIntakeToCaseAction',
       'addFirmEmployeeAction',
       'sendFirmMessageAction',
