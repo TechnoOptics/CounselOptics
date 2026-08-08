@@ -648,11 +648,19 @@ function PartyList({
   );
 }
 
+/*
+ * Bright fills take the near-black foreground, deep fills keep white.
+ * White on `bg-emerald-500` was 2.54:1 and on `bg-emerald-600` 3.77:1,
+ * on both themes: a solid badge never depended on the theme. Kept
+ * byte-identical to the same map in components/ReviewScorecard.tsx and
+ * components/counsel/IntakeInbox.tsx, which is where the reasoning is
+ * written out; tests/accent-text.test.ts measures all three.
+ */
 const GRADE_STYLE: Record<string, string> = {
-  A: 'bg-emerald-500 text-white',
-  B: 'bg-emerald-600 text-white',
+  A: 'bg-emerald-400 text-forest-950',
+  B: 'bg-emerald-500 text-forest-950',
   C: 'bg-amber-500 text-forest-950',
-  D: 'bg-rose-500 text-white',
+  D: 'bg-rose-600 text-white',
   F: 'bg-rose-700 text-white',
 };
 

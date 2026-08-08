@@ -5,11 +5,20 @@ import type { DocScorecard } from '@/lib/doc-review';
  * so it can render on the Counsel intake detail (legal sees what the
  * employee's contract scored) and on the employee's own request.
  */
+/*
+ * A solid fill needs a foreground that can be read ON it, and white
+ * cannot be read on a bright green: `bg-emerald-500 text-white` was
+ * 2.54:1 and `bg-emerald-600 text-white` 3.77:1, on both themes,
+ * because the badge never depended on the theme at all. The C row
+ * already had the answer. Bright fills take the near-black foreground,
+ * deep fills keep white, and A stays lighter than B so the ramp still
+ * reads top to bottom. tests/accent-text.test.ts measures every pair.
+ */
 const GRADE_STYLE: Record<string, string> = {
-  A: 'bg-emerald-500 text-white',
-  B: 'bg-emerald-600 text-white',
+  A: 'bg-emerald-400 text-forest-950',
+  B: 'bg-emerald-500 text-forest-950',
   C: 'bg-amber-500 text-forest-950',
-  D: 'bg-rose-500 text-white',
+  D: 'bg-rose-600 text-white',
   F: 'bg-rose-700 text-white',
 };
 

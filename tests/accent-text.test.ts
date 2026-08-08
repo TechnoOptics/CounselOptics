@@ -1110,3 +1110,108 @@ describe('the status palette clears the floor on both grounds', () => {
     }
   });
 });
+
+/*
+ * The Advottic Review grade badge.
+ *
+ * A different defect from the chips and an older one: the badge is a
+ * SOLID fill with a hard-coded foreground, so it never depended on the
+ * theme and it failed on both. `bg-emerald-500` with `text-white` is
+ * 2.54:1, and the B and D rows of the same five-row map were 3.77:1
+ * and 3.67:1. app/globals.css says of the light counsel layer that
+ * `text-white` is left alone because "white is correct in both themes"
+ * on the saturated fills it sits on. That was true of the fills it was
+ * checked against and not of these.
+ *
+ * The map is written out three times, identically, so this reads all
+ * three files rather than trusting that they still agree.
+ */
+describe('every solid badge pairs a fill with a foreground that can be read on it', () => {
+  const FILES = [
+    'app/counsel/intake/create-intake-form.tsx',
+    'components/ReviewScorecard.tsx',
+    'components/counsel/IntakeInbox.tsx',
+  ];
+
+  /**
+   * The Tailwind classes these badges use, resolved to the paint.
+   *
+   * `text-forest-950` is the one that is not a literal in
+   * tailwind.config.ts: the forest ramp is a CSS variable the shells
+   * remap, so the class resolves to #0a1f19 on the consumer root,
+   * #0a0a0b inside a dark counsel shell, and #17171b under the light
+   * counsel repaint. The lightest of the three is pinned here, which
+   * is the worst case for a foreground on a bright fill.
+   */
+  const PAINT: Record<string, string> = {
+    'bg-emerald-400': '#34d399',
+    'bg-emerald-500': '#10b981',
+    'bg-emerald-600': '#059669',
+    'bg-amber-500': '#f59e0b',
+    'bg-rose-500': '#f43f5e',
+    'bg-rose-600': '#e11d48',
+    'bg-rose-700': '#be123c',
+    'bg-ink-400': '#a1a1aa',
+    'bg-ink-500': '#71717a',
+    'text-white': '#ffffff',
+    'text-forest-950': '#17171b',
+  };
+
+  /**
+   * A background class immediately followed by a foreground class, which
+   * is how every one of these badges is written. The lookbehind keeps
+   * variant-prefixed spellings out: `hover:bg-gold-300 text-forest-950`
+   * is a hover fill paired with the base foreground and pairing them
+   * would measure a state that never co-occurs.
+   */
+  const PAIR = /(?<![\w:-])(bg-[a-z]+-\d+) (text-(?:white|[a-z]+-\d+))(?![\w-])/g;
+
+  function pairsIn(rel: string): { fill: string; fg: string }[] {
+    const src = readFileSync(
+      fileURLToPath(new URL(`../${rel}`, import.meta.url)),
+      'utf8',
+    );
+    // Comments are not paint. Each of these maps now carries a note
+    // naming the pair it replaced, and without this the sweep measures
+    // the note and fails on a spelling that no longer renders anywhere.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+    return [...code.matchAll(PAIR)].map((m) => ({ fill: m[1], fg: m[2] }));
+  }
+
+  const found = FILES.flatMap((rel) =>
+    pairsIn(rel).map((p) => ({ ...p, rel })),
+  );
+
+  it('finds the badges at all, so an empty sweep cannot pass', () => {
+    // Five grades in three files, plus each file's fallback badge and
+    // the inbox priority tones.
+    expect(found.length).toBeGreaterThanOrEqual(18);
+  });
+
+  it('knows the paint behind every class it swept', () => {
+    // A class with no entry would otherwise be skipped, which is the
+    // shape of a guard that stops seeing the thing it guards.
+    for (const { rel, fill, fg } of found) {
+      expect(PAINT[fill], `${rel} uses ${fill}, which has no pinned hex`).toBeDefined();
+      expect(PAINT[fg], `${rel} uses ${fg}, which has no pinned hex`).toBeDefined();
+    }
+  });
+
+  it(`holds every pair to ${AA_SMALL_TEXT}:1`, () => {
+    for (const { rel, fill, fg } of found) {
+      const ratio = contrastRatio(PAINT[fill], PAINT[fg]);
+      expect(
+        ratio,
+        `${rel}: \`${fill} ${fg}\` measures ${ratio.toFixed(3)}:1`,
+      ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+    }
+  });
+
+  it('states the regression this guard exists for, as arithmetic', () => {
+    expect(contrastRatio('#10b981', '#ffffff')).toBeLessThan(AA_SMALL_TEXT);
+    expect(contrastRatio('#059669', '#ffffff')).toBeLessThan(AA_SMALL_TEXT);
+    expect(contrastRatio('#f43f5e', '#ffffff')).toBeLessThan(AA_SMALL_TEXT);
+  });
+});
