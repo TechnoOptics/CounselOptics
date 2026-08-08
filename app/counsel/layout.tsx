@@ -20,6 +20,8 @@ import { CounselGuestHeader } from '@/components/counsel/CounselGuestHeader';
 import { AskAdvottic } from '@/components/counsel/AskAdvottic';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import { getLocaleCookie } from '@/lib/i18n/locale';
+import { getCounselTheme } from '@/lib/counsel-theme';
+import { counselShellClass } from '@/lib/counsel-theme-values';
 import { accentOn } from '@/lib/accent-text';
 import {
   getGuestContext,
@@ -199,6 +201,7 @@ export default async function CounselLayout({
         if (await firmSuspended(guest.firmId)) redirect(ACCESS_ENDED_PATH);
       }
       const locale = await getLocaleCookie();
+      const theme = await getCounselTheme();
       // Force-change wall: a provisioned guest who still owes their first-login
       // password change is parked on that page until it's done.
       if (
@@ -213,7 +216,10 @@ export default async function CounselLayout({
       }
       return (
         <div
-          className="dark counsel-shell min-h-screen flex flex-col text-cream-100"
+          className={counselShellClass(
+            theme,
+            'min-h-screen flex flex-col text-cream-100',
+          )}
           style={
             guest.firm
               ? ({
@@ -237,6 +243,7 @@ export default async function CounselLayout({
               displayName={guest.displayName ?? guest.email ?? 'Guest'}
               email={guest.email ?? ''}
               avatarUrl={await resolveGuestAvatar(guest.userId)}
+              theme={theme}
             />
             <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
               <main className="flex-1 min-w-0">{children}</main>
@@ -324,6 +331,12 @@ export default async function CounselLayout({
   // only the UI chrome wrapped in <T>, leaving firm data verbatim.
   const locale = await getLocaleCookie();
 
+  // Dark unless this reader has opted into light. Read on the server so
+  // the first painted frame is already the right theme: a near-black to
+  // near-white flip resolved in the browser is a full-screen flash on
+  // every navigation.
+  const theme = await getCounselTheme();
+
   // Per-firm surface toggles: a firm can hide the global search box and
   // the Time & Billing group. Read once here and thread down to the
   // header (mobile nav), the sidebar, and the Ask Advottic bar.
@@ -350,10 +363,18 @@ export default async function CounselLayout({
   // The "dark" class forces dark Tailwind variants throughout the
   // counsel side regardless of the user's consumer-side theme - the
   // organizational portal reads as premium / professional rather than
-  // the cream-and-gold marketing tone of the consumer app.
+  // the cream-and-gold marketing tone of the consumer app. It is now
+  // conditional on this reader's own counsel preference, and only on
+  // that: the consumer theme still does not reach in here either way.
+  // No preference means dark, so nothing moved for anyone who has not
+  // asked. `text-cream-100` stays on both, because the light shell
+  // overrides the root's colour at a higher specificity than a utility.
   return (
     <div
-      className="dark counsel-shell min-h-screen flex flex-col text-cream-100"
+      className={counselShellClass(
+        theme,
+        'min-h-screen flex flex-col text-cream-100',
+      )}
       style={
         active
           ? ({

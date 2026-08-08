@@ -553,7 +553,7 @@ function Preview({
           {bandOnPage && (
             <>
               <div
-                className="absolute left-0 right-0 bg-forest-900"
+                className="absolute left-0 right-0 bg-surface"
                 style={{ top: px(layout.letterhead.topPt), height: px(BAND_BAR_PT) }}
               />
               {drawnLines.length > 0 ? (

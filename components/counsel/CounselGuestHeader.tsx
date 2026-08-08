@@ -4,6 +4,7 @@ import type { Firm } from '@/lib/firm-types';
 import { T } from '@/components/i18n/LocaleProvider';
 import { accentOn } from '@/lib/accent-text';
 import { CounselGuestMenu } from './CounselGuestMenu';
+import type { CounselTheme } from '@/lib/counsel-theme-values';
 import { CounselGuestNav } from './CounselGuestNav';
 
 /**
@@ -19,6 +20,7 @@ export function CounselGuestHeader({
   displayName,
   email,
   avatarUrl = null,
+  theme,
 }: {
   firm: Firm | null;
   homeHref: string;
@@ -26,6 +28,7 @@ export function CounselGuestHeader({
   email: string;
   /** Profile picture from the account the guest signed in with. */
   avatarUrl?: string | null;
+  theme: CounselTheme;
 }) {
   return (
     <header className="bg-forest-950 sticky top-0 z-30 pt-[var(--safe-top)] border-b border-forest-800/70 shadow-[0_6px_20px_-12px_rgba(0,0,0,0.9)]">
@@ -46,7 +49,7 @@ export function CounselGuestHeader({
               // scale proportionally, never stretch/squeeze, no matter how tight
               // the header gets. max-w is generous so it also stays near full
               // size next to the firm mark.
-              className="h-6 sm:h-7 w-auto max-w-[52vw] object-contain flex-none block group-hover:opacity-90 transition-opacity"
+              className="brand-wordmark h-6 sm:h-7 w-auto max-w-[52vw] object-contain flex-none block group-hover:opacity-90 transition-opacity"
             />
           </Link>
           {firm && (
@@ -90,6 +93,7 @@ export function CounselGuestHeader({
           email={email}
           initials={computeInitials(displayName || email)}
           avatarUrl={avatarUrl}
+          theme={theme}
         />
       </div>
       {/* The gold glow line closes the brand header; the matter tools (section

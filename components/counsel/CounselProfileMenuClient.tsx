@@ -8,6 +8,8 @@ import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
 import { T } from '@/components/i18n/LocaleProvider';
 import type { LocaleCode } from '@/lib/i18n/locales';
+import type { CounselTheme } from '@/lib/counsel-theme-values';
+import { CounselThemeToggle } from './CounselThemeToggle';
 import { accentOn } from '@/lib/accent-text';
 
 /**
@@ -49,6 +51,9 @@ export type CounselProfileMenuClientProps = {
    *  suppressed exactly as it was in the old header. */
   tenantMode: boolean;
   locale: LocaleCode;
+  /** Dark or light for the counsel shell. Server-resolved from the
+   *  preference cookie, so the toggle opens on the current answer. */
+  theme: CounselTheme;
 };
 
 export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
@@ -191,7 +196,7 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
               </p>
             )}
             {props.isAdmin && (
-              <span className="badge bg-forest-900 text-cream-200 mt-2">Admin</span>
+              <span className="badge bg-surface text-cream-200 mt-2">Admin</span>
             )}
           </div>
 
@@ -284,6 +289,17 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
               </button>
             </div>
           )}
+
+          {/* Appearance. Sits with Language rather than in the header
+              bar itself: the bar deliberately carries nothing but the
+              avatar, and this is the same kind of preference the
+              language picker is. */}
+          <div className="border-b border-edge px-4 py-2.5">
+            <p className="pb-1.5 text-[10px] uppercase tracking-[0.18em] font-semibold text-muted">
+              <T>Appearance</T>
+            </p>
+            <CounselThemeToggle theme={props.theme} />
+          </div>
 
           {/* Language */}
           <div className="border-b border-edge px-4 py-2.5">

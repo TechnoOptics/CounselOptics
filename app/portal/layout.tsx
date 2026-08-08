@@ -10,6 +10,9 @@ import { HubNavLink, type HubNavItem } from '@/components/portal/HubNavLink';
 import { LocaleProvider, T } from '@/components/i18n/LocaleProvider';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { getLocaleCookie } from '@/lib/i18n/locale';
+import { getCounselTheme } from '@/lib/counsel-theme';
+import { counselShellClass } from '@/lib/counsel-theme-values';
+import { CounselThemeToggle } from '@/components/counsel/CounselThemeToggle';
 import { accentOn } from '@/lib/accent-text';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +73,9 @@ export default async function PortalLayout({
 
   if (persona.kind === 'none') {
     return (
+      // Pre-workspace dead end, reached before any preference is read.
+      // Dark on purpose: it is the same surface every signed-out counsel
+      // page uses, and there is no chrome here to change it from.
       <div className="dark counsel-shell min-h-screen flex items-center justify-center px-4 py-16 text-cream-100">
         <div className="popup-panel max-w-md w-full p-8 space-y-3 text-center">
           <p className="eyebrow justify-center">Advottic</p>
@@ -134,6 +140,9 @@ export default async function PortalLayout({
   const isExternal = persona.preview === true && persona.external === true;
   const railKicker = isExternal ? 'Vendor access' : 'Client hub';
   const locale = await getLocaleCookie();
+  // Dark unless this reader opted into light. Resolved on the server so
+  // the first frame is already right; see lib/counsel-theme.ts.
+  const theme = await getCounselTheme();
   const who = employee.displayName || employee.email;
   const firstName = (employee.displayName || employee.email || 'there')
     .split(/[\s@.]/)[0]
@@ -206,7 +215,7 @@ export default async function PortalLayout({
   return (
    <LocaleProvider initialLocale={locale}>
     <div
-      className="dark counsel-shell min-h-screen flex text-cream-100"
+      className={counselShellClass(theme, 'min-h-screen flex text-cream-100')}
       style={
         ({
           ['--firm-accent' as string]: firm.accentColor,
@@ -321,6 +330,7 @@ export default async function PortalLayout({
                 variant="pill"
               />
             ))}
+            <CounselThemeToggle theme={theme} />
             <LanguageSwitcher initialLocale={locale} variant="light" />
             <form action="/auth/sign-out" method="post">
               <button

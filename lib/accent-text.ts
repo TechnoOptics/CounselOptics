@@ -332,7 +332,13 @@ export function accentOn(accent: string | null | undefined): string {
  */
 export const DARK_SURFACE_GROUPS = {
   counsel: {
-    scopes: ['html.dark', '.dark', '.counsel-shell', '.enterprise-shell'],
+    scopes: [
+      'html.dark',
+      '.dark',
+      '.counsel-shell',
+      '.dark.counsel-shell',
+      '.enterprise-shell',
+    ],
     surfaces: {
       'counsel page': '#0a0a0b',
       'counsel .bg-ink-50': '#141417',
@@ -361,6 +367,36 @@ export const DARK_SURFACE_GROUPS = {
 export type DarkSurfaceGroup = keyof typeof DARK_SURFACE_GROUPS;
 
 /**
+ * The light half of the same idea, and the reason it exists at all:
+ * counsel now has two themes. `.counsel-shell` says which surface this
+ * is and `.dark` says how it is painted, so a counsel shell WITHOUT
+ * `.dark` paints solid light surfaces from a shell-scoped selector -
+ * exactly the shape the dark sweep in tests/accent-text.test.ts looks
+ * for. Without a group to claim it, that sweep would either fail (if it
+ * recognised the selector) or, worse, skip it silently.
+ *
+ * It carries no token declarations of its own. Light counsel inherits
+ * `--accent-text`, `--warn-text` and `--danger-text` from `:root`, and
+ * listing its surfaces here is what puts those three under the light
+ * tone's existing proof rather than under an untested assumption. All
+ * three surfaces are lighter than cream-200, so the light pin does not
+ * move; the test asserts that rather than trusting it.
+ */
+export const LIGHT_SURFACE_GROUPS = {
+  counselLight: {
+    scopes: ['.counsel-shell:not(.dark)'],
+    surfaces: {
+      'light counsel page': '#f6f6f7',
+      'light counsel card': '#ffffff',
+      'light counsel inset': '#f0f0f2',
+      'light counsel chip': '#eeeef1',
+    },
+  },
+} as const;
+
+export type LightSurfaceGroup = keyof typeof LIGHT_SURFACE_GROUPS;
+
+/**
  * Every surface each tone can land on. The dark half is the union of the
  * groups above rather than a second hand-kept list, so the two cannot
  * disagree. `--accent-text` is proved against this union because it is
@@ -376,6 +412,7 @@ export const ACCENT_TEXT_SURFACES = {
     'cream-50': '#fefcf3',
     'cream-100': '#fbf7e9',
     'cream-200': '#f5edd6',
+    ...LIGHT_SURFACE_GROUPS.counselLight.surfaces,
   },
 } as const;
 

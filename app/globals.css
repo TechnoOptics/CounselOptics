@@ -282,25 +282,28 @@ body {
 }
 html.dark,
 .dark,
-.counsel-shell,
 .enterprise-shell,
 .hq-shell {
   --accent-text: #e0c890;
   --warn-text: #fbbf24;
   --danger-text: #fecaca;
 }
-/* The neutral-black ground, and only it. This has to stay AFTER the
-   block above and at the same specificity: counsel markup is
-   `dark counsel-shell` on one element, so both rules match it and
-   source order is what decides. */
-.counsel-shell,
+/* The neutral-black ground, and only it. `.dark.counsel-shell` rather
+   than `.counsel-shell` because `.counsel-shell` now means only "this is
+   the counsel surface" and `.dark` is what says it is painted dark - see
+   the shell block further down. The compound also outranks the list
+   above, so this no longer rests on source order the way it did when
+   both were one class; `.enterprise-shell` still does, and still sits
+   after it. A counsel shell WITHOUT `.dark` gets the `:root` light
+   values, which is the whole point: #f87171 is 3.03:1 on a near-white
+   ground and #b91c1c is 5.54:1. */
+.dark.counsel-shell,
 .enterprise-shell {
   --danger-text: #f87171;
 }
 @supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
   html.dark,
   .dark,
-  .counsel-shell,
   .enterprise-shell,
   .hq-shell {
     --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.84 min(c, 0.078) h);
@@ -330,10 +333,17 @@ html.dark,
    filled surface.
 
    The selector list is the one the `-text` family already uses, so the
-   three always-dark shells get the dark values whatever the user's own
-   theme is. `.hq-shell` paints its own forest-tinged page background
-   and does not read `--background`; it is listed so its PANELS and type
-   resolve dark rather than falling through to the light `:root` values.
+   always-dark shells get the dark values whatever the user's own theme
+   is. `.hq-shell` paints its own forest-tinged page background and does
+   not read `--background`; it is listed so its PANELS and type resolve
+   dark rather than falling through to the light `:root` values.
+
+   `.counsel-shell` is deliberately NOT in this list. Counsel is the one
+   shell with two themes, and every counsel root carries `.dark` when it
+   is dark, so `.dark` already reaches it. A counsel shell without
+   `.dark` falls through to the `:root` values above, which ARE the light
+   counsel surface: #f6f6f7 ground, #ffffff panel, #17171b ink. That
+   fall-through is why light counsel needs no second token block.
 
    These are custom properties rather than repainted utility classes on
    purpose. The `.dark .bg-cream-50 { ... }` block further down is the
@@ -360,7 +370,6 @@ html.dark,
 }
 html.dark,
 .dark,
-.counsel-shell,
 .enterprise-shell,
 .hq-shell {
   --background: #0a0a0b;
@@ -949,7 +958,31 @@ body > * {
      2. Neutralize the few hard-coded green hexes in the dark-mode
         repaint layer above, scoped to the enterprise shells only.
 
-   Consumer Advottic is untouched (its :root tokens stay green). */
+   Consumer Advottic is untouched (its :root tokens stay green).
+
+   SHELL IDENTITY IS NOT THEME. `.counsel-shell` says "this is the
+   counsel surface"; `.dark` on the same element says "paint it dark".
+   They used to be the same class, which is why removing `.dark` from a
+   counsel root changed 9 of 166 elements and no background at all: the
+   darkness was all hanging off `.counsel-shell`. Every rule below that
+   paints counsel dark is now compounded with `.dark`, and the light
+   counterparts hang off `.counsel-shell:not(.dark)`. `.enterprise-shell`
+   is left ungated on purpose: the public /enterprise page carries no
+   `.dark` class at all and has one theme, so gating it would unpaint it.
+
+   Default is dark and stays dark. A counsel root renders `dark
+   counsel-shell` unless the reader has opted into light, so nothing
+   moves for anyone who has not asked.
+
+   THE RAMP ITSELF IS IDENTITY, NOT THEME, so it is one of the few
+   things here that is NOT gated. It answers "neutral or green", and the
+   enterprise answer is neutral in both themes. Gating it was tried and
+   looked wrong immediately: a light counsel fell back to the consumer
+   `:root` ramp and the primary button came back deep forest GREEN on a
+   near-white page, which is exactly what the heading above says this
+   layer exists to prevent. Keeping it also means `text-forest-900`
+   resolves to #101012 under light, which is what a light ground wants
+   from it anyway. */
 .counsel-shell,
 .enterprise-shell {
   /* Very slightly blue-shifted zinc rather than pure grey. The shift is
@@ -972,49 +1005,49 @@ body > * {
 /* Scoped neutralization of the hard-coded green repaint hexes from
    the dark-mode layer (those use literal #hex, so the token swap
    above can't reach them). Same luminance, hue removed, matched to the zinc ramp above. */
-.counsel-shell .bg-white,
+.dark.counsel-shell .bg-white,
 .enterprise-shell .bg-white,
-.counsel-shell .bg-ink-100,
+.dark.counsel-shell .bg-ink-100,
 .enterprise-shell .bg-ink-100,
-.counsel-shell .hover\:bg-white:hover,
+.dark.counsel-shell .hover\:bg-white:hover,
 .enterprise-shell .hover\:bg-white:hover,
-.counsel-shell .hover\:bg-ink-100:hover,
+.dark.counsel-shell .hover\:bg-ink-100:hover,
 .enterprise-shell .hover\:bg-ink-100:hover { background-color: #1e1e22; }
-.counsel-shell .bg-cream-50,
+.dark.counsel-shell .bg-cream-50,
 .enterprise-shell .bg-cream-50,
-.counsel-shell .bg-forest-50,
+.dark.counsel-shell .bg-forest-50,
 .enterprise-shell .bg-forest-50,
-.counsel-shell .hover\:bg-cream-50:hover,
+.dark.counsel-shell .hover\:bg-cream-50:hover,
 .enterprise-shell .hover\:bg-cream-50:hover,
-.counsel-shell .hover\:bg-forest-50:hover,
+.dark.counsel-shell .hover\:bg-forest-50:hover,
 .enterprise-shell .hover\:bg-forest-50:hover { background-color: #1a1a1e; }
-.counsel-shell .bg-cream-50\/40,
+.dark.counsel-shell .bg-cream-50\/40,
 .enterprise-shell .bg-cream-50\/40 { background-color: rgba(26, 26, 30, 0.4); }
-.counsel-shell .bg-cream-50\/50,
+.dark.counsel-shell .bg-cream-50\/50,
 .enterprise-shell .bg-cream-50\/50 { background-color: rgba(26, 26, 30, 0.5); }
-.counsel-shell .bg-cream-100,
+.dark.counsel-shell .bg-cream-100,
 .enterprise-shell .bg-cream-100,
-.counsel-shell .bg-forest-100,
+.dark.counsel-shell .bg-forest-100,
 .enterprise-shell .bg-forest-100,
-.counsel-shell .hover\:bg-cream-100:hover,
+.dark.counsel-shell .hover\:bg-cream-100:hover,
 .enterprise-shell .hover\:bg-cream-100:hover { background-color: #242428; }
-.counsel-shell .bg-cream-200,
+.dark.counsel-shell .bg-cream-200,
 .enterprise-shell .bg-cream-200 { background-color: #2c2c31; }
-.counsel-shell .bg-ink-50,
+.dark.counsel-shell .bg-ink-50,
 .enterprise-shell .bg-ink-50,
-.counsel-shell .hover\:bg-ink-50:hover,
+.dark.counsel-shell .hover\:bg-ink-50:hover,
 .enterprise-shell .hover\:bg-ink-50:hover { background-color: #141417; }
-.counsel-shell .bg-ink-50\/40,
+.dark.counsel-shell .bg-ink-50\/40,
 .enterprise-shell .bg-ink-50\/40 { background-color: rgba(20, 20, 23, 0.4); }
-.counsel-shell .bg-ink-50\/50,
+.dark.counsel-shell .bg-ink-50\/50,
 .enterprise-shell .bg-ink-50\/50 { background-color: rgba(20, 20, 23, 0.5); }
 /* Same-shade tile separation: a card sitting directly on a band of its
    own shade needs help. It used to get a 1px gold ring, which now reads
    as a doubled edge because the card already carries a gold hairline
    border. Brighten the border it already has instead, and keep the one
    flat shadow. One edge, one shadow, no stacking. */
-.counsel-shell .bg-forest-900 > .card,
-.counsel-shell .bg-forest-950 > .card,
+.dark.counsel-shell .bg-forest-900 > .card,
+.dark.counsel-shell .bg-forest-950 > .card,
 .enterprise-shell .bg-forest-900 > .card,
 .enterprise-shell .bg-forest-950 > .card {
   border-color: rgba(213, 187, 126, 0.28);
@@ -1026,7 +1059,7 @@ body > * {
    and they make every card look like it is sitting on a different
    shade depending on where it lands on the page. A single gold wash in
    the top-right corner is the whole atmosphere budget. */
-.counsel-shell {
+.dark.counsel-shell {
   background-color: #0a0a0b;
   background-image:
     radial-gradient(900px 420px at 75% -12%, rgba(213, 187, 126, 0.05), transparent 65%);
@@ -1047,30 +1080,292 @@ body > * {
    gold hairline plus one flat shadow. Blur stays where it belongs, on
    floating chrome (sticky headers, menus, modal scrims), which is a
    handful of elements rather than every tile on the page. */
-.counsel-shell .card {
+.dark.counsel-shell .card {
   background-color: rgba(22, 22, 26, 0.92);
   border-color: rgba(213, 187, 126, 0.12);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
-.counsel-shell .card:hover {
+.dark.counsel-shell .card:hover {
   border-color: rgba(213, 187, 126, 0.32);
 }
 
 /* Inputs read as inset wells against the dark backdrop. */
-.counsel-shell .input,
-.counsel-shell select.input,
-.counsel-shell textarea.input {
+.dark.counsel-shell .input,
+.dark.counsel-shell select.input,
+.dark.counsel-shell textarea.input {
   background-color: rgba(14, 14, 14, 0.55);
   border-color: rgba(213, 187, 126, 0.18);
   color: rgb(245, 237, 214);
 }
-.counsel-shell .input::placeholder {
+.dark.counsel-shell .input::placeholder {
   color: rgba(245, 237, 214, 0.45);
 }
-.counsel-shell .input:focus {
+.dark.counsel-shell .input:focus {
   border-color: rgba(213, 187, 126, 0.45);
   background-color: rgba(18, 18, 18, 0.7);
 }
+
+
+/* ===================================================================
+   LIGHT COUNSEL.
+
+   Opt-in, off by default. A counsel root renders `dark counsel-shell`
+   unless the reader has chosen light, so nobody's workspace changes
+   because this shipped. `.counsel-shell` is identity, `.dark` is theme,
+   and everything below is what "not dark" has to repaint.
+
+   WHY A REPAINT LAYER AND NOT A SECOND RAMP. The 2026-08-01 spike
+   recommended inverting the `--forest-*` ramp under light, on the
+   grounds that one variable swap covers every shade, every property and
+   every opacity variant. That recommendation is now unsafe, and the
+   reason is a change that landed after it. Counsel today has 66 forest
+   surface tokens written as `bg-forest-900 ... dark:bg-gold-metal`:
+   LIGHT-authored fills that already say what they want on a light
+   ground. Inverting the ramp turns those into near-white fills still
+   carrying `text-white`, which is unreadable rather than merely wrong.
+   The 178 dark-only forest tokens want the opposite. Same variable,
+   two contradictory jobs, and `bg-forest-900` itself appears on both
+   sides (20 light-authored, 6 dark-only), so no ramp and no repaint can
+   separate them by spelling alone.
+
+   So the ramp is left exactly as it is. The dark-only spellings are
+   repainted here, which reaches 162 of those 178 tokens, and the 16 in
+   the five spellings used BOTH ways were changed at the call site to
+   say which they meant. Anything a light ground already renders
+   correctly gets no rule: `bg-white`, `bg-cream-*`, `text-ink-*`,
+   `border-ink-*` and `ring-ink-*` all revert to their authored light
+   values the moment `.dark` comes off, because the per-class override
+   block above is scoped to `.dark`.
+
+   `text-white` and `ring-white` are deliberately NOT repainted. Every
+   one of their 32 counsel call sites sits on a saturated fill
+   (bg-rose-600, bg-emerald-500, bg-black/55, an avatar ring), where
+   white is correct in both themes and near-black would be unreadable.
+
+   THE @apply CLONES, which is the part that bites. Tailwind copies
+   every rule whose selector names an applied utility, rewriting the
+   selector, so `.btn-primary { @apply text-cream-50 }` would clone the
+   `.text-cream-50` rule below into `.btn-primary { color: #17171b }`.
+   Under light counsel `.btn-primary` still paints `bg-forest-900`,
+   which the untouched ramp resolves to #101012, so that clone renders
+   near-black on near-black. Same for `.card-ai`, which paints its own
+   dark gradient, and `.nav-link`, which pairs cream text with a
+   `hover:bg-forest-800`. Each is excluded on its own rule, which makes
+   the clone self-contradictory (`.btn-primary:not(.btn-primary)`) and
+   costs the real rule nothing. This list IS the mechanism - there is no
+   automatic detection. Add a class here if you teach it to @apply one
+   of these utilities.
+
+   Contrast: every colour below is measured against every surface this
+   shell paints, in tests/accent-text.test.ts, which reads these rules
+   back out of this file. The ink ramp is #17171b / #2e2e35 / #45454e /
+   #5d5d68 / #6b6b75, and the weakest of them is 4.63:1 on the tightest
+   of the three surfaces. */
+
+/* The page. `--background`, `--surface` and the rest already resolve
+   light here, because `.counsel-shell` was removed from the dark token
+   list and a shell without `.dark` falls through to `:root`. What is
+   left is the shell's own paint. The gold wash is 0.05 over near-black
+   and simply does not exist over near-white, so it is re-cut at 0.16 -
+   the same gesture, at the strength a light ground needs to register
+   it at all. */
+.counsel-shell:not(.dark) {
+  /* Native controls follow the SHELL, which is the whole point of the
+     color-scheme block further down. A light counsel inside a dark
+     `html` would otherwise inherit `dark` from the root and drop a
+     near-black date picker onto a white field: the same bug that block
+     fixed, pointing the other way. */
+  color-scheme: light;
+  background-color: #f6f6f7;
+  background-image:
+    radial-gradient(900px 420px at 75% -12%, rgba(213, 187, 126, 0.16), transparent 65%);
+  background-attachment: fixed;
+  color: #17171b;
+}
+
+/* Elevation, re-derived rather than re-coloured. The dark card reads as
+   raised because of a gold hairline and a flat black shadow; on white a
+   gold hairline at 0.12 is invisible and a black shadow at 0.35 is a
+   grey smudge. So light counsel carries the separation on a neutral
+   hairline plus a two-stop shadow soft enough to read as lift, and the
+   hover state darkens the edge instead of warming it. */
+.counsel-shell:not(.dark) .card {
+  background-color: #ffffff;
+  border-color: rgba(23, 23, 27, 0.10);
+  box-shadow:
+    0 1px 2px rgba(23, 23, 27, 0.05),
+    0 2px 8px -4px rgba(23, 23, 27, 0.08);
+}
+.counsel-shell:not(.dark) .card:hover {
+  border-color: rgba(23, 23, 27, 0.18);
+}
+
+/* A card sitting directly on a band of its own shade. The dark shell
+   brightens the gold border it already has; the light one deepens the
+   neutral one, for the same reason and with the same single shadow. */
+.counsel-shell:not(.dark) .bg-forest-900 > .card,
+.counsel-shell:not(.dark) .bg-forest-950 > .card {
+  border-color: rgba(23, 23, 27, 0.16);
+  box-shadow: 0 1px 2px rgba(23, 23, 27, 0.06);
+}
+
+/* Inputs stay inset wells, which on a light ground means DARKER than
+   the card rather than lighter: `--surface-2` on a `--surface` panel.
+   Inverting that (a white field on a white card) is what makes light
+   forms read as unstructured. */
+.counsel-shell:not(.dark) .input,
+.counsel-shell:not(.dark) select.input,
+.counsel-shell:not(.dark) textarea.input {
+  background-color: #f0f0f2;
+  border-color: rgba(23, 23, 27, 0.14);
+  color: #17171b;
+}
+.counsel-shell:not(.dark) .input::placeholder {
+  color: #6b6b75;
+}
+.counsel-shell:not(.dark) .input:focus {
+  border-color: rgba(23, 23, 27, 0.32);
+  background-color: #ffffff;
+}
+
+/* The Advottic wordmark is a transparent PNG whose lettering is pure
+   WHITE, with only the pillar glyph in gold. On a near-white header the
+   word disappears entirely, and no light-backdrop horizontal wordmark
+   exists in the repo - `advottic-logo.png` has dark lettering but is a
+   stacked lockup, the wrong shape for a header row.
+
+   So light counsel renders it as a mono ink lockup, which is a normal
+   brand treatment on a light ground and legible at 17:1. It is a
+   STOPGAP and it does cost the gold pillar: a proper light-ground asset
+   should replace this, and when it does, this rule comes out rather
+   than being tuned. `brightness(0)` collapses every channel to black
+   and the opacity lands it near #17171b rather than pure black, so it
+   sits with the rest of the type instead of shouting over it. */
+.counsel-shell:not(.dark) .brand-wordmark {
+  filter: brightness(0) saturate(100%);
+  opacity: 0.92;
+}
+
+/* The header filament is a gold band with a downward gold halo, built
+   to read as a light source on black. The band still works on white;
+   the halo just fogs the page, so it goes. */
+.counsel-shell:not(.dark) .header-glow-line {
+  box-shadow: 0 1px 2px rgba(213, 187, 126, 0.35);
+}
+
+/* TEXT */
+.counsel-shell:not(.dark) .text-forest-900 { color: #17171b; }
+.counsel-shell:not(.dark) .text-cream-100:not(.card-ai) { color: #17171b; }
+.counsel-shell:not(.dark) .text-cream-100\/55 { color: #45454e; }
+/* `.bg-forest-600` is the one fill this layer deliberately leaves dark
+   (an opaque selected chip, correct as a dark element on a light page),
+   and seven call sites pair it with `text-cream-50` on the SAME element.
+   Repainting those would be dark-on-dark, so the fill is named here
+   rather than churned at the call site. Same idea as the guards' own
+   "this element paints its own background" exemption, narrowed to the
+   one background that stays dark. */
+.counsel-shell:not(.dark) .text-cream-50:not(.btn-primary):not(.bg-forest-600) { color: #17171b; }
+.counsel-shell:not(.dark) .text-cream-100\/60 { color: #45454e; }
+.counsel-shell:not(.dark) .text-forest-950 { color: #17171b; }
+.counsel-shell:not(.dark) .hover\:text-cream-100:hover:not(.nav-link) { color: #17171b; }
+.counsel-shell:not(.dark) .text-cream-100\/85:not(.nav-link) { color: #17171b; }
+.counsel-shell:not(.dark) .text-cream-100\/70 { color: #2e2e35; }
+.counsel-shell:not(.dark) .text-cream-100\/40 { color: #5d5d68; }
+.counsel-shell:not(.dark) .text-forest-700 { color: #45454e; }
+.counsel-shell:not(.dark) .text-cream-100\/75 { color: #2e2e35; }
+.counsel-shell:not(.dark) .text-cream-100\/50 { color: #5d5d68; }
+.counsel-shell:not(.dark) .text-cream-100\/80 { color: #2e2e35; }
+.counsel-shell:not(.dark) .text-cream-100\/90 { color: #17171b; }
+.counsel-shell:not(.dark) .text-forest-800 { color: #2e2e35; }
+.counsel-shell:not(.dark) .text-cream-100\/65 { color: #45454e; }
+.counsel-shell:not(.dark) .text-forest-400 { color: #6b6b75; }
+.counsel-shell:not(.dark) .text-cream-100\/45 { color: #5d5d68; }
+.counsel-shell:not(.dark) .text-forest-600 { color: #5d5d68; }
+.counsel-shell:not(.dark) .placeholder\:text-cream-100\/35::placeholder { color: #6b6b75; }
+.counsel-shell:not(.dark) .text-cream-100\/35 { color: #6b6b75; }
+.counsel-shell:not(.dark) .hover\:text-forest-900:hover { color: #17171b; }
+.counsel-shell:not(.dark) .hover\:text-cream-50:hover { color: #17171b; }
+.counsel-shell:not(.dark) .text-forest-500 { color: #5d5d68; }
+.counsel-shell:not(.dark) .file\:text-cream-50::file-selector-button { color: #17171b; }
+.counsel-shell:not(.dark) .placeholder\:text-cream-100\/40::placeholder { color: #5d5d68; }
+.counsel-shell:not(.dark) .text-cream-100\/25 { color: #6b6b75; }
+.counsel-shell:not(.dark) .hover\:text-forest-800:hover { color: #2e2e35; }
+.counsel-shell:not(.dark) .text-cream-50\/80 { color: #2e2e35; }
+.counsel-shell:not(.dark) .file\:text-forest-950::file-selector-button { color: #17171b; }
+.counsel-shell:not(.dark) .text-cream-100\/30 { color: #6b6b75; }
+.counsel-shell:not(.dark) .placeholder\:text-cream-100\/60::placeholder { color: #45454e; }
+.counsel-shell:not(.dark) .hover\:text-cream-100\/75:hover { color: #2e2e35; }
+.counsel-shell:not(.dark) .text-cream-200 { color: #17171b; }
+.counsel-shell:not(.dark) .text-forest-500\/70 { color: #5d5d68; }
+
+/* EDGES */
+.counsel-shell:not(.dark) .border-cream-50\/10 { border-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .border-forest-700\/40 { border-color: rgba(23, 23, 27, 0.13); }
+.counsel-shell:not(.dark) .ring-forest-700\/40 { --tw-ring-color: rgba(23, 23, 27, 0.13); }
+.counsel-shell:not(.dark) .border-cream-50\/12 { border-color: rgba(23, 23, 27, 0.14); }
+.counsel-shell:not(.dark) .border-forest-700\/30 { border-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .ring-cream-50\/15 { --tw-ring-color: rgba(23, 23, 27, 0.17); }
+.counsel-shell:not(.dark) .ring-forest-700\/50 { --tw-ring-color: rgba(23, 23, 27, 0.14); }
+.counsel-shell:not(.dark) .hover\:border-forest-700:hover { border-color: rgba(23, 23, 27, 0.2); }
+.counsel-shell:not(.dark) .ring-cream-100\/10 { --tw-ring-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .border-cream-100\/10 { border-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .ring-cream-50\/10 { --tw-ring-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .ring-forest-700\/60 { --tw-ring-color: rgba(23, 23, 27, 0.15); }
+.counsel-shell:not(.dark) .ring-cream-50\/25 { --tw-ring-color: rgba(23, 23, 27, 0.27); }
+.counsel-shell:not(.dark) .ring-cream-100\/15 { --tw-ring-color: rgba(23, 23, 27, 0.17); }
+.counsel-shell:not(.dark) .border-cream-100\/15 { border-color: rgba(23, 23, 27, 0.17); }
+.counsel-shell:not(.dark) .ring-forest-950\/60 { --tw-ring-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .ring-cream-50\/20 { --tw-ring-color: rgba(23, 23, 27, 0.22); }
+.counsel-shell:not(.dark) .lg\:border-cream-50\/10 { border-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .divide-forest-700\/30 { border-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .border-cream-50\/15 { border-color: rgba(23, 23, 27, 0.17); }
+.counsel-shell:not(.dark) .border-forest-800\/70 { border-color: rgba(23, 23, 27, 0.13); }
+.counsel-shell:not(.dark) .hover\:ring-cream-100\/30:hover { --tw-ring-color: rgba(23, 23, 27, 0.32); }
+.counsel-shell:not(.dark) .border-forest-700\/50 { border-color: rgba(23, 23, 27, 0.14); }
+.counsel-shell:not(.dark) .border-cream-100\/40 { border-color: rgba(23, 23, 27, 0.42); }
+.counsel-shell:not(.dark) .border-forest-700\/60 { border-color: rgba(23, 23, 27, 0.15); }
+
+/* SURFACES */
+.counsel-shell:not(.dark) .hover\:bg-cream-100\/5:hover { background-color: rgba(23, 23, 27, 0.03); }
+.counsel-shell:not(.dark) .bg-forest-950\/70 { background-color: rgba(246, 246, 247, 0.7); }
+.counsel-shell:not(.dark) .bg-forest-900\/40 { background-color: rgba(23, 23, 27, 0.04); }
+.counsel-shell:not(.dark) .bg-forest-950 { background-color: #f6f6f7; }
+.counsel-shell:not(.dark) .hover\:bg-white\/10:hover { background-color: rgba(23, 23, 27, 0.06); }
+.counsel-shell:not(.dark) .bg-forest-900\/50 { background-color: rgba(23, 23, 27, 0.05); }
+.counsel-shell:not(.dark) .bg-forest-950\/40 { background-color: rgba(246, 246, 247, 0.4); }
+.counsel-shell:not(.dark) .bg-forest-900\/30 { background-color: rgba(23, 23, 27, 0.03); }
+.counsel-shell:not(.dark) .bg-forest-900\/60 { background-color: rgba(23, 23, 27, 0.06); }
+.counsel-shell:not(.dark) .bg-forest-800 { background-color: #eeeef1; }
+.counsel-shell:not(.dark) .hover\:bg-forest-950\/85:hover { background-color: rgba(246, 246, 247, 0.85); }
+.counsel-shell:not(.dark) .hover\:bg-forest-900\/40:hover { background-color: rgba(23, 23, 27, 0.04); }
+.counsel-shell:not(.dark) .bg-cream-100\/10 { background-color: rgba(23, 23, 27, 0.06); }
+.counsel-shell:not(.dark) .hover\:bg-forest-800\/60:hover { background-color: rgba(23, 23, 27, 0.06); }
+.counsel-shell:not(.dark) .hover\:bg-cream-100\/10:hover { background-color: rgba(23, 23, 27, 0.06); }
+.counsel-shell:not(.dark) .bg-forest-950\/80 { background-color: rgba(246, 246, 247, 0.8); }
+.counsel-shell:not(.dark) .hover\:bg-forest-900\/55:hover { background-color: rgba(23, 23, 27, 0.06); }
+.counsel-shell:not(.dark) .bg-white\/10 { background-color: rgba(23, 23, 27, 0.06); }
+.counsel-shell:not(.dark) .hover\:bg-white\/15:hover { background-color: rgba(23, 23, 27, 0.09); }
+.counsel-shell:not(.dark) .hover\:bg-forest-800\/50:hover { background-color: rgba(23, 23, 27, 0.05); }
+.counsel-shell:not(.dark) .bg-cream-100\/8 { background-color: rgba(23, 23, 27, 0.05); }
+.counsel-shell:not(.dark) .bg-cream-100\/15 { background-color: rgba(23, 23, 27, 0.09); }
+.counsel-shell:not(.dark) .hover\:bg-forest-900:hover { background-color: #eeeef1; }
+.counsel-shell:not(.dark) .bg-forest-950\/50 { background-color: rgba(246, 246, 247, 0.5); }
+.counsel-shell:not(.dark) .bg-forest-950\/25 { background-color: rgba(246, 246, 247, 0.25); }
+.counsel-shell:not(.dark) .hover\:bg-forest-950\/45:hover { background-color: rgba(246, 246, 247, 0.45); }
+.counsel-shell:not(.dark) .bg-forest-950\/60 { background-color: rgba(246, 246, 247, 0.6); }
+.counsel-shell:not(.dark) .hover\:bg-forest-950\/70:hover { background-color: rgba(246, 246, 247, 0.7); }
+.counsel-shell:not(.dark) .hover\:bg-cream-50\/10:hover { background-color: rgba(23, 23, 27, 0.06); }
+.counsel-shell:not(.dark) .bg-cream-50\/20 { background-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .bg-forest-950\/92 { background-color: rgba(246, 246, 247, 0.92); }
+.counsel-shell:not(.dark) .hover\:bg-white\/20:hover { background-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .from-forest-950\/75 { background-color: rgba(246, 246, 247, 0.75); }
+.counsel-shell:not(.dark) .hover\:bg-cream-50\/5:hover { background-color: rgba(23, 23, 27, 0.03); }
+.counsel-shell:not(.dark) .bg-forest-700\/40 { background-color: rgba(23, 23, 27, 0.04); }
+.counsel-shell:not(.dark) .bg-forest-900\/70 { background-color: rgba(23, 23, 27, 0.07); }
+.counsel-shell:not(.dark) .bg-forest-900\/95 { background-color: rgba(23, 23, 27, 0.1); }
+.counsel-shell:not(.dark) .bg-cream-100\/20 { background-color: rgba(23, 23, 27, 0.12); }
+.counsel-shell:not(.dark) .bg-forest-950\/95 { background-color: rgba(246, 246, 247, 0.95); }
+.counsel-shell:not(.dark) .bg-cream-100\/5 { background-color: rgba(23, 23, 27, 0.03); }
 
 /* Advottic HQ shell - the founder console that owns BOTH products.
    Forest-tinged dark to sit comfortably alongside counsel-shell as
@@ -1204,7 +1499,6 @@ html.dark {
   color-scheme: dark;
 }
 .dark,
-.counsel-shell,
 .enterprise-shell,
 .hq-shell {
   color-scheme: dark;
@@ -1240,7 +1534,7 @@ textarea {
    is the drift.) */
 html.dark option,
 .dark option,
-.counsel-shell option,
+.dark.counsel-shell option,
 .enterprise-shell option,
 .hq-shell option {
   background-color: rgb(var(--forest-800));
