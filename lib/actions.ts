@@ -1122,6 +1122,13 @@ export async function setCaseStatusAction(caseId: string, status: CaseStatus) {
   if (!valid.includes(status)) throw new Error('Invalid status.');
   // Read the previous status so the event metadata captures the transition.
   const prev = await getCase(caseId);
+  // ORDER IS LOAD-BEARING. updateCaseStatus throws unless a row was actually
+  // written, so nothing below it runs for a transition that did not happen.
+  // Moving the log above this call, or catching around it, puts
+  // `case_status_changed` into the audit chain for a case whose status never
+  // moved. On this product that chain is evidence about a legal matter: a
+  // reader has no way to tell an entry that describes a real transition from
+  // one that describes an attempt, so an entry must only ever follow the write.
   await updateCaseStatus(caseId, status);
   await logCaseEvent({
     caseId,

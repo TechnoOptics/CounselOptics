@@ -181,14 +181,50 @@ function exhibitFromRow(r: ExhibitRow): Exhibit {
   };
 }
 
+/**
+ * WHY EVERY UPDATE BELOW THAT MATTERS ENDS IN `.select(...)`.
+ *
+ * postgrest-js resolves with `{ error }` instead of throwing, and an UPDATE
+ * that matches ZERO rows is not an error at all: `error` is null and there is
+ * nothing else in the response to look at. So `if (error) throw error` on its
+ * own cannot tell "the row was written" from "RLS filtered the row out and
+ * nothing happened". Both come back clean.
+ *
+ * That is not hypothetical here. It is how a month of this product's security
+ * audit writes were silently dropped, and it is how a case status change that
+ * never happened came to be recorded in the audit chain as though it had.
+ *
+ * Asking for the affected rows back is what closes it: `.select('id')` returns
+ * one row when the write landed and an empty array when it did not, so the
+ * function can say which. Where a caller then writes to an audit chain or a
+ * ledger, that confirmation is the precondition for the entry, never the other
+ * way round.
+ *
+ * Not every update needs it, and the ones that do not are marked at the call
+ * site with the reason. The test is what a silent no-op would make the product
+ * SAY: if it would report success, or put a claim in a record that is relied on
+ * later, confirm the row. If it would merely leave a field stale until the next
+ * read corrects it, do not.
+ */
+
+/** What a person is told when a write we asked for turned out not to land. */
+const NOT_WRITTEN =
+  'That change could not be saved. The record may have been removed, or your access to it may have ended.';
+
 export async function saveExhibitScan(exhibitId: string, scan: ScanData): Promise<void> {
   if (usingSupabase()) {
     const supabase = createServerSupabase();
-    const { error } = await supabase
+    // Confirmed, because scanExhibitAction and transcribeExhibitAction both
+    // return normally straight after this and the page re-renders as though
+    // the scan were stored. A silent drop there spends the caller's tokens on
+    // an AI read and reports it as saved.
+    const { data: rows, error } = await supabase
       .from('exhibits')
       .update({ scan_data: scan })
-      .eq('id', exhibitId);
+      .eq('id', exhibitId)
+      .select('id');
     if (error) throw error;
+    if (!rows || rows.length === 0) throw new Error(NOT_WRITTEN);
     return;
   }
   const db = await readLocalDB();
@@ -410,7 +446,12 @@ export async function updateCaseHearing(input: {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not signed in.');
     const supabase = createServerSupabase();
-    const { error } = await supabase
+    // Confirmed, because updateHearingAction writes `hearing_updated` into the
+    // audit chain immediately after this returns, and emails the case's
+    // collaborators about a hearing date. `cases_update_own` is owner-only
+    // while `cases` SELECT is membership-wide, so a collaborator looking at
+    // the same case is exactly the caller who updates zero rows here.
+    const { data: rows, error } = await supabase
       .from('cases')
       .update({
         hearing_at: input.hearingAt,
@@ -418,8 +459,10 @@ export async function updateCaseHearing(input: {
         hearing_notes: input.hearingNotes,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', input.caseId);
+      .eq('id', input.caseId)
+      .select('id');
     if (error) throw error;
+    if (!rows || rows.length === 0) throw new Error(NOT_WRITTEN);
     return;
   }
   const db = await readLocalDB();
@@ -466,16 +509,34 @@ export async function recordCloseSurvey(input: {
   }
 }
 
+/**
+ * Move a case to a new status.
+ *
+ * Throws when nothing was written, rather than returning a flag a caller can
+ * forget to read. Two reasons. The local branch below already throws "Case not
+ * found." for the same situation, and the two branches disagreeing about
+ * whether a missing row is an error is its own defect. And the caller that
+ * matters, setCaseStatusAction, writes `case_status_changed` into the audit
+ * chain on the next line: a throw stops that line from running, whereas a
+ * returned boolean is one careless call site away from a transition being
+ * recorded that never happened. That entry is evidence about a legal matter.
+ * It has to be un-ignorable.
+ */
 export async function updateCaseStatus(caseId: string, status: CaseStatus): Promise<void> {
   if (usingSupabase()) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not signed in.');
     const supabase = createServerSupabase();
-    const { error } = await supabase
+    const { data: rows, error } = await supabase
       .from('cases')
       .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', caseId);
+      .eq('id', caseId)
+      .select('id');
     if (error) throw error;
+    // `cases_update_own` is `auth.uid() = user_id`, so anyone who can SEE this
+    // case without owning it (a collaborator, a firm member) matches zero rows
+    // and, before this check existed, was told the status had changed.
+    if (!rows || rows.length === 0) throw new Error(NOT_WRITTEN);
     return;
   }
   const db = await readLocalDB();
@@ -694,6 +755,10 @@ export async function addExhibit(input: {
       throw error;
     }
 
+    // Not confirmed, on purpose: this only freshens the case's "updated"
+    // timestamp after the exhibit insert above, which IS confirmed and throws.
+    // A dropped bump leaves one sort column stale until the next write. It
+    // makes no claim to anyone and records nothing.
     await supabase
       .from('cases')
       .update({ updated_at: new Date().toISOString() })
@@ -786,6 +851,12 @@ export async function saveReview(review: AIReview): Promise<void> {
       is_demo: review.isDemo,
     });
     if (error) throw error;
+    // Not confirmed, on purpose. The review insert above is confirmed and
+    // throws, and `review_run` (the audit entry the caller writes) is about
+    // that insert, so the entry stays true either way. This line only nudges a
+    // status a collaborator is not allowed to set; when it does not land the
+    // case keeps the status it already had, which every surface reads back
+    // from the row rather than assuming. Nothing is told otherwise.
     await supabase
       .from('cases')
       .update({ status: 'under_review', updated_at: review.createdAt })
@@ -1173,16 +1244,26 @@ export async function adminSetUserBlocked(input: {
   }
 }
 
-/** Make sure a profile row exists for the user before we patch flags. */
+/**
+ * Make sure a profile row exists for the user before we patch flags.
+ *
+ * This is what lets the two flag updates that follow it stay plain
+ * error-checked writes: they run on the service-role client, so no RLS can
+ * filter them, and the only other way to match zero rows is for the row to be
+ * absent, which this rules out. That argument only holds if a failure here is
+ * a failure, so the error is read. Swallowed, it would hand "the account is
+ * now deactivated" to an operator for an account that is not.
+ */
 async function ensureProfileExists(
   admin: ReturnType<typeof createAdminSupabase>,
   userId: string,
 ): Promise<void> {
   if (!admin) return;
-  await admin.from('profiles').upsert(
+  const { error } = await admin.from('profiles').upsert(
     { id: userId, updated_at: new Date().toISOString() },
     { onConflict: 'id', ignoreDuplicates: false },
   );
+  if (error) throw error;
 }
 
 export async function adminListCases(
@@ -1328,8 +1409,17 @@ function collaboratorFromRow(r: CollaboratorRow): Collaborator {
 /**
  * Witness self-edit: a witness invited to a case writes their own
  * account of what happened. Verifies the caller is the witness in
- * question (RLS already enforces this on row-level SELECT, but we
- * also gate on UPDATE here to be explicit).
+ * question, then confirms the write actually landed.
+ *
+ * The ownership check below reads the row through the SELECT policy and the
+ * update writes through the UPDATE policy, and those are two different gates.
+ * Passing the first says nothing about the second. In the schema committed to
+ * this repo, `case_collaborators` has RLS enabled and SELECT, INSERT and
+ * DELETE policies, and NO update policy at all, which would make every write
+ * here match zero rows; the previous comment claimed the opposite ("we also
+ * gate on UPDATE here"). Whatever the live policy set turns out to be, the
+ * caller writes `witness_statement_updated` into the audit chain on the
+ * strength of this returning, so it has to be the row count that decides.
  */
 export async function updateWitnessStatement(input: {
   collaboratorId: string;
@@ -1360,14 +1450,20 @@ export async function updateWitnessStatement(input: {
     (user.email && r.email && user.email.trim().toLowerCase() === r.email.trim().toLowerCase());
   if (!isOwn) throw new Error('You can only edit your own witness statement.');
   const trimmed = input.statement.trim().slice(0, 50_000);
-  const { error } = await supabase
+  const { data: rows, error } = await supabase
     .from('case_collaborators')
     .update({
       witness_statement: trimmed || null,
       witness_statement_updated_at: trimmed ? new Date().toISOString() : null,
     })
-    .eq('id', input.collaboratorId);
+    .eq('id', input.collaboratorId)
+    .select('id');
   if (error) throw error;
+  if (!rows || rows.length === 0) {
+    throw new Error(
+      'Your statement could not be saved. Nothing has been recorded, so please try again before relying on it.',
+    );
+  }
 }
 
 export async function listCollaborators(caseId: string): Promise<Collaborator[]> {
@@ -2163,10 +2259,24 @@ export async function adjustTokens(input: {
   const current = (profile as { token_balance?: number } | null)?.token_balance ?? 0;
   const proposed = current + input.delta;
   const next = proposed < 0 ? 0 : proposed;
-  await admin
+  const { data: written } = await admin
     .from('profiles')
     .update({ token_balance: next, updated_at: new Date().toISOString() })
-    .eq('id', input.userId);
+    .eq('id', input.userId)
+    .select('id');
+  // The ledger row below states `balance_after`. If the balance was not
+  // written (no profile row for this user id, say), writing the ledger anyway
+  // records a balance nobody holds, and this ledger is the record that gets
+  // read back when a charge is disputed. Say so on the error channel and leave
+  // the ledger alone rather than entering something untrue in it. No throw:
+  // the callers are Stripe webhook handlers, and a rejection there buys a
+  // retry loop, not a correction.
+  if (!written || written.length === 0) {
+    console.error(
+      `[tokens] balance write for ${input.userId} matched no row; ledger entry skipped (${input.reason})`,
+    );
+    return current;
+  }
   await admin.from('token_ledger').insert({
     user_id: input.userId,
     delta: input.delta,
@@ -2292,14 +2402,23 @@ export async function grantProMonthlyTokens(input: {
     return { granted: false, balance: existing.token_balance ?? 0 };
   }
   const newBalance = (existing.token_balance ?? 0) + PRO_MONTHLY_TOKEN_GRANT;
-  await admin
+  const { data: written } = await admin
     .from('profiles')
     .update({
       token_balance: newBalance,
       token_quota_period_end: input.periodEnd,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', input.userId);
+    .eq('id', input.userId)
+    .select('id');
+  // Same reason as adjustTokens: no grant means no ledger row claiming one,
+  // and "granted" has to describe what happened rather than what was asked for.
+  if (!written || written.length === 0) {
+    console.error(
+      `[tokens] pro monthly grant for ${input.userId} matched no row; ledger entry skipped`,
+    );
+    return { granted: false, balance: existing.token_balance ?? 0 };
+  }
   await admin.from('token_ledger').insert({
     user_id: input.userId,
     delta: PRO_MONTHLY_TOKEN_GRANT,
