@@ -9,6 +9,12 @@ import type { Project, ProjectFolder, ProjectItem } from '@/lib/project-types';
 import { LinkCasePanel } from './link-case-panel';
 import { PageHeader } from '@/components/counsel/ui';
 import {
+  ActionBar,
+  Chip,
+  MonoRef,
+  shortRef,
+} from '@/components/counsel/patterns';
+import {
   addProjectNoteAction,
   uploadProjectDocumentAction,
   createFolderAction,
@@ -109,19 +115,39 @@ export function ProjectWorkspace({
     <div className="space-y-6 animate-fade-up">
       <PageHeader
         align="start"
+        // The detail pattern's breadcrumb: the list this record came
+        // from, then the record's own reference. A project has no
+        // number, so the reference is its id shortened - see shortRef.
         backLink={
-          <Link
-            href="/counsel/projects"
-            className="text-[12px] text-muted hover:underline"
-          >
-            ← <T>All projects</T>
-          </Link>
+          <p className="flex items-center gap-2 text-[12px]">
+            <Link
+              href="/counsel/projects"
+              className="text-muted hover:text-foreground"
+            >
+              <T>Projects</T>
+            </Link>
+            <span className="text-muted" aria-hidden>
+              /
+            </span>
+            <MonoRef title={project.id}>{shortRef(project.id)}</MonoRef>
+          </p>
         }
         title={project.name}
         subtitleClassName="mt-1"
         subtitle={project.description || undefined}
-        action={
-          <div className="flex items-center gap-2">
+      />
+
+      {/*
+        The detail pattern's action bar: what this record IS on the
+        left, what you can do to it on the right. Every chip is a count
+        of a set already on this page - the folders and items the server
+        loaded, and the archived split of the same items - so nothing
+        here needed a query to be able to say it. There is no status
+        select and no assignee select because a project has neither.
+      */}
+      <ActionBar
+        trailing={
+          <>
             <label className="inline-flex items-center gap-1.5 text-[12px] text-muted">
               <input
                 type="checkbox"
@@ -139,13 +165,34 @@ export function ProjectWorkspace({
                   setProjectArchivedAction(firmId, project.id, project.status !== 'archived'),
                 )
               }
-              className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[12px] ring-1 ring-edge hover:bg-surface-2 disabled:opacity-50"
+              className="inline-flex min-h-[40px] items-center rounded-md px-3 text-[12px] ring-1 ring-edge hover:bg-surface-2 disabled:opacity-50"
             >
               {project.status === 'archived' ? <T>Unarchive project</T> : <T>Archive project</T>}
             </button>
-          </div>
+          </>
         }
-      />
+      >
+        <div className="flex flex-wrap items-center gap-1.5">
+          {project.status === 'archived' ? (
+            <Chip>
+              <T>Archived</T>
+            </Chip>
+          ) : (
+            <Chip tone="accent">
+              <T>Active</T>
+            </Chip>
+          )}
+          <Chip>
+            {folders.length} <T>folders</T>
+          </Chip>
+          <Chip>
+            {items.filter((i) => !i.archived).length} <T>items</T>
+          </Chip>
+          <Chip>
+            {docCount} <T>documents</T>
+          </Chip>
+        </div>
+      </ActionBar>
 
       {error && (
         <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">

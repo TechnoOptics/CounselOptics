@@ -20,7 +20,7 @@ import {
 } from '@/components/counsel/CounselDashboardTiles';
 import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
 import { tallyIntakeLanes } from '@/lib/intake-lanes';
-import { PageHeader, EmptyState } from '@/components/counsel/ui';
+import { PageHeader, EmptyState, StatCard } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -39,8 +39,10 @@ export const metadata: Metadata = {
  *
  * Layout (top to bottom):
  *   1. Welcome banner ("Welcome to {firmName}") - always shown.
- *   2. Ask Advottic search bar - always shown.
- *   3. User-selected tiles - default is Action center + Assigned to
+ *   2. The metric strip - four headline counts, always shown. See the
+ *      comment on it for which query produces each one.
+ *   3. Ask Advottic search bar - always shown.
+ *   4. User-selected tiles - default is Action center + Assigned to
  *      me. The "Customize" button in the header lets the user pick
  *      any combination of tiles from the catalog in
  *      lib/counsel-dashboard.ts. Preferences persist in
@@ -302,7 +304,65 @@ export default async function CounselDashboard() {
         }
       />
 
-      {/* Ask Advottic - immediately below the welcome. */}
+      {/*
+        The metric strip the dashboard pattern leads with. Four numbers
+        only, and every one of them is the length of a set this page
+        already read in full:
+
+          Open matters      listFirmCases, filtered by openCaseStatuses
+          Out for signature listFirmSigningRequests, status sent|partial
+          Active clients    listFirmClients, status active
+          Documents         listFirmDocuments
+
+        The intake lane counts are deliberately NOT here, though the
+        action-center tile below shows them: they are tallied from a
+        firm_matter_intakes read capped at 200 rows, so on a busy firm
+        the number would be a floor rather than a count. A headline
+        metric has to be the whole set.
+      */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label={<T>Open matters</T>}
+          value={openActiveCases.length}
+          sub={
+            <>
+              {cases.length} <T>at the firm in total</T>
+            </>
+          }
+          color="var(--accent-text)"
+        />
+        <StatCard
+          // "Out for signature" wrapped to a second line at strip width
+          // and dropped its number below the other three, which is the
+          // one thing a row of metrics must not do.
+          label={<T>Signatures out</T>}
+          value={pendingSigning.length}
+          sub={
+            <>
+              {signing.length} <T>signature requests sent</T>
+            </>
+          }
+          // Amber only when something is actually waiting. A zero here
+          // is the good state and must not be painted as a warning.
+          color={pendingSigning.length > 0 ? 'var(--warn-text)' : undefined}
+        />
+        <StatCard
+          label={<T>Active clients</T>}
+          value={clientsActive.length}
+          sub={
+            <>
+              {clients.length} <T>on the books</T>
+            </>
+          }
+        />
+        <StatCard
+          label={<T>Documents</T>}
+          value={documents.length}
+          sub={<T>held for this firm</T>}
+        />
+      </section>
+
+      {/* Ask Advottic - below the strip. */}
       <AskAdvottic />
 
       {/* Customize button - sits between the Ask bar (with its

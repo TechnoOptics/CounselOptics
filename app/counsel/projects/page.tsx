@@ -5,15 +5,52 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { listFirmProjects } from '@/lib/projects-actions';
 import { NewProjectForm } from './new-project-form';
 import { EmptyState, PageHeader } from '@/components/counsel/ui';
+import {
+  Chip,
+  MonoRef,
+  ViewStrip,
+  relativeTime,
+  shortRef,
+  type ViewOption,
+} from '@/components/counsel/patterns';
+import type { Project } from '@/lib/project-types';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Projects · Counsel' };
 
 /**
- * Firm projects list. A project is a named workspace of folders holding
- * notes and documents - anything the firm wants to keep together and
- * retrieve later (an onboarding, a policy review, a research binder).
+ * The views a project can genuinely be in. `status` is the column, and
+ * it holds exactly these two values, so these are the only subsets.
+ */
+const VIEWS = {
+  active: (p: Project) => p.status === 'active',
+  archived: (p: Project) => p.status === 'archived',
+  all: () => true,
+} as const;
+
+type ViewKey = keyof typeof VIEWS;
+
+function parseView(raw: string | undefined): ViewKey {
+  return raw === 'archived' || raw === 'all' ? raw : 'active';
+}
+
+/**
+ * Firm projects list, on the configuration-list pattern: cards rather
+ * than rows, each with a name, a scope chip, a right-aligned mono
+ * reference and a description.
+ *
+ * Cards rather than the table the matter list uses because a project's
+ * whole identity is a name and a sentence. There is no priority, no
+ * assignee, no status beyond active/archived and no date other than
+ * "updated", so a table would have one column worth sorting and four
+ * worth nothing.
+ *
+ * The metrics row the configuration-list pattern puts under the
+ * description is deliberately absent: the folder and item counts that
+ * would fill it are not in listFirmProjects, and reading them per card
+ * would be a query per project. The pattern's DEFAULT badge is absent
+ * for the same class of reason - a project has no default.
  *
  * With ?caseId=, the page scopes to one case: it filters the list to
  * that case's projects and new ones created here attach to it (the
@@ -22,11 +59,12 @@ export const metadata = { title: 'Projects · Counsel' };
 export default async function CounselProjectsPage({
   searchParams,
 }: {
-  searchParams?: { caseId?: string };
+  searchParams?: { caseId?: string; view?: string };
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
   const caseId = searchParams?.caseId?.trim() || null;
+  const view = parseView(searchParams?.view);
 
   let caseTitle: string | null = null;
   if (caseId) {
@@ -41,19 +79,38 @@ export default async function CounselProjectsPage({
   }
 
   const allProjects = await listFirmProjects(ctx.firm.id);
-  const projects = caseId
+  // The set the view strip counts over is the set this page can show,
+  // so a ?caseId= scope narrows the counts too rather than promising
+  // rows the filter has already removed.
+  const inScope = caseId
     ? allProjects.filter((p) => p.caseId === caseId)
     : allProjects;
-  const active = projects.filter((p) => p.status === 'active');
-  const archived = projects.filter((p) => p.status === 'archived');
+  const projects = inScope.filter(VIEWS[view]);
+
+  const href = (k: string) => {
+    const qs = new URLSearchParams();
+    if (caseId) qs.set('caseId', caseId);
+    if (k !== 'active') qs.set('view', k);
+    const s = qs.toString();
+    return s ? `/counsel/projects?${s}` : '/counsel/projects';
+  };
+  const options: ViewOption[] = [
+    { key: 'active', label: <T>Active</T>, count: inScope.filter(VIEWS.active).length },
+    {
+      key: 'archived',
+      label: <T>Archived</T>,
+      count: inScope.filter(VIEWS.archived).length,
+    },
+    { key: 'all', label: <T>Everything</T>, count: inScope.length },
+  ];
 
   return (
     <div className="space-y-6 animate-fade-up">
       {caseId && (
-        <div className="card p-3 flex flex-wrap items-center justify-between gap-2 ring-1 ring-forest-900/10 dark:ring-cream-100/10 bg-surface-2">
+        <div className="card flex flex-wrap items-center justify-between gap-2 bg-surface-2 p-3">
           <p className="text-[13px] text-foreground">
             <T>Showing projects for</T>{' '}
-            <strong>{caseTitle ?? 'this matter'}</strong>.{' '}
+            <strong data-no-translate>{caseTitle ?? 'this matter'}</strong>.{' '}
             <T>New projects here attach to it.</T>
           </p>
           <Link href="/counsel/projects" className="text-[12px] underline">
@@ -67,16 +124,19 @@ export default async function CounselProjectsPage({
         title={<T>Projects &amp; folders</T>}
         subtitleClassName="mt-1 max-w-2xl"
         subtitle={
-          <T>
-            Keep related notes and documents together. Create folders
-            inside a project, drop things in, and archive what you want
-            out of the way but not gone.
-          </T>
+          <>
+            {inScope.length}{' '}
+            <T>
+              named workspaces of folders holding notes and documents. Create
+              folders inside a project, drop things in, and archive what you
+              want out of the way but not gone. The view is in the address bar.
+            </T>
+          </>
         }
         action={<NewProjectForm firmId={ctx.firm.id} caseId={caseId} />}
       />
 
-      {active.length === 0 && archived.length === 0 ? (
+      {inScope.length === 0 ? (
         <EmptyState
           title={<T>No projects yet</T>}
           sub={
@@ -87,57 +147,78 @@ export default async function CounselProjectsPage({
         />
       ) : (
         <>
-          {active.length > 0 && (
+          <ViewStrip
+            label="Project views"
+            options={options}
+            active={view}
+            href={href}
+          />
+          {projects.length === 0 ? (
+            <EmptyState
+              title={<T>Nothing in this view.</T>}
+              sub={<T>Pick another view above.</T>}
+            />
+          ) : (
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {active.map((p) => (
+              {projects.map((p) => (
                 <li key={p.id}>
-                  <Link
-                    href={`/counsel/projects/${p.id}`}
-                    className="block card p-4 h-full hover:shadow-card-hover transition-all"
-                  >
-                    <p className="font-semibold text-foreground truncate">
-                      {p.name}
-                    </p>
-                    {p.description && (
-                      <p className="text-[12.5px] text-muted mt-1 line-clamp-2">
-                        {p.description}
-                      </p>
-                    )}
-                    <p className="text-[11px] text-muted mt-2 font-mono">
-                      <T>Updated</T> {new Date(p.updatedAt).toLocaleDateString()}
-                    </p>
-                  </Link>
+                  <ProjectCard project={p} />
                 </li>
               ))}
             </ul>
           )}
-
-          {archived.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted">
-                <T>Archived</T> ({archived.length})
-              </h2>
-              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {archived.map((p) => (
-                  <li key={p.id}>
-                    <Link
-                      href={`/counsel/projects/${p.id}`}
-                      className="block card p-4 h-full opacity-70 hover:opacity-100 transition-opacity"
-                    >
-                      <p className="font-semibold text-foreground truncate">
-                        {p.name}
-                      </p>
-                      <p className="text-[11px] text-muted mt-2 font-mono">
-                        <T>Archived</T>
-                      </p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
         </>
       )}
     </div>
+  );
+}
+
+function ProjectCard({ project: p }: { project: Project }) {
+  const archived = p.status === 'archived';
+  const updated = relativeTime(p.updatedAt);
+  return (
+    <Link
+      href={`/counsel/projects/${p.id}`}
+      className={`card block h-full p-4 transition-all hover:shadow-card-hover ${
+        archived ? 'opacity-75 hover:opacity-100' : ''
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 truncate font-semibold text-foreground" data-no-translate>
+          {p.name}
+        </p>
+        <MonoRef title={p.id}>{shortRef(p.id)}</MonoRef>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {p.caseId ? (
+          <Chip tone="accent">
+            <T>On a matter</T>
+          </Chip>
+        ) : (
+          <Chip>
+            <T>Firm-wide</T>
+          </Chip>
+        )}
+        {archived && (
+          <Chip>
+            <T>Archived</T>
+          </Chip>
+        )}
+      </div>
+      {p.description && (
+        <p
+          className="mt-2 line-clamp-2 text-[12.5px] text-muted"
+          data-no-translate
+        >
+          {p.description}
+        </p>
+      )}
+      <p
+        className="mt-2 text-[11px] text-muted"
+        title={new Date(p.updatedAt).toLocaleString()}
+      >
+        <T>Updated</T> {updated ?? new Date(p.updatedAt).toLocaleDateString()}
+      </p>
+    </Link>
   );
 }

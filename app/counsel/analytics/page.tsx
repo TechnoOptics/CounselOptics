@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmAnalytics, type StatusCount, type MonthPoint } from '@/lib/counsel-analytics';
 import { getFirmImpact, type Bucket, type FirmImpact } from '@/lib/counsel-impact';
 import { PageHeader } from '@/components/counsel/ui';
+import { PanelCard } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -99,17 +100,28 @@ export default async function CounselImpactPage() {
           sub={`${impact.evidence.high} highly relevant`}
           tone="emerald"
         />
+        {/*
+          Both of these read cases.hearing_at and nothing else, so they
+          say "hearing". They used to be labelled "Upcoming hearings /
+          N due within 30 days" and "Overdue deadlines", which read as a
+          count over case_deadlines - a real table, with its own
+          completed_at, that getFirmImpact never queries. A matter whose
+          hearing date has passed is not the same measure as a deadline
+          nobody ticked off, and the second label was the more plausible
+          of the two, which is exactly what makes it the more dangerous.
+          The honest fix is the label, not a second number.
+        */}
         <Kpi
-          label="Upcoming hearings"
+          label="Hearings ahead"
           value={String(impact.schedule.hearingsUpcoming)}
-          sub={`${impact.schedule.deadlinesUpcoming} due within 30 days`}
+          sub={`${impact.schedule.deadlinesUpcoming} of them within 30 days`}
           tone="sky"
           href="/counsel/calendar"
         />
         <Kpi
-          label="Overdue deadlines"
+          label="Hearing date passed"
           value={String(impact.schedule.deadlinesOverdue)}
-          sub="hearing passed, matter still open"
+          sub="matter still open"
           tone={impact.schedule.deadlinesOverdue > 0 ? 'rose' : 'ink'}
           href="/counsel/cases"
         />
@@ -230,14 +242,16 @@ function Kpi({
   );
 }
 
+/**
+ * A titled panel, now the shared PanelCard rather than a local copy of
+ * the same uppercase letterspaced header. `title` stays a string so the
+ * six call sites keep passing a literal that the i18n guard can see.
+ */
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="card p-4 sm:p-5">
-      <h2 className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted mb-4">
-        <T>{title}</T>
-      </h2>
+    <PanelCard title={<T>{title}</T>} bodyClassName="p-4 sm:p-5">
       {children}
-    </div>
+    </PanelCard>
   );
 }
 
@@ -417,11 +431,11 @@ function SchedulePanel({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2 text-center">
-        <MiniStat value={schedule.hearingsUpcoming} label="Upcoming hearings" />
-        <MiniStat value={schedule.deadlinesUpcoming} label="Due in 30 days" />
+        <MiniStat value={schedule.hearingsUpcoming} label="Hearings ahead" />
+        <MiniStat value={schedule.deadlinesUpcoming} label="Within 30 days" />
         <MiniStat
           value={schedule.deadlinesOverdue}
-          label="Overdue"
+          label="Date passed"
           tone={schedule.deadlinesOverdue > 0 ? 'rose' : 'ink'}
         />
       </div>
@@ -478,7 +492,7 @@ function MiniStat({
         ? 'text-muted'
         : 'text-accent-text';
   return (
-    <div className="rounded-lg ring-1 ring-ink-100 dark:ring-forest-700/40 py-2.5">
+    <div className="rounded-lg border border-edge py-2.5">
       <p className={`text-2xl leading-none ${accent}`}>{value}</p>
       <p className="text-[10px] uppercase tracking-[0.1em] text-muted mt-1 px-1">
         <T>{l}</T>
