@@ -124,7 +124,7 @@ export default async function CounselTimePage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
           <T>Recent entries</T>
         </h2>
         {entries.length === 0 ? (
@@ -205,7 +205,7 @@ function Stat({
   return (
     <div className="card p-5">
       <p className="eyebrow text-[10.5px] mb-2">{label}</p>
-      <p className={`font-display text-3xl font-medium tabular-nums ${cls}`}>
+      <p className={`text-3xl font-medium tabular-nums ${cls}`}>
         {value}
       </p>
       {sub && (

@@ -435,7 +435,7 @@ export function FirmTimelineCalendar({
 
       {/* Heading */}
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-display text-[13px] font-medium text-forest-900 dark:text-cream-100" data-no-translate>
+        <h3 className="text-[13px] font-medium text-forest-900 dark:text-cream-100" data-no-translate>
           {heading}
         </h3>
         <p className="text-[11px] text-ink-500 dark:text-cream-100/55">

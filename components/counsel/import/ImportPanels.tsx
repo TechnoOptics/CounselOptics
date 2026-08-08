@@ -39,7 +39,7 @@ function PanelHeader({
   return (
     <div>
       <p className="eyebrow mb-1"><T>{eyebrow}</T></p>
-      <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <h2 className="text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
         <T>{title}</T>
       </h2>
       <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
@@ -921,7 +921,7 @@ function ResultPanel({
 }) {
   return (
     <div className="card p-5 space-y-2">
-      <p className="font-display text-lg text-forest-900 dark:text-cream-100">
+      <p className="text-lg text-forest-900 dark:text-cream-100">
         {summary}
       </p>
       {subline && (

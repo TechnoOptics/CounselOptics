@@ -195,7 +195,7 @@ export default async function CounselBillingPage() {
 
       {/* Invoices list */}
       <section className="space-y-3">
-        <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
           <T>Recent invoices</T>
         </h2>
         {allInvoiceTotals.length > invoices.length && (
@@ -308,7 +308,7 @@ function Stat({
   return (
     <div className="card p-5">
       <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
-      <p className={`font-display text-3xl font-medium tabular-nums ${cls}`}>
+      <p className={`text-3xl font-medium tabular-nums ${cls}`}>
         {value}
       </p>
     </div>

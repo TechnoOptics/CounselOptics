@@ -217,7 +217,7 @@ function Kpi({
       <p className="text-[10.5px] uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/55">
         <T>{l}</T>
       </p>
-      <p className={`mt-1 font-display text-2xl sm:text-[28px] leading-none ${accent}`}>{value}</p>
+      <p className={`mt-1 text-2xl sm:text-[28px] leading-none ${accent}`}>{value}</p>
       <p className="mt-1.5 text-[11.5px] text-ink-500 dark:text-cream-100/55">{sub}</p>
     </div>
   );
@@ -479,7 +479,7 @@ function MiniStat({
         : 'text-forest-800 dark:text-gold-300';
   return (
     <div className="rounded-lg ring-1 ring-ink-100 dark:ring-forest-700/40 py-2.5">
-      <p className={`font-display text-2xl leading-none ${accent}`}>{value}</p>
+      <p className={`text-2xl leading-none ${accent}`}>{value}</p>
       <p className="text-[10px] uppercase tracking-[0.1em] text-ink-500 dark:text-cream-100/55 mt-1 px-1">
         <T>{l}</T>
       </p>

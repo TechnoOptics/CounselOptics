@@ -49,7 +49,7 @@ export default async function CounselAccessPage() {
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h2 className="font-display text-lg text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg text-forest-900 dark:text-cream-100">
             <T>Pending</T>
           </h2>
           <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-gold-400 text-forest-950">
@@ -86,7 +86,7 @@ export default async function CounselAccessPage() {
 
       {reviewed.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-display text-lg text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg text-forest-900 dark:text-cream-100">
             <T>Recently reviewed</T>
           </h2>
           <ul className="space-y-1.5">

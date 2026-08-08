@@ -119,7 +119,7 @@ function Section({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="font-display text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <h2 className="text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
         {title}
       </h2>
       {children}

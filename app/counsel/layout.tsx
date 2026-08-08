@@ -7,7 +7,11 @@ import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { ACCESS_ENDED_PATH, counselAccessRedirect } from '@/lib/firm-access';
 import { firmTrialState, readTrialSnapshot } from '@/lib/firm-trials';
 import { FIRM_ADMIN_ROLES } from '@/lib/firm-authz';
-import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
+import {
+  getFirmSurfaceSettings,
+  getFirmTicketPrefix,
+  DEFAULT_FIRM_SURFACE_SETTINGS,
+} from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
 import { CounselTrialBanner } from '@/components/counsel/CounselTrialBanner';
@@ -125,7 +129,7 @@ export default async function CounselLayout({
   if (!isSupabaseConfigured()) {
     return (
       <div className="max-w-xl mx-auto card p-8 mt-10">
-        <h1 className="font-display text-2xl text-forest-900 dark:text-cream-100">
+        <h1 className="text-2xl text-forest-900 dark:text-cream-100">
           Counsel mode is not available
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2">
@@ -327,6 +331,21 @@ export default async function CounselLayout({
     ? await getFirmSurfaceSettings(active.firm.id)
     : DEFAULT_FIRM_SURFACE_SETTINGS;
 
+  // The letters in front of this firm's request references, for the scope
+  // readout at the top of the rail. Its own read rather than part of
+  // getFirmSurfaceSettings, for the reason that helper's comment gives:
+  // `ticket_prefix` arrives with a migration that may not be applied, and
+  // naming it in that select would take the surface toggles down with it.
+  //
+  // It is never empty, and the readout is truthful anyway: a firm that has
+  // set nothing, whose column is missing, or that typed something unusable
+  // all land on the allocator's default, which is literally the prefix its
+  // references carry. So this shows what the firm's references say, not a
+  // guess at what they might say.
+  const ticketPrefix = active
+    ? await getFirmTicketPrefix(active.firm.id)
+    : null;
+
   // If we resolved a context, expose it to children via the wrapper.
   // The "dark" class forces dark Tailwind variants throughout the
   // counsel side regardless of the user's consumer-side theme - the
@@ -370,9 +389,14 @@ export default async function CounselLayout({
         tenantMode={isTenantSubdomain}
         locale={locale}
         hideTimeBilling={surface.hideTimeBilling}
+        hideSearch={surface.hideSearch}
       />
       <SidebarCollapseProvider>
-        <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 gap-6">
+        {/* The rail runs flush against the content column: no page padding
+            and no gap on this row, because both of those are what made the
+            sidebar read as a floating panel. The padding moved onto <main>,
+            which is the only thing on this row that wanted it. */}
+        <div className="flex-1 flex w-full max-w-none mx-auto">
           {active ? (
             <CounselSidebarShell>
               <CounselSidebar
@@ -381,10 +405,11 @@ export default async function CounselLayout({
                 pathname={pathname}
                 tenantMode={isTenantSubdomain}
                 hideTimeBilling={surface.hideTimeBilling}
+                ticketPrefix={ticketPrefix}
               />
             </CounselSidebarShell>
           ) : null}
-          <main className="flex-1 min-w-0">
+          <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
             {/* The Ask Advottic bar normally sits at the top of every
                 Counsel page. The dashboard at /counsel renders its own
                 welcome banner above the Ask bar and then handles its

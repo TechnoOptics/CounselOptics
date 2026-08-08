@@ -36,7 +36,7 @@ export default async function PortalLayout({
   if (!isSupabaseConfigured()) {
     return (
       <div className="max-w-xl mx-auto card p-8 mt-10">
-        <h1 className="font-display text-2xl text-forest-900 dark:text-cream-100">
+        <h1 className="text-2xl text-forest-900 dark:text-cream-100">
           Hub is not available
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2">
@@ -73,7 +73,7 @@ export default async function PortalLayout({
       <div className="dark counsel-shell min-h-screen flex items-center justify-center px-4 py-16 text-cream-100">
         <div className="popup-panel max-w-md w-full p-8 space-y-3 text-center">
           <p className="eyebrow justify-center">Advottic</p>
-          <h1 className="font-display text-2xl font-medium text-cream-100">
+          <h1 className="text-2xl font-medium text-cream-100">
             No workspace yet
           </h1>
           <p className="text-sm text-cream-100/70 leading-relaxed">

@@ -65,7 +65,7 @@ export function EvidenceDashboard({
   return (
     <section className="card space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-[15px] font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-[15px] font-medium text-forest-900 dark:text-cream-100">
           <T>Case evidence at a glance</T>
         </h2>
         {aiEnabled && (
@@ -174,7 +174,7 @@ function Tile({
           : 'text-forest-900 dark:text-cream-100';
   return (
     <div className="rounded-lg bg-cream-50/70 p-2.5 ring-1 ring-ink-100 dark:bg-forest-900/30 dark:ring-forest-800/40">
-      <p className={`font-display text-xl font-semibold tabular-nums ${toneCls}`} data-no-translate>
+      <p className={`text-xl font-semibold tabular-nums ${toneCls}`} data-no-translate>
         {value}
       </p>
       <p className="mt-0.5 text-[10.5px] leading-tight text-ink-500 dark:text-cream-100/55">{label}</p>

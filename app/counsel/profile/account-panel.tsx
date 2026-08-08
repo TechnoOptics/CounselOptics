@@ -96,7 +96,7 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow mb-1">
             <T>Details</T>
           </p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Name and title</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
@@ -165,7 +165,7 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow mb-1">
             <T>Security</T>
           </p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>How you sign in</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
@@ -197,7 +197,7 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow mb-1">
             <T>Integrations</T>
           </p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>API tokens</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
@@ -225,7 +225,7 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow mb-1">
             <T>Personal account</T>
           </p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Your own Advottic settings</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">

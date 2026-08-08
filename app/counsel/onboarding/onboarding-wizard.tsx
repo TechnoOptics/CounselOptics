@@ -725,7 +725,7 @@ function CounselWelcome({ onContinue }: { onContinue: () => void }) {
         <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300 mb-3">
           <T>Welcome to Advottic Counsel</T>
         </p>
-        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.1] text-cream-100">
+        <h1 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.1] text-cream-100">
           <T>Built for the people who carry</T>{' '}
           <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
             <T>other people&rsquo;s stories.</T>
@@ -740,7 +740,7 @@ function CounselWelcome({ onContinue }: { onContinue: () => void }) {
       </div>
 
       <section className="rounded-xl ring-1 ring-gold-400/30 bg-forest-900/40 p-5 sm:p-6 space-y-3">
-        <p className="font-display text-lg font-medium text-cream-100">
+        <p className="text-lg font-medium text-cream-100">
           <T>Your data is yours. Full stop.</T>
         </p>
         <ul className="space-y-2.5 text-[14.5px] text-cream-100/85 leading-relaxed">
@@ -795,7 +795,7 @@ function CounselWelcome({ onContinue }: { onContinue: () => void }) {
       </section>
 
       <section className="space-y-3">
-        <p className="font-display text-lg font-medium text-cream-100">
+        <p className="text-lg font-medium text-cream-100">
           <T>Why teams choose Counsel</T>
         </p>
         <div className="grid sm:grid-cols-2 gap-3">

@@ -999,6 +999,11 @@ describe('the counsel shell redirect', () => {
     }));
     vi.doMock('@/lib/firm-settings', () => ({
       getFirmSurfaceSettings: async () => ({ hideSearch: false, hideTimeBilling: false }),
+      // The rail's scope readout asks the layout for this. Its own read
+      // rather than a field on the settings object, so the mock needs it
+      // too - see the comment on the real helper for why the two reads
+      // are deliberately separate.
+      getFirmTicketPrefix: async () => 'REQ',
       DEFAULT_FIRM_SURFACE_SETTINGS: { hideSearch: false, hideTimeBilling: false },
     }));
     vi.doMock('@/lib/i18n/locale', () => ({ getLocaleCookie: async () => 'en' }));

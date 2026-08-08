@@ -128,7 +128,7 @@ export function CoCounselTour({ firstName }: { firstName?: string | null }) {
           <div className="mt-5">
             <h2
               id="cocounsel-tour-title"
-              className="font-display text-xl font-medium tracking-[-0.01em] text-cream-50"
+              className="text-xl font-medium tracking-[-0.01em] text-cream-50"
             >
               {current.title}
             </h2>

@@ -47,7 +47,7 @@ export default function CaseError({
       <div className="mx-auto max-w-lg py-16 text-center">
         <div className="card p-8 space-y-4">
           <p className="eyebrow justify-center">Advottic</p>
-          <h1 className="font-display text-2xl text-forest-900 dark:text-cream-100">
+          <h1 className="text-2xl text-forest-900 dark:text-cream-100">
             Your organization&rsquo;s access has ended
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
@@ -73,7 +73,7 @@ export default function CaseError({
     <div className="mx-auto max-w-lg py-16 text-center">
       <div className="card p-8 space-y-4">
         <p className="eyebrow justify-center">Advottic</p>
-        <h1 className="font-display text-2xl text-forest-900 dark:text-cream-100">
+        <h1 className="text-2xl text-forest-900 dark:text-cream-100">
           This matter didn&rsquo;t finish loading
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">

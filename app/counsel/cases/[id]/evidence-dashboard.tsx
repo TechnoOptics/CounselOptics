@@ -45,7 +45,7 @@ function Kpi({
   const body = (
     <>
       <div className="text-[12px] font-medium text-ink-500 dark:text-cream-100/55">{label}</div>
-      <div className="mt-1 font-display text-[26px] leading-none tracking-[-0.01em] text-forest-900 dark:text-cream-100 tabular-nums">
+      <div className="mt-1 text-[26px] leading-none tracking-[-0.01em] text-forest-900 dark:text-cream-100 tabular-nums">
         {value}
       </div>
       {sub ? <div className="mt-1 text-[11px] text-ink-400 dark:text-cream-100/40">{sub}</div> : null}
@@ -142,7 +142,7 @@ function StatusRing({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
         })}
       </svg>
       <div className="space-y-1">
-        <div className="font-display text-2xl leading-none text-forest-900 dark:text-cream-100 tabular-nums">
+        <div className="text-2xl leading-none text-forest-900 dark:text-cream-100 tabular-nums">
           {a.analyzedPct}%
         </div>
         <div className="text-[11px] text-ink-400 dark:text-cream-100/45 mb-1"><T>analyzed</T></div>
@@ -182,7 +182,7 @@ function RelevanceBar({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
   return (
     <div>
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="font-display text-2xl leading-none text-forest-900 dark:text-cream-100 tabular-nums">
+        <span className="text-2xl leading-none text-forest-900 dark:text-cream-100 tabular-nums">
           {avg ?? <T>No data</T>}
         </span>
         <span className="text-[12px] text-ink-400 dark:text-cream-100/45"><T>avg score / 100</T></span>
@@ -295,7 +295,7 @@ export function EvidenceDashboard({ analytics: a, caseId }: { analytics: CaseEvi
     <section id="case-dashboard" className="scroll-mt-24 space-y-4 border-t border-ink-100 dark:border-forest-700/40 pt-8">
       <div>
         <p className="eyebrow mb-1"><T>Overview</T></p>
-        <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+        <h2 className="text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
           <T>Evidence dashboard</T>
         </h2>
         <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">

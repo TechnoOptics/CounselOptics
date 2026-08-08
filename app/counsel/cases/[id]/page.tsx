@@ -429,7 +429,7 @@ export default async function CounselCaseDetailPage({
         <div className="min-w-0 flex-1">
           <p className="eyebrow mb-1"><T>Counsel · matter</T></p>
           <h1
-            className="font-display text-[28px] sm:text-3xl font-medium tracking-[-0.01em] leading-[1.1] text-forest-900 dark:text-cream-100 break-words"
+            className="text-[28px] sm:text-3xl font-bold tracking-[-0.02em] leading-[1.1] text-forest-900 dark:text-cream-100 break-words"
             data-no-translate
           >
             {c.title}
@@ -864,7 +864,7 @@ function Stat({
   return (
     <div className="card p-5">
       <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
-      <p className={`font-display text-2xl font-medium tabular-nums ${cls}`}>
+      <p className={`text-2xl font-medium tabular-nums ${cls}`}>
         {value}
       </p>
     </div>

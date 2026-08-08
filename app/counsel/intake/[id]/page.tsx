@@ -183,7 +183,7 @@ export default async function IntakeDetailPage({
           <span className="shrink-0 font-mono text-[12px] font-semibold text-gold-700 dark:text-gold-300">
             {ref}
           </span>
-          <h1 className="min-w-0 truncate font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+          <h1 className="min-w-0 truncate text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
             {ticketTitle}
           </h1>
           {isEmployeeReq && (

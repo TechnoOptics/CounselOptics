@@ -5,6 +5,8 @@ import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { CounselMobileNav } from './CounselMobileNav';
 import { CounselProfileMenu } from './CounselProfileMenu';
 import { CounselNotificationBell } from './CounselNotificationBell';
+import { CounselSearch } from './CounselSearch';
+import { tenantHref } from '@/lib/counsel-routing';
 import {
   applyMenuConfig,
   readMenuConfig,
@@ -33,6 +35,7 @@ export function CounselHeader({
   tenantMode = false,
   locale = 'en',
   hideTimeBilling = false,
+  hideSearch = false,
 }: {
   firm: Firm | null;
   membership: FirmMember | null;
@@ -42,6 +45,12 @@ export function CounselHeader({
   /** Firm hid the Time & Billing group - keep it out of the mobile nav
    *  too, so the phone experience matches the sidebar. */
   hideTimeBilling?: boolean;
+  /**
+   * Firm turned the search surface off (firm_settings.hide_search). The
+   * same flag the layout uses to drop the Ask Advottic bar, so the two
+   * agree about whether this workspace has a search box at all.
+   */
+  hideSearch?: boolean;
   /**
    * When true, the URL bar already contains the firm's identity
    * (<slug>.advottic.com), so the firm IS the brand. The header flips
@@ -86,6 +95,17 @@ export function CounselHeader({
     : [];
   const canSettings =
     membership?.role === 'owner' || membership?.role === 'admin';
+  // What the search box can jump to: the firm's OWN destinations, from
+  // the same customized menu the rail renders, with the tenant-subdomain
+  // href mapping already applied so a hit does not bounce through a
+  // redirect. A destination the firm hid is not in `mobileSections` and
+  // so is not searchable either.
+  const searchNavItems = mobileSections.flatMap((sec) =>
+    sec.items.map((item) => ({
+      href: tenantHref(item.href, tenantMode),
+      label: item.label,
+    })),
+  );
   return (
     // pt-[var(--safe-top)] extends the dark header background up
     // through the iOS notch / dynamic island and Android punch-hole on
@@ -207,6 +227,12 @@ export function CounselHeader({
           </div>
         )}
         <div className="flex items-center gap-2">
+          {/* Search over this firm's matters and this firm's own
+              navigation. Hidden when the firm turned the search surface
+              off in settings, and absent entirely when there is no firm
+              yet, because both cases would leave a box that searches
+              nothing. */}
+          {firm && !hideSearch && <CounselSearch navItems={searchNavItems} />}
           {/* "Powered by Advottic" mark in tenant mode - quiet, half
               opacity, on the right next to the account menu so the
               platform identity is acknowledged without competing with

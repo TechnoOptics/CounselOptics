@@ -31,7 +31,7 @@ export function RequestForm() {
         <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300">
           <T>Request received</T>
         </p>
-        <h2 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-cream-100">
+        <h2 className="text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-cream-100">
           <T>Thanks. We&rsquo;ll be in touch.</T>
         </h2>
         <p className="text-sm text-cream-100/80 max-w-md mx-auto leading-relaxed">

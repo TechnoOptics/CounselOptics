@@ -237,7 +237,7 @@ export function AskAdvottic() {
               {/* The question becomes the title of its own answer block,
                   rendered in a premium gold gradient that pulses slowly
                   - distinct headline from the calm cream body below. */}
-              <p className="ask-question-title font-display text-[15.5px] font-semibold tracking-[-0.005em] mb-2 leading-snug">
+              <p className="ask-question-title text-[15.5px] font-semibold tracking-[-0.005em] mb-2 leading-snug">
                 {turn.question}
               </p>
               {turn.error ? (

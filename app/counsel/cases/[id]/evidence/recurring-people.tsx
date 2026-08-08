@@ -207,7 +207,7 @@ export function RecurringPeople({ firmId, caseId }: { firmId: string; caseId: st
     <section className="rounded-xl ring-1 ring-ink-100 dark:ring-forest-800/40 overflow-hidden">
       <header className="flex items-start justify-between gap-3 px-4 py-3 bg-cream-50/70 dark:bg-forest-900/30">
         <div className="min-w-0">
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
             <T>Recurring people</T>
           </h2>
           <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-0.5">

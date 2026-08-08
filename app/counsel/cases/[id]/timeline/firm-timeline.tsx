@@ -597,7 +597,7 @@ function ExportDialog({
       >
         <div className="border-b border-ink-100 dark:border-forest-700/40 px-5 py-4">
           <p className="eyebrow text-[10px]"><T>Export</T></p>
-          <h3 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+          <h3 className="text-lg font-medium text-forest-900 dark:text-cream-100">
             <T>Build a court-ready file</T>
           </h3>
           <p className="mt-1 text-[12.5px] text-ink-600 dark:text-cream-100/70">

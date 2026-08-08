@@ -283,6 +283,74 @@ html.dark,
   }
 }
 
+/* -------------------- Surface and neutral tokens --------------------
+   The rest of the token system the `-text` family above was the first
+   third of. Exposed to Tailwind in tailwind.config.ts as `bg-surface`,
+   `border-edge`, `text-muted` and so on.
+
+   WHY THESE EXACT NEUTRALS. They are read off the sibling product this
+   surface is being brought into line with, verbatim, because the
+   neutral ramp is what makes two apps feel like one system. The gold is
+   NOT read off it: `--accent` stays Advottic's #d5bb7e in both themes,
+   and `--accent-text` above stays DERIVED per firm, because Advottic is
+   multi-tenant and the sibling is not.
+
+   Division of labour, and it is the same one the `-text` block states:
+   `--accent` and `--accent-2` are FILLS (buttons, dots, bars). Words
+   that are meant to read as the accent use `--accent-text`. Never both
+   on the same element.
+
+   `--surface` is the panel, `--surface-2` the inset inside a panel, and
+   `--background` the page behind both. `--border` is the ordinary
+   hairline; `--border-bright` is the one that has to survive next to a
+   filled surface.
+
+   The selector list is the one the `-text` family already uses, so the
+   three always-dark shells get the dark values whatever the user's own
+   theme is. `.hq-shell` paints its own forest-tinged page background
+   and does not read `--background`; it is listed so its PANELS and type
+   resolve dark rather than falling through to the light `:root` values.
+
+   These are custom properties rather than repainted utility classes on
+   purpose. The `.dark .bg-cream-50 { ... }` block further down is the
+   pattern they exist to replace: it reassigns what a Tailwind palette
+   class MEANS per theme, so a call site reads `bg-cream-50` and paints
+   near-black, and every new theme costs another forty rules. A token
+   says what the surface IS at the call site and needs no second rule
+   per theme. */
+:root {
+  --background: #f6f6f7;
+  --surface: #ffffff;
+  --surface-2: #f0f0f2;
+  --border: #e2e2e6;
+  --border-bright: #cfcfd6;
+  --foreground: #17171b;
+  --muted: #5d5d68;
+  /* Gold, unchanged, and identical in both themes: only the text
+     variants move between light and dark. */
+  --accent: #d5bb7e;
+  --accent-2: #c2a66a;
+  --info-text: #4338ca;
+  --code-bg: rgba(0, 0, 0, 0.06);
+  --code-fg: #047857;
+}
+html.dark,
+.dark,
+.counsel-shell,
+.enterprise-shell,
+.hq-shell {
+  --background: #0a0a0b;
+  --surface: #101012;
+  --surface-2: #17171a;
+  --border: #232327;
+  --border-bright: #33333a;
+  --foreground: #f4f4f5;
+  --muted: #9c9ca6;
+  --info-text: #a5b4fc;
+  --code-bg: rgba(0, 0, 0, 0.32);
+  --code-fg: #6ee7b7;
+}
+
 html,
 body {
   background-color: #ffffff;
@@ -383,7 +451,37 @@ html.dark body::before {
     radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.10), transparent 60%),
     radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%);
 }
-/* Text classes that are typically used directly on the page body
+/* ================= THE PER-CLASS THEME OVERRIDE BLOCK ==================
+   Everything from here to the ring rule at the end of this section
+   reassigns what a Tailwind PALETTE class means, per theme. It is the
+   fragility the surface-token block near the top of this file exists to
+   replace, and it is being retired, but it cannot be retired yet.
+
+   Measured 2026-08-08 by counting delimited call sites of each utility
+   across app/, components/ and lib/. Only ONE rule in this block had
+   none: `.dark .hover\:bg-forest-100:hover`, now removed, along with
+   its counsel/enterprise twin further down. The other thirty-six carry
+   live call sites, and the ten heaviest carry these:
+
+     text-forest-900   1139     bg-white            220
+     text-ink-500       882     bg-cream-50         171
+     text-ink-600       508     hover:bg-cream-50   104
+     text-ink-700       408     border-ink-100      100
+     text-ink-400       256     hover:text-forest-900 118
+     border-ink-200     254     ring-ink-200        250
+
+   So deleting the block today does not simplify anything: it turns
+   roughly five thousand call sites into dark-on-dark. The sweep that
+   moves those call sites onto the tokens is a later slice, and this
+   block goes with it. Until then, treat this section as frozen: add
+   nothing to it, and reach for a token instead.
+
+   NOT part of this block, and NOT to be touched with it: the contrast
+   guards further down. Two of their clauses are armed, in the sense
+   that they exist only to defuse `@apply` selector clones, and the
+   comment there is the whole mechanism.
+
+   Text classes that are typically used directly on the page body
    (which goes dark above) need a cream fallback so they stay readable.
    Components that need to keep dark text on a light surface should opt
    in with explicit `dark:` variants. */
@@ -432,7 +530,6 @@ html.dark body::before {
 .dark .hover\:bg-cream-50:hover { background-color: #173b30; }
 .dark .hover\:bg-cream-100:hover { background-color: #1f4839; }
 .dark .hover\:bg-forest-50:hover { background-color: #173b30; }
-.dark .hover\:bg-forest-100:hover { background-color: #1f4839; }
 .dark .hover\:bg-ink-50:hover { background-color: #102a23; }
 .dark .hover\:bg-ink-100:hover { background-color: #1a3d31; }
 /* Border + ring inversions so light-mode hairlines do not vanish */
@@ -867,9 +964,7 @@ body > * {
 .counsel-shell .bg-forest-100,
 .enterprise-shell .bg-forest-100,
 .counsel-shell .hover\:bg-cream-100:hover,
-.enterprise-shell .hover\:bg-cream-100:hover,
-.counsel-shell .hover\:bg-forest-100:hover,
-.enterprise-shell .hover\:bg-forest-100:hover { background-color: #242428; }
+.enterprise-shell .hover\:bg-cream-100:hover { background-color: #242428; }
 .counsel-shell .bg-cream-200,
 .enterprise-shell .bg-cream-200 { background-color: #2c2c31; }
 .counsel-shell .bg-ink-50,

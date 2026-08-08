@@ -84,7 +84,7 @@ export function LinkCasePanel({
   return (
     <section className="card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
           <T>Link to a case</T>
         </h2>
         {linkedCase && (

@@ -36,7 +36,7 @@ export default async function CounselClientsPage() {
 
       {clients.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
+          <p className="text-2xl text-forest-900 dark:text-cream-100">
             <T>No clients yet.</T>
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">

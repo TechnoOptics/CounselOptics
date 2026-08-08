@@ -24,6 +24,18 @@ const TITLE_SIZE = {
   lg: 'text-3xl sm:text-4xl',
 } as const;
 
+/**
+ * Weight and tracking for a page title, now that counsel sets its
+ * headings in the sans rather than the serif.
+ *
+ * The serif carried a title at font-medium because a serif's medium
+ * already has stroke contrast to spare. The same weight on the sans
+ * reads under-set against the dense rows underneath it, so the weight
+ * goes up and the tracking tightens with it. Kept as one constant
+ * because the two only ever make sense together.
+ */
+const TITLE_WEIGHT = 'font-bold tracking-[-0.02em]';
+
 const HEADER_ALIGN = {
   end: 'items-end justify-between',
   start: 'items-start justify-between',
@@ -137,7 +149,7 @@ export function PageHeader({
           <p className={EYEBROW_VARIANT[eyebrowVariant]}>{eyebrow}</p>
         )}
         <h1
-          className={`font-display font-medium tracking-[-0.01em] break-words text-forest-900 dark:text-cream-100 ${TITLE_SIZE[size]}`}
+          className={`${TITLE_WEIGHT} break-words text-forest-900 dark:text-cream-100 ${TITLE_SIZE[size]}`}
         >
           {title}
         </h1>
@@ -164,7 +176,7 @@ const SECTION_VARIANT = {
   label:
     'text-sm font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/60',
   display:
-    'font-display text-lg font-medium text-forest-900 dark:text-cream-100',
+    'text-lg font-semibold tracking-[-0.01em] text-forest-900 dark:text-cream-100',
 } as const;
 
 /**
@@ -253,7 +265,7 @@ export function StatCard({
         {label}
       </p>
       <p
-        className="mt-1.5 font-display text-3xl tabular-nums text-forest-900 dark:text-cream-100"
+        className="mt-1.5 text-3xl font-semibold tabular-nums tracking-[-0.02em] text-forest-900 dark:text-cream-100"
         style={style}
       >
         {value}
@@ -294,7 +306,7 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <p className="font-display text-xl text-forest-900 dark:text-cream-100">
+      <p className="text-xl font-semibold text-forest-900 dark:text-cream-100">
         {title}
       </p>
       {sub != null && (

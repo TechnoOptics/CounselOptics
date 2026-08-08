@@ -174,7 +174,7 @@ export function IntakeInbox({
             <p className="text-[11px] uppercase tracking-[0.16em] text-ink-500 dark:text-cream-100/70">
               {LANE_META[l].name}
             </p>
-            <p className="font-display text-2xl text-forest-900 dark:text-cream-100 mt-1">
+            <p className="text-2xl text-forest-900 dark:text-cream-100 mt-1">
               {byLane(l).length}
             </p>
           </div>

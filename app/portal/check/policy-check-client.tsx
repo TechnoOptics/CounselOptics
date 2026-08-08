@@ -150,7 +150,7 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
             <section className="space-y-4 rounded-xl border border-ink-200 bg-white p-5 dark:border-forest-700/50 dark:bg-forest-900/40">
               <div className="flex items-center gap-4">
                 <div className="text-center">
-                  <p className={`font-display text-4xl font-semibold tabular-nums ${scoreTone}`}>{result.score}</p>
+                  <p className={`text-4xl font-semibold tabular-nums ${scoreTone}`}>{result.score}</p>
                   <p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-400 dark:text-cream-100/40">
                     Confidence
                   </p>

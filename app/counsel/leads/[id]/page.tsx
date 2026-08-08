@@ -83,7 +83,7 @@ export default async function FirmLeadDetailPage({
           <p className="eyebrow text-emerald-700 dark:text-emerald-300">
             <T>Accepted by consumer</T>
           </p>
-          <h2 className="font-display text-xl text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl text-forest-900 dark:text-cream-100">
             <T>Contact details unlocked</T>
           </h2>
           <dl className="grid sm:grid-cols-2 gap-3 text-[13px]">

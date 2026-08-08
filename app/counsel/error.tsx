@@ -74,7 +74,7 @@ export default function CounselError({
   if (accessEnded) {
     return (
       <div className="mx-auto max-w-md px-6 py-16 text-center">
-        <h1 className="font-display text-xl font-medium text-cream-100">
+        <h1 className="text-xl font-medium text-cream-100">
           Your organization&rsquo;s access has ended
         </h1>
         <p className="mt-2 text-sm text-cream-100/70 leading-relaxed">
@@ -95,7 +95,7 @@ export default function CounselError({
 
   return (
     <div className="mx-auto max-w-md px-6 py-16 text-center">
-      <h1 className="font-display text-xl font-medium text-cream-100">
+      <h1 className="text-xl font-medium text-cream-100">
         Something went wrong
       </h1>
       <p className="mt-2 text-sm text-cream-100/60">

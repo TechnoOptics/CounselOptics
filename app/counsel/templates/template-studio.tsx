@@ -280,7 +280,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                 </div>
               </div>
               <div className="px-8 py-7">
-                <h2 className="font-display text-2xl text-[#15110a] mb-4">
+                <h2 className="text-2xl text-[#15110a] mb-4">
                   {meta.title}
                 </h2>
                 <pre className="whitespace-pre-wrap font-serif text-[13.5px] leading-[1.7] text-[#1a1a1a]">
