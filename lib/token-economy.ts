@@ -1,4 +1,14 @@
-'use server';
+// NOT `'use server'`. Every export of a 'use server' module is a public HTTP
+// endpoint, and every function here takes the identity it acts on from its own
+// arguments and writes through the service-role client with no caller
+// authentication: applyTopupPurchase credits a paid token pack, debitTokens can
+// empty any user's balance or any firm's pool. This module has only server-side
+// importers (the Stripe webhook, the IAP entitlement helper, the token-balance
+// route and Bella's metering hook) and was never meant to be an action
+// boundary. `server-only` both removes the endpoints and turns any future
+// client import into a build error instead of a silent exposure.
+// Guarded by tests/token-economy-not-an-action.test.ts.
+import 'server-only';
 
 import { createAdminSupabase } from './supabase/admin';
 import {
@@ -28,6 +38,61 @@ import {
  * Stripe webhook + Bella integration keep working until we migrate
  * them to call into here. New code should prefer this module.
  */
+
+// ===========================================================================
+// Credit-write verification
+// ===========================================================================
+
+type AdminClient = NonNullable<ReturnType<typeof createAdminSupabase>>;
+
+/**
+ * Classify a balance write that a token_ledger row is about to assert.
+ *
+ * PostgREST answers a statement that matched no row with an empty row set and
+ * no error, and supabase-js resolves with `{ error }` rather than throwing on a
+ * real failure. An unread result therefore cannot tell a credit apart from a
+ * dropped one, which is why every paid credit below asks for `.select('id')`
+ * and passes the result through here.
+ *
+ * `landed` is true only when a row came back. `provablyAbsent` separates the
+ * statement that ran and matched nothing, where nothing was written and a retry
+ * is definitely safe, from an error, where the write may or may not have been
+ * applied and only the caller knows whether a retry could double-credit.
+ */
+function classifyCreditWrite(res: { data: unknown[] | null; error: unknown }): {
+  landed: boolean;
+  provablyAbsent: boolean;
+} {
+  if (!res.error && res.data && res.data.length > 0) {
+    return { landed: true, provablyAbsent: false };
+  }
+  return { landed: false, provablyAbsent: !res.error };
+}
+
+/**
+ * Delete an insert-first idempotency claim whose credit did not land, so the
+ * next delivery can try again instead of taking the duplicate-key branch and
+ * reporting success for tokens that were never issued. Callers must have
+ * established that re-running the credit cannot double-credit.
+ *
+ * A failed release puts us back in the state this whole guard exists to
+ * prevent, so it is reported rather than swallowed.
+ */
+async function releaseClaim(
+  admin: AdminClient,
+  table: string,
+  match: Record<string, string>,
+  context: string,
+): Promise<void> {
+  const { error } = await admin.from(table).delete().match(match);
+  if (error) {
+    console.error(
+      `[tokens] ${context}: could not release the ${table} claim (${
+        (error as { message?: string }).message ?? 'unknown error'
+      }); this delivery stays blocked until the row is removed by hand`,
+    );
+  }
+}
 
 // ===========================================================================
 // Grants (subscription + firm pool)
@@ -99,14 +164,49 @@ export async function grantTierMonthlyTokens(input: {
   const carryOver = Math.min(existing.token_balance ?? 0, cap - grant);
   const newBalance = Math.max(grant, grant + carryOver);
 
-  await admin
-    .from('profiles')
-    .update({
-      token_balance: newBalance,
-      token_quota_period_end: input.periodEnd,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', input.userId);
+  const credit = classifyCreditWrite(
+    await admin
+      .from('profiles')
+      .update({
+        token_balance: newBalance,
+        token_quota_period_end: input.periodEnd,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.userId)
+      .select('id'),
+  );
+
+  // The credit is the whole point of winning the claim. If it did not land,
+  // leaving the claim row behind makes the loss permanent: the next delivery of
+  // this same period 23505s on the claim and returns without crediting, so the
+  // customer has paid, the receipt says granted, and no tokens exist. Release
+  // the claim so the grant stays retryable.
+  //
+  // Releasing it cannot double-credit, and that does NOT depend on knowing
+  // whether the write landed. The same UPDATE that credits also stamps
+  // token_quota_period_end, and the fast path at the top of this function
+  // short-circuits on that stamp. So if the write did land and only the
+  // response was lost, the retry returns granted:false at the stamp; if it did
+  // not land, the retry credits exactly once. Exactly-once is carried by the
+  // claim row AND the period stamp together, which is why the claim alone is
+  // safe to drop here.
+  if (!credit.landed) {
+    await releaseClaim(
+      admin,
+      'token_monthly_grants',
+      { user_id: input.userId, period_end: input.periodEnd },
+      `monthly grant for ${input.userId}`,
+    );
+    // No ledger row. It would assert a balance_after nobody holds, and the
+    // ledger is the record read back when a charge is disputed. No throw
+    // either: the caller is a Stripe webhook, where a rejection buys a retry
+    // loop rather than a correction (same call the legacy helpers in
+    // lib/storage.ts made).
+    console.error(
+      `[tokens] monthly grant credit for ${input.userId} did not land (tier ${input.tier}, period ${input.periodEnd}); claim released, ledger entry skipped`,
+    );
+    return { granted: false, balance: existing.token_balance ?? 0 };
+  }
 
   await admin.from('token_ledger').insert({
     user_id: input.userId,
@@ -180,14 +280,35 @@ export async function grantFirmPoolTokens(input: {
   const carryOver = Math.min(existing.token_pool_balance ?? 0, cap - newGrant);
   const newBalance = Math.max(newGrant, newGrant + carryOver);
 
-  await admin
-    .from('firms')
-    .update({
-      token_pool_balance: newBalance,
-      token_pool_period_end: input.periodEnd,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', input.firmId);
+  const credit = classifyCreditWrite(
+    await admin
+      .from('firms')
+      .update({
+        token_pool_balance: newBalance,
+        token_pool_period_end: input.periodEnd,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.firmId)
+      .select('id'),
+  );
+
+  // Same reasoning as grantTierMonthlyTokens: the claim alone is not what makes
+  // this exactly-once. token_pool_period_end is stamped by the same UPDATE and
+  // the fast path above short-circuits on it, so releasing a claim whose credit
+  // is unconfirmed leaves the grant retryable without any chance of a second
+  // credit. Keeping it would strand a paid firm pool at zero for the period.
+  if (!credit.landed) {
+    await releaseClaim(
+      admin,
+      'token_firm_pool_grants',
+      { firm_id: input.firmId, period_end: input.periodEnd },
+      `firm pool grant for ${input.firmId}`,
+    );
+    console.error(
+      `[tokens] firm pool grant credit for ${input.firmId} did not land (tier ${input.tier}, period ${input.periodEnd}); claim released, ledger entry skipped`,
+    );
+    return { granted: false, balance: existing.token_pool_balance ?? 0 };
+  }
 
   await admin.from('token_ledger').insert({
     firm_id: input.firmId,
@@ -364,20 +485,30 @@ async function creditBack(
 ): Promise<{ firmAfter: number | null; userAfter: number | null }> {
   let firmAfter: number | null = null;
   let userAfter: number | null = null;
+  // The RPCs return the resulting balance as a number. Anything else means the
+  // credit did not run, so there is no balance to assert and the ledger row is
+  // skipped rather than written with a null balance_after next to a positive
+  // delta, which would read as a refund that happened.
   if (ctx.firmId && toFirm > 0) {
     const { data } = await admin.rpc('credit_firm_token_pool', {
       p_firm_id: ctx.firmId,
       p_amount: toFirm,
     });
     firmAfter = typeof data === 'number' ? data : null;
-    await admin.from('token_ledger').insert({
-      user_id: ctx.userId,
-      firm_id: ctx.firmId,
-      delta: toFirm,
-      reason,
-      balance_after: firmAfter,
-      metadata: { ...(ctx.metadata ?? {}), source: 'firm_pool', refund: true },
-    });
+    if (firmAfter === null) {
+      console.error(
+        `[tokens] refund of ${toFirm} to firm pool ${ctx.firmId} did not land (${reason}); ledger entry skipped`,
+      );
+    } else {
+      await admin.from('token_ledger').insert({
+        user_id: ctx.userId,
+        firm_id: ctx.firmId,
+        delta: toFirm,
+        reason,
+        balance_after: firmAfter,
+        metadata: { ...(ctx.metadata ?? {}), source: 'firm_pool', refund: true },
+      });
+    }
   }
   if (toUser > 0) {
     const { data } = await admin.rpc('credit_user_token_balance', {
@@ -385,14 +516,20 @@ async function creditBack(
       p_amount: toUser,
     });
     userAfter = typeof data === 'number' ? data : null;
-    await admin.from('token_ledger').insert({
-      user_id: ctx.userId,
-      firm_id: ctx.firmId ?? null,
-      delta: toUser,
-      reason,
-      balance_after: userAfter,
-      metadata: { ...(ctx.metadata ?? {}), source: 'user_balance', refund: true },
-    });
+    if (userAfter === null) {
+      console.error(
+        `[tokens] refund of ${toUser} to ${ctx.userId} did not land (${reason}); ledger entry skipped`,
+      );
+    } else {
+      await admin.from('token_ledger').insert({
+        user_id: ctx.userId,
+        firm_id: ctx.firmId ?? null,
+        delta: toUser,
+        reason,
+        balance_after: userAfter,
+        metadata: { ...(ctx.metadata ?? {}), source: 'user_balance', refund: true },
+      });
+    }
   }
   return { firmAfter, userAfter };
 }
@@ -499,6 +636,38 @@ export async function debitFromAnthropicUsage(
  * to determine the credit amount, so we can never accidentally
  * grant more tokens than the user paid for.
  */
+/**
+ * Decide what to do with a top-up receipt whose credit did not land, and
+ * report it in the log line.
+ *
+ * Unlike the two grant paths, a top-up credit is a relative increment with no
+ * stamp on the balance row saying which payment produced it, so the receipt row
+ * is the ONLY thing making this exactly-once. Release it only when the write is
+ * provably absent, which is what the empty row set means. When the write merely
+ * errored we cannot tell a lost response from a lost write, and releasing the
+ * receipt would turn a possible single credit into a possible double credit, so
+ * the receipt stays and the row is named for reconciliation by hand. That
+ * direction is deliberate: the customer keeps a claim on tokens they paid for
+ * and a human can settle it, where the other direction spends money we cannot
+ * get back.
+ */
+async function releaseTopupClaim(
+  admin: AdminClient,
+  paymentIntentId: string,
+  credit: { provablyAbsent: boolean },
+): Promise<string> {
+  if (!credit.provablyAbsent) {
+    return 'receipt KEPT because the write could not be proved absent, reconcile this payment intent by hand';
+  }
+  await releaseClaim(
+    admin,
+    'token_topup_purchases',
+    { stripe_payment_intent_id: paymentIntentId },
+    `top-up ${paymentIntentId}`,
+  );
+  return 'receipt released so the purchase can be applied again';
+}
+
 export async function applyTopupPurchase(input: {
   paymentIntentId: string;
   packageId: string;
@@ -552,10 +721,20 @@ export async function applyTopupPurchase(input: {
     const current =
       (row as { token_pool_balance?: number } | null)?.token_pool_balance ?? 0;
     const next = current + pack.tokens;
-    await admin
-      .from('firms')
-      .update({ token_pool_balance: next, updated_at: new Date().toISOString() })
-      .eq('id', input.firmId);
+    const credit = classifyCreditWrite(
+      await admin
+        .from('firms')
+        .update({ token_pool_balance: next, updated_at: new Date().toISOString() })
+        .eq('id', input.firmId)
+        .select('id'),
+    );
+    if (!credit.landed) {
+      const released = await releaseTopupClaim(admin, input.paymentIntentId, credit);
+      console.error(
+        `[tokens] top-up credit for firm ${input.firmId} did not land (package ${pack.id}, intent ${input.paymentIntentId}); ledger entry skipped; ${released}`,
+      );
+      return { ok: false, tokens: 0, error: 'token pool credit did not land' };
+    }
     await admin.from('token_ledger').insert({
       firm_id: input.firmId,
       user_id: input.userId ?? null,
@@ -573,13 +752,23 @@ export async function applyTopupPurchase(input: {
     const current =
       (row as { token_balance?: number } | null)?.token_balance ?? 0;
     const next = current + pack.tokens;
-    await admin
-      .from('profiles')
-      .update({
-        token_balance: next,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', input.userId);
+    const credit = classifyCreditWrite(
+      await admin
+        .from('profiles')
+        .update({
+          token_balance: next,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.userId)
+        .select('id'),
+    );
+    if (!credit.landed) {
+      const released = await releaseTopupClaim(admin, input.paymentIntentId, credit);
+      console.error(
+        `[tokens] top-up credit for ${input.userId} did not land (package ${pack.id}, intent ${input.paymentIntentId}); ledger entry skipped; ${released}`,
+      );
+      return { ok: false, tokens: 0, error: 'token balance credit did not land' };
+    }
     await admin.from('token_ledger').insert({
       user_id: input.userId,
       delta: pack.tokens,
