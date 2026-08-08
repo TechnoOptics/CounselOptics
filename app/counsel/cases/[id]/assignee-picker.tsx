@@ -43,7 +43,9 @@ export function CaseAssigneePicker({
   }
 
   return (
-    <div className="flex flex-col items-start gap-1 sm:items-end">
+    // Left-aligned at every width: this now sits at the left end of the
+    // matter's action bar rather than in a right-aligned header column.
+    <div className="flex flex-col items-start gap-1">
       <label className="eyebrow text-[10px]" htmlFor="case-assignee">
         <T>Assigned to</T>
       </label>

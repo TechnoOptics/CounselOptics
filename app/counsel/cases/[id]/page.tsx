@@ -17,7 +17,15 @@ import {
   type FirmMessage,
 } from '@/lib/firm-types';
 import { SectionTitle } from '@/components/counsel/ui';
-import { StatusPill } from '@/components/counsel/StatusPill';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import {
+  ActionBar,
+  Chip,
+  MonoRef,
+  PanelCard,
+  relativeTime,
+  shortRef,
+} from '@/components/counsel/patterns';
 import { DraftInvoiceButton } from './draft-invoice-button';
 import { AddDeadlineForm } from './add-deadline-form';
 import { CompleteDeadlineButton } from './complete-deadline-button';
@@ -99,6 +107,18 @@ const STATUS_LABEL: Record<string, string> = {
   export_ready: 'Export ready',
   closed: 'Closed',
   archived: 'Archived',
+};
+
+// The same hex per status the matter list uses, so a matter does not
+// change colour on the way from the list to its own page.
+const STATUS_COLOR: Record<string, string> = {
+  draft: PILL_COLORS.neutral,
+  open: PILL_COLORS.good,
+  under_review: PILL_COLORS.info,
+  needs_evidence: PILL_COLORS.waiting,
+  export_ready: PILL_COLORS.good,
+  closed: PILL_COLORS.neutral,
+  archived: PILL_COLORS.quiet,
 };
 
 function fmtCents(cents: number) {
@@ -218,7 +238,7 @@ export default async function CounselCaseDetailPage({
   const { data: caseRow } = await supabase
     .from('cases')
     .select(
-      'id, title, subject_name, subject_type, subject_profile, case_type, posture, status, jurisdiction_country, jurisdiction_state, jurisdiction_city, hearing_at, hearing_location, hearing_notes, description, firm_id',
+      'id, title, subject_name, subject_type, subject_profile, case_type, posture, status, jurisdiction_country, jurisdiction_state, jurisdiction_city, hearing_at, hearing_location, hearing_notes, description, firm_id, created_at, updated_at',
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -240,6 +260,8 @@ export default async function CounselCaseDetailPage({
     hearing_notes: string | null;
     description: string | null;
     firm_id: string | null;
+    created_at: string;
+    updated_at: string;
   };
   if (c.firm_id !== ctx.firm.id) notFound();
 
@@ -403,6 +425,18 @@ export default async function CounselCaseDetailPage({
       s + Math.round((e.rate_cents ?? 0) * ((e.duration_seconds ?? 0) / 3600)),
     0,
   );
+  // The matter's deadline state, which the action bar reports. Both
+  // readings come from the same `deadlines` array the aside renders, so
+  // the bar cannot say "nothing due" over a list that shows otherwise.
+  const nowMs = Date.now();
+  const openDeadlines = deadlines.filter((d) => !d.completed_at);
+  const overdueCount = openDeadlines.filter(
+    (d) => Date.parse(d.due_at) < nowMs,
+  ).length;
+  const nextDeadline = openDeadlines
+    .filter((d) => Date.parse(d.due_at) >= nowMs)
+    .sort((a, b) => Date.parse(a.due_at) - Date.parse(b.due_at))[0];
+
   const trustBalance = trustEntries.reduce((s, t) => {
     const positive =
       t.kind === 'deposit' || t.kind === 'refund' || t.kind === 'interest';
@@ -410,52 +444,99 @@ export default async function CounselCaseDetailPage({
   }, 0);
 
   return (
-    <div className="space-y-8 animate-fade-up">
+    <div className="space-y-6 animate-fade-up">
       <CaseMenu
         caseId={params.id}
         approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
       />
 
-      <p className="text-sm">
+      {/* Breadcrumb. The mono element is the matter's id, shortened,
+          because a matter carries no reference number of its own: there
+          is no column for one. The full id is the title attribute. */}
+      <nav
+        aria-label="Breadcrumb"
+        className="flex flex-wrap items-center gap-2 text-[12.5px]"
+      >
         <Link
           href="/counsel/cases"
-          className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
+          className="text-muted transition-colors hover:text-foreground"
         >
-          <T>&larr; Cases</T>
+          <T>Matters</T>
         </Link>
-      </p>
+        <span aria-hidden className="text-muted">
+          /
+        </span>
+        <MonoRef title={params.id}>{shortRef(params.id)}</MonoRef>
+      </nav>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1"><T>Counsel · matter</T></p>
-          <h1
-            className="text-[28px] sm:text-3xl font-bold tracking-[-0.02em] leading-[1.1] text-forest-900 dark:text-cream-100 break-words"
-            data-no-translate
-          >
-            {c.title}
-          </h1>
-          {/* Calm, scannable meta: a status pill + quiet particulars, then the
-              subject on its own line. Replaces the dense monospace run-on. */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] text-ink-500 dark:text-cream-100/60" data-no-translate>
-            <span className="inline-flex items-center rounded-full bg-gold-500/15 px-2.5 py-0.5 text-[11px] font-medium text-gold-700 dark:bg-gold-metal/12 dark:text-gold-metal/90">
-              {STATUS_LABEL[c.status] ?? c.status}
-            </span>
-            {c.case_type && <span>{c.case_type}</span>}
-            {c.posture && (
-              <>
-                <span className="text-ink-300 dark:text-cream-100/25">·</span>
-                <span className="capitalize">{c.posture}</span>
-              </>
-            )}
-            {c.jurisdiction_state && (
-              <>
-                <span className="text-ink-300 dark:text-cream-100/25">·</span>
-                <span>{c.jurisdiction_state}</span>
-              </>
-            )}
-          </div>
+      <header className="min-w-0">
+        <h1
+          className="break-words text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-3xl"
+          data-no-translate
+        >
+          {c.title}
+        </h1>
+        {/* Meta chip row: the one live state as a pill, the fixed facts
+            as quiet chips, then plain provenance underneath. */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <StatusPill dot color={STATUS_COLOR[c.status] ?? PILL_COLORS.neutral}>
+            {STATUS_LABEL[c.status] ?? c.status}
+          </StatusPill>
+          {c.case_type && (
+            <Chip>
+              <span data-no-translate>{c.case_type}</span>
+            </Chip>
+          )}
+          {c.posture && (
+            <Chip className="capitalize">
+              <span data-no-translate>{c.posture}</span>
+            </Chip>
+          )}
+          {c.jurisdiction_state && (
+            <Chip>
+              <span data-no-translate>{c.jurisdiction_state}</span>
+            </Chip>
+          )}
         </div>
-        <div className="flex flex-col items-start gap-3 sm:items-end">
+        <p className="mt-2 text-[12px] text-muted">
+          <T>opened</T> {relativeTime(c.created_at)}
+          {c.updated_at && (
+            <>
+              {' · '}
+              <T>updated</T> {relativeTime(c.updated_at)}
+            </>
+          )}
+        </p>
+      </header>
+
+      {/* Action bar: the controls that change the matter, in their own
+          bordered card, with its deadline state on the right. No button
+          here duplicates the case menu above; the two controls are the
+          two things this page can actually change in place. */}
+      <ActionBar
+        trailing={
+          overdueCount > 0 ? (
+            <p className="text-[12.5px] font-semibold text-danger-text">
+              {overdueCount}{' '}
+              {overdueCount === 1 ? (
+                <T>deadline past due</T>
+              ) : (
+                <T>deadlines past due</T>
+              )}
+            </p>
+          ) : nextDeadline ? (
+            <p className="text-[12.5px] text-muted">
+              <T>Next deadline</T> {relativeTime(nextDeadline.due_at)}
+            </p>
+          ) : undefined
+        }
+      >
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
+          <CaseAssigneePicker
+            caseId={params.id}
+            members={assigneeOptions}
+            currentAssigneeId={currentAssigneeId}
+          />
           {showTimeBilling && (
             <TimerWidget
               firmId={ctx.firm.id}
@@ -464,13 +545,16 @@ export default async function CounselCaseDetailPage({
               caseTitle={c.title}
             />
           )}
-          <CaseAssigneePicker
-            caseId={params.id}
-            members={assigneeOptions}
-            currentAssigneeId={currentAssigneeId}
-          />
         </div>
-      </header>
+      </ActionBar>
+
+      {/* Two columns. The main column is the work: who the party is, the
+          evidence, the argument, the room, the money. The aside is the
+          matter's dated records, deadlines and documents, which are
+          short rows that read better in a narrow column and are what
+          somebody scans while reading the main one. */}
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+      <div className="min-w-0 space-y-8 lg:col-span-2">
 
       {/* Party dossier at the top: the subject's portrait + full record leads
           the matter, standing in for the old plain "Subject" line. Its inline
@@ -603,60 +687,6 @@ export default async function CounselCaseDetailPage({
           matter (guest logins, section opens, comments, downloads). */}
       {canSeeActivity && <CaseActivityStream events={activityEvents} />}
 
-      {/* Deadlines */}
-      <section className="space-y-3">
-        <SectionTitle variant="display"><T>Deadlines</T></SectionTitle>
-        {deadlines.length === 0 ? (
-          <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            <T>No deadlines on this matter yet.</T>
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {deadlines.map((d) => {
-              const overdue =
-                !d.completed_at && Date.parse(d.due_at) < Date.now();
-              return (
-                <li
-                  key={d.id}
-                  className="card p-3 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`text-[13px] font-semibold truncate ${
-                        d.completed_at
-                          ? 'line-through text-ink-500 dark:text-cream-100/70'
-                          : 'text-forest-900 dark:text-cream-100'
-                      }`}
-                    >
-                      {d.title}
-                    </p>
-                    <p
-                      className={`text-[11.5px] font-mono tabular-nums mt-0.5 ${
-                        overdue
-                          ? 'text-rose-700 dark:text-rose-300 font-semibold'
-                          : 'text-ink-500 dark:text-cream-100/55'
-                      }`}
-                    >
-                      {d.kind.replace(/_/g, ' ')} ·{' '}
-                      {overdue ? <T>OVERDUE </T> : <T>Due </T>}
-                      {new Date(d.due_at).toLocaleString()}
-                    </p>
-                  </div>
-                  {!d.completed_at && (
-                    <CompleteDeadlineButton deadlineId={d.id} />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <AddDeadlineForm
-          caseId={params.id}
-          firmId={ctx.firm.id}
-          jurisdictionState={c.jurisdiction_state ?? null}
-        />
-      </section>
-
       {showTimeBilling && (
        <>
       {/* Time entries */}
@@ -678,7 +708,7 @@ export default async function CounselCaseDetailPage({
         </SectionTitle>
         {time.length === 0 ? (
           <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            <T>No time entries yet. Start the timer in the header.</T>
+            <T>No time entries yet. Start the timer in the action bar above.</T>
           </p>
         ) : (
           <ul className="space-y-2">
@@ -772,73 +802,146 @@ export default async function CounselCaseDetailPage({
        </>
       )}
 
-      {/* Documents on this case */}
-      <section className="space-y-3">
-        <SectionTitle
-          variant="display"
+      {/* Project binders bound to this matter (renders nothing when none) */}
+      <LinkedProjectsPanel firmId={ctx.firm.id} caseId={params.id} />
+
+      </div>
+
+      <aside className="min-w-0 space-y-4 lg:sticky lg:top-24">
+        <PanelCard
+          title={<T>Deadlines</T>}
+          bodyClassName="p-3 space-y-2"
+        >
+          {deadlines.length === 0 ? (
+            <p className="px-1 py-2 text-[13px] italic text-muted">
+              <T>No deadlines on this matter yet.</T>
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {deadlines.map((d) => {
+                const overdue = !d.completed_at && Date.parse(d.due_at) < nowMs;
+                return (
+                  <li
+                    key={d.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-edge px-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`truncate text-[13px] font-semibold ${
+                          d.completed_at
+                            ? 'text-muted line-through'
+                            : 'text-foreground'
+                        }`}
+                        data-no-translate
+                      >
+                        {d.title}
+                      </p>
+                      <p
+                        className={`mt-0.5 font-mono text-[11.5px] tabular-nums ${
+                          overdue ? 'font-semibold text-danger-text' : 'text-muted'
+                        }`}
+                      >
+                        <span data-no-translate>
+                          {d.kind.replace(/_/g, ' ')}
+                        </span>{' '}
+                        ·{' '}
+                        {overdue ? <T>past due</T> : <T>due</T>}{' '}
+                        {new Date(d.due_at).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                    {!d.completed_at && (
+                      <CompleteDeadlineButton deadlineId={d.id} />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <AddDeadlineForm
+            caseId={params.id}
+            firmId={ctx.firm.id}
+            jurisdictionState={c.jurisdiction_state ?? null}
+          />
+        </PanelCard>
+
+        <PanelCard
+          title={<T>Documents</T>}
           action={
-            <div className="flex items-center gap-2">
+            <Link
+              href="/counsel/documents"
+              className="text-[12px] text-accent-text hover:underline"
+            >
+              <T>Open Documents</T>
+            </Link>
+          }
+          bodyClassName="p-3"
+        >
+          {docs.length > 0 ? (
+            <ul className="space-y-1.5">
+              {docs.map((d) => (
+                <li
+                  key={d.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-edge px-3 py-2"
+                >
+                  <Link
+                    href={`/counsel/documents/${d.id}`}
+                    className="min-w-0 flex-1 truncate text-[13px] text-foreground"
+                    data-no-translate
+                  >
+                    {d.name}
+                  </Link>
+                  <StatusPill
+                    size="sm"
+                    dot
+                    color={
+                      FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[d.status]] ??
+                      FIRM_TONE_COLOR.gray
+                    }
+                  >
+                    {FIRM_DOCUMENT_STATUS_LABEL[d.status] ?? d.status}
+                  </StatusPill>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[13px] text-muted">
+              <T>No documents yet. Draft a letter or upload one from</T>{' '}
+              <Link href="/counsel/documents" className="underline">
+                <T>Documents</T>
+              </Link>
+              .
+            </p>
+          )}
+        </PanelCard>
+
+        <PanelCard title={<T>Elsewhere on this matter</T>} bodyClassName="p-3">
+          <div className="flex flex-wrap gap-2">
             <Link
               href={`/counsel/cases/${params.id}/evidence`}
-              className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+              className="rounded-md border border-edge px-3 py-1.5 text-[12px] text-foreground transition-colors hover:bg-surface-2"
             >
               <T>Evidence Center</T>
             </Link>
             <Link
               href={`/counsel/projects?caseId=${params.id}`}
-              className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+              className="rounded-md border border-edge px-3 py-1.5 text-[12px] text-foreground transition-colors hover:bg-surface-2"
             >
               <T>Projects</T>
             </Link>
             <Link
               href={`/counsel/letters?caseId=${params.id}`}
-              className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+              className="rounded-md border border-edge px-3 py-1.5 text-[12px] text-foreground transition-colors hover:bg-surface-2"
             >
               <T>Draft a letter</T>
             </Link>
-            </div>
-          }
-        >
-          <T>Documents</T>
-        </SectionTitle>
-        {docs.length > 0 ? (
-          <ul className="space-y-1.5">
-            {docs.map((d) => (
-              <li
-                key={d.id}
-                className="card p-3 flex items-center justify-between gap-3"
-              >
-                <Link
-                  href={`/counsel/documents/${d.id}`}
-                  className="text-[13px] text-forest-900 dark:text-cream-100 truncate flex-1"
-                >
-                  {d.name}
-                </Link>
-                <StatusPill
-                  size="sm"
-                  color={
-                    FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[d.status]] ??
-                    FIRM_TONE_COLOR.gray
-                  }
-                >
-                  {FIRM_DOCUMENT_STATUS_LABEL[d.status] ?? d.status}
-                </StatusPill>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
-            <T>No documents yet. Draft a letter or upload one from</T>{' '}
-            <Link href="/counsel/documents" className="underline">
-              <T>Documents</T>
-            </Link>
-            .
-          </p>
-        )}
-      </section>
-
-      {/* Project binders bound to this matter (renders nothing when none) */}
-      <LinkedProjectsPanel firmId={ctx.firm.id} caseId={params.id} />
+          </div>
+        </PanelCard>
+      </aside>
+      </div>
     </div>
   );
 }
