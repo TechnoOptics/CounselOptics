@@ -339,6 +339,47 @@ export function resolveDocumentLayout(
   return normalizeDocumentLayout(mergeLayoutInput(firmDefault, templateOverride));
 }
 
+/** The four bands, named once so the merge and the sanitizer agree. */
+const LAYOUT_BANDS = ['margins', 'letterhead', 'watermark', 'footer'] as const;
+
+/**
+ * What a template override is allowed to be, before it is written.
+ *
+ * The trust boundary on the WRITE side of firm_templates.document_layout, and
+ * the reason it exists is that the override has to stay PARTIAL. Storing a band
+ * in full, with the fields the author never touched filled in from the firm's
+ * current settings, would freeze those settings into the template on the day it
+ * was saved: the firm would change its margins later and this one template
+ * would quietly keep the old ones with nothing on screen to say why.
+ *
+ * So only the keys actually present survive, and each one is passed through
+ * normalizeDocumentLayout to be clamped. A band with nothing recognisable left
+ * in it is dropped, and an override with no bands left is null, which is the
+ * same value as "this template does not override the firm".
+ */
+export function sanitizeDocumentLayoutOverride(
+  input: unknown,
+): Record<string, unknown> | null {
+  if (!isPlainObject(input)) return null;
+  const out: Record<string, unknown> = {};
+  for (const band of LAYOUT_BANDS) {
+    const raw = input[band];
+    if (!isPlainObject(raw)) continue;
+    // Normalized as a whole layout so every value is clamped by the one
+    // boundary, then narrowed back to the keys the author actually set.
+    const normalized = normalizeDocumentLayout({ [band]: raw }) as unknown as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const kept: Record<string, unknown> = {};
+    for (const key of Object.keys(raw)) {
+      if (key in normalized[band]) kept[key] = normalized[band][key];
+    }
+    if (Object.keys(kept).length > 0) out[band] = kept;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 /** Two levels deep, which is exactly as deep as a layout goes: the four bands,
  *  and the fields inside each. */
 function mergeLayoutInput(base: unknown, override: unknown): unknown {

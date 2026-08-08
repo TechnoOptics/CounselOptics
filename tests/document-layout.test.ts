@@ -13,6 +13,7 @@ import {
   resolveLetterheadBandTop,
   resolveWatermark,
   resolveWatermarkPlacement,
+  sanitizeDocumentLayoutOverride,
 } from '../lib/document-layout';
 
 /**
@@ -227,6 +228,57 @@ describe('resolveDocumentLayout: firm default, partial template override', () =>
 
   it('ignores an override that is not an object', () => {
     expect(resolveDocumentLayout(firm, 'off').margins.leftPt).toBe(90);
+  });
+});
+
+describe('sanitizeDocumentLayoutOverride is what actually lands in the column', () => {
+  it('returns null for a template that overrides nothing', () => {
+    for (const nothing of [null, undefined, {}, [], 'left', 3]) {
+      expect(sanitizeDocumentLayoutOverride(nothing)).toBeNull();
+    }
+  });
+
+  it('keeps only the bands the template actually set', () => {
+    const override = sanitizeDocumentLayoutOverride({ watermark: { show: true } });
+    expect(Object.keys(override ?? {})).toEqual(['watermark']);
+  });
+
+  it('keeps only the fields inside a band that the template actually set', () => {
+    // The difference between a partial override and a full copy of the firm's
+    // layout. A band written out in full would freeze the firm's other
+    // settings into this template the day it was saved.
+    const override = sanitizeDocumentLayoutOverride({ footer: { align: 'center' } });
+    expect(override?.footer).toEqual({ align: 'center' });
+  });
+
+  it('clamps what it keeps, so the column never holds an out-of-range value', () => {
+    const override = sanitizeDocumentLayoutOverride({
+      margins: { leftPt: 900 },
+      watermark: { opacity: 4 },
+    });
+    expect((override?.margins as Record<string, unknown>).leftPt).toBe(216);
+    expect((override?.watermark as Record<string, unknown>).opacity).toBe(0.6);
+  });
+
+  it('drops a band nobody has ever heard of', () => {
+    expect(sanitizeDocumentLayoutOverride({ sidebar: { show: true } })).toBeNull();
+  });
+
+  it('drops a field nobody has ever heard of', () => {
+    expect(sanitizeDocumentLayoutOverride({ footer: { align: 'center', tilt: 4 } })?.footer).toEqual(
+      { align: 'center' },
+    );
+  });
+
+  it('drops a band whose value is not an object', () => {
+    expect(sanitizeDocumentLayoutOverride({ footer: 'off' })).toBeNull();
+  });
+
+  it('round-trips through resolveDocumentLayout as the partial it claims to be', () => {
+    const override = sanitizeDocumentLayoutOverride({ watermark: { show: true } });
+    const layout = resolveDocumentLayout({ margins: { leftPt: 90 } }, override);
+    expect(layout.margins.leftPt).toBe(90);
+    expect(layout.watermark.show).toBe(true);
   });
 });
 
