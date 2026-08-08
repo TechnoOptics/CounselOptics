@@ -5,7 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { readRequestFolders } from '@/lib/request-folders';
 import { isIntakeOpen } from '@/lib/intake-lanes';
 import { IntakeInbox, type InboxIntake } from '@/components/counsel/IntakeInbox';
-import { Tabs, type TabDef } from '@/components/Tabs';
+import { ViewStrip, type ViewOption } from '@/components/counsel/patterns';
 import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -21,11 +21,23 @@ export const metadata = { title: 'Request inbox · Counsel' };
  *   - External: outside-client matters and anything not employee-
  *     filed - intake from clients, vendors, opposing parties, etc.
  *
- * Each tab uses the same lanes (Needs attention / In review /
+ * Each view uses the same lanes (Needs attention / In review /
  * Accepted / Closed) so daily triage feels identical regardless of
  * source. Creating a new intake lives on /counsel/intake.
+ *
+ * The two views are the list pattern's segmented strip and live in the
+ * query string, which is a deliberate change from the shared <Tabs>
+ * this page used to mount. It buys what the matter list already has:
+ * a triage queue is a link a colleague can be sent, the back button
+ * steps between views, and a refresh keeps your place. It costs the
+ * mobile swipe and the remembered tab that <Tabs> provided, and only
+ * the view being looked at is rendered now.
  */
-export default async function CounselInboxPage() {
+export default async function CounselInboxPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
   const supabase = createServerSupabase();
@@ -59,31 +71,15 @@ export default async function CounselInboxPage() {
   const openInternal = internal.filter((i) => isIntakeOpen(i.status)).length;
   const openExternal = external.filter((i) => isIntakeOpen(i.status)).length;
 
-  const tabs: TabDef[] = [
-    {
-      id: 'internal',
-      label: 'Employees',
-      badge: openInternal > 0 ? openInternal : undefined,
-      content: (
-        <IntakeInbox
-          intakes={internal}
-          folders={folders}
-          emptyMessage="No employee requests yet. Requests filed from the Hub or a connected workplace app (like Zinpro One) land here."
-        />
-      ),
-    },
-    {
-      id: 'external',
-      label: 'External',
-      badge: openExternal > 0 ? openExternal : undefined,
-      content: (
-        <IntakeInbox
-          intakes={external}
-          folders={folders}
-          emptyMessage="No external requests yet. Only outside-client matters appear here - employee requests never do."
-        />
-      ),
-    },
+  const rawView = searchParams?.view;
+  const viewParam = Array.isArray(rawView) ? rawView[0] : rawView;
+  const view = viewParam === 'external' ? 'external' : 'internal';
+
+  // The count on each option is the open requests that option would
+  // show, from the same isIntakeOpen predicate the lanes use.
+  const options: ViewOption[] = [
+    { key: 'internal', label: <T>Employees</T>, count: openInternal },
+    { key: 'external', label: <T>External</T>, count: openExternal },
   ];
 
   return (
@@ -97,8 +93,9 @@ export default async function CounselInboxPage() {
             <T>is what your people filed - from the Hub or a connected
             workplace app.</T>{' '}
             <strong><T>External</T></strong> <T>is outside-client matters
-            only. The number on each tab counts every open request, which is the
-            Needs attention lane plus the In review lane. Need to create
+            only. The number on each view counts every open request, which is
+            the Needs attention lane plus the In review lane. The view is in the
+            address bar, so a queue can be sent to a colleague. Need to create
             one yourself?</T>{' '}
             <Link
               href="/counsel/intake"
@@ -111,7 +108,28 @@ export default async function CounselInboxPage() {
         }
       />
 
-      <Tabs swipe storageKey="counsel-inbox" tabs={tabs} />
+      <ViewStrip
+        label="Request views"
+        options={options}
+        active={view}
+        href={(k) =>
+          k === 'internal' ? '/counsel/inbox' : `/counsel/inbox?view=${k}`
+        }
+      />
+
+      {view === 'internal' ? (
+        <IntakeInbox
+          intakes={internal}
+          folders={folders}
+          emptyMessage="No employee requests yet. Requests filed from the Hub or a connected workplace app (like Zinpro One) land here."
+        />
+      ) : (
+        <IntakeInbox
+          intakes={external}
+          folders={folders}
+          emptyMessage="No external requests yet. Only outside-client matters appear here - employee requests never do."
+        />
+      )}
     </div>
   );
 }

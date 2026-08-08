@@ -20,6 +20,7 @@ import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
 import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
 import { StatusPill, PILL_COLORS, PILL_DEFAULT } from '@/components/counsel/StatusPill';
+import { Chip } from '@/components/counsel/patterns';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -187,9 +188,13 @@ export default async function IntakeDetailPage({
             {ticketTitle}
           </h1>
           {isEmployeeReq && (
-            <span className="shrink-0 rounded-full bg-gold-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700 ring-1 ring-gold-500/30 dark:text-gold-200">
-              <T>In-house</T> · {submittedBy}
-            </span>
+            // The shared accent chip, not a fourth hand-rolled copy of
+            // the same tint-plus-ring. It also derives from the firm's
+            // own accent rather than pinning gold, which is what the
+            // rest of counsel now does.
+            <Chip tone="accent">
+              <T>In-house</T> · <span data-no-translate>{submittedBy}</span>
+            </Chip>
           )}
         </div>
 
