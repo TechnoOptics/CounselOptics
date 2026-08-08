@@ -240,12 +240,28 @@ body {
    [0, cap] including 0 is already inside the floor.
 
    `--warn-text` and `--danger-text` are NOT white-label. Status is not
-   branding, so these stay fixed, and they are held to the same floor on
-   the same tightest surfaces: on #2a5a47 #fbbf24 is 4.74:1 and #fecaca
-   is 5.47:1; on cream-200 #92400e is 6.07:1 and #b91c1c is 5.54:1. The
-   dark danger tone is red-200 and not the PILL_COLORS #f87171, which
-   measures 5.02:1 on the counsel cream but only 2.86:1 on the consumer
-   green one and so cannot carry a floor across this selector list.
+   branding, so these stay fixed. `--warn-text` is one value for every
+   dark selector and so is held to the union: #fbbf24 is 4.74:1 on
+   #2a5a47 and 8.32:1 on the counsel cream. The paler #fcd34d would
+   measure 5.49:1 and 9.63:1, both fine, and is not used: it clears more
+   headroom than the floor needs by making the warning read weaker,
+   which is the opposite of the job.
+
+   `--danger-text` is the one token that cannot be a single value,
+   because the two dark grounds disagree about it. #f87171 is 5.02:1 on
+   the tightest counsel neutral and 2.86:1 on the tightest consumer
+   green; #fecaca is 9.60:1 and 5.47:1. So the vivid red is correct on
+   one ground and unreadable on the other, and the pale red is legible
+   everywhere but reads closer to pink than to danger on near-black.
+   Hence the scoped override below: the shells that paint the neutral
+   ramp get the vivid red, everything else keeps the pale one. Both
+   values clear AA on every surface their own selectors can paint, and
+   tests/accent-text.test.ts measures that per group by reading these
+   declarations back out of this file. Do not merge the two blocks: the
+   consumer green is what #f87171 failed on when it shipped once.
+
+   On the light tone one value serves: on cream-200 #92400e is 6.07:1
+   and #b91c1c is 5.54:1.
 
    `oklch(from ...)` is guarded by @supports so a browser without
    relative colour syntax keeps the static fallback rather than
@@ -272,6 +288,14 @@ html.dark,
   --accent-text: #e0c890;
   --warn-text: #fbbf24;
   --danger-text: #fecaca;
+}
+/* The neutral-black ground, and only it. This has to stay AFTER the
+   block above and at the same specificity: counsel markup is
+   `dark counsel-shell` on one element, so both rules match it and
+   source order is what decides. */
+.counsel-shell,
+.enterprise-shell {
+  --danger-text: #f87171;
 }
 @supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
   html.dark,

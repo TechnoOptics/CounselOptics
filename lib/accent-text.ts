@@ -34,9 +34,16 @@
  * the same utilities GREEN: `.dark .bg-cream-200` is #2a5a47, which is
  * three times the luminance of the counsel #2c2c31 and is the lightest
  * substrate the dark tone can land on anywhere. A dark pin proved only
- * against the counsel neutrals fails there. ACCENT_TEXT_SURFACES below
+ * against the counsel neutrals fails there. DARK_SURFACE_GROUPS below
  * carries both families and a test asserts it stays complete by reading
  * the repaint rules back out of app/globals.css.
+ *
+ * A token declared for every dark selector at once, like `--accent-text`,
+ * is held to the union of both families. A token scoped to one of them,
+ * like `--danger-text`, is held to that group alone. Which is which is
+ * not a judgement call anywhere in this file: the test reads the
+ * declarations out of the stylesheet and measures each of them on the
+ * groups its own selectors can reach.
  *
  * The claim is bounded, deliberately: it covers every SOLID surface the
  * selector list repaints. Gradient stops (`from-cream-50`, `via-cream-50`)
@@ -283,43 +290,86 @@ export function accentOn(accent: string | null | undefined): string {
 }
 
 /**
- * Surfaces the accent-text token can actually land on, measured rather
- * than assumed.
+ * Surfaces the dark tone can land on, grouped by the selectors that
+ * paint them, measured rather than assumed.
  *
- * The dark tone is declared on one selector list that reaches TWO
- * different repaint families, and they do not agree:
+ * The dark tone reaches TWO repaint families, and they do not agree:
  *
  *   .counsel-shell / .enterprise-shell  light utilities -> near-black
- *   html.dark / .dark (consumer, HQ)    light utilities -> deep green
+ *   html.dark / .dark / .hq-shell       light utilities -> deep green
  *
  * The green family is much lighter. `.dark .bg-cream-200` is #2a5a47 at
  * luminance 0.0826 against the counsel `.bg-cream-200` #2c2c31 at
  * 0.0256, so it, not the counsel card and not the counsel cream, is what
- * sets the dark pin. Tuning against either family alone passes at a
- * lightness that then fails on the other.
+ * sets the dark pin for anything declared across both groups. Tuning
+ * against either family alone passes at a lightness that then fails on
+ * the other.
  *
- * Every hex below is a solid `background-color` declared in
- * app/globals.css, and tests/accent-text.test.ts reads those rules back
- * out and fails if a dark-scoped surface exists there that is missing
- * here. Translucent overlays (`bg-cream-50/40` and friends) are excluded
+ * `--accent-text` is declared once for both groups, so its floor is the
+ * union: it has to clear AA on #2a5a47. `--danger-text` is not, and that
+ * is what the grouping is for. #f87171 is 5.02:1 on the tightest counsel
+ * neutral and 2.86:1 on the tightest consumer green, so it is correct on
+ * one ground and unreadable on the other. A token scoped to one group is
+ * measured on that group's surfaces and no others.
+ *
+ * `scopes` is every selector whose rules can reach inside the group.
+ * Counsel markup is `dark counsel-shell` on ONE element, so the `.dark`
+ * rules match there too and lose only on source order, which is why
+ * `.dark` sits in both groups. tests/accent-text.test.ts resolves that
+ * source order out of the stylesheet rather than assuming it.
+ *
+ * Every hex below is a solid `background-color` app/globals.css declares
+ * under one of these scopes, and that test reads the rules back out: a
+ * dark-scoped surface in the stylesheet missing from its group's list
+ * fails the suite, and so does a shell selector belonging to no group at
+ * all. Translucent overlays (`bg-cream-50/40` and friends) are excluded
  * on purpose: they composite onto whichever of these is behind them, so
  * they are never lighter than the surface they sit on.
+ *
+ * `consumer dark page` appears in BOTH groups because it is the document
+ * body, which a counsel page under a dark html still has behind its
+ * shell, and counsel chrome does portal onto document.body.
+ */
+export const DARK_SURFACE_GROUPS = {
+  counsel: {
+    scopes: ['html.dark', '.dark', '.counsel-shell', '.enterprise-shell'],
+    surfaces: {
+      'counsel page': '#0a0a0b',
+      'counsel .bg-ink-50': '#141417',
+      'counsel card': '#151519',
+      'counsel .bg-cream-50': '#1a1a1e',
+      'counsel .bg-white': '#1e1e22',
+      'counsel .bg-cream-100': '#242428',
+      'counsel .bg-cream-200': '#2c2c31',
+      'consumer dark page': '#0a1f19',
+    },
+  },
+  consumer: {
+    scopes: ['html.dark', '.dark', '.hq-shell'],
+    surfaces: {
+      'consumer dark page': '#0a1f19',
+      'hq page': '#0a1714',
+      'consumer dark .bg-ink-50': '#102a23',
+      'consumer dark .bg-cream-50': '#173b30',
+      'consumer dark .bg-white': '#1a3d31',
+      'consumer dark .bg-cream-100': '#1f4839',
+      'consumer dark .bg-cream-200': '#2a5a47',
+    },
+  },
+} as const;
+
+export type DarkSurfaceGroup = keyof typeof DARK_SURFACE_GROUPS;
+
+/**
+ * Every surface each tone can land on. The dark half is the union of the
+ * groups above rather than a second hand-kept list, so the two cannot
+ * disagree. `--accent-text` is proved against this union because it is
+ * declared for every group at once.
  */
 export const ACCENT_TEXT_SURFACES = {
   dark: {
-    'counsel page': '#0a0a0b',
-    'counsel .bg-ink-50': '#141417',
-    'counsel card': '#151519',
-    'counsel .bg-cream-50': '#1a1a1e',
-    'counsel .bg-white': '#1e1e22',
-    'counsel .bg-cream-100': '#242428',
-    'counsel .bg-cream-200': '#2c2c31',
-    'consumer dark page': '#0a1f19',
-    'consumer dark .bg-ink-50': '#102a23',
-    'consumer dark .bg-cream-50': '#173b30',
-    'consumer dark .bg-white': '#1a3d31',
-    'consumer dark .bg-cream-100': '#1f4839',
-    'consumer dark .bg-cream-200': '#2a5a47',
+    ...DARK_SURFACE_GROUPS.counsel.surfaces,
+    ...DARK_SURFACE_GROUPS.consumer.surfaces,
   },
   light: {
     white: '#ffffff',
@@ -330,13 +380,15 @@ export const ACCENT_TEXT_SURFACES = {
 } as const;
 
 /**
- * The surface of a tone that the floor actually rests on: the lightest
+ * The surface of a set that the floor actually rests on: the lightest
  * one for the dark tone, the darkest one for the light tone. Derived
- * rather than named, so adding a surface above cannot leave a
- * hand-picked "worst case" quietly out of date.
+ * rather than named, so adding a surface cannot leave a hand-picked
+ * "worst case" quietly out of date.
  */
-export function tightestSurface(tone: AccentTone): string {
-  const surfaces = Object.values(ACCENT_TEXT_SURFACES[tone]) as string[];
+export function tightestOf(
+  surfaces: readonly string[],
+  tone: AccentTone,
+): string {
   return surfaces.reduce((worst, candidate) =>
     tone === 'dark'
       ? relativeLuminance(candidate) > relativeLuminance(worst)
@@ -346,6 +398,16 @@ export function tightestSurface(tone: AccentTone): string {
         ? candidate
         : worst,
   );
+}
+
+/** The tightest surface of a tone, across every group at once. */
+export function tightestSurface(tone: AccentTone): string {
+  return tightestOf(Object.values(ACCENT_TEXT_SURFACES[tone]), tone);
+}
+
+/** The tightest surface within one dark group. */
+export function tightestInGroup(group: DarkSurfaceGroup): string {
+  return tightestOf(Object.values(DARK_SURFACE_GROUPS[group].surfaces), 'dark');
 }
 
 /** The AA floor for small text. Chips in this product are 10-11px. */

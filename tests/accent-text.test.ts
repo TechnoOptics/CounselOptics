@@ -11,14 +11,17 @@ import {
   ACCENT_TEXT_SURFACES,
   ACCENT_TEXT_TONES,
   ACHROMATIC_CHROMA,
+  DARK_SURFACE_GROUPS,
   DEFAULT_ACCENT,
   accentOn,
   contrastRatio,
   deriveAccentText,
   relativeLuminance,
+  tightestInGroup,
   tightestSurface,
   toOklch,
 } from '../lib/accent-text';
+import type { DarkSurfaceGroup } from '../lib/accent-text';
 
 const globalsCss = readFileSync(
   fileURLToPath(new URL('../app/globals.css', import.meta.url)),
@@ -128,58 +131,145 @@ describe('the named worst cases, with their measured numbers', () => {
  * ACCENT_TEXT_SURFACES.dark, which means adding a new one to
  * app/globals.css without proving the token on it fails here.
  */
-describe('the proof set covers every surface the dark tone can land on', () => {
-  /** Solid `background-color` hexes from dark-scoped `bg-*` rules. */
-  function darkScopedSurfaces(): Map<string, string> {
+describe('the proof set covers every surface each dark group can land on', () => {
+  /**
+   * A solid `background-color` declared under a dark scope, split into
+   * the scope it hangs off and the rest of the selector, in source
+   * order. `.dark .bg-cream-200` is scope `.dark`, key `.bg-cream-200`.
+   */
+  type BackgroundRule = {
+    selector: string;
+    scope: string | null;
+    key: string;
+    hex: string;
+    order: number;
+  };
+
+  /** Every selector any group claims, so an unclaimed one is visible. */
+  const CLAIMED_SCOPES = [
+    ...new Set(
+      Object.values(DARK_SURFACE_GROUPS).flatMap(
+        (g) => g.scopes as readonly string[],
+      ),
+    ),
+  ];
+
+  /**
+   * Anything shaped like a dark shell scope, claimed or not. This is
+   * what turns "a new shell was added" from a silent gap into a failure:
+   * `.partner-shell .bg-cream-200` matches here, finds no group, and
+   * fails the attribution test below.
+   */
+  const LOOKS_DARK_SCOPED = /^(?:html)?\.[\w-]*(?:dark|shell)\b/;
+
+  function darkScopedBackgrounds(): BackgroundRule[] {
     const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
-    const found = new Map<string, string>();
+    const out: BackgroundRule[] = [];
+    let order = 0;
     for (const [, selectors, body] of stripped.matchAll(
       /([^{}]+)\{([^{}]*)\}/g,
     )) {
-      if (!/\bbg-/.test(selectors)) continue;
+      order += 1;
       const parts = selectors
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      const allDarkScoped = parts.every((s) =>
-        /\.dark|\.counsel-shell|\.enterprise-shell|\.hq-shell/.test(s),
-      );
-      if (!allDarkScoped) continue;
+      if (!parts.length) continue;
+      if (!parts.every((s) => LOOKS_DARK_SCOPED.test(s))) continue;
       const hex = body.match(/background-color:\s*(#[0-9a-fA-F]{6})\s*;/);
       // Translucent overlays composite onto whatever is behind them and
       // can never be lighter than it, so rgba() rules are not surfaces.
       if (!hex) continue;
-      if (!found.has(hex[1].toLowerCase())) {
-        found.set(hex[1].toLowerCase(), parts[0]);
+      for (const part of parts) {
+        const scope =
+          CLAIMED_SCOPES.find((s) => part === s || part.startsWith(`${s} `)) ??
+          null;
+        out.push({
+          selector: part,
+          scope,
+          key: scope ? part.slice(scope.length).trim() : part,
+          hex: hex[1].toLowerCase(),
+          order,
+        });
       }
     }
-    return found;
+    return out;
+  }
+
+  /**
+   * What a group actually paints, cascade and all.
+   *
+   * The cascade matters and cannot be skipped. Counsel markup is
+   * `dark counsel-shell` on ONE element, so `.dark .bg-cream-200`
+   * (#2a5a47, green) and `.counsel-shell .bg-cream-200` (#2c2c31) both
+   * match the same descendant at the same specificity, and only source
+   * order decides. Attributing the green to counsel because `.dark` is
+   * in its scope list would be wrong in the direction that matters: it
+   * would put the consumer's worst case back under a counsel-scoped
+   * token and make the split impossible to state.
+   *
+   * A shell's own page background is the exception. `.hq-shell` and
+   * `html.dark body` paint different ELEMENTS, so they do not override
+   * one another and both are surfaces of the group.
+   */
+  function paintedBy(group: DarkSurfaceGroup): Map<string, BackgroundRule> {
+    const scopes = DARK_SURFACE_GROUPS[group].scopes as readonly string[];
+    const winners = new Map<string, BackgroundRule>();
+    for (const rule of darkScopedBackgrounds()) {
+      if (!rule.scope || !scopes.includes(rule.scope)) continue;
+      const key = rule.key === '' ? rule.selector : rule.key;
+      const held = winners.get(key);
+      if (!held || rule.order >= held.order) winners.set(key, rule);
+    }
+    return winners;
   }
 
   it('finds the repaint rules at all, so an empty sweep cannot pass', () => {
-    // Without this the guard below is vacuously true the moment the
+    // Without this the guards below are vacuously true the moment the
     // regex stops matching the stylesheet.
-    expect(darkScopedSurfaces().size).toBeGreaterThanOrEqual(8);
+    const found = darkScopedBackgrounds();
+    expect(found.length).toBeGreaterThanOrEqual(20);
+    expect(new Set(found.map((r) => r.hex)).size).toBeGreaterThanOrEqual(8);
   });
 
-  it('lists every dark-scoped solid background app/globals.css declares', () => {
-    const proven = new Set(
-      Object.values(ACCENT_TEXT_SURFACES.dark).map((s) => s.toLowerCase()),
-    );
-    for (const [hex, selector] of darkScopedSurfaces()) {
+  it('attributes every dark-scoped background to a group that claims it', () => {
+    for (const rule of darkScopedBackgrounds()) {
       expect(
-        proven.has(hex),
-        `${selector} paints ${hex}, which is not in ACCENT_TEXT_SURFACES.dark`,
-      ).toBe(true);
+        rule.scope,
+        `\`${rule.selector}\` paints ${rule.hex} from a selector no group claims; add it to the scopes of a group in DARK_SURFACE_GROUPS`,
+      ).not.toBeNull();
     }
   });
 
-  it('rests the dark pin on the consumer green cream, not a counsel neutral', () => {
-    // Naming the surface here rather than only deriving it, because the
-    // whole failure was believing the counsel neutrals were the worst
-    // case. If this ever moves, the pin needs re-deriving.
+  for (const group of Object.keys(DARK_SURFACE_GROUPS) as DarkSurfaceGroup[]) {
+    it(`lists every solid background the ${group} group is painted on`, () => {
+      const proven = new Set(
+        Object.values(DARK_SURFACE_GROUPS[group].surfaces).map((s) =>
+          s.toLowerCase(),
+        ),
+      );
+      const painted = paintedBy(group);
+      expect(
+        painted.size,
+        `no repaint rule reaches the ${group} group at all`,
+      ).toBeGreaterThan(0);
+      for (const rule of painted.values()) {
+        expect(
+          proven.has(rule.hex),
+          `\`${rule.selector}\` paints ${rule.hex} inside the ${group} group, which is not in DARK_SURFACE_GROUPS.${group}.surfaces`,
+        ).toBe(true);
+      }
+    });
+  }
+
+  it('rests each pin where the measurement says it rests', () => {
+    // Naming the surfaces here rather than only deriving them, because
+    // the whole failure was believing the counsel neutrals were the
+    // worst case. If any of these moves, the pins need re-deriving.
     expect(tightestSurface('dark')).toBe('#2a5a47');
     expect(tightestSurface('light')).toBe('#f5edd6');
+    expect(tightestInGroup('consumer')).toBe('#2a5a47');
+    expect(tightestInGroup('counsel')).toBe('#2c2c31');
   });
 });
 
@@ -341,42 +431,193 @@ describe('accentOn covers the whole fill range', () => {
   });
 });
 
-describe('the fixed status tokens clear the same floor', () => {
-  /*
-   * These share the accent token's selector list, so they inherit the
-   * same trap: proven on the counsel neutrals and shipped onto the
-   * consumer green ramp. #f87171 is 5.02:1 on the counsel cream and
-   * 2.86:1 on the consumer one, so it could not stay. Measuring against
-   * tightestSurface() rather than a named hex is what stops the next
-   * surface from reopening this.
-   */
-  const cases: Array<[string, string, 'dark' | 'light']> = [
-    ['--warn-text dark', '#fbbf24', 'dark'],
-    ['--danger-text dark', '#fecaca', 'dark'],
-    ['--warn-text light', '#92400e', 'light'],
-    ['--danger-text light', '#b91c1c', 'light'],
-  ];
-  for (const [label, token, tone] of cases) {
-    it(`${label} is >= ${AA_SMALL_TEXT}:1 on the tightest ${tone} surface`, () => {
-      const surface = tightestSurface(tone);
-      expect(
-        contrastRatio(token, surface),
-        `${token} on ${surface}`,
-      ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
-    });
+/*
+ * The status tokens do not share one selector list any more, and that
+ * is what this block had to be rebuilt around.
+ *
+ * It used to measure each value against tightestSurface(), the single
+ * lightest ground in the product, and ban `--danger-text: #f87171` by
+ * string. Both were right while one value served every ground. Neither
+ * survives the split: the global worst case now fails a value that is
+ * correct where it is actually declared, and a string ban says nothing
+ * about the selector the string sits on, which is the only thing that
+ * decides whether it is readable.
+ *
+ * So nothing below names a value. It reads every `--warn-text` and
+ * `--danger-text` declaration out of app/globals.css, works out which
+ * groups each declaration's selectors can reach, and measures it on
+ * EVERY surface of every group it reaches. #f87171 arriving on the
+ * consumer ground through any selector, including one that does not
+ * exist yet, lands back on #2a5a47 at 2.86:1 and fails here.
+ *
+ * A declaration reaches a group when its selector list names any of
+ * that group's scopes, which over-counts on purpose: the shared block's
+ * #fecaca is measured against counsel even though the scoped block
+ * overrides it there. Over-counting can only add work, never hide a
+ * failure, and it means the test needs no opinion about which
+ * declaration wins.
+ */
+describe('the fixed status tokens clear the floor on every surface they reach', () => {
+  const STATUS_TOKENS = ['--warn-text', '--danger-text'] as const;
+
+  type Declaration = {
+    token: string;
+    value: string;
+    selectors: string[];
+    order: number;
+  };
+
+  function statusDeclarations(): Declaration[] {
+    const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    const out: Declaration[] = [];
+    let order = 0;
+    for (const [, selectors, body] of stripped.matchAll(
+      /([^{}]+)\{([^{}]*)\}/g,
+    )) {
+      order += 1;
+      const parts = selectors
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      for (const token of STATUS_TOKENS) {
+        // Anchored on a declaration boundary so a `var(--danger-text)`
+        // read is not mistaken for a write.
+        const pattern = new RegExp(`(?:^|[;\\s])${token}:\\s*([^;]+);`, 'g');
+        for (const [, value] of body.matchAll(pattern)) {
+          out.push({
+            token,
+            value: value.trim().toLowerCase(),
+            selectors: parts,
+            order,
+          });
+        }
+      }
+    }
+    return out;
   }
 
-  it('each token value is the one globals.css actually declares', () => {
-    for (const [, token] of cases) {
-      expect(globalsCss).toContain(`: ${token};`);
+  const declarations = statusDeclarations();
+
+  /** The declaration a group ends up with, which is the last one it reaches. */
+  function effective(token: string, group: DarkSurfaceGroup): string {
+    const scopes = DARK_SURFACE_GROUPS[group].scopes as readonly string[];
+    const reaching = declarations
+      .filter(
+        (d) => d.token === token && d.selectors.some((s) => scopes.includes(s)),
+      )
+      .sort((a, b) => a.order - b.order);
+    return reaching[reaching.length - 1]?.value ?? '';
+  }
+
+  it('finds the declarations at all, so an empty sweep cannot pass', () => {
+    for (const token of STATUS_TOKENS) {
+      expect(
+        declarations.filter((d) => d.token === token).length,
+        `${token} should be declared for the light tone and for at least one dark group`,
+      ).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it('does not still carry the tone that failed on the consumer green', () => {
-    expect(contrastRatio('#f87171', tightestSurface('dark'))).toBeLessThan(
+  it('declares every status token as a literal hex, not an indirection', () => {
+    // contrastRatio() can only measure a hex. A var() or a colour
+    // function here would be measured as the fallback gold, and every
+    // number below would be arithmetic about the wrong colour.
+    for (const d of declarations) {
+      expect(
+        d.value,
+        `${d.token} on \`${d.selectors.join(', ')}\` is not a plain hex`,
+      ).toMatch(/^#[0-9a-f]{6}$/);
+    }
+  });
+
+  it('declares every status token from a selector some group claims', () => {
+    // This is the half that stops a new shell going unmeasured. Adding
+    // `.partner-shell` to a token block without registering it in
+    // DARK_SURFACE_GROUPS fails here rather than shipping a colour
+    // nothing ever measured.
+    const claimed = new Set<string>([
+      ':root',
+      ...Object.values(DARK_SURFACE_GROUPS).flatMap(
+        (g) => g.scopes as readonly string[],
+      ),
+    ]);
+    for (const d of declarations) {
+      for (const selector of d.selectors) {
+        expect(
+          claimed.has(selector),
+          `\`${selector}\` declares ${d.token} but belongs to no surface group; add it to the scopes of a group in DARK_SURFACE_GROUPS, with the surfaces it paints`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  for (const groupName of Object.keys(
+    DARK_SURFACE_GROUPS,
+  ) as DarkSurfaceGroup[]) {
+    const group = DARK_SURFACE_GROUPS[groupName];
+    for (const token of STATUS_TOKENS) {
+      it(`${token} is >= ${AA_SMALL_TEXT}:1 on every ${groupName} surface`, () => {
+        const reaching = declarations.filter(
+          (d) =>
+            d.token === token &&
+            d.selectors.some((s) =>
+              (group.scopes as readonly string[]).includes(s),
+            ),
+        );
+        expect(
+          reaching.length,
+          `no ${token} declaration reaches the ${groupName} group`,
+        ).toBeGreaterThan(0);
+        for (const d of reaching) {
+          for (const [surfaceName, surface] of Object.entries(group.surfaces)) {
+            expect(
+              contrastRatio(d.value, surface),
+              `${token}: ${d.value} from \`${d.selectors.join(', ')}\` measures ${contrastRatio(d.value, surface).toFixed(3)}:1 on the ${groupName} ${surfaceName} (${surface})`,
+            ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+          }
+        }
+      });
+    }
+  }
+
+  it('holds the light tone to the same floor', () => {
+    const rootDeclarations = declarations.filter((d) =>
+      d.selectors.includes(':root'),
+    );
+    expect(rootDeclarations.length).toBeGreaterThanOrEqual(2);
+    for (const d of rootDeclarations) {
+      for (const [surfaceName, surface] of Object.entries(
+        ACCENT_TEXT_SURFACES.light,
+      )) {
+        expect(
+          contrastRatio(d.value, surface),
+          `${d.token}: ${d.value} measures ${contrastRatio(d.value, surface).toFixed(3)}:1 on ${surfaceName} (${surface})`,
+        ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+      }
+    }
+  });
+
+  it('keeps the split, which passing alone does not prove', () => {
+    // Everything above still passes if the scoped block is deleted: the
+    // pale red clears AA on the counsel neutrals easily. What it does
+    // there is read as pink rather than as a warning, which is the
+    // complaint this change answers and is not a number. So the split
+    // itself is pinned, and undoing it has to be deliberate.
+    expect(effective('--danger-text', 'counsel')).toBe('#f87171');
+    expect(effective('--danger-text', 'consumer')).toBe('#fecaca');
+  });
+
+  it('states the regression this guard exists for, as arithmetic', () => {
+    // #f87171 shipped once on the consumer ground and could not be
+    // read. It is scoped rather than banned because on the counsel
+    // ground the same hex is fine, and the ban would have cost counsel
+    // the stronger warning for a surface counsel never paints.
+    expect(contrastRatio('#f87171', tightestInGroup('consumer'))).toBeLessThan(
       AA_SMALL_TEXT,
     );
-    expect(globalsCss).not.toContain('--danger-text: #f87171');
+    expect(
+      contrastRatio('#f87171', tightestInGroup('counsel')),
+    ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
   });
 });
 
