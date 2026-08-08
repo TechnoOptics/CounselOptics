@@ -363,9 +363,9 @@ function KpiTile({
     accent === 'emerald'
       ? 'text-emerald-300'
       : accent === 'amber'
-        ? 'text-amber-300'
+        ? 'text-warn-text'
         : accent === 'rose'
-          ? 'text-rose-300'
+          ? 'text-danger-text'
           : 'text-cream-200';
 
   const body = (

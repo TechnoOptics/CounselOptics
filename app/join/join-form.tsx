@@ -41,7 +41,7 @@ export function JoinForm({
         >
           <p
             className={`font-display text-lg ${
-              isExternal ? 'text-amber-200' : 'text-emerald-200'
+              isExternal ? 'text-warn-text' : 'text-emerald-200'
             }`}
           >
             {isExternal ? 'Request sent' : "You're all set"}
@@ -122,7 +122,7 @@ export function JoinForm({
       </label>
 
       {result && !result.ok && (
-        <p className="rounded-lg ring-1 ring-rose-700/40 bg-rose-950/30 px-3 py-2 text-[12.5px] text-rose-200">
+        <p className="rounded-lg ring-1 ring-rose-700/40 bg-rose-500/10 px-3 py-2 text-[12.5px] text-danger-text">
           {result.error}
         </p>
       )}

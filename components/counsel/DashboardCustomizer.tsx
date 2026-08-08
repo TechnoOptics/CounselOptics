@@ -159,7 +159,7 @@ export function DashboardCustomizer({
                       <button
                         type="button"
                         onClick={() => toggle(id)}
-                        className="text-rose-300/70 hover:text-rose-200 text-[11px] px-1.5"
+                        className="text-danger-text text-[11px] px-1.5"
                         aria-label={`Remove ${meta.label}`}
                       >
                         Remove
@@ -234,7 +234,7 @@ export function DashboardCustomizer({
           </div>
 
           {error && (
-            <p className="mt-3 text-[12px] text-rose-300">{error}</p>
+            <p className="mt-3 text-[12px] text-danger-text">{error}</p>
           )}
 
           <div className="mt-4 pt-3 border-t border-forest-700/40 flex items-center justify-between gap-2">

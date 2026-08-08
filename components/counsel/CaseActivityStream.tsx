@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { CaseActivityEvent } from '@/lib/case-activity-log';
 // Shared with the request thread. The local relativeTime() this replaced read
 // the wall clock and toLocaleDateString(undefined, ...) inside a component
 // that server-renders, which is the React #425 text mismatch logged against
 // /counsel/cases/[id]/timeline.
 import { RelativeTime } from '@/components/intake/RelativeTime';
+import { PILL_COLORS, pillInk } from '@/lib/pill-colors';
 
 /**
  * Firm-only activity feed for a matter: shows when an outside co-counsel (guest)
@@ -83,9 +84,8 @@ export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) 
               return (
                 <li key={e.id} className="flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-forest-900/40">
                   <span
-                    className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-md ring-1 ${toneRing(
-                      meta.tone,
-                    )}`}
+                    className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-md"
+                    style={toneStyle(meta.tone)}
                   >
                     {meta.icon}
                   </span>
@@ -123,17 +123,37 @@ export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) 
   );
 }
 
-function toneRing(tone: 'view' | 'act' | 'comment' | 'download'): string {
-  switch (tone) {
-    case 'download':
-      return 'bg-gold-metal/[0.12] text-gold-metal ring-gold-metal/25';
-    case 'comment':
-      return 'bg-sky-500/12 text-sky-300 ring-sky-400/25';
-    case 'act':
-      return 'bg-emerald-500/12 text-emerald-300 ring-emerald-400/25';
-    default:
-      return 'bg-cream-100/8 text-cream-100/60 ring-cream-50/15';
-  }
+/**
+ * The icon chip's three layers, painted from the status palette.
+ *
+ * These used to be Tailwind class strings, and two things were wrong
+ * with them. The tints were written `/12` and `/8`, which are not
+ * Tailwind opacity steps, so the fills compiled to nothing and never
+ * painted at all. And the inks were `text-sky-300` and
+ * `text-emerald-300`, chosen for the dark shell alone: on light counsel
+ * they measure 1.29:1 and 1.19:1.
+ *
+ * `pillInk` is the mechanism this product already uses for a status
+ * colour that has to follow the shell - it resolves each hex to a
+ * `light-dark()` pair selected by `color-scheme`, which app/globals.css
+ * declares on exactly the elements that carry the theme - and
+ * lib/pill-colors.ts already carries a measured light twin for every
+ * one of these four tones. Same three layers as StatusPill, same alphas.
+ */
+function toneStyle(
+  tone: 'view' | 'act' | 'comment' | 'download',
+): CSSProperties {
+  const color = {
+    download: PILL_COLORS.gold,
+    comment: PILL_COLORS.info,
+    act: PILL_COLORS.good,
+    view: PILL_COLORS.quiet,
+  }[tone];
+  return {
+    color: pillInk(color),
+    background: pillInk(color, '1a'),
+    boxShadow: `0 0 0 1px ${pillInk(color, '40')}`,
+  };
 }
 
 // ── icons ──

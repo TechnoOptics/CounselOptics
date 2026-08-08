@@ -93,7 +93,7 @@ export default async function HubTrainingsPage() {
                           </p>
                         )}
                         {a.due_at && (
-                          <p className="text-[11.5px] text-amber-300 mt-1">
+                          <p className="text-[11.5px] text-warn-text mt-1">
                             Due{' '}
                             <LocaleTime iso={a.due_at} mode="date" />
                           </p>

@@ -181,7 +181,7 @@ export function ApproachBuilder({
                 />
               </div>
               {error && (
-                <p className="font-mono text-[11.5px] text-rose-300" data-no-translate>
+                <p className="font-mono text-[11.5px] text-danger-text" data-no-translate>
                   {error}
                 </p>
               )}
@@ -217,7 +217,7 @@ export function ApproachBuilder({
         )}
 
         {notice && (
-          <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+          <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-warn-text">
             {notice}
           </p>
         )}
@@ -385,7 +385,7 @@ function ApproachCard({
                     ? 'bg-sky-500/12 text-sky-200/90'
                     : assembled
                     ? 'bg-gold-metal/[0.12] text-gold-metal'
-                    : 'bg-amber-500/12 text-amber-200/90'
+                    : 'bg-amber-500/10 text-warn-text'
                 }`}
               >
                 <span
@@ -484,11 +484,11 @@ function ApproachCard({
 
         {error && (
           isUnavailable(error) ? (
-            <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+            <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-warn-text">
               <T>Advottic&apos;s analysis is temporarily unavailable right now. Please try re-running this approach shortly.</T>
             </p>
           ) : (
-            <p className="font-mono text-[11.5px] text-rose-300" data-no-translate>{error}</p>
+            <p className="font-mono text-[11.5px] text-danger-text" data-no-translate>{error}</p>
           )
         )}
 
@@ -509,7 +509,7 @@ function ApproachCard({
           </>
         ) : (
           !editing && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] px-4 py-3 text-[12.5px] text-amber-200/90">
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-[12.5px] text-warn-text">
               <span aria-hidden className="mt-0.5 text-[14px]">◇</span>
               <T>The argument has not been assembled yet. Assemble to build it from the evidence on file.</T>
             </div>
@@ -1115,7 +1115,7 @@ function RailButton({
       disabled={disabled}
       className={`rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors disabled:opacity-50 ${
         tone === 'danger'
-          ? 'text-rose-300/70 hover:bg-rose-500/10 hover:text-rose-200'
+          ? 'text-danger-text hover:bg-rose-500/10'
           : 'text-cream-100/60 hover:bg-cream-50/10 hover:text-cream-50'
       }`}
     >

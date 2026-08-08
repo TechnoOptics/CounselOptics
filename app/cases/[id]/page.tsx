@@ -295,7 +295,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                 <span
                   className={`badge text-[10px] tracking-wide ${
                     c.posture === 'defendant'
-                      ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30'
+                      ? 'bg-rose-500/10 text-danger-text border border-rose-400/30'
                       : 'bg-cream-100/15 text-cream-100 border border-cream-100/25'
                   }`}
                 >
@@ -826,9 +826,9 @@ function Kpi({
     tone === 'emerald'
       ? 'text-emerald-300'
       : tone === 'amber'
-        ? 'text-amber-300'
+        ? 'text-warn-text'
         : tone === 'rose'
-          ? 'text-rose-300'
+          ? 'text-danger-text'
           : tone === 'cream'
             ? 'text-cream-200'
             : 'text-cream-100/60';
@@ -848,8 +848,8 @@ function Kpi({
 const STATUS_TONE: Record<CaseStatus, { bg: string; ring: string; text: string }> = {
   draft: { bg: 'bg-cream-100/15', ring: 'ring-cream-100/25', text: 'text-cream-100' },
   open: { bg: 'bg-sky-500/15', ring: 'ring-sky-300/40', text: 'text-sky-200' },
-  under_review: { bg: 'bg-amber-500/15', ring: 'ring-amber-300/40', text: 'text-amber-200' },
-  needs_evidence: { bg: 'bg-rose-500/15', ring: 'ring-rose-300/40', text: 'text-rose-200' },
+  under_review: { bg: 'bg-amber-500/10', ring: 'ring-amber-300/40', text: 'text-warn-text' },
+  needs_evidence: { bg: 'bg-rose-500/10', ring: 'ring-rose-300/40', text: 'text-danger-text' },
   export_ready: { bg: 'bg-emerald-500/15', ring: 'ring-emerald-300/40', text: 'text-emerald-200' },
   closed: { bg: 'bg-cream-100/10', ring: 'ring-cream-100/20', text: 'text-cream-100/70' },
   archived: { bg: 'bg-cream-100/10', ring: 'ring-cream-100/20', text: 'text-cream-100/60' },

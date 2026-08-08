@@ -136,7 +136,7 @@ function CaseHero() {
                 <span className="text-cream-100/85">Shakopee, MN, USA</span>
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium ring-1 bg-amber-500/15 ring-amber-300/40 text-amber-200">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium ring-1 bg-amber-500/10 ring-amber-300/40 text-warn-text">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-200" />
               Under Review
             </span>
@@ -173,9 +173,9 @@ function Kpi({
     tone === 'emerald'
       ? 'text-emerald-300'
       : tone === 'amber'
-        ? 'text-amber-300'
+        ? 'text-warn-text'
         : tone === 'rose'
-          ? 'text-rose-300'
+          ? 'text-danger-text'
           : tone === 'cream'
             ? 'text-cream-200'
             : 'text-cream-100/60';

@@ -40,7 +40,7 @@ export function GuestPasswordForm({
   return (
     <form action={onSubmit} className="space-y-4">
       {error && (
-        <p className="rounded-lg border border-rose-900/50 bg-rose-950/30 px-4 py-3 text-[13px] text-rose-200">
+        <p className="rounded-lg border border-rose-900/50 bg-rose-500/10 px-4 py-3 text-[13px] text-danger-text">
           {error}
         </p>
       )}
