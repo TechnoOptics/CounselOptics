@@ -163,7 +163,7 @@ export function DocumentLayoutFields({
               onChange={(v) => set('margins', { rightPt: v })}
             />
           </div>
-          <p className="mt-2 text-[12px] leading-relaxed text-ink-500 dark:text-cream-100/55">
+          <p className="mt-2 text-[12px] leading-relaxed text-muted">
             <T>
               Margins move the body text, and with it every blank the other side
               fills in. Documents already out for signature keep the layout they
@@ -200,7 +200,7 @@ export function DocumentLayoutFields({
           </Band>
         ) : (
           <Band title={t('Letterhead')} locked={false}>
-            <p className="text-[12.5px] leading-relaxed text-ink-600 dark:text-cream-100/70">
+            <p className="text-[12.5px] leading-relaxed text-muted">
               <T>
                 There is no letterhead to place yet. Upload one, design one, or
                 add your logo in firm settings, then come back and position it.
@@ -222,7 +222,7 @@ export function DocumentLayoutFields({
                 <span className="label">
                   <T>What it says, and when</T>
                 </span>
-                <p className="mb-2 text-[12px] leading-relaxed text-ink-500 dark:text-cream-100/55">
+                <p className="mb-2 text-[12px] leading-relaxed text-muted">
                   <T>
                     Leave a state empty and nothing is printed in it. That is how
                     a draft mark stops once a document is signed.
@@ -266,7 +266,7 @@ export function DocumentLayoutFields({
               </div>
 
               {has.hasLogo && (
-                <label className="flex items-center gap-2 text-[13px] text-forest-900 dark:text-cream-100">
+                <label className="flex items-center gap-2 text-[13px] text-foreground">
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-gold-500"
@@ -352,7 +352,7 @@ export function DocumentLayoutFields({
                   value={layout.footer.text}
                   onChange={(e) => set('footer', { text: e.target.value })}
                 />
-                <p className="mt-1 text-[12px] text-ink-500 dark:text-cream-100/55">
+                <p className="mt-1 text-[12px] text-muted">
                   <T>Left empty, the footer starts with your firm name.</T>
                 </p>
               </div>
@@ -534,14 +534,14 @@ function Preview({
 
       <div className="overflow-x-auto">
         <div
-          className="relative overflow-hidden rounded-sm bg-white shadow-card ring-1 ring-ink-200 dark:ring-forest-700/50"
+          className="relative overflow-hidden rounded-sm bg-surface shadow-card ring-1 ring-edge"
           style={{ width: px(PAGE.widthPt), height: px(PAGE.heightPt) }}
           role="img"
           aria-label={t('A preview of the page at its real proportions')}
         >
           {/* The measure, so the margins are something you can see. */}
           <div
-            className="absolute border border-dashed border-ink-200"
+            className="absolute border border-dashed border-edge"
             style={{
               left: px(content.xPt),
               top: fromTop(content.topYPt),
@@ -561,7 +561,7 @@ function Preview({
                   <p
                     key={i}
                     data-no-translate
-                    className={line.bold ? 'absolute text-forest-900' : 'absolute text-ink-500'}
+                    className={line.bold ? 'absolute text-foreground' : 'absolute text-muted'}
                     style={{
                       left:
                         has.design?.alignment === 'center'
@@ -583,7 +583,7 @@ function Preview({
                 ))
               ) : (
                 <p
-                  className="absolute font-medium uppercase tracking-[0.18em] text-forest-900"
+                  className="absolute font-medium uppercase tracking-[0.18em] text-foreground"
                   style={{
                     left: px(content.xPt),
                     top: fromTop(bandTop - BAND_FIRST_BASELINE_PT) - px(9),
@@ -595,7 +595,7 @@ function Preview({
                 </p>
               )}
               <div
-                className="absolute border-t border-ink-200"
+                className="absolute border-t border-edge"
                 style={{
                   left: px(content.xPt),
                   width: px(content.widthPt),
@@ -619,7 +619,7 @@ function Preview({
           {watermarkOnPage && markAt && markMetrics && (
             <span
               data-no-translate
-              className="absolute font-semibold text-ink-900"
+              className="absolute font-semibold text-foreground"
               style={{
                 left: px(markAt.xPt),
                 top: fromTop(markAt.yPt) - px(markMetrics.ascentPt),
@@ -642,7 +642,7 @@ function Preview({
           {footerOnPage && footerLine && (
             <span
               data-no-translate
-              className="absolute text-ink-500"
+              className="absolute text-muted"
               style={{
                 left: px(footerAt.xPt),
                 top: fromTop(footerAt.yPt) - px(layout.footer.sizePt) * 0.8,
@@ -658,7 +658,7 @@ function Preview({
         </div>
       </div>
 
-      <p className="max-w-[340px] text-[11.5px] leading-relaxed text-ink-500 dark:text-cream-100/55">
+      <p className="max-w-[340px] text-[11.5px] leading-relaxed text-muted">
         <T>
           Positions are the ones the PDF will use. Type is drawn in your
           browser&rsquo;s nearest font, so line widths are close rather than
@@ -749,13 +749,13 @@ function Band({
 }) {
   return (
     <section
-      className={`rounded-lg p-3.5 ring-1 ring-ink-200 dark:ring-forest-700/50 ${
+      className={`rounded-lg p-3.5 ring-1 ring-edge ${
         locked ? 'pointer-events-none opacity-45' : ''
       }`}
       aria-disabled={locked || undefined}
     >
       <h3
-        className="mb-2 text-[13px] font-semibold text-forest-900 dark:text-cream-100"
+        className="mb-2 text-[13px] font-semibold text-foreground"
         data-no-translate
       >
         {title}
@@ -784,9 +784,9 @@ function Slider({
 }) {
   return (
     <label className="block">
-      <span className="flex items-baseline justify-between text-[12.5px] text-forest-900 dark:text-cream-100">
+      <span className="flex items-baseline justify-between text-[12.5px] text-foreground">
         <span data-no-translate>{label}</span>
-        <span className="tabular-nums text-ink-500 dark:text-cream-100/55" data-no-translate>
+        <span className="tabular-nums text-muted" data-no-translate>
           {Math.round(value)}
           {suffix ?? 'pt'}
         </span>
@@ -817,7 +817,7 @@ function Check({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-[13px] text-forest-900 dark:text-cream-100">
+    <label className="flex items-center gap-2 text-[13px] text-foreground">
       <input
         type="checkbox"
         className="h-4 w-4 accent-gold-500"
@@ -858,7 +858,7 @@ function StateRow({
         onChange={(e) => onToggle(e.target.checked)}
       />
       <span
-        className="w-[9.5rem] shrink-0 text-[12.5px] text-forest-900 dark:text-cream-100"
+        className="w-[9.5rem] shrink-0 text-[12.5px] text-foreground"
         data-no-translate
       >
         {label}
@@ -980,7 +980,7 @@ function Chip({
       className={`rounded-full px-2.5 py-1 text-[11.5px] font-medium ring-1 transition-colors ${
         on
           ? 'bg-gold-500/20 text-gold-700 ring-gold-500/40 dark:text-gold-200'
-          : 'text-ink-600 ring-ink-200 hover:bg-ink-50 dark:text-cream-100/75 dark:ring-forest-700/40 dark:hover:bg-forest-900/40'
+          : 'text-muted ring-edge hover:bg-surface-2'
       }`}
     >
       {children}

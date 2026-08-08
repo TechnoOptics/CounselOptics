@@ -195,11 +195,11 @@ export function LetterheadDesigner({
       <div>
         <p className="label">
           <T>Design a letterhead</T>{' '}
-          <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+          <span className="text-muted font-normal">
             <T>(drawn as text, so it stays sharp at any size)</T>
           </span>
         </p>
-        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-2xl">
+        <p className="text-[12.5px] text-muted leading-relaxed max-w-2xl">
           <T>
             Type your firm details once and Advottic prints them at the top of
             the documents it renders. You can also start from a letterhead you
@@ -209,11 +209,11 @@ export function LetterheadDesigner({
       </div>
 
       {/* Import. Populates the fields below; it never saves on its own. */}
-      <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/50 p-3.5 space-y-2">
-        <p className="text-[13px] font-medium text-forest-900 dark:text-cream-100">
+      <div className="rounded-lg ring-1 ring-edge p-3.5 space-y-2">
+        <p className="text-[13px] font-medium text-foreground">
           <T>Import from a document</T>
         </p>
-        <p className="text-[12px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
+        <p className="text-[12px] text-muted leading-relaxed">
           <T>
             Upload a PDF or Word letter that already carries your letterhead and
             Advottic will read the details into the fields below for you to
@@ -232,7 +232,7 @@ export function LetterheadDesigner({
           className="text-[12.5px] file:mr-3 file:rounded-md file:border-0 file:bg-forest-600 file:px-3 file:py-1.5 file:text-cream-50 file:hover:bg-forest-700 file:cursor-pointer file:disabled:opacity-50"
         />
         {imported && (
-          <p className="text-[12px] text-ink-600 dark:text-cream-100/75 leading-relaxed">
+          <p className="text-[12px] text-muted leading-relaxed">
             <T>
               These values were read from the document you uploaded. Please
               check each one, correct anything that has changed, and then save.
@@ -329,7 +329,7 @@ export function LetterheadDesigner({
           <div>
             <label className="label" htmlFor="letterheadAdmissions">
               <T>Bar admissions or registered office</T>{' '}
-              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+              <span className="text-muted font-normal">
                 <T>(optional)</T>
               </span>
             </label>
@@ -344,7 +344,7 @@ export function LetterheadDesigner({
           </div>
 
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1">
-            <span className="flex items-center gap-2 text-[13px] text-forest-900 dark:text-cream-100">
+            <span className="flex items-center gap-2 text-[13px] text-foreground">
               <T>Alignment</T>
               <select
                 className="input py-1.5 w-auto"
@@ -359,7 +359,7 @@ export function LetterheadDesigner({
                 <option value="center">{t('Centred')}</option>
               </select>
             </span>
-            <label className="flex items-center gap-2 text-[13px] text-forest-900 dark:text-cream-100">
+            <label className="flex items-center gap-2 text-[13px] text-foreground">
               <input
                 type="checkbox"
                 className="h-4 w-4 accent-gold-500"
@@ -377,7 +377,7 @@ export function LetterheadDesigner({
           <p className="label">
             <T>Preview</T>
           </p>
-          <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/50 bg-cream-50 dark:bg-forest-900/40 p-5 min-h-[140px]">
+          <div className="rounded-lg ring-1 ring-edge bg-surface-2 p-5 min-h-[140px]">
             {lines.length > 0 ? (
               <div
                 style={{ textAlign: draft.alignment === 'center' ? 'center' : 'left' }}
@@ -393,8 +393,8 @@ export function LetterheadDesigner({
                     }}
                     className={
                       line.bold
-                        ? 'text-forest-900 dark:text-cream-100'
-                        : 'text-ink-600 dark:text-cream-100/75'
+                        ? 'text-foreground'
+                        : 'text-muted'
                     }
                   >
                     {line.text}
@@ -405,7 +405,7 @@ export function LetterheadDesigner({
                 )}
               </div>
             ) : (
-              <p className="text-[12.5px] text-ink-500 dark:text-cream-100/60">
+              <p className="text-[12.5px] text-muted">
                 <T>Add your firm name to see the letterhead.</T>
               </p>
             )}

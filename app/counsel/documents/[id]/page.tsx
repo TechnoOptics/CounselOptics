@@ -86,7 +86,7 @@ export default async function FirmDocumentDetail({
       <p className="text-sm">
         <Link
           href="/counsel/documents"
-          className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
+          className="text-muted hover:text-foreground"
         >
           <T>&larr; Documents</T>
         </Link>
@@ -112,7 +112,7 @@ export default async function FirmDocumentDetail({
                 style={pillSurface(
                   FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[doc.status]],
                 )}
-                className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold uppercase tracking-[0.12em] text-forest-900 dark:text-cream-100"
+                className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground"
               >
                 {FIRM_DOCUMENT_STATUS_LABEL[doc.status] ?? doc.status}
               </span>
@@ -120,7 +120,7 @@ export default async function FirmDocumentDetail({
           </div>
         }
       >
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
+        <p className="text-[12px] text-muted mt-1 font-mono">
           v{doc.version} &middot; {doc.mimeType} &middot; <T>uploaded</T>{' '}
           {new Date(doc.uploadedAt).toLocaleString()}
         </p>
@@ -129,7 +129,7 @@ export default async function FirmDocumentDetail({
             {doc.tags.map((t) => (
               <span
                 key={t}
-                className="badge bg-ink-100 dark:bg-forest-800/60 text-ink-700 dark:text-cream-100/80 text-[10px]"
+                className="badge bg-surface-2 text-foreground text-[10px]"
               >
                 {t}
               </span>
@@ -145,13 +145,13 @@ export default async function FirmDocumentDetail({
           {linkedCase ? (
             <Link
               href={`/counsel/cases/${linkedCase.id}`}
-              className="text-[13px] font-semibold text-forest-900 dark:text-cream-100 hover:underline truncate block"
+              className="text-[13px] font-semibold text-foreground hover:underline truncate block"
               title={linkedCase.title}
             >
               {linkedCase.title}
             </Link>
           ) : (
-            <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+            <p className="text-[13px] text-muted italic">
               <T>Not attached to a case</T>
             </p>
           )}
@@ -163,7 +163,7 @@ export default async function FirmDocumentDetail({
               className={`text-[13px] font-semibold ${
                 isOverdue
                   ? 'text-rose-600 dark:text-rose-300'
-                  : 'text-forest-900 dark:text-cream-100'
+                  : 'text-foreground'
               }`}
             >
               {new Date(doc.dueAt).toLocaleString()}
@@ -174,21 +174,21 @@ export default async function FirmDocumentDetail({
               )}
             </p>
           ) : (
-            <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+            <p className="text-[13px] text-muted italic">
               <T>No deadline set</T>
             </p>
           )}
         </div>
         <div>
           <p className="eyebrow text-[10px] mb-1"><T>Status moved</T></p>
-          <p className="text-[13px] text-forest-900 dark:text-cream-100 font-mono tabular-nums">
+          <p className="text-[13px] text-foreground font-mono tabular-nums">
             {new Date(doc.statusUpdatedAt).toLocaleString()}
           </p>
         </div>
         {doc.description && (
-          <div className="sm:col-span-3 pt-3 border-t border-ink-100 dark:border-forest-800/40">
+          <div className="sm:col-span-3 pt-3 border-t border-edge">
             <p className="eyebrow text-[10px] mb-1"><T>Description</T></p>
-            <p className="text-[13px] text-ink-700 dark:text-cream-100/85 whitespace-pre-wrap leading-relaxed">
+            <p className="text-[13px] text-foreground whitespace-pre-wrap leading-relaxed">
               {doc.description}
             </p>
           </div>
@@ -202,7 +202,7 @@ export default async function FirmDocumentDetail({
             <p className="text-[13px]">
               <Link
                 href={`/counsel/signing/${signingRequest.id}`}
-                className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100 underline"
+                className="text-muted hover:text-foreground underline"
               >
                 {signingRequest.status === 'completed' ? (
                   <T>See who signed and when</T>

@@ -31,7 +31,7 @@ export default async function CounselChatPage() {
         eyebrow={<T>Chat</T>}
         title={<T>Team conversations</T>}
       >
-        <p className="hidden sm:block text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
+        <p className="hidden sm:block text-[12px] text-muted mt-1">
           <T>Real-time via Supabase WebSockets. Messages, edits, and deletes propagate in ~100ms; a 60-second heartbeat refetch covers any dropped event.</T>
         </p>
       </PageHeader>

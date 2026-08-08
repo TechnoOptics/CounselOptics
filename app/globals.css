@@ -460,21 +460,30 @@ html.dark body::before {
    Measured 2026-08-08 by counting delimited call sites of each utility
    across app/, components/ and lib/. Only ONE rule in this block had
    none: `.dark .hover\:bg-forest-100:hover`, now removed, along with
-   its counsel/enterprise twin further down. The other thirty-six carry
-   live call sites, and the ten heaviest carry these:
+   its counsel/enterprise twin further down.
 
-     text-forest-900   1139     bg-white            220
-     text-ink-500       882     bg-cream-50         171
-     text-ink-600       508     hover:bg-cream-50   104
-     text-ink-700       408     border-ink-100      100
-     text-ink-400       256     hover:text-forest-900 118
-     border-ink-200     254     ring-ink-200        250
+   The sweep has started. Counsel and the employee portal are OFF this
+   block: 1043 call sites across 99 files under app/counsel (excluding
+   app/counsel/cases and app/counsel/forms), app/portal and
+   components/counsel moved onto the surface and neutral tokens, leaving
+   2 there on purpose because their dark half is a status colour rather
+   than neutral text. Recounted after that sweep, all thirty-six rules
+   still carry live call sites, and the ten heaviest carry these:
 
-   So deleting the block today does not simplify anything: it turns
-   roughly five thousand call sites into dark-on-dark. The sweep that
-   moves those call sites onto the tokens is a later slice, and this
-   block goes with it. Until then, treat this section as frozen: add
-   nothing to it, and reach for a token instead.
+     text-forest-900    768     bg-white            178
+     text-ink-500       660     ring-ink-200        176
+     text-ink-600       388     hover:text-forest-900 95
+     text-ink-700       324     text-ink-800         88
+     text-ink-400       218     border-ink-100       78
+     border-ink-200     204     hover:bg-cream-50    66
+
+   3643 call sites remain: roughly 2200 on the consumer app, 740 in the
+   shared components/ tree, and 650 in app/counsel/cases,
+   app/counsel/forms and components/counsel/ui.tsx, which another branch
+   is rebuilding. So deleting the block today still turns every one of
+   those into dark-on-dark, and no single rule can be dropped yet either.
+   Until the consumer app and the shared components follow, treat this
+   section as frozen: add nothing to it, and reach for a token instead.
 
    NOT part of this block, and NOT to be touched with it: the contrast
    guards further down. Two of their clauses are armed, in the sense

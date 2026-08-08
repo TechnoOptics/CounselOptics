@@ -218,7 +218,7 @@ function TileFrame({
           <span className="text-[11px] text-cream-100/60"><T>View</T></span>
         ) : null}
       </div>
-      <p className="text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <p className="text-lg font-medium tracking-[-0.01em] text-foreground">
         {title}
       </p>
       {children}
@@ -260,13 +260,13 @@ function SimpleCountTile({
       >
         <T>{eyebrow}</T>
       </p>
-      <p className="text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
+      <p className="text-2xl font-medium tracking-[-0.01em] text-foreground mt-1">
         {headline}
       </p>
-      <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5 font-mono uppercase tracking-wider">
+      <p className="text-[11px] text-muted mt-0.5 font-mono uppercase tracking-wider">
         {metric}
       </p>
-      <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-2.5 leading-relaxed">
+      <p className="text-[13px] text-muted mt-2.5 leading-relaxed">
         <T>{body}</T>
       </p>
     </Link>
@@ -351,7 +351,7 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
       span={4}
     >
       {items.length === 0 ? (
-        <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+        <p className="text-[13px] text-muted mt-2 leading-relaxed">
           <T>
             Nothing waiting on you right now. New requests, signing
             chase-ups, and pending invitations will surface here.
@@ -411,7 +411,7 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
       span={4}
     >
       {total === 0 ? (
-        <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+        <p className="text-[13px] text-muted mt-2 leading-relaxed">
           <T>
             When you're set as the primary attorney on a client or case,
             it'll show up here for quick access.

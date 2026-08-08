@@ -131,14 +131,14 @@ function TicketPrefixField({ firmId, initial }: { firmId: string; initial: strin
   }
 
   return (
-    <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/50 p-3.5">
+    <div className="rounded-lg ring-1 ring-edge p-3.5">
       <label
         htmlFor="ticket-prefix"
-        className="block text-sm font-medium text-forest-900 dark:text-cream-100"
+        className="block text-sm font-medium text-foreground"
       >
         <T>Ticket number prefix</T>
       </label>
-      <p className="mt-0.5 text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+      <p className="mt-0.5 text-[12px] text-muted leading-relaxed">
         <T>
           The letters in front of every ticket number. Changing it does not
           renumber anything already filed.
@@ -155,9 +155,9 @@ function TicketPrefixField({ firmId, initial }: { firmId: string; initial: strin
           autoComplete="off"
           onChange={(e) => setValue(e.target.value.toUpperCase())}
           onBlur={commit}
-          className="w-32 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-sm font-mono uppercase text-forest-900 dark:border-forest-700/50 dark:bg-forest-900/40 dark:text-cream-100"
+          className="w-32 rounded-lg border border-edge bg-surface px-3 py-1.5 text-sm font-mono uppercase text-foreground"
         />
-        <span className="text-[12px] text-ink-500 dark:text-cream-100/55">
+        <span className="text-[12px] text-muted">
           <T>Documents will be numbered</T>{' '}
           <span className="font-mono" data-no-translate>
             {`${(value.trim() || saved).toUpperCase()}-0000001`}
@@ -190,7 +190,7 @@ function Toggle({
   description: React.ReactNode;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/50 p-3.5 cursor-pointer">
+    <label className="flex items-start gap-3 rounded-lg ring-1 ring-edge p-3.5 cursor-pointer">
       <input
         type="checkbox"
         checked={checked}
@@ -199,10 +199,10 @@ function Toggle({
         className="mt-0.5 h-4 w-4 flex-none accent-gold-500"
       />
       <span>
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100">
+        <span className="block text-sm font-medium text-foreground">
           {title}
         </span>
-        <span className="block text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 leading-relaxed">
+        <span className="block text-[12px] text-muted mt-0.5 leading-relaxed">
           {description}
         </span>
       </span>

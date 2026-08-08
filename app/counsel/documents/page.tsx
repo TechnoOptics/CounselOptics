@@ -101,7 +101,7 @@ export default async function CounselDocumentsPage({
           </T>
         }
         action={
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
+          <p className="text-[12px] text-muted font-mono uppercase tracking-wider">
             {documents.length} <T>of</T> {allDocs.length}{' '}
             <T>{allDocs.length === 1 ? 'document' : 'documents'}</T>
           </p>
@@ -117,7 +117,7 @@ export default async function CounselDocumentsPage({
         {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
         {caseFilter && <input type="hidden" name="case" value={caseFilter} />}
         <div className="search-pill-gold relative rounded-full transition-shadow focus-within:shadow-lg">
-          <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 dark:text-cream-100/40">
+          <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
               <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
               <path d="m20 20-3.6-3.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -128,7 +128,7 @@ export default async function CounselDocumentsPage({
             name="q"
             defaultValue={query}
             placeholder="Search documents - a name, a tag, a description…"
-            className="w-full rounded-full bg-transparent py-2.5 pl-11 pr-4 text-[14px] text-forest-900 outline-none placeholder:text-ink-400 dark:text-cream-50 dark:placeholder:text-cream-100/40"
+            className="w-full rounded-full bg-transparent py-2.5 pl-11 pr-4 text-[14px] text-foreground outline-none placeholder:text-muted"
             data-no-translate
           />
         </div>
@@ -153,14 +153,14 @@ export default async function CounselDocumentsPage({
 
       {/* Case filter dropdown when there are cases */}
       {cases.length > 0 && (
-        <section className="flex flex-wrap gap-2 items-center text-[12.5px] text-ink-700 dark:text-cream-100/80">
+        <section className="flex flex-wrap gap-2 items-center text-[12.5px] text-foreground">
           <span className="font-medium"><T>Filter by case:</T></span>
           <Link
             href={`/counsel/documents${statusFilter ? `?status=${statusFilter}` : ''}`}
             className={`px-2.5 py-1 rounded-md ring-1 ${
               !caseFilter
                 ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 ring-transparent'
-                : 'bg-white dark:bg-forest-900/50 text-ink-700 dark:text-cream-100/80 ring-ink-200 dark:ring-forest-700/40'
+                : 'bg-surface text-foreground ring-edge'
             }`}
           >
             <T>All cases</T>
@@ -172,7 +172,7 @@ export default async function CounselDocumentsPage({
               className={`px-2.5 py-1 rounded-md ring-1 truncate max-w-[16rem] ${
                 caseFilter === c.id
                   ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 ring-transparent'
-                  : 'bg-white dark:bg-forest-900/50 text-ink-700 dark:text-cream-100/80 ring-ink-200 dark:ring-forest-700/40'
+                  : 'bg-surface text-foreground ring-edge'
               }`}
               title={c.title}
             >
@@ -216,7 +216,7 @@ export default async function CounselDocumentsPage({
               >
                 <Link href={`/counsel/documents/${d.id}`} className="block space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold text-forest-900 dark:text-cream-100 truncate flex-1 min-w-0">
+                    <p className="font-semibold text-foreground truncate flex-1 min-w-0">
                       {d.name}
                     </p>
                     <StatusPill size="sm" color={colorOf(d.status)}>
@@ -224,14 +224,14 @@ export default async function CounselDocumentsPage({
                     </StatusPill>
                   </div>
                   {caseTitle && (
-                    <p className="text-[11.5px] text-ink-600 dark:text-cream-100/70 truncate">
-                      <span className="font-mono uppercase tracking-wider text-[9.5px] text-ink-500 dark:text-cream-100/50 mr-1.5">
+                    <p className="text-[11.5px] text-muted truncate">
+                      <span className="font-mono uppercase tracking-wider text-[9.5px] text-muted mr-1.5">
                         <T>case</T>
                       </span>
                       {caseTitle}
                     </p>
                   )}
-                  <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono">
+                  <p className="text-[11px] text-muted font-mono">
                     v{d.version} &middot; {d.mimeType.split('/').pop() ?? 'file'}{' '}
                     &middot; {formatBytes(d.fileSize)}
                   </p>
@@ -240,14 +240,14 @@ export default async function CounselDocumentsPage({
                       {d.tags.slice(0, 4).map((t) => (
                         <span
                           key={t}
-                          className="badge bg-ink-100 dark:bg-forest-800/60 text-ink-700 dark:text-cream-100/80 text-[10px]"
+                          className="badge bg-surface-2 text-foreground text-[10px]"
                         >
                           {t}
                         </span>
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center justify-between text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
+                  <div className="flex items-center justify-between text-[11px] text-muted font-mono tabular-nums pt-1 border-t border-edge">
                     <span>{new Date(d.uploadedAt).toLocaleDateString()}</span>
                     {d.dueAt && (
                       <span
@@ -289,13 +289,13 @@ function FilterPill({
   children: React.ReactNode;
 }) {
   const inactive =
-    'ring-1 bg-white dark:bg-forest-900/50 text-ink-700 dark:text-cream-100/80 ring-ink-200 dark:ring-forest-700/40';
+    'ring-1 bg-surface text-foreground ring-edge';
   return (
     <Link
       href={href}
       aria-current={active ? 'page' : undefined}
       className={`px-2.5 py-1 rounded-md text-[12px] font-medium ${
-        active ? 'text-forest-900 dark:text-cream-100' : inactive
+        active ? 'text-foreground' : inactive
       }`}
       style={active ? pillSurface(color) : undefined}
     >

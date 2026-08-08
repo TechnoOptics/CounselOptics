@@ -112,7 +112,7 @@ export function ProjectWorkspace({
         backLink={
           <Link
             href="/counsel/projects"
-            className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
+            className="text-[12px] text-muted hover:underline"
           >
             ← <T>All projects</T>
           </Link>
@@ -122,7 +122,7 @@ export function ProjectWorkspace({
         subtitle={project.description || undefined}
         action={
           <div className="flex items-center gap-2">
-            <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-600 dark:text-cream-100/70">
+            <label className="inline-flex items-center gap-1.5 text-[12px] text-muted">
               <input
                 type="checkbox"
                 checked={showArchived}
@@ -139,7 +139,7 @@ export function ProjectWorkspace({
                   setProjectArchivedAction(firmId, project.id, project.status !== 'archived'),
                 )
               }
-              className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[12px] ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+              className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[12px] ring-1 ring-edge hover:bg-surface-2 disabled:opacity-50"
             >
               {project.status === 'archived' ? <T>Unarchive project</T> : <T>Archive project</T>}
             </button>
@@ -184,7 +184,7 @@ export function ProjectWorkspace({
           <button
             type="button"
             onClick={() => setAddingFolder(false)}
-            className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70"
+            className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] text-muted"
           >
             <T>Cancel</T>
           </button>
@@ -193,7 +193,7 @@ export function ProjectWorkspace({
         <button
           type="button"
           onClick={() => setAddingFolder(true)}
-          className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
+          className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] ring-1 ring-edge hover:bg-surface-2"
         >
           + <T>New folder</T>
         </button>
@@ -229,14 +229,14 @@ export function ProjectWorkspace({
                   <button
                     type="button"
                     onClick={() => setComposer(`${sec.key}:note`)}
-                    className="inline-flex items-center min-h-[34px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
+                    className="inline-flex items-center min-h-[34px] px-2.5 rounded-md ring-1 ring-edge hover:bg-surface-2"
                   >
                     + <T>Note</T>
                   </button>
                   <button
                     type="button"
                     onClick={() => setComposer(`${sec.key}:doc`)}
-                    className="inline-flex items-center min-h-[34px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
+                    className="inline-flex items-center min-h-[34px] px-2.5 rounded-md ring-1 ring-edge hover:bg-surface-2"
                   >
                     + <T>Document</T>
                   </button>
@@ -245,7 +245,7 @@ export function ProjectWorkspace({
 
               {composer === `${sec.key}:note` && (
                 <form
-                  className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3 space-y-2 bg-cream-50/40 dark:bg-forest-900/40"
+                  className="rounded-lg ring-1 ring-edge p-3 space-y-2 bg-surface-2"
                   action={(fd) =>
                     run(() =>
                       addProjectNoteAction(firmId, project.id, folderId, {
@@ -258,7 +258,7 @@ export function ProjectWorkspace({
                   <input name="title" required maxLength={200} autoFocus placeholder={t('Note title')} className="input" />
                   <textarea name="body" rows={4} maxLength={20000} placeholder={t('Write your note…')} className="input resize-y" />
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70"><T>Cancel</T></button>
+                    <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-muted"><T>Cancel</T></button>
                     <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50"><T>Save note</T></button>
                   </div>
                 </form>
@@ -266,42 +266,42 @@ export function ProjectWorkspace({
 
               {composer === `${sec.key}:doc` && (
                 <form
-                  className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3 space-y-2 bg-cream-50/40 dark:bg-forest-900/40"
+                  className="rounded-lg ring-1 ring-edge p-3 space-y-2 bg-surface-2"
                   action={(fd) => run(() => uploadProjectDocumentAction(firmId, project.id, folderId, fd))}
                 >
                   <input name="title" maxLength={200} placeholder={t('Title (optional, defaults to file name)')} className="input" />
                   <input name="file" type="file" required className="text-[13px] file:mr-3 file:rounded-md file:border-0 file:bg-forest-600 file:px-3 file:py-1.5 file:text-cream-50 file:cursor-pointer" />
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70"><T>Cancel</T></button>
+                    <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-muted"><T>Cancel</T></button>
                     <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">{pending ? <T>Uploading…</T> : <T>Upload</T>}</button>
                   </div>
                 </form>
               )}
 
               {secItems.length === 0 ? (
-                <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic"><T>Empty.</T></p>
+                <p className="text-[12px] text-muted italic"><T>Empty.</T></p>
               ) : (
                 <ul className="space-y-2">
                   {secItems.map((it) => (
                     <li
                       key={it.id}
-                      className={`rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3 ${it.archived ? 'opacity-60' : ''}`}
+                      className={`rounded-lg ring-1 ring-edge p-3 ${it.archived ? 'opacity-60' : ''}`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100 flex items-center gap-1.5">
-                            <span className="text-ink-400 dark:text-cream-100/40 text-[11px] uppercase tracking-[0.1em]">
+                          <p className="text-[13.5px] font-medium text-foreground flex items-center gap-1.5">
+                            <span className="text-muted text-[11px] uppercase tracking-[0.1em]">
                               {it.kind === 'note' ? <T>Note</T> : <T>Doc</T>}
                             </span>
                             {it.title}
                           </p>
                           {it.kind === 'note' && it.noteBody && (
-                            <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 whitespace-pre-wrap line-clamp-4">
+                            <p className="text-[12.5px] text-muted mt-1 whitespace-pre-wrap line-clamp-4">
                               {it.noteBody}
                             </p>
                           )}
                           {it.kind === 'document' && (
-                            <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 font-mono">
+                            <p className="text-[12px] text-muted mt-0.5 font-mono">
                               {it.fileName} {it.fileSize ? `· ${fmtBytes(it.fileSize)}` : ''}
                             </p>
                           )}
@@ -311,7 +311,7 @@ export function ProjectWorkspace({
                             <button
                               type="button"
                               onClick={() => openDocument(it.id)}
-                              className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
+                              className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-edge hover:bg-surface-2"
                             >
                               <T>Open</T>
                             </button>
@@ -322,7 +322,7 @@ export function ProjectWorkspace({
                             onClick={() =>
                               run(() => setItemArchivedAction(firmId, it.id, !it.archived, project.id))
                             }
-                            className="inline-flex items-center min-h-[32px] px-2.5 rounded-md text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                            className="inline-flex items-center min-h-[32px] px-2.5 rounded-md text-muted hover:bg-surface-2 disabled:opacity-50"
                           >
                             {it.archived ? <T>Unarchive</T> : <T>Archive</T>}
                           </button>
@@ -367,7 +367,7 @@ function FolderTitle({
   const [confirming, setConfirming] = useState(false);
   if (!section.folder) {
     return (
-      <p className="text-lg font-medium text-forest-900 dark:text-cream-100">
+      <p className="text-lg font-medium text-foreground">
         {section.label}
       </p>
     );
@@ -387,7 +387,7 @@ function FolderTitle({
         <button type="submit" className="btn-primary disabled:opacity-50" disabled={pending}>
           <T>Save</T>
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-[13px] text-ink-600 dark:text-cream-100/70 px-2">
+        <button type="button" onClick={() => setEditing(false)} className="text-[13px] text-muted px-2">
           <T>Cancel</T>
         </button>
       </form>
@@ -395,10 +395,10 @@ function FolderTitle({
   }
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <p className="text-lg font-medium text-forest-900 dark:text-cream-100 truncate">
+      <p className="text-lg font-medium text-foreground truncate">
         {section.label}
       </p>
-      <button type="button" onClick={() => setEditing(true)} className="text-[11px] text-ink-500 dark:text-cream-100/55 hover:underline">
+      <button type="button" onClick={() => setEditing(true)} className="text-[11px] text-muted hover:underline">
         <T>Rename</T>
       </button>
       {confirming ? (
@@ -406,7 +406,7 @@ function FolderTitle({
           <button type="button" disabled={pending} onClick={onDelete} className="text-rose-600 dark:text-rose-300 font-semibold">
             <T>Confirm delete</T>
           </button>
-          <button type="button" onClick={() => setConfirming(false)} className="ml-2 text-ink-500 dark:text-cream-100/55">
+          <button type="button" onClick={() => setConfirming(false)} className="ml-2 text-muted">
             <T>Cancel</T>
           </button>
         </span>

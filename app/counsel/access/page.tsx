@@ -49,7 +49,7 @@ export default async function CounselAccessPage() {
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg text-foreground">
             <T>Pending</T>
           </h2>
           <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-gold-400 text-forest-950">
@@ -57,7 +57,7 @@ export default async function CounselAccessPage() {
           </span>
         </div>
         {pending.length === 0 ? (
-          <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+          <p className="card p-6 text-[13px] text-muted italic">
             <T>No requests waiting. New external sign-ups will appear here.</T>
           </p>
         ) : (
@@ -68,10 +68,10 @@ export default async function CounselAccessPage() {
                 className="card p-4 flex flex-wrap items-center justify-between gap-4"
               >
                 <div className="min-w-0">
-                  <p className="font-semibold text-forest-900 dark:text-cream-100">
+                  <p className="font-semibold text-foreground">
                     {r.full_name || r.email}
                   </p>
-                  <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+                  <p className="text-[12px] text-muted mt-0.5">
                     <span className="font-mono">{r.email}</span> ·{' '}
                     <T>external · requested</T>{' '}
                     <LocaleTime iso={r.requested_at} mode="datetime" />
@@ -86,7 +86,7 @@ export default async function CounselAccessPage() {
 
       {reviewed.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg text-foreground">
             <T>Recently reviewed</T>
           </h2>
           <ul className="space-y-1.5">
@@ -95,9 +95,9 @@ export default async function CounselAccessPage() {
                 key={r.id}
                 className="flex items-center justify-between gap-3 text-[12.5px] px-1"
               >
-                <span className="text-ink-700 dark:text-cream-100/75 truncate">
+                <span className="text-foreground truncate">
                   {r.full_name || r.email}{' '}
-                  <span className="text-ink-400 dark:text-cream-100/40 font-mono">
+                  <span className="text-muted font-mono">
                     {r.email}
                   </span>
                 </span>

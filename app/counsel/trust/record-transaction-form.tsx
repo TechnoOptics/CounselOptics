@@ -69,7 +69,7 @@ export function RecordTransactionForm({
       <p className="eyebrow"><T>Record a transaction</T></p>
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Client / matter label</T>
           </span>
           <input
@@ -80,7 +80,7 @@ export function RecordTransactionForm({
           />
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Kind</T>
           </span>
           <select name="kind" required className="input" defaultValue="">
@@ -95,7 +95,7 @@ export function RecordTransactionForm({
           </select>
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Amount (USD)</T>
           </span>
           <input
@@ -107,7 +107,7 @@ export function RecordTransactionForm({
           />
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Reference (optional)</T>
           </span>
           <input
@@ -118,7 +118,7 @@ export function RecordTransactionForm({
         </label>
       </div>
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Description (optional)</T>
         </span>
         <input

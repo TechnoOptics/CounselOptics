@@ -77,10 +77,10 @@ export async function MeetingConnectors({
     <section className="space-y-3">
       <div>
         <p className="eyebrow mb-1">Connections</p>
-        <h2 className="text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+        <h2 className="text-xl font-medium tracking-[-0.01em] text-foreground">
           Calendar &amp; meeting providers
         </h2>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+        <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
           Connect Microsoft 365 (Outlook calendar + Teams meeting
           links via Graph) or Zoom so scheduled meetings flow into
           Advottic alongside cases and clients. Tokens are encrypted
@@ -147,7 +147,7 @@ function ConnectorCard({
   return (
     <article className="card p-5">
       <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-forest-900 dark:text-cream-100">
+        <p className="font-semibold text-foreground">
           {config.label}
         </p>
         <StatusBadge
@@ -160,14 +160,14 @@ function ConnectorCard({
           }
         />
       </div>
-      <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 leading-relaxed">
+      <p className="text-sm text-muted mt-1.5 leading-relaxed">
         {config.id === 'microsoft'
           ? 'Outlook calendar + Teams meeting links via Microsoft Graph.'
           : 'Schedule and host Zoom meetings without leaving Advottic.'}
       </p>
 
       {isConnected && connection && (
-        <p className="text-xs text-ink-600 dark:text-cream-100/65 mt-3">
+        <p className="text-xs text-muted mt-3">
           {/*
             Audit W20 V3 CR-40: lead with the display name when
             available; put the email in a quieter monospaced tail so
@@ -175,13 +175,13 @@ function ConnectorCard({
             which account is in use.
           */}
           Connected by{' '}
-          <span className="text-forest-900 dark:text-cream-100 font-semibold">
+          <span className="text-foreground font-semibold">
             {connection.account_display_name ?? connection.account_email ?? 'unknown'}
           </span>
           {connection.account_display_name && connection.account_email && (
             <>
               {' '}using{' '}
-              <span className="font-mono text-ink-700 dark:text-cream-100/85">
+              <span className="font-mono text-foreground">
                 {connection.account_email}
               </span>
             </>
@@ -214,11 +214,11 @@ function ConnectorCard({
       </div>
 
       {!credentialsConfigured && (
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-2 leading-relaxed">
+        <p className="text-[11px] text-muted mt-2 leading-relaxed">
           Operator setup:{' '}
           <ExternalLink
             href={docsHref}
-            className="underline hover:text-forest-900 dark:hover:text-cream-100"
+            className="underline hover:text-foreground"
           >
             register the app
           </ExternalLink>
@@ -242,7 +242,7 @@ function StatusBadge({
       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'
       : state === 'ready'
         ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200'
-        : 'bg-ink-100 dark:bg-forest-800/60 text-ink-700 dark:text-cream-100/85';
+        : 'bg-surface-2 text-foreground';
   const label =
     state === 'connected'
       ? 'CONNECTED'

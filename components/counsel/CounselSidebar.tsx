@@ -87,8 +87,8 @@ const ICONS: Record<string, React.ReactNode> = {
 // sibling shifts a pixel on navigation.
 const NAV_ROW_BASE =
   'flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-sm transition-colors border';
-const NAV_ROW_ACTIVE = `${NAV_ROW_BASE} font-semibold text-forest-900 dark:text-gold-200 bg-forest-900/10 dark:bg-gold-500/15 border-forest-900/20 dark:border-gold-500/30`;
-const NAV_ROW_IDLE = `${NAV_ROW_BASE} border-transparent text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100`;
+const NAV_ROW_ACTIVE = `${NAV_ROW_BASE} font-semibold text-accent-text bg-forest-900/10 dark:bg-gold-500/15 border-forest-900/20 dark:border-gold-500/30`;
+const NAV_ROW_IDLE = `${NAV_ROW_BASE} border-transparent text-foreground hover:bg-surface-2`;
 
 // `isCounselItemActive` and `tenantHref` live in lib/counsel-routing.ts
 // so the URL logic can be unit-tested without bundling React. The

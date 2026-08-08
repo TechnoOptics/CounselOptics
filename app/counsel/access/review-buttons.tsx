@@ -37,7 +37,7 @@ export function ReviewButtons({ requestId }: { requestId: string }) {
           type="button"
           onClick={() => run('deny')}
           disabled={pending}
-          className="btn text-ink-600 dark:text-cream-100/65 hover:text-rose-600 dark:hover:text-rose-300 disabled:opacity-50"
+          className="btn text-muted hover:text-rose-600 dark:hover:text-rose-300 disabled:opacity-50"
         >
           <T>Decline</T>
         </button>

@@ -105,7 +105,7 @@ export function RolesManager({
     <section className="card p-5 sm:p-6 space-y-5">
       <div>
         <p className="eyebrow"><T>Roles &amp; access</T></p>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">
+        <p className="text-[12px] text-muted mt-1 max-w-2xl leading-relaxed">
           <T>Build groups of employees and choose what each group can do
           in the portal. Assign a role to a person below; more features
           in their role unlock more of the portal for them.</T>
@@ -118,10 +118,10 @@ export function RolesManager({
           {initial.map((r) => (
             <li
               key={r.key}
-              className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3.5"
+              className="rounded-lg ring-1 ring-edge p-3.5"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-semibold text-forest-900 dark:text-cream-100">
+                <p className="font-semibold text-foreground">
                   {r.name}
                 </p>
                 <div className="flex items-center gap-1.5 text-[12px]">
@@ -137,7 +137,7 @@ export function RolesManager({
                     type="button"
                     onClick={() => loadForEdit(r)}
                     disabled={pending}
-                    className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                    className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-foreground hover:bg-surface-2 disabled:opacity-50"
                   >
                     <T>Edit</T>
                   </button>
@@ -153,7 +153,7 @@ export function RolesManager({
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {r.features.length === 0 ? (
-                  <span className="text-[11px] italic text-ink-500 dark:text-cream-100/55">
+                  <span className="text-[11px] italic text-muted">
                     <T>View own requests only</T>
                   </span>
                 ) : (
@@ -173,9 +173,9 @@ export function RolesManager({
       )}
 
       {/* Builder */}
-      <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-4 space-y-3">
+      <div className="rounded-lg ring-1 ring-edge p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">
+          <p className="text-sm font-semibold text-foreground">
             {editKey ? <T>Edit role</T> : <T>New role</T>}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -185,7 +185,7 @@ export function RolesManager({
                 type="button"
                 onClick={() => loadPreset(p)}
                 disabled={pending}
-                className="text-[11px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-1 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/50"
+                className="text-[11px] rounded-md ring-1 ring-edge px-2 py-1 text-foreground hover:bg-surface-2"
               >
                 + {p.name}
               </button>
@@ -208,7 +208,7 @@ export function RolesManager({
                 className={`flex items-start gap-2.5 rounded-md ring-1 p-2.5 ${
                   f.base
                     ? 'ring-ink-100 dark:ring-forest-700/30 opacity-70'
-                    : 'ring-ink-200 dark:ring-forest-700/40 cursor-pointer'
+                    : 'ring-edge cursor-pointer'
                 }`}
               >
                 <input
@@ -219,15 +219,15 @@ export function RolesManager({
                   className="mt-0.5 h-4 w-4 flex-none accent-gold-500"
                 />
                 <span>
-                  <span className="block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+                  <span className="block text-[13px] font-medium text-foreground">
                     {f.label}
                     {f.base && (
-                      <span className="ml-1.5 text-[10px] uppercase tracking-[0.1em] text-ink-400 dark:text-cream-100/40">
+                      <span className="ml-1.5 text-[10px] uppercase tracking-[0.1em] text-muted">
                         <T>always on</T>
                       </span>
                     )}
                   </span>
-                  <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55">
+                  <span className="block text-[11.5px] text-muted">
                     {f.description}
                   </span>
                 </span>
@@ -245,7 +245,7 @@ export function RolesManager({
             type="button"
             onClick={() => preview('')}
             disabled={pending}
-            className="text-[12px] underline text-ink-600 dark:text-cream-100/70"
+            className="text-[12px] underline text-muted"
           >
             <T>Preview default access</T>
           </button>
@@ -255,7 +255,7 @@ export function RolesManager({
                 type="button"
                 onClick={reset}
                 disabled={pending}
-                className="btn text-ink-600 dark:text-cream-100/70"
+                className="btn text-muted"
               >
                 <T>Cancel</T>
               </button>

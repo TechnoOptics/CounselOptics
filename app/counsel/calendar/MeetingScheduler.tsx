@@ -62,7 +62,7 @@ export function MeetingScheduler({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="eyebrow"><T>New meeting</T></p>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
+          <p className="text-[12px] text-muted mt-1">
             <T>Set up a Teams or Zoom call. Invites go out to every
             attendee and it appears on this shared calendar.</T>
           </p>
@@ -82,7 +82,7 @@ export function MeetingScheduler({
         <form action={submit} className="space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block sm:col-span-2">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>Title</T>
               </span>
               <input
@@ -94,7 +94,7 @@ export function MeetingScheduler({
               />
             </label>
             <label className="block">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>When</T>
               </span>
               <input
@@ -106,7 +106,7 @@ export function MeetingScheduler({
               />
             </label>
             <label className="block">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>Duration</T>
               </span>
               <select
@@ -123,7 +123,7 @@ export function MeetingScheduler({
               </select>
             </label>
             <label className="block sm:col-span-2">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>Platform</T>
               </span>
               {connected.length === 0 ? (
@@ -159,9 +159,9 @@ export function MeetingScheduler({
               )}
             </label>
             <label className="block sm:col-span-2">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>Attendees</T>{' '}
-                <span className="text-ink-500 dark:text-cream-100/70">
+                <span className="text-muted">
                   <T>(emails, comma-separated - you&rsquo;re added
                   automatically)</T>
                 </span>
@@ -221,7 +221,7 @@ export function MeetingScheduler({
                 setResult(null);
               }}
               disabled={pending}
-              className="btn text-ink-600 dark:text-cream-100/70"
+              className="btn text-muted"
             >
               {result ? <T>Done</T> : <T>Cancel</T>}
             </button>

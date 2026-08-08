@@ -28,7 +28,7 @@ const KIND_CHIP: Record<BoardEvent['kind'], string> = {
   deadline:
     'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
   reminder:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
+    'bg-surface-2 text-foreground ring-edge',
   synced:
     'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-200 ring-sky-200 dark:ring-sky-700/40',
 };
@@ -126,7 +126,7 @@ export function CalendarBoard({
           <button
             type="button"
             onClick={() => shiftMonth(-1)}
-            className="h-9 w-9 inline-flex items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-md ring-1 ring-edge text-foreground hover:bg-surface-2"
             aria-label={t('Previous month')}
           >
             ‹
@@ -134,24 +134,24 @@ export function CalendarBoard({
           <button
             type="button"
             onClick={() => shiftMonth(1)}
-            className="h-9 w-9 inline-flex items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-md ring-1 ring-edge text-foreground hover:bg-surface-2"
             aria-label={t('Next month')}
           >
             ›
           </button>
-          <p className="text-lg font-medium text-forest-900 dark:text-cream-100 ml-1 min-w-[9ch]">
+          <p className="text-lg font-medium text-foreground ml-1 min-w-[9ch]">
             {monthLabel}
           </p>
           <button
             type="button"
             onClick={goToday}
-            className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2.5 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            className="text-[12px] rounded-md ring-1 ring-edge px-2.5 py-1.5 text-foreground hover:bg-surface-2"
           >
             Today
           </button>
         </div>
         <div
-          className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]"
+          className="inline-flex rounded-md ring-1 ring-edge overflow-hidden text-[12px]"
           role="group"
           aria-label={t('Calendar view')}
         >
@@ -159,7 +159,7 @@ export function CalendarBoard({
             type="button"
             onClick={() => setView('month')}
             aria-pressed={view === 'month'}
-            className={`px-3 py-1.5 ${view === 'month' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+            className={`px-3 py-1.5 ${view === 'month' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-foreground'}`}
           >
             Month
           </button>
@@ -167,7 +167,7 @@ export function CalendarBoard({
             type="button"
             onClick={() => setView('agenda')}
             aria-pressed={view === 'agenda'}
-            className={`px-3 py-1.5 ${view === 'agenda' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+            className={`px-3 py-1.5 ${view === 'agenda' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-foreground'}`}
           >
             Agenda
           </button>
@@ -180,7 +180,7 @@ export function CalendarBoard({
             {WEEKDAYS.map((w) => (
               <div
                 key={w}
-                className="text-[10px] uppercase tracking-[0.14em] font-semibold text-ink-400 dark:text-cream-100/40 text-center pb-1"
+                className="text-[10px] uppercase tracking-[0.14em] font-semibold text-muted text-center pb-1"
               >
                 <span className="hidden sm:inline">{w}</span>
                 <span className="sm:hidden">{w[0]}</span>
@@ -199,7 +199,7 @@ export function CalendarBoard({
                   onClick={() => setSelected(cellMs)}
                   className={`min-h-[68px] sm:min-h-[92px] rounded-md p-1 sm:p-1.5 text-left ring-1 transition-colors flex flex-col gap-1 ${
                     isSelected
-                      ? 'ring-forest-900/40 dark:ring-gold-400/40 bg-cream-50 dark:bg-forest-800/40'
+                      ? 'ring-forest-900/40 dark:ring-gold-400/40 bg-surface-2'
                       : 'ring-ink-100 dark:ring-forest-700/30 hover:bg-cream-50/60 dark:hover:bg-forest-800/25'
                   } ${inMonth ? '' : 'opacity-40'}`}
                 >
@@ -207,7 +207,7 @@ export function CalendarBoard({
                     className={`text-[11px] font-semibold inline-flex h-5 w-5 items-center justify-center rounded-full ${
                       isToday
                         ? 'bg-forest-900 text-white dark:bg-gold-400 dark:text-forest-950'
-                        : 'text-ink-700 dark:text-cream-100/80'
+                        : 'text-foreground'
                     }`}
                   >
                     {new Date(cellMs).getDate()}
@@ -224,7 +224,7 @@ export function CalendarBoard({
                       </span>
                     ))}
                     {dayEvents.length > 3 && (
-                      <span className="text-[9px] text-ink-500 dark:text-cream-100/50 pl-1">
+                      <span className="text-[9px] text-muted pl-1">
                         +{dayEvents.length - 3} more
                       </span>
                     )}
@@ -243,8 +243,8 @@ export function CalendarBoard({
           </div>
 
           {/* Selected-day detail */}
-          <div className="border-t border-ink-100 dark:border-forest-700/40 pt-3">
-            <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/70 mb-2">
+          <div className="border-t border-edge pt-3">
+            <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted mb-2">
               {new Date(selected).toLocaleDateString(undefined, {
                 weekday: 'long',
                 month: 'long',
@@ -252,7 +252,7 @@ export function CalendarBoard({
               })}
             </p>
             {selectedEvents.length === 0 ? (
-              <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+              <p className="text-[13px] text-muted italic">
                 Nothing scheduled this day.
               </p>
             ) : (
@@ -269,7 +269,7 @@ export function CalendarBoard({
       )}
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-[11px] text-ink-500 dark:text-cream-100/55">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-[11px] text-muted">
         <Legend dot={KIND_DOT.meeting} label="Meeting" />
         <Legend dot={KIND_DOT.deadline} label="Deadline" />
         <Legend dot={KIND_DOT.reminder} label="Reminder" />
@@ -292,10 +292,10 @@ function EventRow({ e }: { e: BoardEvent }) {
   const inner = (
     <>
       <div className="min-w-0">
-        <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+        <p className="font-semibold text-foreground truncate">
           {e.title}
         </p>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+        <p className="text-[12px] text-muted mt-0.5">
           {new Date(e.at).toLocaleTimeString([], {
             hour: 'numeric',
             minute: '2-digit',
@@ -350,7 +350,7 @@ function AgendaView({ events }: { events: BoardEvent[] }) {
   }
   if (upcoming.length === 0) {
     return (
-      <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+      <p className="text-[13px] text-muted italic">
         Nothing upcoming. Schedule a meeting or add a deadline on a case.
       </p>
     );
@@ -359,7 +359,7 @@ function AgendaView({ events }: { events: BoardEvent[] }) {
     <div className="space-y-5">
       {[...groups.entries()].map(([day, dayItems]) => (
         <section key={day} className="space-y-2">
-          <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/70">
+          <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted">
             {day}
           </p>
           <ul className="space-y-2">

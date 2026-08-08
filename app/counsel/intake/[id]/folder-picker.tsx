@@ -23,7 +23,7 @@ export function FolderPicker({
 
   return (
     <label className="inline-flex items-center gap-2 text-[12px]">
-      <span className="text-ink-500 dark:text-cream-100/55 uppercase tracking-[0.14em] font-semibold">
+      <span className="text-muted uppercase tracking-[0.14em] font-semibold">
         <T>Folder</T>
       </span>
       <select
@@ -36,7 +36,7 @@ export function FolderPicker({
             router.refresh();
           });
         }}
-        className="rounded-md bg-transparent ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-1 text-ink-800 dark:text-cream-100/85 disabled:opacity-50"
+        className="rounded-md bg-transparent ring-1 ring-edge px-2 py-1 text-foreground disabled:opacity-50"
       >
         <option value=""><T>Unfiled</T></option>
         {folders.map((f) => (

@@ -81,8 +81,8 @@ const PRIORITY_TONE: Record<string, string> = {
   Urgent: 'bg-rose-500 text-white',
   High: 'bg-amber-500 text-forest-950',
   Normal:
-    'bg-ink-200 dark:bg-forest-700 text-ink-700 dark:text-cream-100/80',
-  Low: 'bg-ink-100 dark:bg-forest-800 text-ink-500 dark:text-cream-100/55',
+    'bg-ink-200 dark:bg-forest-700 text-foreground',
+  Low: 'bg-surface-2 text-muted',
 };
 const GRADE_TONE: Record<string, string> = {
   A: 'bg-emerald-500 text-white',
@@ -154,7 +154,7 @@ export function IntakeInbox({
 
   if (intakes.length === 0) {
     return (
-      <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+      <p className="card p-6 text-[13px] text-muted italic">
         <T>{emptyMessage ?? 'No requests here yet.'}</T>
       </p>
     );
@@ -171,10 +171,10 @@ export function IntakeInbox({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {lanes.map((l) => (
           <div key={l} className="card p-3.5">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-ink-500 dark:text-cream-100/70">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted">
               {LANE_META[l].name}
             </p>
-            <p className="text-2xl text-forest-900 dark:text-cream-100 mt-1">
+            <p className="text-2xl text-foreground mt-1">
               {byLane(l).length}
             </p>
           </div>
@@ -187,13 +187,13 @@ export function IntakeInbox({
         return (
           <div key={l} className="space-y-2">
             <div className="flex items-baseline gap-2">
-              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/70">
+              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted">
                 {LANE_META[l].name}{' '}
                 <span className="text-ink-300 dark:text-cream-100/30">
                   ({items.length})
                 </span>
               </p>
-              <span className="text-[11px] text-ink-400 dark:text-cream-100/60">
+              <span className="text-[11px] text-muted">
                 {LANE_META[l].blurb}
               </span>
             </div>
@@ -220,7 +220,7 @@ export function IntakeInbox({
                       className="block"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-forest-900 dark:text-cream-100 truncate flex items-center gap-2 min-w-0">
+                        <p className="font-semibold text-foreground truncate flex items-center gap-2 min-w-0">
                           <span className="truncate">
                             {i.client_name}
                           </span>
@@ -261,7 +261,7 @@ export function IntakeInbox({
                           </StatusPill>
                         </div>
                       </div>
-                      <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-1.5">
+                      <p className="text-[12px] text-muted mt-1.5">
                         {i.matter_type ?? 'Matter type not set'}
                         {i.jurisdiction_state &&
                           ` · ${i.jurisdiction_state}`}

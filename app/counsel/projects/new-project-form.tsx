@@ -78,7 +78,7 @@ export function NewProjectForm({
           type="button"
           onClick={() => setOpen(false)}
           disabled={pending}
-          className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/30"
+          className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] text-muted hover:bg-surface-2"
         >
           <T>Cancel</T>
         </button>

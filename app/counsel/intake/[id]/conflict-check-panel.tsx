@@ -73,7 +73,7 @@ export function ConflictCheckPanel({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="eyebrow"><T>Conflict check</T></p>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 leading-relaxed max-w-2xl">
+          <p className="text-[12px] text-muted mt-0.5 leading-relaxed max-w-2xl">
             <T>Searches the firm&rsquo;s existing client list and prior matter
             intakes for any name overlap with the parties on this intake.
             Hits are categorized by severity; clear with a written reason
@@ -101,10 +101,10 @@ export function ConflictCheckPanel({
           {hits.map((h, i) => (
             <li
               key={i}
-              className="rounded-lg p-3 ring-1 ring-ink-200 dark:ring-forest-700/40 bg-ink-50/40 dark:bg-forest-900/30"
+              className="rounded-lg p-3 ring-1 ring-edge bg-surface-2"
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] text-forest-900 dark:text-cream-100">
+                <p className="text-[13px] text-foreground">
                   <strong>{h.matchedParty}</strong> <T>matches</T>{' '}
                   <strong>{h.matchedAgainst}</strong>
                 </p>
@@ -115,7 +115,7 @@ export function ConflictCheckPanel({
                   {h.severity}
                 </StatusPill>
               </div>
-              <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+              <p className="text-[11.5px] text-muted mt-0.5">
                 <T>Source:</T> {h.source.replace(/_/g, ' ')}
               </p>
             </li>
@@ -150,7 +150,7 @@ export function ConflictCheckPanel({
       )}
 
       {notes && (
-        <div className="text-[12px] text-ink-500 dark:text-cream-100/55 italic border-t border-ink-100 dark:border-forest-800/40 pt-3">
+        <div className="text-[12px] text-muted italic border-t border-edge pt-3">
           <T>Cleared with:</T> {notes}
         </div>
       )}

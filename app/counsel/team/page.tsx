@@ -48,7 +48,7 @@ export default async function CounselTeamPage() {
 
       <section className="card overflow-x-auto">
         <table className="w-full min-w-[560px] text-sm">
-          <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
+          <thead className="bg-surface-2 text-foreground text-left">
             <tr>
               <th className="font-semibold px-4 py-2.5"><T>Name</T></th>
               <th className="font-semibold px-4 py-2.5"><T>Email</T></th>
@@ -57,7 +57,7 @@ export default async function CounselTeamPage() {
               <th className="font-semibold px-4 py-2.5"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
+          <tbody className="divide-y divide-edge">
             {members.map((m) => (
               <TeamMemberRow
                 key={m.id}
@@ -97,8 +97,8 @@ export default async function CounselTeamPage() {
                 key={inv.id}
                 className="flex items-center justify-between gap-3 text-sm py-1.5"
               >
-                <span className="text-ink-900 dark:text-cream-100">{inv.email}</span>
-                <span className="text-[12px] text-ink-500 dark:text-cream-100/55">
+                <span className="text-foreground">{inv.email}</span>
+                <span className="text-[12px] text-muted">
                   <T>Invited as</T> {FIRM_ROLE_LABEL[inv.role].toLowerCase()}{' '}
                   &middot; <T>expires</T>{' '}
                   {new Date(inv.expiresAt).toLocaleDateString()}
@@ -109,14 +109,14 @@ export default async function CounselTeamPage() {
         </section>
       )}
 
-      <details className="text-[12px] text-ink-500 dark:text-cream-100/55">
-        <summary className="cursor-pointer font-semibold text-forest-900 dark:text-cream-100">
+      <details className="text-[12px] text-muted">
+        <summary className="cursor-pointer font-semibold text-foreground">
           <T>What each role can do</T>
         </summary>
         <ul className="mt-3 space-y-2">
           {FIRM_ROLES.map((r) => (
             <li key={r}>
-              <strong className="text-ink-900 dark:text-cream-100">
+              <strong className="text-foreground">
                 {FIRM_ROLE_LABEL[r]}:
               </strong>{' '}
               <T>{FIRM_ROLE_DESCRIPTION[r]}</T>

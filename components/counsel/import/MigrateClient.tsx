@@ -56,7 +56,7 @@ export function MigrateClient() {
   }
 
   const inputClass =
-    'w-full rounded-lg border border-ink-200 dark:border-forest-700/50 bg-white dark:bg-forest-900 px-3 py-2 text-sm text-forest-900 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-gold-400/60';
+    'w-full rounded-lg border border-edge bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-gold-400/60';
 
   return (
     <div className="space-y-5">
@@ -69,7 +69,7 @@ export function MigrateClient() {
             className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
               mode === m
                 ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950'
-                : 'bg-ink-100 text-ink-600 dark:bg-forest-800/60 dark:text-cream-100/70'
+                : 'bg-surface-2 text-muted'
             }`}
           >
             {m === 'json' ? <T>Universal bundle (JSON)</T> : <T>ServiceNow</T>}
@@ -79,7 +79,7 @@ export function MigrateClient() {
 
       {mode === 'json' ? (
         <div className="space-y-3">
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
+          <p className="text-sm text-muted leading-relaxed">
             <T>
               Import a universal bundle: matters with their attachments, notes,
               and history. Original dates are preserved, so the workspace looks
@@ -91,7 +91,7 @@ export function MigrateClient() {
             accept=".json,application/json"
             onChange={onFile}
             aria-label={t('Choose a JSON bundle file')}
-            className="block text-sm text-ink-600 dark:text-cream-100/70"
+            className="block text-sm text-muted"
           />
           <textarea
             value={json}
@@ -112,7 +112,7 @@ export function MigrateClient() {
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
+          <p className="text-sm text-muted leading-relaxed">
             <T>
               Connect ServiceNow to pull records and their attachments directly.
               Use a service account token scoped to read the table and its

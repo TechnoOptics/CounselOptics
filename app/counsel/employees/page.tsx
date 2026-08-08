@@ -52,7 +52,7 @@ export default async function CounselEmployeesPage() {
       />
 
       {employees.length === 0 ? (
-        <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+        <p className="card p-6 text-[13px] text-muted italic">
           <T>
             No employee accounts yet. Owners and admins can add people, or
             connect a directory, from the Team page.
@@ -61,8 +61,8 @@ export default async function CounselEmployeesPage() {
       ) : (
         <>
           <div className="flex flex-wrap gap-2 text-[12px]">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/80">
-              <strong className="font-semibold text-forest-900 dark:text-cream-100">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-edge text-foreground">
+              <strong className="font-semibold text-foreground">
                 {employees.length}
               </strong>{' '}
               <T>total</T>
@@ -71,7 +71,7 @@ export default async function CounselEmployeesPage() {
               <strong className="font-semibold">{active}</strong> <T>active</T>
             </span>
             {deactivated > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/60">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-edge text-muted">
                 <strong className="font-semibold">{deactivated}</strong>{' '}
                 <T>deactivated</T>
               </span>
@@ -80,7 +80,7 @@ export default async function CounselEmployeesPage() {
 
           <div className="card overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
+              <thead className="bg-surface-2 text-foreground text-left">
                 <tr>
                   <th className="font-semibold px-4 py-2.5"><T>Name</T></th>
                   <th className="font-semibold px-4 py-2.5"><T>Email</T></th>
@@ -90,7 +90,7 @@ export default async function CounselEmployeesPage() {
                   <th className="font-semibold px-4 py-2.5"><T>Status</T></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
+              <tbody className="divide-y divide-edge">
                 {employees.map((e) => {
                   const inactive = Boolean(e.deactivatedAt);
                   return (
@@ -98,27 +98,27 @@ export default async function CounselEmployeesPage() {
                       key={e.id}
                       className={inactive ? 'opacity-60' : undefined}
                     >
-                      <td className="px-4 py-2.5 font-medium text-forest-900 dark:text-cream-100">
+                      <td className="px-4 py-2.5 font-medium text-foreground">
                         {e.displayName || <T>Not set</T>}
                         {!e.linked && (
                           <Tt
-                            className="ml-2 align-middle text-[10px] uppercase tracking-[0.12em] text-ink-400 dark:text-cream-100/40"
+                            className="ml-2 align-middle text-[10px] uppercase tracking-[0.12em] text-muted"
                             title="Invited but has not signed in yet"
                           >
                             <T>Pending</T>
                           </Tt>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70 font-mono text-[12px]">
+                      <td className="px-4 py-2.5 text-muted font-mono text-[12px]">
                         {e.email}
                       </td>
-                      <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70">
+                      <td className="px-4 py-2.5 text-muted">
                         {e.department || <T>Not set</T>}
                       </td>
-                      <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70">
+                      <td className="px-4 py-2.5 text-muted">
                         {roleName(e.roleKey)}
                       </td>
-                      <td className="px-4 py-2.5 text-ink-500 dark:text-cream-100/55 text-[12px]">
+                      <td className="px-4 py-2.5 text-muted text-[12px]">
                         {SOURCE_LABEL[e.source] ?? e.source}
                       </td>
                       <td className="px-4 py-2.5">

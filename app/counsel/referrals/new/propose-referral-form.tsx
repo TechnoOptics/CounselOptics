@@ -56,7 +56,7 @@ export function ProposeReferralForm({
   return (
     <form action={submit} className="card p-5 sm:p-6 space-y-5">
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Refer to firm</T>
         </span>
         <select name="referredFirmId" className="input" required defaultValue="">
@@ -75,7 +75,7 @@ export function ProposeReferralForm({
       </label>
 
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>State for the matter</T>
         </span>
         <select name="state" className="input" required defaultValue="">
@@ -91,7 +91,7 @@ export function ProposeReferralForm({
       </label>
 
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Matter brief</T>
         </span>
         <textarea
@@ -106,7 +106,7 @@ export function ProposeReferralForm({
 
       <div>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Proposed fee split:</T> {splitPct}<T>% to the receiving firm,</T>{' '}
             {100 - splitPct}<T>% to your firm</T>
           </span>
@@ -120,7 +120,7 @@ export function ProposeReferralForm({
             className="w-full"
           />
         </label>
-        <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 leading-relaxed mt-1">
+        <p className="text-[11.5px] text-muted leading-relaxed mt-1">
           <T>State bar rules vary on referral fees (Model Rule 1.5(e) and
           analogues). Most require the split be in proportion to work
           performed OR each firm assume joint responsibility. Confirm the

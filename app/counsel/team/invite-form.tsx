@@ -51,7 +51,7 @@ export function InviteMemberForm({ firmId }: { firmId: string }) {
         </select>
       </div>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+        <p className="text-[11px] text-muted">
           <T>They&rsquo;ll get an email with a 7-day acceptance link.</T>
         </p>
         <button type="submit" className="btn-primary" disabled={pending}>

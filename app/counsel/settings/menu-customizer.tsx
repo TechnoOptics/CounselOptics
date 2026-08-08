@@ -147,10 +147,10 @@ export function MenuCustomizer({
     <section className="card p-6 space-y-4">
       <div>
         <p className="eyebrow mb-1"><T>Menu &amp; navigation</T></p>
-        <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+        <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
           <T>Tailor the sidebar to your team</T>
         </h2>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+        <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
           <T>
             Hide what you don&rsquo;t use, rename items to your own terms, and
             reorder items or whole sections. Changes apply to everyone on the
@@ -164,10 +164,10 @@ export function MenuCustomizer({
         {sections.map((sec, si) => (
           <div
             key={sec.section}
-            className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3.5"
+            className="rounded-lg ring-1 ring-edge p-3.5"
           >
             <div className="flex items-center justify-between gap-2 mb-2">
-              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/55">
+              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted">
                 {sec.section}
               </p>
               <div className="flex items-center gap-1">
@@ -212,7 +212,7 @@ export function MenuCustomizer({
                         off ? 'opacity-50' : ''
                       }`}
                     />
-                    <span className="text-[11px] text-ink-400 dark:text-cream-100/40 hidden sm:block w-40 truncate">
+                    <span className="text-[11px] text-muted hidden sm:block w-40 truncate">
                       {item.href}
                     </span>
                     <div className="flex items-center gap-1">
@@ -253,7 +253,7 @@ export function MenuCustomizer({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="text-[12px] underline text-ink-600 dark:text-cream-100/70"
+          className="text-[12px] underline text-muted"
         >
           <T>Reset to default</T>
         </button>
@@ -288,7 +288,7 @@ function ArrowBtn({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="h-10 w-10 inline-flex items-center justify-center rounded ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/70 disabled:opacity-30 hover:bg-cream-50 dark:hover:bg-forest-800/50"
+      className="h-10 w-10 inline-flex items-center justify-center rounded ring-1 ring-edge text-muted disabled:opacity-30 hover:bg-surface-2"
     >
       <svg
         width="11"

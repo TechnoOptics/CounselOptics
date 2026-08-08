@@ -174,17 +174,17 @@ export default async function CounselBillingPage() {
               >
                 <Link
                   href={`/counsel/cases/${caseId}`}
-                  className="text-forest-900 dark:text-cream-100 underline"
+                  className="text-foreground underline"
                 >
                   <T>Case</T> {caseId.slice(0, 8)}...
                 </Link>
-                <span className="font-mono tabular-nums text-forest-900 dark:text-cream-100 font-semibold">
+                <span className="font-mono tabular-nums text-foreground font-semibold">
                   {fmtCents(cents)}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          <p className="text-[11px] text-muted leading-relaxed">
             <T>
               Invoices are drafted from the case detail page so the engagement
               scope and client get filled in automatically.
@@ -195,21 +195,21 @@ export default async function CounselBillingPage() {
 
       {/* Invoices list */}
       <section className="space-y-3">
-        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-foreground">
           <T>Recent invoices</T>
         </h2>
         {allInvoiceTotals.length > invoices.length && (
-          <p className="text-[12px] text-ink-600 dark:text-cream-100/70">
+          <p className="text-[12px] text-muted">
             <T>Showing the</T> {invoices.length} <T>most recent of</T>{' '}
             {allInvoiceTotals.length}. <T>The totals above cover all of them.</T>
           </p>
         )}
         {invoices.length === 0 ? (
           <div className="card p-8 text-center">
-            <p className="text-[15px] text-forest-900 dark:text-cream-100">
+            <p className="text-[15px] text-foreground">
               <T>No invoices issued yet.</T>
             </p>
-            <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1">
+            <p className="text-[12.5px] text-muted mt-1">
               <T>Open a case with billable time and use &ldquo;Draft invoice&rdquo;.</T>
             </p>
           </div>
@@ -224,20 +224,20 @@ export default async function CounselBillingPage() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold text-forest-900 dark:text-cream-100">
+                      <p className="font-semibold text-foreground">
                         {i.number}
                       </p>
                       <StatusPill color={color} size="sm">
                         {i.status}
                       </StatusPill>
                     </div>
-                    <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 truncate">
+                    <p className="text-[12.5px] text-muted truncate">
                       {i.client_name ?? i.client_email} ·{' '}
                       {new Date(i.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="shrink-0 flex items-center gap-3">
-                    <p className="font-mono tabular-nums text-forest-900 dark:text-cream-100 font-semibold">
+                    <p className="font-mono tabular-nums text-foreground font-semibold">
                       {fmtCents(i.total_cents)}
                     </p>
                     {/* Raw, live Stripe payment URL. ExternalLink routes
@@ -256,7 +256,7 @@ export default async function CounselBillingPage() {
                       <ExternalLink
                         data-hide-on-ios
                         href={i.stripe_payment_link}
-                        className="text-[11px] underline text-forest-900 dark:text-cream-100"
+                        className="text-[11px] underline text-foreground"
                       >
                         <T>Pay link</T>
                       </ExternalLink>

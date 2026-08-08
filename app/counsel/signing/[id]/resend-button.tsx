@@ -73,7 +73,7 @@ export function ResendButton({
               )
             : t('Sends the sign link again.')
         }
-        className="text-[11px] underline underline-offset-2 text-ink-600 dark:text-cream-100/70 hover:text-forest-900 dark:hover:text-cream-100 disabled:opacity-50"
+        className="text-[11px] underline underline-offset-2 text-muted hover:text-foreground disabled:opacity-50"
       >
         {pending ? (
           <T>Resending...</T>
@@ -84,7 +84,7 @@ export function ResendButton({
         )}
       </button>
       {rotatesCode && alreadyUnlocked && !sent && !error && (
-        <span className="text-[11px] text-ink-500 dark:text-cream-100/55 max-w-[28ch] text-right">
+        <span className="text-[11px] text-muted max-w-[28ch] text-right">
           <T>They have already entered their code. A new one asks them for it again.</T>
         </span>
       )}

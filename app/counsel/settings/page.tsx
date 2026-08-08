@@ -73,13 +73,13 @@ export default async function CounselSettingsPage() {
           ),
         }}
       />
-      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+      <section className="space-y-3 pt-2 border-t border-edge">
         <header>
           <p className="eyebrow mb-1"><T>Document layout</T></p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>Where things sit on the page</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
             <T>Set the margins, place your letterhead, and add a watermark and a
             footer to the documents Advottic produces. A single template can
             override any part of this in the forms editor. Changes apply to
@@ -102,26 +102,26 @@ export default async function CounselSettingsPage() {
         firmId={ctx.firm.id}
         initial={readMenuConfig(ctx.firm.metadata)}
       />
-      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+      <section className="space-y-3 pt-2 border-t border-edge">
         <header>
           <p className="eyebrow mb-1"><T>Workspace surfaces</T></p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>Turn off what you don&rsquo;t use</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
             <T>Hide entire surfaces of the workspace for everyone at your firm.
             These are off by default, so nothing changes until you turn one on.</T>
           </p>
         </header>
         <FirmSurfaceToggles firmId={ctx.firm.id} initial={{ ...surface, ticketPrefix }} />
       </section>
-      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+      <section className="space-y-3 pt-2 border-t border-edge">
         <header>
           <p className="eyebrow mb-1"><T>Outbound webhooks</T></p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>Slack, Microsoft Teams, and custom JSON endpoints</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
             <T>Fan chat activity out to your existing team tools. Paste an
             Incoming Webhook URL once and every new message in matching
             channels echoes there. By default we send only metadata
@@ -135,13 +135,13 @@ export default async function CounselSettingsPage() {
           initialWebhooks={webhooksResult.webhooks ?? []}
         />
       </section>
-      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+      <section className="space-y-3 pt-2 border-t border-edge">
         <header>
           <p className="eyebrow mb-1"><T>Partner app integration</T></p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>Legal requests filed from your company app</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
             <T>When employees file legal requests from a company app connected
             through the partner API, these settings control what they are asked,
             the confirmation they see (state your usual response time), how
@@ -151,13 +151,13 @@ export default async function CounselSettingsPage() {
         </header>
         <PartnerIntegrationManager firmId={ctx.firm.id} initial={partnerConfig} />
       </section>
-      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+      <section className="space-y-3 pt-2 border-t border-edge">
         <header>
           <p className="eyebrow mb-1"><T>Enterprise</T></p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>Single sign-on and automatic provisioning</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
             <T>Connect your identity provider so people are added and removed
             automatically as they join or leave, and sign in with your
             organization&rsquo;s credentials.</T>
@@ -165,19 +165,19 @@ export default async function CounselSettingsPage() {
         </header>
         <a
           href="/counsel/settings/scim"
-          className="inline-flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-2 text-sm font-medium text-forest-900 transition hover:bg-ink-50 dark:border-forest-700/40 dark:text-cream-100 dark:hover:bg-forest-900/40"
+          className="inline-flex items-center gap-2 rounded-lg border border-edge px-4 py-2 text-sm font-medium text-foreground transition hover:bg-surface-2"
         >
           <T>Set up SSO &amp; provisioning</T>
         </a>
       </section>
 
-      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+      <section className="space-y-3 pt-2 border-t border-edge">
         <header>
           <p className="eyebrow mb-1"><T>Data export &amp; backup</T></p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>Keep your own copy</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
             <T>Download a portable JSON archive of</T> {ctx.firm.name}
             <T>&rsquo;s
             operational data (matters, clients, people, documents metadata,

@@ -37,11 +37,11 @@ export default async function CounselIntakePage() {
           </T>
         }
       >
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-2">
+        <p className="text-[12px] text-muted mt-2">
           <T>Looking for incoming requests?</T>{' '}
           <Link
             href="/counsel/inbox"
-            className="underline text-forest-900 dark:text-cream-100 font-semibold"
+            className="underline text-foreground font-semibold"
           >
             <T>Open the Request inbox &rarr;</T>
           </Link>

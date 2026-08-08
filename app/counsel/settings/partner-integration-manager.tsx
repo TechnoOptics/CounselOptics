@@ -65,9 +65,9 @@ export function PartnerIntegrationManager({
   }
 
   const inputCls =
-    'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[13.5px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100';
+    'w-full rounded-lg border border-edge bg-surface px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25';
   const labelCls =
-    'text-[11px] font-semibold uppercase tracking-wider text-ink-400 dark:text-cream-100/40';
+    'text-[11px] font-semibold uppercase tracking-wider text-muted';
 
   return (
     <div className="space-y-6">
@@ -76,7 +76,7 @@ export function PartnerIntegrationManager({
         <p className={labelCls}>
           <T>Confirmation message after filing</T>
         </p>
-        <p className="text-[12.5px] text-ink-500 dark:text-cream-100/55">
+        <p className="text-[12.5px] text-muted">
           <T>
             Shown to the employee in the partner app the moment their request is
             filed. Most teams state their usual response time here.
@@ -96,7 +96,7 @@ export function PartnerIntegrationManager({
         <p className={labelCls}>
           <T>Intake questions</T>
         </p>
-        <p className="text-[12.5px] text-ink-500 dark:text-cream-100/55">
+        <p className="text-[12.5px] text-muted">
           <T>
             Asked on the partner app&apos;s &ldquo;New legal request&rdquo; form, in this
             order. Answers appear on the request in your Intake inbox.
@@ -105,7 +105,7 @@ export function PartnerIntegrationManager({
         {questions.map((q, i) => (
           <div
             key={q.id}
-            className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-200 p-2.5 dark:border-forest-700/40"
+            className="flex flex-wrap items-center gap-2 rounded-lg border border-edge p-2.5"
           >
             <input
               value={q.label}
@@ -136,7 +136,7 @@ export function PartnerIntegrationManager({
                 className={`${inputCls} min-w-[180px] flex-1`}
               />
             )}
-            <label className="flex items-center gap-1.5 text-[12.5px] text-ink-600 dark:text-cream-100/70">
+            <label className="flex items-center gap-1.5 text-[12.5px] text-muted">
               <input
                 type="checkbox"
                 checked={q.required === true}
@@ -174,7 +174,7 @@ export function PartnerIntegrationManager({
         <p className={labelCls}>
           <T>Event webhook (partner backend)</T>
         </p>
-        <p className="text-[12.5px] text-ink-500 dark:text-cream-100/55">
+        <p className="text-[12.5px] text-muted">
           <T>
             We POST signed events (legal replies, status changes) to this https
             URL so the partner app can update instantly instead of polling.
@@ -187,11 +187,11 @@ export function PartnerIntegrationManager({
           className={inputCls}
         />
         {config.webhookSecret && (
-          <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-600 dark:text-cream-100/70">
+          <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
             <span className={labelCls}>
               <T>Signing secret</T>
             </span>
-            <code className="rounded bg-ink-100 px-2 py-0.5 font-mono text-[12px] dark:bg-forest-900/70">
+            <code className="rounded bg-surface-2 px-2 py-0.5 font-mono text-[12px]">
               {showSecret ? config.webhookSecret : '••••••••••••••••••••'}
             </code>
             <button
@@ -227,7 +227,7 @@ export function PartnerIntegrationManager({
             onChange={(e) => setRemindAfterHours(Number(e.target.value) || 0)}
             className={`${inputCls} w-24`}
           />
-          <span className="text-[13px] text-ink-600 dark:text-cream-100/70">
+          <span className="text-[13px] text-muted">
             <T>hours (0 turns reminders off)</T>
           </span>
         </div>

@@ -126,7 +126,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                 className={`text-[12px] rounded-full px-2.5 py-1 ring-1 transition-colors ${
                   group === g
                     ? 'bg-gold-500/20 ring-gold-500/40 text-gold-700 dark:text-gold-200'
-                    : 'ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/85'
+                    : 'ring-edge text-foreground'
                 }`}
               >
                 {g}
@@ -153,7 +153,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
             ))}
           </select>
           {tpl && (
-            <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
+            <p className="text-[12px] text-muted mt-1">
               {tpl.blurb}
             </p>
           )}
@@ -162,10 +162,10 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
         {tpl &&
           tpl.fields.map((f) => (
             <label key={f.name} className="block">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 {f.label}
                 {f.optional && (
-                  <span className="text-ink-400 dark:text-cream-100/40">
+                  <span className="text-muted">
                     {' '}
                     <T>(optional)</T>
                   </span>
@@ -209,7 +209,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
             {busy ? <T>Drafting...</T> : <T>Generate document</T>}
           </button>
         )}
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 leading-relaxed">
+        <p className="text-[11px] text-muted leading-relaxed">
           <T>Drafted as your firm&rsquo;s work product. A licensed attorney should review before it is signed or filed.</T>
         </p>
       </div>
@@ -222,14 +222,14 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
               <button
                 type="button"
                 onClick={() => navigator.clipboard?.writeText(doc)}
-                className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
+                className="text-[12px] rounded-md ring-1 ring-edge px-3 py-1.5 text-foreground"
               >
                 <T>Copy text</T>
               </button>
               <button
                 type="button"
                 onClick={() => setPreviewOpen(true)}
-                className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
+                className="text-[13px] rounded-md ring-1 ring-edge px-3 py-1.5 text-foreground"
               >
                 <T>Preview PDF</T>
               </button>
@@ -252,7 +252,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
             )}
             <article
               id="print-block"
-              className="bg-white text-[#15110a] rounded-lg ring-1 ring-ink-200 shadow-card overflow-hidden"
+              className="bg-surface text-[#15110a] rounded-lg ring-1 ring-edge shadow-card overflow-hidden"
             >
               <div
                 className="px-8 py-5 flex items-center gap-3"
@@ -294,7 +294,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
             </article>
           </>
         ) : (
-          <div className="card p-10 text-center text-[13px] text-ink-500 dark:text-cream-100/55">
+          <div className="card p-10 text-center text-[13px] text-muted">
             <T>Pick a document type, fill in the parties and key terms, then generate a branded draft you can export as PDF.</T>
           </div>
         )}

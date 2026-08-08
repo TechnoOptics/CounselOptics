@@ -278,7 +278,7 @@ export function LettersStudio({
           {busy ? <T>Drafting…</T> : body ? <T>Regenerate</T> : <T>Generate letter</T>}
         </button>
 
-        <div className="border-t border-ink-100 dark:border-forest-700/40 pt-4 space-y-3">
+        <div className="border-t border-edge pt-4 space-y-3">
           <p className="label"><T>Signature block</T></p>
           <div className="grid grid-cols-2 gap-3">
             <input
@@ -310,7 +310,7 @@ export function LettersStudio({
                 className={`text-[12px] rounded-full px-2.5 py-1 ring-1 transition-colors ${
                   options[tg.key]
                     ? 'bg-gold-500/20 ring-gold-500/40 text-gold-700 dark:text-gold-200'
-                    : 'ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/60'
+                    : 'ring-edge text-muted'
                 }`}
               >
                 {options[tg.key] ? '✓ ' : ''}
@@ -328,7 +328,7 @@ export function LettersStudio({
             {saved}
           </p>
         )}
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 leading-relaxed">
+        <p className="text-[11px] text-muted leading-relaxed">
           <T>Drafted as your firm&rsquo;s work product. A licensed attorney should review before it is sent or filed.</T>
         </p>
       </div>
@@ -341,7 +341,7 @@ export function LettersStudio({
               <button
                 type="button"
                 onClick={() => navigator.clipboard?.writeText(composed)}
-                className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
+                className="text-[12px] rounded-md ring-1 ring-edge px-3 py-1.5 text-foreground"
               >
                 <T>Copy text</T>
               </button>
@@ -349,14 +349,14 @@ export function LettersStudio({
                 type="button"
                 onClick={() => exportFile('docx')}
                 disabled={exporting !== null}
-                className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
+                className="text-[13px] rounded-md ring-1 ring-edge px-3 py-1.5 text-foreground"
               >
                 {exporting === 'docx' ? <T>Exporting…</T> : <T>Export Word</T>}
               </button>
               <button
                 type="button"
                 onClick={() => setPreviewOpen(true)}
-                className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
+                className="text-[13px] rounded-md ring-1 ring-edge px-3 py-1.5 text-foreground"
               >
                 <T>Preview PDF</T>
               </button>
@@ -364,7 +364,7 @@ export function LettersStudio({
                 type="button"
                 onClick={() => exportFile('pdf')}
                 disabled={exporting !== null}
-                className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
+                className="text-[13px] rounded-md ring-1 ring-edge px-3 py-1.5 text-foreground"
               >
                 {exporting === 'pdf' ? <T>Exporting…</T> : <T>Export PDF</T>}
               </button>
@@ -386,7 +386,7 @@ export function LettersStudio({
               </button>
             </div>
 
-            <article className="bg-white text-[#15110a] rounded-lg ring-1 ring-ink-200 shadow-card overflow-hidden">
+            <article className="bg-surface text-[#15110a] rounded-lg ring-1 ring-edge shadow-card overflow-hidden">
               <div
                 className="px-8 py-5 flex items-center gap-3"
                 style={{ borderTop: `6px solid ${brand.accent}`, background: '#fbfaf6' }}
@@ -441,12 +441,12 @@ export function LettersStudio({
                 <T>Draft for attorney review</T>
               </div>
             </article>
-            <p className="no-print text-[11px] text-ink-500 dark:text-cream-100/55 mt-2">
+            <p className="no-print text-[11px] text-muted mt-2">
               <T>The body above is editable. The signature block updates live from the toggles on the left.</T>
             </p>
           </>
         ) : (
-          <div className="card p-10 text-center text-[13px] text-ink-500 dark:text-cream-100/55">
+          <div className="card p-10 text-center text-[13px] text-muted">
             <T>Describe the letter, pick what the signature block should include, then generate a branded draft you can edit, export as Word or PDF, and save to a case.</T>
           </div>
         )}

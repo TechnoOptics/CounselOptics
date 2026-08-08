@@ -39,10 +39,10 @@ function PanelHeader({
   return (
     <div>
       <p className="eyebrow mb-1"><T>{eyebrow}</T></p>
-      <h2 className="text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <h2 className="text-2xl font-medium tracking-[-0.01em] text-foreground">
         <T>{title}</T>
       </h2>
-      <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+      <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
         <T>{description}</T>
       </p>
     </div>
@@ -163,13 +163,13 @@ function FilePickerCsv({
         )}
       </button>
       {state.phase === 'ready' && (
-        <span className="ml-3 text-[12.5px] text-ink-600 dark:text-cream-100/60">
+        <span className="ml-3 text-[12.5px] text-muted">
           {state.fileName} - {state.totalRows} <T>row</T>
           {state.totalRows === 1 ? '' : 's'} <T>detected</T>
         </span>
       )}
       {state.phase === 'loading' && (
-        <span className="ml-3 text-[12.5px] text-ink-500 dark:text-cream-100/55">
+        <span className="ml-3 text-[12.5px] text-muted">
           <T>Reading...</T>
         </span>
       )}
@@ -921,7 +921,7 @@ function ResultPanel({
 }) {
   return (
     <div className="card p-5 space-y-2">
-      <p className="text-lg text-forest-900 dark:text-cream-100">
+      <p className="text-lg text-foreground">
         {summary}
       </p>
       {subline && (

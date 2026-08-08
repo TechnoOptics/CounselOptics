@@ -48,7 +48,7 @@ export function CounselFirmSwitcher({
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={pending}
-        className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-700 dark:text-cream-100/85 hover:text-forest-900 dark:hover:text-cream-100 px-2.5 py-1.5 rounded-md hover:bg-ink-50 dark:hover:bg-forest-800/60 transition-colors"
+        className="inline-flex items-center gap-1.5 text-[12.5px] text-foreground px-2.5 py-1.5 rounded-md hover:bg-surface-2 transition-colors"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -79,16 +79,16 @@ export function CounselFirmSwitcher({
           />
         <ul
           role="listbox"
-          className="absolute right-0 mt-1 w-56 rounded-lg bg-white dark:bg-forest-900 border border-ink-200 dark:border-forest-700/60 shadow-card-hover overflow-hidden z-40"
+          className="absolute right-0 mt-1 w-56 rounded-lg bg-surface border border-edge shadow-card-hover overflow-hidden z-40"
         >
           {memberships.map((m) => (
             <li key={m.firm.id}>
               <button
                 type="button"
                 onClick={() => pick(m.firm.id)}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-cream-50 dark:hover:bg-forest-800/70 flex items-center gap-2 ${
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-2 flex items-center gap-2 ${
                   m.firm.id === activeFirmId
-                    ? 'bg-cream-50 dark:bg-forest-800/40 font-semibold'
+                    ? 'bg-surface-2 font-semibold'
                     : ''
                 }`}
               >

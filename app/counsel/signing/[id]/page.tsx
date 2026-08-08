@@ -72,7 +72,7 @@ export default async function SigningRequestDetail({
   return (
     <div className="space-y-6 animate-fade-up">
       <p className="text-sm">
-        <Link href="/counsel/signing" className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100">
+        <Link href="/counsel/signing" className="text-muted hover:text-foreground">
           <T>&larr; Signing requests</T>
         </Link>
       </p>
@@ -95,7 +95,7 @@ export default async function SigningRequestDetail({
           </div>
         }
       >
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
+        <p className="text-[12px] text-muted mt-1 font-mono">
           <T>Request</T> #{data.request.id.slice(0, 8)} &middot; <T>Sent</T>{' '}
           {data.request.sentAt
             ? new Date(data.request.sentAt).toLocaleString()
@@ -109,7 +109,7 @@ export default async function SigningRequestDetail({
         <div
           className={`card p-4 text-sm ${
             data.request.status === 'canceled'
-              ? 'ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/80'
+              ? 'ring-1 ring-edge text-foreground'
               : 'ring-1 ring-amber-300/50 dark:ring-amber-600/30 bg-amber-50/50 dark:bg-amber-950/15 text-amber-900 dark:text-amber-200'
           }`}
         >
@@ -132,14 +132,14 @@ export default async function SigningRequestDetail({
       )}
 
       {data.request.message && (
-        <p className="card p-4 text-sm text-ink-700 dark:text-cream-100/80 italic leading-relaxed">
+        <p className="card p-4 text-sm text-foreground italic leading-relaxed">
           &ldquo;{data.request.message}&rdquo;
         </p>
       )}
 
       <section className="card p-5 sm:p-6 space-y-3">
         <p className="eyebrow"><T>Signers</T></p>
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+        <p className="text-[11px] text-muted leading-relaxed">
           {data.request.signerCanDownload ? (
             <T>Signers can download a copy of this document once they have
             signed.</T>
@@ -155,10 +155,10 @@ export default async function SigningRequestDetail({
               className="flex flex-wrap items-baseline justify-between gap-3 text-sm"
             >
               <div className="min-w-0">
-                <p className="font-medium text-ink-900 dark:text-cream-100 truncate">
+                <p className="font-medium text-foreground truncate">
                   {sig.signerName || sig.signerEmail}
                 </p>
-                <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+                <p className="text-[11px] text-muted">
                   {sig.signerEmail}
                 </p>
               </div>
@@ -189,12 +189,12 @@ export default async function SigningRequestDetail({
                     <T>Awaiting signature</T>
                     {sig.accessCodeRequired &&
                       (sig.accessVerifiedAt ? (
-                        <span className="text-ink-500 dark:text-cream-100/45">
+                        <span className="text-muted">
                           {' '}
                           <T>· code verified</T>
                         </span>
                       ) : (
-                        <span className="text-ink-500 dark:text-cream-100/45">
+                        <span className="text-muted">
                           {' '}
                           <T>· code sent</T>
                         </span>
@@ -209,7 +209,7 @@ export default async function SigningRequestDetail({
                     <p className="mt-0.5 flex items-start justify-end gap-3">
                       <ExternalLink
                         href={`${SITE_URL}/sign/${sig.token}`}
-                        className="text-[11px] underline text-forest-900 dark:text-cream-100"
+                        className="text-[11px] underline text-foreground"
                       >
                         <T>Open sign link</T>
                       </ExternalLink>
@@ -224,7 +224,7 @@ export default async function SigningRequestDetail({
                     </p>
                   )}
                 {sig.responseNote && (
-                  <p className="mt-1 text-[12px] text-ink-600 dark:text-cream-100/70 italic max-w-[42ch]">
+                  <p className="mt-1 text-[12px] text-muted italic max-w-[42ch]">
                     &ldquo;{sig.responseNote}&rdquo;
                   </p>
                 )}
@@ -238,7 +238,7 @@ export default async function SigningRequestDetail({
         <DocumentArtifactCard
           artifact={artifact}
           documentName={doc?.name ?? 'Document'}
-          frameClassName="w-full h-[60vh] border-0 bg-ink-50 dark:bg-forest-950"
+          frameClassName="w-full h-[60vh] border-0 bg-surface-2"
         />
       )}
     </div>

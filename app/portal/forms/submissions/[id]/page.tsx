@@ -67,7 +67,7 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
       <PageHeader
         size="sm"
         backLink={
-          <Link href="/portal/forms" className="text-[12px] text-ink-500 hover:underline dark:text-cream-100/55">
+          <Link href="/portal/forms" className="text-[12px] text-muted hover:underline">
             ← All forms
           </Link>
         }
@@ -118,7 +118,7 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
         {/* The reference for this document. It is the thing to quote when
             asking the legal team about it, so it sits with the status rather
             than at the bottom of the page. */}
-        <span className="text-[12.5px] text-ink-500 dark:text-cream-100/55">
+        <span className="text-[12.5px] text-muted">
           <T>Reference</T>
         </span>
         <span
@@ -128,10 +128,10 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
           {displayTicket(submission)}
         </span>
         <SubmissionStatusPill status={submission.status} />
-        <span className="text-[12.5px] text-ink-500 dark:text-cream-100/55">
+        <span className="text-[12.5px] text-muted">
           <T>Recipient</T>
         </span>
-        <span className="text-[13px] text-forest-900 dark:text-cream-100" data-no-translate>
+        <span className="text-[13px] text-foreground" data-no-translate>
           {submission.recipientName
             ? `${submission.recipientName} (${submission.recipientEmail})`
             : submission.recipientEmail}
@@ -146,9 +146,9 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
           data-no-translate: <T> resolves through machine translation and a
           person's name is not a phrase to translate. */}
       {signingState && (
-        <section className="rounded-xl border border-ink-200 bg-white p-5 dark:border-forest-700/50 dark:bg-forest-900/40">
+        <section className="rounded-xl border border-edge bg-surface p-5">
           <SectionTitle className="mb-2">Signed document</SectionTitle>
-          <p className="text-[13px] text-ink-700 dark:text-cream-100/80">
+          <p className="text-[13px] text-foreground">
             {signingState.kind === 'complete' ? (
               <T>Everyone has signed this. The signed copy is below.</T>
             ) : signingState.kind === 'your_turn' ? (
@@ -174,7 +174,7 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
               {signing.signers.map((s) => (
                 <li
                   key={s.email}
-                  className="text-[12.5px] text-ink-600 dark:text-cream-100/70"
+                  className="text-[12.5px] text-muted"
                 >
                   <span data-no-translate>{s.name?.trim() || s.email}</span>
                   {' · '}
@@ -206,7 +206,7 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
               >
                 <T>Sign your part</T>
               </Link>
-              <p className="mt-2 text-[12.5px] text-ink-500 dark:text-cream-100/55">
+              <p className="mt-2 text-[12.5px] text-muted">
                 <T>
                   You will see the document with their signature on it before you
                   sign. Nothing is sent until you do.
@@ -229,7 +229,7 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
               // the counsel surfaces state a missing executed copy. A page that
               // says "fully signed" with nothing under it reads as a bug the
               // employee has to guess at.
-              <p className="mt-3 text-[12.5px] text-ink-500 dark:text-cream-100/55">
+              <p className="mt-3 text-[12.5px] text-muted">
                 <T>
                   The signed copy could not be opened just now. Reload the page,
                   and if it stays this way your legal team can send it to you.
@@ -241,61 +241,61 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
       )}
 
       {submission.decisionNote && submission.status !== 'pending' && (
-        <div className="rounded-xl border border-ink-200 bg-white px-4 py-3 dark:border-forest-700/50 dark:bg-forest-900/40">
-          <p className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+        <div className="rounded-xl border border-edge bg-surface px-4 py-3">
+          <p className="text-[13px] font-semibold text-foreground">
             <T>Note from the legal team</T>
           </p>
-          <p className="mt-1 whitespace-pre-wrap text-[13px] text-ink-700 dark:text-cream-100/80" data-no-translate>
+          <p className="mt-1 whitespace-pre-wrap text-[13px] text-foreground" data-no-translate>
             {submission.decisionNote}
           </p>
         </div>
       )}
 
       {submission.editedAt && (
-        <div className="rounded-xl border border-ink-200 bg-white px-4 py-3 dark:border-forest-700/50 dark:bg-forest-900/40">
-          <p className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+        <div className="rounded-xl border border-edge bg-surface px-4 py-3">
+          <p className="text-[13px] font-semibold text-foreground">
             <T>The legal team adjusted the wording</T>
           </p>
-          <p className="mt-1 text-[13px] text-ink-700 dark:text-cream-100/80">
+          <p className="mt-1 text-[13px] text-foreground">
             <T>
               The document below is the version they changed, and it is the one that goes to
               the recipient. What you sent is kept underneath it.
             </T>
           </p>
-          <p className="mt-1 text-[12px] text-ink-500 dark:text-cream-100/55" data-no-translate>
+          <p className="mt-1 text-[12px] text-muted" data-no-translate>
             {`${submission.editedByName ?? 'The legal team'} · ${new Date(submission.editedAt).toLocaleString()}`}
           </p>
           {submission.editNote && (
-            <p className="mt-2 whitespace-pre-wrap text-[13px] text-ink-700 dark:text-cream-100/80" data-no-translate>
+            <p className="mt-2 whitespace-pre-wrap text-[13px] text-foreground" data-no-translate>
               {submission.editNote}
             </p>
           )}
         </div>
       )}
 
-      <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-forest-700/50 dark:bg-forest-900/40">
+      <section className="rounded-xl border border-edge bg-surface p-6">
         <SectionTitle className="mb-3">Document</SectionTitle>
         {submission.documentVisible ? (
           <div
-            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
+            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-foreground"
             data-no-translate
           >
             {submission.documentText}
           </div>
         ) : (
-          <p className="text-[13px] text-ink-600 dark:text-cream-100/70">
+          <p className="text-[13px] text-muted">
             <T>The wording of this document is not open to you.</T>
           </p>
         )}
       </section>
 
       {submission.originalDocumentText && (
-        <details className="rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
-          <summary className="cursor-pointer text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+        <details className="rounded-xl border border-edge bg-surface p-4">
+          <summary className="cursor-pointer text-[13px] font-semibold text-foreground">
             <T>What you sent, before the edit</T>
           </summary>
           <div
-            className="mt-3 max-h-[50vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-ink-700 dark:text-cream-100/80"
+            className="mt-3 max-h-[50vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-foreground"
             data-no-translate
           >
             {submission.originalDocumentText}

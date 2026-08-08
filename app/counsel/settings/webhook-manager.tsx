@@ -80,7 +80,7 @@ export function WebhookManager({
   return (
     <div className="space-y-4">
       {webhooks.length === 0 && !showAdd && (
-        <p className="text-sm text-ink-600 dark:text-cream-100/65 italic">
+        <p className="text-sm text-muted italic">
           <T>No outbound webhooks yet.</T>
         </p>
       )}
@@ -90,7 +90,7 @@ export function WebhookManager({
           {webhooks.map((w) => (
             <li
               key={w.id}
-              className="rounded-xl border border-ink-200 dark:border-forest-700/40 bg-white dark:bg-forest-900/40 p-4 space-y-2"
+              className="rounded-xl border border-edge bg-surface p-4 space-y-2"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -99,7 +99,7 @@ export function WebhookManager({
                       {w.kind}
                     </span>
                     {w.label && (
-                      <span className="text-sm font-semibold text-forest-900 dark:text-cream-100">
+                      <span className="text-sm font-semibold text-foreground">
                         {w.label}
                       </span>
                     )}
@@ -107,13 +107,13 @@ export function WebhookManager({
                       className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
                         w.isActive
                           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                          : 'bg-ink-100 text-ink-600 dark:bg-forest-800/50 dark:text-cream-100/55'
+                          : 'bg-surface-2 text-muted'
                       }`}
                     >
                       {w.isActive ? <T>Active</T> : <T>Paused</T>}
                     </span>
                   </div>
-                  <p className="font-mono text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1 break-all">
+                  <p className="font-mono text-[11.5px] text-muted mt-1 break-all">
                     {w.url}
                   </p>
                 </div>
@@ -132,7 +132,7 @@ export function WebhookManager({
                         type="button"
                         onClick={() => setConfirmingId(null)}
                         disabled={pending}
-                        className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 inline-flex items-center min-h-[40px] px-3 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                        className="rounded-md ring-1 ring-edge inline-flex items-center min-h-[40px] px-3 hover:bg-surface-2 disabled:opacity-50"
                       >
                         <T>Cancel</T>
                       </button>
@@ -143,7 +143,7 @@ export function WebhookManager({
                         type="button"
                         onClick={() => onToggle(w.id, !w.isActive)}
                         disabled={pending}
-                        className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 inline-flex items-center min-h-[40px] px-3 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                        className="rounded-md ring-1 ring-edge inline-flex items-center min-h-[40px] px-3 hover:bg-surface-2 disabled:opacity-50"
                       >
                         {w.isActive ? <T>Pause</T> : <T>Resume</T>}
                       </button>
@@ -159,10 +159,10 @@ export function WebhookManager({
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500 dark:text-cream-100/55">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
                 <span>
                   <T>Body echo:</T>{' '}
-                  <span className="font-semibold text-ink-700 dark:text-cream-100/85">
+                  <span className="font-semibold text-foreground">
                     {w.includeBody ? <T>Full message</T> : <T>Metadata only</T>}
                   </span>
                 </span>
@@ -212,17 +212,17 @@ export function WebhookManager({
       {showAdd && (
         <form
           action={onAdd}
-          className="rounded-xl border border-ink-200 dark:border-forest-700/40 bg-cream-50/40 dark:bg-forest-900/40 p-4 space-y-3"
+          className="rounded-xl border border-edge bg-surface-2 p-4 space-y-3"
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm space-y-1">
-              <span className="font-semibold text-forest-900 dark:text-cream-100">
+              <span className="font-semibold text-foreground">
                 <T>Where does it post?</T>
               </span>
               <select
                 name="kind"
                 required
-                className="block w-full rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 px-2.5 py-1.5 text-sm"
+                className="block w-full rounded-md ring-1 ring-edge bg-surface px-2.5 py-1.5 text-sm"
               >
                 <option value="slack"><T>Slack (Incoming Webhook)</T></option>
                 <option value="teams">
@@ -232,7 +232,7 @@ export function WebhookManager({
               </select>
             </label>
             <label className="text-sm space-y-1">
-              <span className="font-semibold text-forest-900 dark:text-cream-100">
+              <span className="font-semibold text-foreground">
                 <T>Label (optional)</T>
               </span>
               <input
@@ -240,12 +240,12 @@ export function WebhookManager({
                 type="text"
                 placeholder={t('e.g. #legal-ops Slack')}
                 maxLength={60}
-                className="block w-full rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 px-2.5 py-1.5 text-sm"
+                className="block w-full rounded-md ring-1 ring-edge bg-surface px-2.5 py-1.5 text-sm"
               />
             </label>
           </div>
           <label className="text-sm space-y-1 block">
-            <span className="font-semibold text-forest-900 dark:text-cream-100">
+            <span className="font-semibold text-foreground">
               <T>Webhook URL (https://&hellip;)</T>
             </span>
             <input
@@ -253,9 +253,9 @@ export function WebhookManager({
               type="url"
               required
               placeholder="https://hooks.slack.com/services/T.../B.../..."
-              className="block w-full rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 px-2.5 py-1.5 text-sm font-mono"
+              className="block w-full rounded-md ring-1 ring-edge bg-surface px-2.5 py-1.5 text-sm font-mono"
             />
-            <span className="block text-[11px] text-ink-500 dark:text-cream-100/55">
+            <span className="block text-[11px] text-muted">
               <T>
                 Slack: Apps &rarr; Incoming Webhooks &rarr; Add to Workspace.
                 Teams: Channel &rarr; Connectors &rarr; Incoming Webhook.
@@ -266,7 +266,7 @@ export function WebhookManager({
             <input
               type="checkbox"
               name="includeBody"
-              className="h-4 w-4 rounded ring-1 ring-ink-200"
+              className="h-4 w-4 rounded ring-1 ring-edge"
             />
             <span>
               <T>

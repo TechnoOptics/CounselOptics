@@ -62,7 +62,7 @@ export function ExportMenu({
           href={previewHref(path, label)}
           onClick={() => setOpen(false)}
           title="Preview"
-          className={`min-w-0 flex-1 truncate rounded-md px-3 py-2 text-[13px] text-forest-900 dark:text-cream-100 group-hover/row:text-gold-700 dark:group-hover/row:text-gold-300 ${strong ? 'font-semibold' : ''}`}
+          className={`min-w-0 flex-1 truncate rounded-md px-3 py-2 text-[13px] text-foreground group-hover/row:text-gold-700 dark:group-hover/row:text-gold-300 ${strong ? 'font-semibold' : ''}`}
         >
           <span data-no-translate={label.length > 24 ? '' : undefined}>{label.length > 24 ? label : <T>{label}</T>}</span>
         </a>
@@ -95,14 +95,14 @@ export function ExportMenu({
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
-        className="group flex w-full items-center gap-2.5 rounded-lg px-4 py-3 text-left ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
+        className="group flex w-full items-center gap-2.5 rounded-lg px-4 py-3 text-left ring-1 ring-transparent text-foreground hover:bg-surface hover:ring-gold-500/60 hover:shadow-sm transition-all"
       >
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
           <PacketIcon />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-semibold"><T>Export</T></span>
-          <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Preview, download, or share</T></span>
+          <span className="block truncate text-[11px] text-muted"><T>Preview, download, or share</T></span>
         </span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}>
           <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -112,7 +112,7 @@ export function ExportMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-40 mt-2 w-72 max-h-[70vh] overflow-y-auto rounded-xl border border-ink-200 dark:border-forest-700/60 bg-white dark:bg-forest-900 p-1.5 shadow-xl"
+          className="absolute right-0 z-40 mt-2 w-72 max-h-[70vh] overflow-y-auto rounded-xl border border-edge bg-surface p-1.5 shadow-xl"
         >
           <p className="px-3 pt-1.5 pb-1 text-[11px] text-forest-400 dark:text-cream-100/35">
             <T>Click a document to preview it, or download / share it directly with the buttons.</T>

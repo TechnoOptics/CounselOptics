@@ -124,11 +124,11 @@ export default async function CounselTimePage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-foreground">
           <T>Recent entries</T>
         </h2>
         {entries.length === 0 ? (
-          <p className="card p-5 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+          <p className="card p-5 text-[13px] text-muted italic">
             <T>No time entries yet. Start a timer to log work.</T>
           </p>
         ) : (
@@ -144,7 +144,7 @@ export default async function CounselTimePage() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+                      <p className="font-semibold text-foreground truncate">
                         {e.description ?? <T>Time entry</T>}
                       </p>
                       {e.invoice_id && (
@@ -158,7 +158,7 @@ export default async function CounselTimePage() {
                         </StatusPill>
                       )}
                     </div>
-                    <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 font-mono tabular-nums">
+                    <p className="text-[12px] text-muted mt-0.5 font-mono tabular-nums">
                       {new Date(e.started_at).toLocaleString()}
                       {e.case_id && ` · case ${e.case_id.slice(0, 8)}...`}
                       {' · '}
@@ -166,13 +166,13 @@ export default async function CounselTimePage() {
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="font-mono tabular-nums text-forest-900 dark:text-cream-100 font-semibold">
+                    <p className="font-mono tabular-nums text-foreground font-semibold">
                       {e.duration_seconds
                         ? fmtDuration(e.duration_seconds)
                         : 'running'}
                     </p>
                     {cents > 0 && (
-                      <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono tabular-nums">
+                      <p className="text-[11px] text-muted font-mono tabular-nums">
                         {fmtCents(cents)}
                       </p>
                     )}
@@ -201,7 +201,7 @@ function Stat({
   const cls =
     tone === 'amber'
       ? 'text-amber-700 dark:text-amber-300'
-      : 'text-forest-900 dark:text-cream-100';
+      : 'text-foreground';
   return (
     <div className="card p-5">
       <p className="eyebrow text-[10.5px] mb-2">{label}</p>
@@ -209,7 +209,7 @@ function Stat({
         {value}
       </p>
       {sub && (
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1.5 font-mono tabular-nums">
+        <p className="text-[11px] text-muted mt-1.5 font-mono tabular-nums">
           {sub}
         </p>
       )}

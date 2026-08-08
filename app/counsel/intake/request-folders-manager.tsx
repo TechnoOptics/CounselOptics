@@ -83,7 +83,7 @@ export function RequestFoldersManager({
           {initial.map((f) => (
             <span
               key={f.key}
-              className="inline-flex items-center gap-1.5 rounded-full bg-cream-50 dark:bg-forest-800/50 ring-1 ring-ink-200 dark:ring-forest-700/40 px-2.5 py-1 text-[12px] text-ink-700 dark:text-cream-100/85"
+              className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 ring-1 ring-edge px-2.5 py-1 text-[12px] text-foreground"
             >
               {f.name}
               <button
@@ -91,7 +91,7 @@ export function RequestFoldersManager({
                 onClick={() => remove(f.key)}
                 disabled={pending}
                 aria-label={`Delete ${f.name}`}
-                className="text-ink-400 hover:text-rose-600 dark:hover:text-rose-300"
+                className="text-muted hover:text-rose-600 dark:hover:text-rose-300"
               >
                 &times;
               </button>

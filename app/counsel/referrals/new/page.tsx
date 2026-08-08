@@ -29,7 +29,7 @@ export default async function NewReferralPage() {
       <p className="text-sm">
         <Link
           href="/counsel/referrals"
-          className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
+          className="text-muted hover:text-foreground"
         >
           <T>&larr; Referrals</T>
         </Link>

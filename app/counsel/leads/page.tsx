@@ -44,7 +44,7 @@ export default async function FirmLeadsPage() {
           consumer picks your firm.</T>
         }
         action={
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
+          <p className="text-[12px] text-muted font-mono uppercase tracking-wider">
             {open.length} <T>open</T> · {responded.length} <T>responded</T>
           </p>
         }
@@ -52,10 +52,10 @@ export default async function FirmLeadsPage() {
 
       {leads.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="text-2xl text-forest-900 dark:text-cream-100">
+          <p className="text-2xl text-foreground">
             <T>No leads yet.</T>
           </p>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
+          <p className="text-sm text-muted mt-2 max-w-md mx-auto leading-relaxed">
             <T>Make sure your firm&rsquo;s jurisdictions and practice areas are
             up to date in</T> <Link href="/counsel/settings" className="underline"><T>settings</T></Link> <T>so
             we can match you with the right consumers.</T>
@@ -96,7 +96,7 @@ function Section({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <h2 className="text-lg font-medium tracking-[-0.01em] text-foreground">
         <T>{title}</T>
       </h2>
       {children}
@@ -113,7 +113,7 @@ function LeadCard({
     <li className="card p-4 hover:shadow-card-hover hover:-translate-y-0.5 transition-all">
       <Link href={`/counsel/leads/${lead.id}`} className="block space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <p className="font-semibold text-forest-900 dark:text-cream-100 truncate flex-1 min-w-0">
+          <p className="font-semibold text-foreground truncate flex-1 min-w-0">
             {lead.practiceAreas.slice(0, 3).join(', ') || <T>Legal matter</T>} ·{' '}
             {lead.jurisdictionState ?? <T>State not set</T>}
           </p>
@@ -126,10 +126,10 @@ function LeadCard({
             {lead.urgency ?? 'normal'}
           </StatusPill>
         </div>
-        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/75 line-clamp-2 leading-snug">
+        <p className="text-[12.5px] text-muted line-clamp-2 leading-snug">
           {lead.summary}
         </p>
-        <div className="flex items-center justify-between text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
+        <div className="flex items-center justify-between text-[11px] text-muted font-mono tabular-nums pt-1 border-t border-edge">
           <span>{new Date(lead.createdAt).toLocaleString()}</span>
           {lead.firmResponse && (
             <span className="text-emerald-700 dark:text-emerald-300 font-semibold uppercase tracking-wider text-[10px]">

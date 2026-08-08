@@ -88,7 +88,7 @@ export default async function CounselContractsPage() {
                   className="block space-y-1"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+                    <p className="font-semibold text-foreground truncate">
                       {r.name}
                     </p>
                     <StatusPill
@@ -98,14 +98,14 @@ export default async function CounselContractsPage() {
                       {r.status.replace(/_/g, ' ')}
                     </StatusPill>
                   </div>
-                  <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono">
+                  <p className="text-[12px] text-muted font-mono">
                     {r.custom_type ?? type?.label ?? r.contract_type}
                     {r.parties.length > 0 && ` · ${r.parties.slice(0, 2).join(', ')}`}
                     {r.expiry_at &&
                       ` · expires ${new Date(r.expiry_at).toLocaleDateString()}`}
                   </p>
                   {r.review_confidence !== null && (
-                    <p className="text-[12px] text-ink-600 dark:text-cream-100/70 font-mono tabular-nums">
+                    <p className="text-[12px] text-muted font-mono tabular-nums">
                       <T>Bella confidence</T> {r.review_confidence}/100
                     </p>
                   )}

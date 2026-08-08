@@ -61,20 +61,20 @@ export function AccountPanel(props: AccountPanelProps) {
             <T>Signed in as</T>
           </p>
           <p
-            className="font-semibold text-forest-900 dark:text-cream-100 truncate"
+            className="font-semibold text-foreground truncate"
             data-no-translate
           >
             {props.displayName || props.email}
           </p>
           <p
-            className="text-sm text-ink-500 dark:text-cream-100/55 truncate"
+            className="text-sm text-muted truncate"
             data-no-translate
           >
             {props.email}
           </p>
           {props.firmName ? (
             <p
-              className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 truncate"
+              className="text-[12px] text-muted mt-1 truncate"
               data-no-translate
             >
               {props.firmName}
@@ -83,7 +83,7 @@ export function AccountPanel(props: AccountPanelProps) {
           ) : null}
         </div>
         <AvatarUpload userId={props.userId} currentUrl={props.avatarUrl} />
-        <p className="text-xs text-ink-500 dark:text-cream-100/55">
+        <p className="text-xs text-muted">
           <T>
             Upload a photo, or leave it and Advottic uses the picture from the
             account you signed in with.
@@ -96,10 +96,10 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow mb-1">
             <T>Details</T>
           </p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>Name and title</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+          <p className="text-sm text-muted mt-1 leading-relaxed">
             <T>
               These appear in the firm header and on the cover page of exported
               matter packets and exhibits.
@@ -132,7 +132,7 @@ export function AccountPanel(props: AccountPanelProps) {
               className="input"
               data-no-translate
             />
-            <p className="text-xs text-ink-500 dark:text-cream-100/55 mt-1.5">
+            <p className="text-xs text-muted mt-1.5">
               <T>For example: Partner, Associate, Paralegal.</T>
             </p>
           </div>
@@ -147,7 +147,7 @@ export function AccountPanel(props: AccountPanelProps) {
               className="input"
               data-no-translate
             />
-            <p className="text-xs text-ink-500 dark:text-cream-100/55 mt-1.5">
+            <p className="text-xs text-muted mt-1.5">
               <T>Leave blank to use the firm name.</T>
             </p>
           </div>
@@ -165,10 +165,10 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow mb-1">
             <T>Security</T>
           </p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>How you sign in</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+          <p className="text-sm text-muted mt-1 leading-relaxed">
             <T>
               Two-factor authentication protects every matter you can reach.
               Firms handling privileged material are expected to have it on.
@@ -197,10 +197,10 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow mb-1">
             <T>Integrations</T>
           </p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>API tokens</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+          <p className="text-sm text-muted mt-1 leading-relaxed">
             <T>
               Issue a token so another system can read and file work through
               the Advottic API. Owners and admins can scope a token to the
@@ -225,10 +225,10 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow mb-1">
             <T>Personal account</T>
           </p>
-          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-foreground">
             <T>Your own Advottic settings</T>
           </h2>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+          <p className="text-sm text-muted mt-1 leading-relaxed">
             <T>
               Theme, language, Safe Witness contacts and paired devices belong
               to you rather than to the firm, so they stay on your personal

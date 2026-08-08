@@ -87,7 +87,7 @@ export function AnalyzeStudio({
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="text-[12px] underline text-ink-600 dark:text-cream-100/70"
+            className="text-[12px] underline text-muted"
           >
             <T>Upload .txt</T>
           </button>
@@ -110,7 +110,7 @@ export function AnalyzeStudio({
           className="input resize-y font-mono text-[12.5px]"
         />
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] text-ink-500 dark:text-cream-100/70">
+          <span className="text-[11px] text-muted">
             {text.length.toLocaleString()} <T>chars · stays on your firm workspace</T>
           </span>
           <button
@@ -132,11 +132,11 @@ export function AnalyzeStudio({
       <div className="card p-5">
         <p className="eyebrow mb-2"><T>Analysis</T></p>
         {out ? (
-          <pre className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink-800 dark:text-cream-100/90 font-sans">
+          <pre className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground font-sans">
             {out}
           </pre>
         ) : (
-          <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
+          <p className="text-[13px] italic text-muted">
             {busy ? (
               <T>Reading the document...</T>
             ) : (
@@ -145,7 +145,7 @@ export function AnalyzeStudio({
           </p>
         )}
         {out && (
-          <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-3">
+          <p className="text-[11px] text-muted mt-3">
             <T>Analysis for licensed counsel, not advice to a consumer.</T>
           </p>
         )}

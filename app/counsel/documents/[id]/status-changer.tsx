@@ -75,7 +75,7 @@ export function DocumentStatusChanger({
         aria-haspopup="menu"
         aria-expanded={open}
         style={pillSurface(colorOf(currentStatus))}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-semibold uppercase tracking-[0.12em] text-forest-900 dark:text-cream-100 transition-colors disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground transition-colors disabled:opacity-50"
       >
         {FIRM_DOCUMENT_STATUS_LABEL[currentStatus]}
         <span aria-hidden className="text-[9px]">▾</span>
@@ -83,7 +83,7 @@ export function DocumentStatusChanger({
       {open && (
           <div
             role="menu"
-            className="absolute z-40 mt-2 w-72 right-0 sm:left-0 sm:right-auto rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900 shadow-xl p-2 space-y-0.5"
+            className="absolute z-40 mt-2 w-72 right-0 sm:left-0 sm:right-auto rounded-lg ring-1 ring-edge bg-surface shadow-xl p-2 space-y-0.5"
           >
             {FIRM_DOCUMENT_STATUSES.map((s) => {
               const active = s === currentStatus;
@@ -96,14 +96,14 @@ export function DocumentStatusChanger({
                   style={active ? pillSurface(colorOf(s)) : undefined}
                   className={`w-full text-left px-2.5 py-1.5 rounded-md text-[12.5px] transition-colors ${
                     active
-                      ? 'text-forest-900 dark:text-cream-100'
-                      : 'hover:bg-ink-50 dark:hover:bg-forest-800/40 text-ink-800 dark:text-cream-100/85'
+                      ? 'text-foreground'
+                      : 'hover:bg-surface-2 text-foreground'
                   } disabled:opacity-50`}
                 >
                   <span className="font-semibold">
                     {FIRM_DOCUMENT_STATUS_LABEL[s]}
                   </span>
-                  <span className="block text-[10.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+                  <span className="block text-[10.5px] text-muted mt-0.5">
                     <T>{STATUS_HINT[s]}</T>
                   </span>
                 </button>
@@ -114,7 +114,7 @@ export function DocumentStatusChanger({
                 {error}
               </p>
             )}
-            <p className="px-2.5 py-1 text-[10px] text-ink-500 dark:text-cream-100/70 border-t border-ink-100 dark:border-forest-800/40 mt-1 pt-2 font-mono">
+            <p className="px-2.5 py-1 text-[10px] text-muted border-t border-edge mt-1 pt-2 font-mono">
               <T>Last moved</T> {new Date(statusUpdatedAt).toLocaleString()}
             </p>
           </div>

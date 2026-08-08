@@ -88,7 +88,7 @@ export function RequestActions({
     <section className="card p-5 flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
         <p className="eyebrow"><T>Take it on</T></p>
-        <p className="text-[13px] text-ink-700 dark:text-cream-100/85 mt-1 max-w-xl leading-relaxed">
+        <p className="text-[13px] text-foreground mt-1 max-w-xl leading-relaxed">
           {caseId
             ? <T>This request is in the team&rsquo;s active queue.</T>
             : <T>Move this into the team&rsquo;s active queue. The requester, summary and
@@ -122,7 +122,7 @@ export function RequestActions({
     <section className="card p-5 grid sm:grid-cols-2 gap-5">
       <div className="space-y-2">
         <p className="eyebrow"><T>Reminder</T></p>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+        <p className="text-[12px] text-muted leading-relaxed">
           <T>Get pinged when this contract/request is due. Notifies you,
           the legal team, and the requester.</T>
         </p>
@@ -147,14 +147,14 @@ export function RequestActions({
               type="button"
               onClick={() => save(true)}
               disabled={pending}
-              className="text-[12px] underline text-ink-600 dark:text-cream-100/70"
+              className="text-[12px] underline text-muted"
             >
               <T>Clear</T>
             </button>
           )}
         </div>
         {currentReminder && (
-          <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+          <p className="text-[11px] text-muted">
             <T>Currently due</T>{' '}
             {new Date(currentReminder).toLocaleString()}
           </p>
@@ -171,9 +171,9 @@ export function RequestActions({
         )}
       </div>
 
-      <div className="space-y-2 sm:border-l sm:border-ink-200 sm:dark:border-forest-700/40 sm:pl-5">
+      <div className="space-y-2 sm:border-l sm:border-edge sm:pl-5">
         <p className="eyebrow"><T>E-signature</T></p>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+        <p className="text-[12px] text-muted leading-relaxed">
           <T>Send a document to the parties to sign - external people or
           employees. Signatures + dates render onto the final PDF with
           a tamper-evident audit trail.</T>
@@ -187,7 +187,7 @@ export function RequestActions({
           </a>
           <a
             href="/counsel/signing"
-            className="text-[12px] underline text-ink-700 dark:text-cream-100/85"
+            className="text-[12px] underline text-foreground"
           >
             <T>Track signing requests &rarr;</T>
           </a>
