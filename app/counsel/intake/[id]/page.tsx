@@ -18,6 +18,7 @@ import {
 import { FolderPicker } from './folder-picker';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
+import { DecideRequest } from './decide-request';
 import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
 import { StatusPill, PILL_COLORS, PILL_DEFAULT } from '@/components/counsel/StatusPill';
 import { Chip } from '@/components/counsel/patterns';
@@ -30,12 +31,36 @@ export const metadata = { title: 'Intake · Counsel' };
 
 // One hex per status; StatusPill derives the fill and the border from
 // it. An unlisted status falls back to gold rather than to silence.
+//
+// `converted`, `rejected` and `closed` were all missing, so a request the
+// team had taken on and one it had turned down both wore the gold fallback,
+// which reads as the accent rather than as a state. The two decided statuses
+// share `quiet` because that is the grey lib/portal-status.ts already paints
+// "Closed" with, so the employee's chip and the firm's chip agree.
 const STATUS_COLOR: Record<string, string> = {
   in_progress: PILL_COLORS.neutral,
   conflict_check_passed: PILL_COLORS.good,
   conflict_check_flagged: PILL_COLORS.flagged,
   engaged: PILL_COLORS.good,
+  converted: PILL_COLORS.good,
+  rejected: PILL_COLORS.quiet,
+  closed: PILL_COLORS.quiet,
 };
+
+/** The decision panel's props, read out of the schema-less answers column. */
+function readDecision(answers: Record<string, unknown>) {
+  const d = answers.decision;
+  if (!d || typeof d !== 'object') return null;
+  const r = d as Record<string, unknown>;
+  const outcome = String(r.outcome ?? '');
+  if (!outcome) return null;
+  return {
+    outcome,
+    reason: String(r.reason ?? ''),
+    byName: String(r.byName ?? 'The legal team'),
+    at: String(r.at ?? ''),
+  };
+}
 
 export default async function IntakeDetailPage({
   params,
@@ -355,12 +380,22 @@ export default async function IntakeDetailPage({
         </RecordSection>
 
         <RecordSection id="actions" title="Matter &amp; next steps">
-          <RequestActions
-            firmId={ctx.firm.id}
-            intakeId={intake.id}
-            currentReminder={String(ans.reminder_at ?? '')}
-            caseId={(intake as { case_id?: string | null }).case_id ?? null}
-          />
+          <div className="space-y-4">
+            <RequestActions
+              firmId={ctx.firm.id}
+              intakeId={intake.id}
+              currentReminder={String(ans.reminder_at ?? '')}
+              caseId={(intake as { case_id?: string | null }).case_id ?? null}
+            />
+            {/* The two ends of the same fork sit together on purpose: taking
+                the matter on and declining it are one decision, and putting
+                the decline somewhere else is how it stayed unbuilt. */}
+            <DecideRequest
+              firmId={ctx.firm.id}
+              intakeId={intake.id}
+              decision={readDecision(ans)}
+            />
+          </div>
         </RecordSection>
 
         {ans.review != null && typeof ans.review === 'object' && 'grade' in (ans.review as object) && (
