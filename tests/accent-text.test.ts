@@ -23,6 +23,16 @@ import {
   toOklch,
 } from '../lib/accent-text';
 import type { DarkSurfaceGroup } from '../lib/accent-text';
+import {
+  PILL_COLORS,
+  PILL_COLORS_LIGHT,
+  PILL_DEFAULT,
+  pillInk,
+} from '../lib/pill-colors';
+import type { PillTone } from '../lib/pill-colors';
+// The chip's own style objects, so the assertions below are about the
+// paint and not about a helper the component could stop calling.
+import { pillStyle, pillSurface } from '../components/counsel/StatusPill';
 
 const globalsCss = readFileSync(
   fileURLToPath(new URL('../app/globals.css', import.meta.url)),
@@ -868,6 +878,235 @@ hover:bg-ink-50 hover:bg-ink-100 border-ink-100 border-ink-200 border-forest-200
       );
       expect(hits.length, `${rel} no longer needs its ${cls} exemption: ${why}`)
         .toBeGreaterThan(0);
+    }
+  });
+});
+
+/*
+ * The status chips, on BOTH grounds.
+ *
+ * lib/pill-colors.ts carried its own measurements in a comment, and
+ * those measurements were right when they were written: the only
+ * grounds a chip could land on in early 2026 were the counsel page and
+ * the counsel card, both near-black. Light counsel shipped afterwards,
+ * the palette was never re-measured, and every one of the seven chips
+ * went under the floor on the new ground at once. `flagged` is the
+ * loudest at 2.20:1 but `waiting` is the worst at 1.38:1.
+ *
+ * Nothing here re-derives the palette. It measures the chip the way
+ * StatusPill paints it and holds both halves to the same floor, so the
+ * next ground that arrives cannot be added without a number.
+ */
+describe('the status palette clears the floor on both grounds', () => {
+  /**
+   * The alpha StatusPill's `pillStyle` puts behind the label, as a
+   * fraction. The style object writes it as the two hex digits `1a`,
+   * which is 26/255.
+   */
+  const CHIP_FILL_ALPHA = 26 / 255;
+
+  function channels(hex: string): [number, number, number] {
+    const n = parseInt(hex.replace('#', ''), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  /**
+   * The chip's fill: the label's own colour at CHIP_FILL_ALPHA over
+   * whatever surface the chip sits on.
+   *
+   * Measuring the label against the BARE surface is the mistake this
+   * helper exists to avoid. The fill is always a step from the surface
+   * towards the label, so the bare-surface number is optimistic by
+   * about half a point and would pass colours the eye cannot read.
+   */
+  function chipFill(hex: string, surface: string): string {
+    const label = channels(hex);
+    const ground = channels(surface);
+    return (
+      '#' +
+      label
+        .map((v, i) =>
+          Math.round(v * CHIP_FILL_ALPHA + ground[i] * (1 - CHIP_FILL_ALPHA))
+            .toString(16)
+            .padStart(2, '0'),
+        )
+        .join('')
+    );
+  }
+
+  const chipRatio = (hex: string, surface: string) =>
+    contrastRatio(hex, chipFill(hex, surface));
+
+  /**
+   * The dark grounds the palette actually claims.
+   *
+   * Not every counsel surface: the palette clears AA on the three
+   * darkest and stops there. `quiet` measures 4.46:1 on
+   * `.bg-cream-50` (#1a1a1e) and 3.56:1 on `.bg-cream-200`, so listing
+   * those would fail on a DARK value this change is not touching.
+   * `.bg-cream-200` has a single counsel call site and it is a button
+   * hover, not a chip ground; the lighter counsel utilities are
+   * recorded as a separate, pre-existing gap rather than silently
+   * folded into a light-mode fix. Pulled by key out of the group the
+   * suite already proves against app/globals.css, so a repaint of any
+   * of the three moves this measurement too.
+   */
+  const DARK_GROUND_KEYS = [
+    'counsel page',
+    'counsel .bg-ink-50',
+    'counsel card',
+  ] as const;
+
+  const DARK_GROUNDS = Object.fromEntries(
+    DARK_GROUND_KEYS.map((key) => [
+      key,
+      DARK_SURFACE_GROUPS.counsel.surfaces[key],
+    ]),
+  ) as Record<(typeof DARK_GROUND_KEYS)[number], string>;
+
+  /** Every solid surface light counsel paints, as registered for the tone. */
+  const LIGHT_GROUNDS = LIGHT_SURFACE_GROUPS.counselLight.surfaces;
+
+  const tones = Object.keys(PILL_COLORS) as PillTone[];
+
+  it('finds the palette at all, so an empty sweep cannot pass', () => {
+    expect(tones.length).toBeGreaterThanOrEqual(7);
+    expect(Object.values(DARK_GROUNDS).every(Boolean)).toBe(true);
+    expect(Object.keys(LIGHT_GROUNDS).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('gives every dark value a light twin, and a different one', () => {
+    // A light map that is a copy of the dark map passes nothing below
+    // by accident: it fails the light measurements outright. This is
+    // here for the opposite case, a tone added to one map only.
+    for (const tone of tones) {
+      expect(
+        PILL_COLORS_LIGHT[tone],
+        `${tone} has no light twin`,
+      ).toMatch(/^#[0-9a-fA-F]{6}$/);
+      expect(
+        PILL_COLORS_LIGHT[tone].toLowerCase(),
+        `${tone} uses its dark hex on the light ground`,
+      ).not.toBe(PILL_COLORS[tone].toLowerCase());
+    }
+  });
+
+  for (const tone of tones) {
+    it(`${tone} is >= ${AA_SMALL_TEXT}:1 on every dark ground`, () => {
+      for (const [name, surface] of Object.entries(DARK_GROUNDS)) {
+        expect(
+          chipRatio(PILL_COLORS[tone], surface),
+          `${tone} ${PILL_COLORS[tone]} measures ${chipRatio(PILL_COLORS[tone], surface).toFixed(3)}:1 on the ${name} (${surface})`,
+        ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+      }
+    });
+
+    it(`${tone} is >= ${AA_SMALL_TEXT}:1 on every light ground`, () => {
+      for (const [name, surface] of Object.entries(LIGHT_GROUNDS)) {
+        expect(
+          chipRatio(PILL_COLORS_LIGHT[tone], surface),
+          `${tone} ${PILL_COLORS_LIGHT[tone]} measures ${chipRatio(PILL_COLORS_LIGHT[tone], surface).toFixed(3)}:1 on the ${name} (${surface})`,
+        ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+      }
+    });
+  }
+
+  it('states the regression this guard exists for, as arithmetic', () => {
+    // The shipped palette on the ground it was never measured on. Every
+    // one of the seven, not just the red one that was reported.
+    const tightestLight = '#eeeef1';
+    for (const tone of tones) {
+      expect(
+        chipRatio(PILL_COLORS[tone], tightestLight),
+        `${tone} would still be legible on light counsel, so the twin is unnecessary`,
+      ).toBeLessThan(AA_SMALL_TEXT);
+    }
+  });
+
+  it('keeps the two greys apart, and the two yellows', () => {
+    // Both pairs are deliberate and neither is visible in a contrast
+    // number: `neutral` and `quiet` share a hue and differ only in
+    // lightness, `gold` and `waiting` share a hue and differ only in
+    // chroma. A future edit that clears AA by flattening either pair
+    // has broken the palette without failing anything above.
+    //
+    // The greys INVERT between grounds: on dark `neutral` is the
+    // brighter of the two, on light it is the darker, because on a
+    // light ground prominence reads as depth.
+    expect(relativeLuminance(PILL_COLORS.neutral)).toBeGreaterThan(
+      relativeLuminance(PILL_COLORS.quiet),
+    );
+    expect(relativeLuminance(PILL_COLORS_LIGHT.neutral)).toBeLessThan(
+      relativeLuminance(PILL_COLORS_LIGHT.quiet),
+    );
+    expect(
+      contrastRatio(PILL_COLORS_LIGHT.neutral, PILL_COLORS_LIGHT.quiet),
+      'the light greys have collapsed into one grey',
+    ).toBeGreaterThanOrEqual(1.2);
+    expect(
+      toOklch(PILL_COLORS_LIGHT.waiting).c -
+        toOklch(PILL_COLORS_LIGHT.gold).c,
+      'light gold is no longer the muted one of the two yellows',
+    ).toBeGreaterThan(0.03);
+  });
+
+  it('proves no single hex could have served both grounds', () => {
+    // The reason this file now carries two maps rather than one
+    // corrected one. Clearing AA on the darkest ground bounds the
+    // label's luminance from BELOW and clearing it on the lightest
+    // ground bounds the same quantity from ABOVE, and the two bounds
+    // do not overlap for any colour of any hue. Swept over the greys
+    // because a grey is the best case: at a given luminance nothing
+    // else has a better ratio against a neutral ground.
+    const darkest = DARK_GROUNDS['counsel page'];
+    const lightest = '#eeeef1';
+    for (let v = 0; v <= 255; v++) {
+      const grey = '#' + v.toString(16).padStart(2, '0').repeat(3);
+      const bothPass =
+        chipRatio(grey, darkest) >= AA_SMALL_TEXT &&
+        chipRatio(grey, lightest) >= AA_SMALL_TEXT;
+      expect(bothPass, `${grey} clears the floor on both grounds`).toBe(false);
+    }
+  });
+
+  it('resolves each palette colour to a value that follows the shell', () => {
+    for (const tone of tones) {
+      expect(pillInk(PILL_COLORS[tone])).toBe(
+        `light-dark(${PILL_COLORS_LIGHT[tone]}, ${PILL_COLORS[tone]})`,
+      );
+      // The chip's fill and edge are the same colour at an alpha, and
+      // the alpha has to reach BOTH halves or one theme loses its tint.
+      expect(pillInk(PILL_COLORS[tone], '1a')).toBe(
+        `light-dark(${PILL_COLORS_LIGHT[tone]}1a, ${PILL_COLORS[tone]}1a)`,
+      );
+    }
+    // The default a caller gets for a state with no colour of its own.
+    expect(pillInk(PILL_DEFAULT)).toContain('light-dark(');
+    // An unrecognised colour is passed through rather than dropped, so
+    // a call site that invents a hex still renders something.
+    expect(pillInk('#123456', '40')).toBe('#12345640');
+  });
+
+  it('paints every layer of the chip through that resolver', () => {
+    // The arithmetic above is about two maps. This is about the paint.
+    // A chip whose style object still writes the bare dark hex is one
+    // where the light map is measured, proved and never rendered, and
+    // every number above would be about a colour nobody sees. Both
+    // helpers are asserted because they are separate call sites:
+    // pillStyle is the chip, pillSurface is the filter and status
+    // controls that take the state's fill without its foreground.
+    for (const tone of tones) {
+      const dark = PILL_COLORS[tone];
+      const light = PILL_COLORS_LIGHT[tone];
+      expect(pillStyle(dark)).toEqual({
+        color: `light-dark(${light}, ${dark})`,
+        background: `light-dark(${light}1a, ${dark}1a)`,
+        border: `1px solid light-dark(${light}40, ${dark}40)`,
+      });
+      expect(pillSurface(dark)).toEqual({
+        background: `light-dark(${light}1a, ${dark}1a)`,
+        boxShadow: `0 0 0 1px light-dark(${light}40, ${dark}40)`,
+      });
     }
   });
 });
