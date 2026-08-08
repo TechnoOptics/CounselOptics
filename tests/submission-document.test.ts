@@ -24,13 +24,23 @@ const renderer = vi.hoisted(() =>
   })),
 );
 vi.mock('../lib/branded-document-pdf', () => ({ buildBrandedDocumentPdf: renderer }));
-vi.mock('../lib/firm-storage', () => ({
-  getFirmByIdAdmin: async () => ({
+/**
+ * Mutable, so a test can change the firm's page layout BETWEEN two calls. That
+ * is the shape of the hazard this feature introduced: the layout is an input to
+ * a render, and the question is whether editing it can reach a document that
+ * has already been rendered.
+ */
+const firm = vi.hoisted(() => ({
+  current: {
     name: 'Anderson Foundation',
     accentColor: '#0f2d24',
-    letterheadUrl: null,
-    logoUrl: null,
-  }),
+    letterheadUrl: null as string | null,
+    logoUrl: null as string | null,
+    metadata: {} as Record<string, unknown>,
+  },
+}));
+vi.mock('../lib/firm-storage', () => ({
+  getFirmByIdAdmin: async () => firm.current,
 }));
 
 const { materializeSubmissionDocument } = await import('../lib/submission-document');
@@ -43,6 +53,7 @@ type Rows = Record<string, Record<string, unknown>>;
 const db = {
   submissions: {} as Rows,
   documents: {} as Rows,
+  templates: {} as Rows,
   objects: {} as Record<string, Buffer>,
   /** Runs once, right after the claim reads, so a second caller can interleave. */
   onClaim: null as (() => void) | null,
@@ -55,7 +66,7 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
   private nullConds: string[] = [];
   private op: 'select' | 'update' | 'insert' | 'delete' = 'select';
   private patch: Record<string, unknown> = {};
-  constructor(private table: 'submissions' | 'documents') {}
+  constructor(private table: 'submissions' | 'documents' | 'templates') {}
   select() {
     if (this.op === 'select') this.op = 'select';
     return this;
@@ -118,7 +129,9 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
 
 const admin = {
   from(table: string) {
-    return new Query(table === 'firm_documents' ? 'documents' : 'submissions');
+    if (table === 'firm_documents') return new Query('documents');
+    if (table === 'firm_templates') return new Query('templates');
+    return new Query('submissions');
   },
   storage: {
     from() {
@@ -152,6 +165,7 @@ beforeEach(() => {
     [SUBMISSION_ID]: {
       id: SUBMISSION_ID,
       firm_id: 'firm-1',
+      template_id: 'tpl-1',
       template_name: 'Mutual NDA',
       submitted_by: 'user-1',
       document_text: 'A document with enough words in it to be worth rendering.',
@@ -159,7 +173,15 @@ beforeEach(() => {
     },
   };
   db.documents = {};
+  db.templates = { 'tpl-1': { id: 'tpl-1', document_layout: null } };
   db.objects = {};
+  firm.current = {
+    name: 'Anderson Foundation',
+    accentColor: '#0f2d24',
+    letterheadUrl: null,
+    logoUrl: null,
+    metadata: {},
+  };
   db.onClaim = null;
   db.failInsert = false;
   db.failUpload = false;
@@ -296,6 +318,85 @@ describe('materializeSubmissionDocument', () => {
     expect(out.ok).toBe(false);
     expect(Object.keys(db.objects)).toEqual([]);
     expect(db.submissions[SUBMISSION_ID].document_id).toBeNull();
+  });
+
+  /**
+   * THE RENDER-ONCE CONTRACT, against the hazard the layout builder introduced.
+   *
+   * A firm can now change its margins, and margins move every counterparty
+   * blank on the page. The live signing overlay and the stamp on the executed
+   * copy both read the geometry recorded at first render, so a layout edit that
+   * could reach a document already out for signature would leave the overlay
+   * pointing at one place and the ink at another.
+   *
+   * It cannot, and this is the assertion: after the firm rewrites its layout
+   * AND the template gains an override of its own, a second call renders
+   * nothing. The stored bytes and the stored geometry are what they were.
+   */
+  it('never re-renders a filed document, however the firm changes its layout', async () => {
+    const first = await materializeSubmissionDocument(admin, SUBMISSION_ID);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const storedBytes = db.objects[`firm-1/${first.documentId}/Mutual NDA.pdf`];
+    const storedBoxes = db.submissions[SUBMISSION_ID].field_boxes;
+
+    firm.current = {
+      ...firm.current,
+      metadata: {
+        document_layout: {
+          margins: { leftPt: 200, rightPt: 200, topPt: 200, bottomPt: 200 },
+          watermark: { show: true },
+        },
+      },
+    };
+    db.templates['tpl-1'].document_layout = { footer: { show: false } };
+
+    const second = await materializeSubmissionDocument(admin, SUBMISSION_ID);
+    expect(renderer).toHaveBeenCalledTimes(1);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.documentId).toBe(first.documentId);
+    expect(second.sha256).toBe(first.sha256);
+    expect(db.objects[`firm-1/${first.documentId}/Mutual NDA.pdf`]).toEqual(storedBytes);
+    expect(db.submissions[SUBMISSION_ID].field_boxes).toEqual(storedBoxes);
+  });
+
+  /**
+   * And the layout that DOES reach the render is the merged one, resolved at
+   * the moment of the render and never again.
+   */
+  it('renders the instrument on the firm layout with the template override on top', async () => {
+    firm.current = {
+      ...firm.current,
+      metadata: { document_layout: { margins: { leftPt: 96 }, footer: { align: 'center' } } },
+    };
+    db.templates['tpl-1'].document_layout = { footer: { align: 'right' } };
+    await materializeSubmissionDocument(admin, SUBMISSION_ID);
+    const call = (renderer.mock.calls[0] as unknown as [Record<string, unknown>])[0] as {
+      layout: { margins: { leftPt: number }; footer: { align: string } };
+      state: string;
+    };
+    expect(call.layout.margins.leftPt).toBe(96);
+    expect(call.layout.footer.align).toBe('right');
+  });
+
+  /**
+   * The instrument is rendered in the SIGNED state, and that is deliberate
+   * rather than an oversight. These bytes become the executed copy, so a
+   * watermark drawn into them could never be taken off, and the owner's rule is
+   * that the mark stops once a document is signed. A DRAFT stamp surviving onto
+   * an executed instrument would be worse than no watermark at all.
+   */
+  it('renders the stored instrument in the signed state, so no mark can outlive it', async () => {
+    firm.current = {
+      ...firm.current,
+      metadata: { document_layout: { watermark: { show: true } } },
+    };
+    await materializeSubmissionDocument(admin, SUBMISSION_ID);
+    const call = (renderer.mock.calls[0] as unknown as [Record<string, unknown>])[0] as {
+      state: string;
+    };
+    expect(call.state).toBe('signed');
   });
 
   it('refuses a submission that is not there', async () => {

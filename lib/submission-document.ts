@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getFirmByIdAdmin } from './firm-storage';
 import { buildBrandedDocumentPdf } from './branded-document-pdf';
 import { firmLetterheadDesign } from './letterhead-design';
+import { firmDocumentLayoutInput, resolveDocumentLayout } from './document-layout';
 import { sha256 } from './esign-audit';
 import { isUnknownColumnError } from './signer-view';
 import { serializeFieldBoxes } from './template-field-boxes';
@@ -101,6 +102,14 @@ export async function materializeSubmissionDocument(
   }
 
   const firm = await getFirmByIdAdmin(row.firm_id);
+  // The page layout, resolved from the firm's default and this template's
+  // partial override at the one moment that matters: this render. A firm that
+  // changes its layout tomorrow changes the NEXT document, not this one, and
+  // that is the whole of why editing a layout is safe. Nothing re-reads this.
+  const layout = resolveDocumentLayout(
+    firmDocumentLayoutInput(firm?.metadata),
+    await readTemplateLayoutOverride(admin, row.template_id),
+  );
   // Rendered once, here, and never again.
   const rendering = await buildBrandedDocumentPdf({
     document: row.document_text,
@@ -110,6 +119,21 @@ export async function materializeSubmissionDocument(
     letterheadUrl: firm?.letterheadUrl ?? undefined,
     letterheadDesign: firmLetterheadDesign(firm?.metadata),
     logoUrl: firm?.logoUrl ?? undefined,
+    layout,
+    // 'signed', DELIBERATELY, on the one path where a document is stored.
+    //
+    // These bytes become the executed instrument. The counterparty's typed
+    // values and every mark are drawn ONTO them by lib/signature-render.ts;
+    // they are never re-rendered, because the SHA-256 of this render is what
+    // the audit chain attests the counterparty was shown. So a watermark drawn
+    // here could never be taken off again, and the owner's rule is that the
+    // mark stops once the document is signed. A DRAFT stamp that survived onto
+    // the executed copy would be worse than no watermark at all.
+    //
+    // The DRAFT mark belongs on the surfaces that render a draft and store
+    // nothing: the template and letter studios, and an employee's own preview.
+    // Those go through app/api/counsel/draft-template/pdf.
+    state: 'signed',
   });
   // Null is a refusal, not a throw: the renderer returns it for a document
   // with nothing worth rendering in it.
@@ -241,6 +265,30 @@ async function readStoredHash(
     return { ok: false, error: 'The stored document could not be read just now. Try again shortly.' };
   }
   return { ok: true, sha256: sha256(Buffer.from(await blob.arrayBuffer())) };
+}
+
+/**
+ * This template's partial layout override, or null.
+ *
+ * Null on every failure, and that is the fail-safe direction rather than
+ * laziness: a template that cannot be read has no override worth guessing at,
+ * and the document then lays out on the firm's own layout, which is the page
+ * the firm was already getting. The column is absent until
+ * 20260809_template_document_layout.sql is applied, and an absent column reads
+ * the same way.
+ */
+async function readTemplateLayoutOverride(
+  admin: SupabaseClient,
+  templateId: string | null,
+): Promise<unknown> {
+  if (!templateId) return null;
+  const { data, error } = await admin
+    .from('firm_templates')
+    .select('document_layout')
+    .eq('id', templateId)
+    .maybeSingle();
+  if (error) return null;
+  return (data as { document_layout?: unknown } | null)?.document_layout ?? null;
 }
 
 /** Throw the losing copy away: the row first, then the bytes it named. */
