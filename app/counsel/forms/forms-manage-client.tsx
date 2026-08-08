@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   createFirmTemplateAction,
   importTemplateDocumentAction,
@@ -23,6 +23,13 @@ import {
   type LetterheadAvailability,
 } from '@/components/counsel/DocumentLayoutFields';
 import { EmptyState } from '@/components/counsel/ui';
+import {
+  Chip,
+  MonoRef,
+  ViewStrip,
+  shortRef,
+  type ViewOption,
+} from '@/components/counsel/patterns';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
@@ -122,59 +129,211 @@ export function FormsManageClient({
               sub="Create your first: an NDA is the classic starting point."
             />
           ) : (
-            <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
-              {templates.map((t) => (
-                <li key={t.id} className="flex items-center gap-3 bg-white px-4 py-3 dark:bg-forest-900/40">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-forest-900 dark:text-cream-100">
-                      {t.name}
-                      {t.category && (
-                        <span className="ml-2 rounded-full bg-gold-500/10 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider text-gold-700 ring-1 ring-gold-500/25 dark:text-gold-300">
-                          {t.category}
-                        </span>
-                      )}
-                    </p>
-                    <p className="truncate text-[12px] text-ink-500 dark:text-cream-100/55">
-                      {t.fields.length} field{t.fields.length === 1 ? '' : 's'}
-                      {' · '}
-                      {t.requiresApproval ? (
-                        <T>reviewed before it is sent</T>
-                      ) : (
-                        <T>employees send it themselves</T>
-                      )}
-                      {t.description ? ` · ${t.description}` : ''}
-                    </p>
-                  </div>
-                  <StatusPill
-                    color={
-                      t.status === 'published'
-                        ? PILL_COLORS.good
-                        : PILL_COLORS.neutral
-                    }
-                  >
-                    {t.status}
-                  </StatusPill>
-                  <button
-                    type="button"
-                    onClick={() => setEditing(t)}
-                    className="text-[13px] font-medium text-gold-700 hover:underline dark:text-gold-300"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void archive(t.id)}
-                    className="text-[13px] text-ink-400 hover:text-rose-600 dark:text-cream-100/40"
-                  >
-                    Archive
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <TemplateCards
+              templates={templates}
+              busy={busy}
+              onEdit={setEditing}
+              onArchive={(id) => void archive(id)}
+            />
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** The three field types a template body can produce, in reading order. */
+const FIELD_TYPES: { type: TemplateField['type']; label: string }[] = [
+  { type: 'text', label: 'Short text' },
+  { type: 'textarea', label: 'Long text' },
+  { type: 'date', label: 'Date' },
+];
+
+/**
+ * The configuration-list pattern from PARITY-SPEC.md section 3: one
+ * card per template rather than one row, carrying what an author has
+ * to know before opening the editor.
+ *
+ * Every number on a card is counted from that template's own fields,
+ * and every phrase after them names a setting the template actually
+ * has: `requiresApproval` and `deliveryMode`. There is no DEFAULT
+ * badge and no Categories button, because a firm template has neither
+ * a default flag nor anywhere to manage categories, and the mono
+ * reference is the template's id rather than a slug, because a
+ * template has no slug.
+ *
+ * The scope strip only appears once there are at least two categories
+ * to choose between. One category is not a filter, it is a label, and
+ * a strip with a single option would be a control that does nothing.
+ */
+export function TemplateCards({
+  templates,
+  busy,
+  onEdit,
+  onArchive,
+}: {
+  templates: FirmTemplate[];
+  busy: boolean;
+  onEdit: (t: FirmTemplate) => void;
+  onArchive: (id: string) => void;
+}) {
+  const t = useT();
+  const [scope, setScope] = useState('');
+
+  const categories = useMemo(() => {
+    const seen: string[] = [];
+    for (const tpl of templates) {
+      const c = (tpl.category ?? '').trim();
+      if (c && !seen.includes(c)) seen.push(c);
+    }
+    return seen.sort((a, b) => a.localeCompare(b));
+  }, [templates]);
+
+  const shown = scope
+    ? templates.filter((tpl) => (tpl.category ?? '').trim() === scope)
+    : templates;
+
+  const options: ViewOption[] = [
+    { key: '', label: <T>All</T>, count: templates.length },
+    ...categories.map((c) => ({
+      key: c,
+      // A firm-authored category name is data, not UI copy, so it is
+      // not wrapped for translation.
+      label: <span data-no-translate>{c}</span>,
+      count: templates.filter((tpl) => (tpl.category ?? '').trim() === c).length,
+    })),
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* The count lives here rather than in the page subtitle because
+          archiving a template updates this list without a reload, and a
+          server-rendered count would sit there being wrong. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {categories.length > 1 ? (
+          <ViewStrip
+            options={options}
+            active={scope}
+            onSelect={setScope}
+            label={t('Template categories')}
+          />
+        ) : (
+          <span />
+        )}
+        <p className="text-[12px] tabular-nums text-muted">
+          {shown.length}/{templates.length} <T>templates shown</T>
+        </p>
+      </div>
+
+      <ul className="grid gap-3">
+        {shown.map((tpl) => {
+          const required = tpl.fields.filter((f) => f.required).length;
+          const counterparty = tpl.fields.filter(
+            (f) => f.party === 'counterparty',
+          ).length;
+          return (
+            <li key={tpl.id} className="card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p
+                      className="text-[14px] font-semibold text-foreground"
+                      data-no-translate
+                    >
+                      {tpl.name}
+                    </p>
+                    {tpl.category && (
+                      <Chip tone="accent">
+                        <span data-no-translate>{tpl.category}</span>
+                      </Chip>
+                    )}
+                    <StatusPill
+                      size="sm"
+                      dot
+                      color={
+                        tpl.status === 'published'
+                          ? PILL_COLORS.good
+                          : PILL_COLORS.neutral
+                      }
+                    >
+                      {t(tpl.status === 'published' ? 'Published' : 'Draft')}
+                    </StatusPill>
+                  </div>
+                  {tpl.description && (
+                    <p
+                      className="mt-1.5 text-[12.5px] leading-relaxed text-muted"
+                      data-no-translate
+                    >
+                      {tpl.description}
+                    </p>
+                  )}
+                </div>
+                <MonoRef title={`${t('Template id')} ${tpl.id}`}>
+                  {shortRef(tpl.id)}
+                </MonoRef>
+              </div>
+
+              <p className="mt-2.5 text-[12px] text-muted">
+                {tpl.fields.length}{' '}
+                {tpl.fields.length === 1 ? <T>field</T> : <T>fields</T>}
+                {' · '}
+                {required} <T>required</T>
+                {counterparty > 0 && (
+                  <>
+                    {' · '}
+                    {counterparty} <T>filled by the other side</T>
+                  </>
+                )}
+                {' · '}
+                {tpl.requiresApproval ? (
+                  <T>reviewed before it is sent</T>
+                ) : (
+                  <T>employees send it themselves</T>
+                )}
+                {' · '}
+                {tpl.deliveryMode === 'signature' ? (
+                  <T>sent for signature</T>
+                ) : (
+                  <T>shared read-only</T>
+                )}
+              </p>
+
+              {tpl.fields.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {FIELD_TYPES.map(({ type, label }) => {
+                    const n = tpl.fields.filter((f) => f.type === type).length;
+                    if (n === 0) return null;
+                    return (
+                      <Chip key={type}>
+                        {t(label)}
+                        <span className="tabular-nums opacity-70">{n}</span>
+                      </Chip>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center gap-4 border-t border-edge pt-3">
+                <button
+                  type="button"
+                  onClick={() => onEdit(tpl)}
+                  className="text-[13px] font-medium text-accent-text hover:underline"
+                >
+                  <T>Edit</T>
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onArchive(tpl.id)}
+                  className="text-[13px] text-muted hover:text-danger-text"
+                >
+                  <T>Archive</T>
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -36,6 +36,9 @@ export default async function CounselFormsPage() {
   // The firm's own layout, so the editor can show a template author what they
   // are inheriting and what taking a band over would change.
   const firmLayout = normalizeDocumentLayout(firmDocumentLayoutInput(ctx.firm.metadata));
+  // listFirmTemplatesAction already excludes archived rows, so this is
+  // exactly what the list below renders.
+  const templates = res.templates ?? [];
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
@@ -43,10 +46,18 @@ export default async function CounselFormsPage() {
         title={<T>Form templates</T>}
         subtitle={
           <>
-            Publish configured documents (an NDA, a vendor form) and employees fill, sign, and
-            export them from their Hub without opening a ticket. Use{' '}
-            <code className="rounded bg-cream-100 px-1 text-[12px] dark:bg-forest-800">{'{{field_key}}'}</code>{' '}
-            placeholders in the body; each becomes an input on the employee&apos;s form.
+            <T>
+              Publish configured documents (an NDA, a vendor form) and employees
+              fill, sign, and export them from their Hub without opening a
+              ticket. Use
+            </T>{' '}
+            <code className="rounded bg-surface-2 px-1 text-[12px]">
+              {'{{field_key}}'}
+            </code>{' '}
+            <T>
+              placeholders in the body; each becomes an input on the
+              employee&apos;s form.
+            </T>
           </>
         }
       />
@@ -62,13 +73,11 @@ export default async function CounselFormsPage() {
           category: t.category,
           notes: t.notes,
         }))}
-        installedNames={(res.templates ?? [])
-          .filter((t) => t.status !== 'archived')
-          .map((t) => t.name)}
+        installedNames={templates.map((t) => t.name)}
       />
       <FormsManageClient
         firmId={ctx.firm.id}
-        initialTemplates={res.templates ?? []}
+        initialTemplates={templates}
         firmLayout={firmLayout}
         letterhead={{
           design: firmLetterheadDesign(ctx.firm.metadata),
