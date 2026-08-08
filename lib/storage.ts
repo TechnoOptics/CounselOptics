@@ -548,13 +548,6 @@ export async function updateCaseStatus(caseId: string, status: CaseStatus): Prom
 }
 
 /**
- * Permanently delete a case and all its exhibits, AI reviews, collaborators,
- * and storage objects. Cascades happen at the FK level for child tables;
- * we only need to walk the storage bucket ourselves to clean up files.
- * RLS (cases_delete_own) ensures only the owner can execute this. Throws
- * if the caller is not the owner or if the row doesn't exist.
- */
-/**
  * Recursively deletes every object under `prefix` in `bucket`. Supabase
  * Storage's list() is non-recursive and represents subfolders as
  * entries with no `id` - descend into those, delete everything else in
@@ -578,16 +571,68 @@ async function deleteStorageFolder(
   }
 }
 
+/**
+ * Permanently delete a case and all its exhibits, AI reviews, collaborators,
+ * and storage objects. Cascades happen at the FK level for child tables;
+ * we only need to walk the storage buckets ourselves to clean up files.
+ *
+ * ORDER IS LOAD-BEARING, and it is the authorization. The row delete runs
+ * through the USER-scoped client, so `cases_delete_own` (auth.uid() =
+ * user_id) is what decides whether anything happens at all, and it is
+ * confirmed with `.select('id')` because PostgREST reports a zero-row
+ * delete as a clean success. A caller who does not own this case matches no
+ * row, gets NOT_WRITTEN, and never reaches the storage calls below.
+ *
+ * It used to run the other way round: the service-role client wiped the
+ * storage folders first and the unconfirmed row delete followed, so any
+ * signed-in caller could destroy another person's Safe Witness evidence,
+ * keep the case row, and be told it worked.
+ *
+ * Partial failure is therefore biased to the recoverable side. Storage
+ * cleanup stays best-effort AFTER the row is gone, so a failure there
+ * leaves orphaned files that can be reaped later; the alternative,
+ * destroyed evidence for a case that still exists, cannot be undone.
+ *
+ * Throws when the caller does not own the case, when the row does not
+ * exist, or when the delete itself errors.
+ */
 export async function deleteCase(caseId: string): Promise<void> {
   if (usingSupabase()) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not signed in.');
     const supabase = createServerSupabase();
-
-    // Best-effort: remove the case's storage folders before the row
-    // goes away. We use the admin client (service role) so it can list
-    // and delete objects regardless of bucket-level policy.
     const admin = createAdminSupabase();
+
+    // Read-only, and it has to happen before the delete: the
+    // community_cases row cascades away with the case, and its id is the
+    // only handle on the `community-public` folder afterwards. Nothing
+    // here destroys anything, so it is safe on this side of the gate.
+    let communityCaseId: string | null = null;
+    if (admin) {
+      try {
+        const { data: ccRow } = await admin
+          .from('community_cases')
+          .select('id')
+          .eq('case_id', caseId)
+          .maybeSingle();
+        communityCaseId = (ccRow as { id: string } | null)?.id ?? null;
+      } catch {
+        // A missed lookup only costs us the community-public folder.
+      }
+    }
+
+    // The gate. Nothing irreversible has happened yet.
+    const { data: rows, error } = await supabase
+      .from('cases')
+      .delete()
+      .eq('id', caseId)
+      .select('id');
+    if (error) throw error;
+    if (!rows || rows.length === 0) throw new Error(NOT_WRITTEN);
+
+    // Past this line the caller is proven to own the case and the row is
+    // already gone. We use the admin client (service role) so it can list
+    // and delete objects regardless of bucket-level policy.
     if (admin) {
       const folder = `${user.id}/${caseId}`;
       try {
@@ -599,26 +644,20 @@ export async function deleteCase(caseId: string): Promise<void> {
           await admin.storage.from('exhibits').remove(paths);
         }
       } catch {
-        // Don't block deletion if storage cleanup fails - the row delete
+        // Don't fail the delete if storage cleanup fails - the row delete
         // is the load-bearing part. Orphaned files can be reaped later.
       }
 
       // Community Case storage. The DB rows (community_cases,
-      // witness_submissions, etc.) cascade away via ON DELETE CASCADE
-      // when the case row is deleted below, but Supabase Storage
-      // objects aren't governed by that FK - ID photos, signatures,
-      // evidence files, and gallery images would otherwise sit in
-      // storage indefinitely with no DB row pointing at them. This
-      // matters more than ordinary orphaned files given the retention
-      // obligations already tracked for this feature (see
-      // docs/compliance/policies/risk-register.md, R13/R10).
+      // witness_submissions, etc.) cascaded away via ON DELETE CASCADE
+      // with the case row above, but Supabase Storage objects aren't
+      // governed by that FK - ID photos, signatures, evidence files, and
+      // gallery images would otherwise sit in storage indefinitely with
+      // no DB row pointing at them. This matters more than ordinary
+      // orphaned files given the retention obligations already tracked
+      // for this feature (see docs/compliance/policies/risk-register.md,
+      // R13/R10).
       try {
-        const { data: ccRow } = await admin
-          .from('community_cases')
-          .select('id')
-          .eq('case_id', caseId)
-          .maybeSingle();
-        const communityCaseId = (ccRow as { id: string } | null)?.id;
         await Promise.all([
           deleteStorageFolder(admin, 'community-submissions', caseId),
           communityCaseId
@@ -629,9 +668,6 @@ export async function deleteCase(caseId: string): Promise<void> {
         // Same posture as the exhibits cleanup above - best-effort.
       }
     }
-
-    const { error } = await supabase.from('cases').delete().eq('id', caseId);
-    if (error) throw error;
     return;
   }
   const db = await readLocalDB();
