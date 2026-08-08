@@ -26,7 +26,7 @@ export default async function CounselClientsPage() {
           <T>Invite a client by email. They get a regular Advottic account; this firm gains view + collaborate access on cases they share.</T>
         }
         action={
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
+          <p className="text-[12px] text-muted font-mono uppercase tracking-wider">
             {clients.length} <T>total</T>
           </p>
         }
@@ -36,17 +36,17 @@ export default async function CounselClientsPage() {
 
       {clients.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="text-2xl text-forest-900 dark:text-cream-100">
+          <p className="text-2xl text-foreground">
             <T>No clients yet.</T>
           </p>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
+          <p className="text-sm text-muted mt-2 max-w-md mx-auto leading-relaxed">
             <T>Use the invite form above to add your first client.</T>
           </p>
         </div>
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
-            <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
+            <thead className="bg-surface-2 text-foreground text-left">
               <tr>
                 <th className="font-semibold px-4 py-2.5"><T>Email</T></th>
                 <th className="font-semibold px-4 py-2.5"><T>Name</T></th>
@@ -54,13 +54,13 @@ export default async function CounselClientsPage() {
                 <th className="font-semibold px-4 py-2.5"><T>Joined</T></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
+            <tbody className="divide-y divide-edge">
               {clients.map((c) => (
                 <tr key={c.id}>
-                  <td className="px-4 py-2.5 text-ink-900 dark:text-cream-100">
+                  <td className="px-4 py-2.5 text-foreground">
                     {c.email ?? '(pending sign-in)'}
                   </td>
-                  <td className="px-4 py-2.5 text-ink-700 dark:text-cream-100/80">
+                  <td className="px-4 py-2.5 text-foreground">
                     {c.displayName ?? '-'}
                   </td>
                   <td className="px-4 py-2.5">
@@ -70,13 +70,13 @@ export default async function CounselClientsPage() {
                           ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-100'
                           : c.status === 'invited'
                             ? 'bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-100'
-                            : 'bg-ink-100 text-ink-600 dark:bg-forest-800/60 dark:text-cream-100/55'
+                            : 'bg-surface-2 text-muted'
                       }`}
                     >
                       {c.status.toUpperCase()}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-ink-500 dark:text-cream-100/55 font-mono text-[11px] tabular-nums">
+                  <td className="px-4 py-2.5 text-muted font-mono text-[11px] tabular-nums">
                     {new Date(c.joinedAt).toLocaleDateString()}
                   </td>
                 </tr>

@@ -51,7 +51,7 @@ export function RecordPaymentForm({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="text-[11px] mt-2 underline text-ink-600 dark:text-cream-100/70"
+        className="text-[11px] mt-2 underline text-muted"
       >
         <T>Update amount</T>
       </button>

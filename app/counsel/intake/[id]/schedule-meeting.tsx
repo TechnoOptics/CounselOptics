@@ -57,7 +57,7 @@ export function ScheduleMeetingPanel({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="eyebrow"><T>Meeting</T></p>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
+          <p className="text-[12px] text-muted mt-1">
             <T>Schedule a Teams or Zoom call on this request - the link
             drops into the thread.</T>
           </p>
@@ -77,7 +77,7 @@ export function ScheduleMeetingPanel({
         <form action={submit} className="space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block sm:col-span-2">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>Title</T>
               </span>
               <input
@@ -88,7 +88,7 @@ export function ScheduleMeetingPanel({
               />
             </label>
             <label className="block">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>When</T>
               </span>
               <input
@@ -100,7 +100,7 @@ export function ScheduleMeetingPanel({
               />
             </label>
             <label className="block">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>Duration</T>
               </span>
               <select
@@ -116,9 +116,9 @@ export function ScheduleMeetingPanel({
               </select>
             </label>
             <label className="block sm:col-span-2">
-              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+              <span className="block text-[12px] font-medium text-foreground mb-1">
                 <T>Extra attendees</T>{' '}
-                <span className="text-ink-500 dark:text-cream-100/70">
+                <span className="text-muted">
                   <T>(emails, comma-separated - the requester is added
                   automatically)</T>
                 </span>
@@ -163,7 +163,7 @@ export function ScheduleMeetingPanel({
               type="button"
               onClick={() => setOpen(false)}
               disabled={pending}
-              className="btn text-ink-600 dark:text-cream-100/70"
+              className="btn text-muted"
             >
               <T>Cancel</T>
             </button>

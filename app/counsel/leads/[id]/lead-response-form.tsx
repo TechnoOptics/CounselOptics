@@ -41,7 +41,7 @@ export function LeadResponseForm({
     <section className="card p-5 sm:p-6 space-y-4">
       <div>
         <p className="eyebrow"><T>Respond to this lead</T></p>
-        <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+        <p className="text-[13px] text-muted mt-1 leading-relaxed">
           <T>Express interest with an optional message and proposed fee, or
           pass. The consumer sees your response in their inbox and decides
           whether to accept. Their contact details are revealed only after
@@ -50,7 +50,7 @@ export function LeadResponseForm({
       </div>
 
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Message to the consumer (optional)</T>
         </span>
         <textarea
@@ -64,7 +64,7 @@ export function LeadResponseForm({
       </label>
 
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Proposed fee (optional)</T>
         </span>
         <input

@@ -63,7 +63,7 @@ export function PoliciesManageClient({
   };
 
   const inputCls =
-    'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100';
+    'w-full rounded-lg border border-edge bg-surface px-3 py-2 text-[14px] text-foreground outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25';
 
   return (
     <div className="space-y-4">
@@ -74,13 +74,13 @@ export function PoliciesManageClient({
       )}
 
       {editing ? (
-        <div className="space-y-3 rounded-xl border border-ink-200 bg-white p-5 dark:border-forest-700/50 dark:bg-forest-900/40">
+        <div className="space-y-3 rounded-xl border border-edge bg-surface p-5">
           <label className="block">
-            <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">Policy name</span>
+            <span className="mb-1 block text-[13px] font-medium text-foreground">Policy name</span>
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Gifts & entertainment policy" />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+            <span className="mb-1 block text-[13px] font-medium text-foreground">
               Policy text (paste the full policy)
             </span>
             <textarea rows={16} className={`${inputCls} font-mono text-[12.5px]`} value={content} onChange={(e) => setContent(e.target.value)} />
@@ -105,19 +105,19 @@ export function PoliciesManageClient({
               sub="Until you add some, the employee checker tells people to file a request."
             />
           ) : (
-            <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
+            <ul className="divide-y divide-edge overflow-hidden rounded-xl border border-edge">
               {policies.map((p) => (
-                <li key={p.id} className="flex items-center gap-3 bg-white px-4 py-3 dark:bg-forest-900/40">
+                <li key={p.id} className="flex items-center gap-3 bg-surface px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-forest-900 dark:text-cream-100">{p.name}</p>
-                    <p className="truncate text-[12px] text-ink-500 dark:text-cream-100/55">
+                    <p className="truncate text-[14px] font-semibold text-foreground">{p.name}</p>
+                    <p className="truncate text-[12px] text-muted">
                       {Math.round(p.content.length / 1000)}k characters
                     </p>
                   </div>
                   <button type="button" onClick={() => openEditor(p)} className="text-[13px] font-medium text-gold-700 hover:underline dark:text-gold-300">
                     Edit
                   </button>
-                  <button type="button" disabled={busy} onClick={() => void remove(p.id)} className="text-[13px] text-ink-400 hover:text-rose-600 dark:text-cream-100/40">
+                  <button type="button" disabled={busy} onClick={() => void remove(p.id)} className="text-[13px] text-muted hover:text-rose-600">
                     Delete
                   </button>
                 </li>

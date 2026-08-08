@@ -119,7 +119,7 @@ function Section({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <h2 className="text-lg font-medium tracking-[-0.01em] text-foreground">
         {title}
       </h2>
       {children}
@@ -129,7 +129,7 @@ function Section({
 
 function Empty({ msg }: { msg: React.ReactNode }) {
   return (
-    <p className="card p-5 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+    <p className="card p-5 text-[13px] text-muted italic">
       {msg}
     </p>
   );
@@ -166,17 +166,17 @@ function Cards({
           >
             <Link href={`/counsel/referrals/${r.id}`} className="block space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+                <p className="font-semibold text-foreground truncate">
                   {viewerSide === 'inbound' ? <T>From</T> : <T>To</T>} {otherName} · {r.state}
                 </p>
                 <StatusPill size="sm" color={referralStatusColor(r.status)}>
                   {r.status}
                 </StatusPill>
               </div>
-              <p className="text-[12.5px] text-ink-600 dark:text-cream-100/75 line-clamp-2 leading-snug">
+              <p className="text-[12.5px] text-muted line-clamp-2 leading-snug">
                 {r.matter_summary}
               </p>
-              <div className="flex items-center justify-between text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
+              <div className="flex items-center justify-between text-[11px] text-muted font-mono tabular-nums pt-1 border-t border-edge">
                 <span>{new Date(r.created_at).toLocaleDateString()}</span>
                 <span><T>Split</T> {r.proposed_split_percent}%</span>
               </div>

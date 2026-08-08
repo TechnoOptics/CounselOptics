@@ -176,14 +176,14 @@ export default async function IntakeDetailPage({
         <div className="flex min-w-0 flex-1 basis-full items-center gap-x-3 lg:basis-auto">
           <Link
             href="/counsel/inbox"
-            className="shrink-0 text-[12.5px] text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
+            className="shrink-0 text-[12.5px] text-muted hover:text-foreground"
           >
             <T>&larr; Requests</T>
           </Link>
           <span className="shrink-0 font-mono text-[12px] font-semibold text-gold-700 dark:text-gold-300">
             {ref}
           </span>
-          <h1 className="min-w-0 truncate text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+          <h1 className="min-w-0 truncate text-xl font-medium tracking-[-0.01em] text-foreground">
             {ticketTitle}
           </h1>
           {isEmployeeReq && (
@@ -202,7 +202,7 @@ export default async function IntakeDetailPage({
             <DocumentIcon />
             <T>Documents</T>
             {conv.ok && conv.documents.length > 0 && (
-              <span className="rounded-full bg-ink-100 px-1.5 text-[10.5px] font-semibold text-ink-600 dark:bg-forest-800 dark:text-cream-100/70">
+              <span className="rounded-full bg-surface-2 px-1.5 text-[10.5px] font-semibold text-muted">
                 {conv.documents.length}
               </span>
             )}
@@ -215,7 +215,7 @@ export default async function IntakeDetailPage({
 
       <WorkspaceShell side={rail}>
         {/* Highlights: the few facts you need on every scroll position. */}
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-ink-100 bg-white/95 px-5 py-3 backdrop-blur dark:border-forest-800/60 dark:bg-forest-900/90">
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-edge bg-white/95 px-5 py-3 backdrop-blur dark:bg-forest-900/90">
           <Highlight label="Requester" value={requester} />
           <Highlight label="Type" value={intake.matter_type ?? <T>Not set</T>} />
           {priority && <Highlight label="Priority" value={priority} />}
@@ -238,11 +238,11 @@ export default async function IntakeDetailPage({
             any of the metadata about it. */}
         <RecordSection id="matter" title="The matter">
           {intake.matter_summary ? (
-            <p className="max-w-[70ch] whitespace-pre-wrap text-[14.5px] leading-relaxed text-ink-800 dark:text-cream-100/90">
+            <p className="max-w-[70ch] whitespace-pre-wrap text-[14.5px] leading-relaxed text-foreground">
               {intake.matter_summary}
             </p>
           ) : (
-            <p className="text-[13px] text-ink-400 dark:text-cream-100/40">
+            <p className="text-[13px] text-muted">
               <T>No summary was provided with this request.</T>
             </p>
           )}
@@ -253,10 +253,10 @@ export default async function IntakeDetailPage({
             <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
               {meta.map((m) => (
                 <div key={m.label}>
-                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                     <T>{m.label}</T>
                   </dt>
-                  <dd className="text-[13.5px] text-forest-900 dark:text-cream-100">{m.value}</dd>
+                  <dd className="text-[13.5px] text-foreground">{m.value}</dd>
                 </div>
               ))}
             </dl>
@@ -268,10 +268,10 @@ export default async function IntakeDetailPage({
             <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
               {questionAnswers.map((q) => (
                 <div key={q.id}>
-                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                     {q.label}
                   </dt>
-                  <dd className="text-[13.5px] text-forest-900 dark:text-cream-100">{q.value}</dd>
+                  <dd className="text-[13.5px] text-foreground">{q.value}</dd>
                 </div>
               ))}
             </dl>
@@ -282,18 +282,18 @@ export default async function IntakeDetailPage({
         <RecordSection id="contact" title="Contact" defaultOpen={false}>
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
-              <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+              <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                 <T>Email</T>
               </dt>
-              <dd className="break-words text-[13.5px] text-forest-900 dark:text-cream-100">
+              <dd className="break-words text-[13.5px] text-foreground">
                 {intake.client_email ?? <T>Not provided</T>}
               </dd>
             </div>
             <div>
-              <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+              <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                 <T>Phone</T>
               </dt>
-              <dd className="text-[13.5px] text-forest-900 dark:text-cream-100">
+              <dd className="text-[13.5px] text-foreground">
                 {intake.client_phone ?? <T>Not provided</T>}
               </dd>
             </div>
@@ -304,18 +304,18 @@ export default async function IntakeDetailPage({
           <RecordSection id="parties" title="Parties" defaultOpen={false}>
             <div className="grid gap-6 sm:grid-cols-2">
               <div>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                   <T>Other parties</T>
                 </p>
-                <p className="text-[13.5px] text-forest-900 dark:text-cream-100">
+                <p className="text-[13.5px] text-foreground">
                   {intake.opposing_parties?.length ? intake.opposing_parties.join(', ') : <T>None</T>}
                 </p>
               </div>
               <div>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                   <T>Related parties</T>
                 </p>
-                <p className="text-[13.5px] text-forest-900 dark:text-cream-100">
+                <p className="text-[13.5px] text-foreground">
                   {intake.related_parties?.length ? intake.related_parties.join(', ') : <T>None</T>}
                 </p>
               </div>
@@ -393,7 +393,7 @@ export default async function IntakeDetailPage({
         </RecordSection>
 
         <RecordSection id="analyze" title="Analyze" defaultOpen={false}>
-          <p className="mb-2 text-[12px] text-ink-500 dark:text-cream-100/55">
+          <p className="mb-2 text-[12px] text-muted">
             <T>Run an AI breakdown of what the submitted document means, how the law
             applies, its bias, and the risky clauses.</T>
           </p>
@@ -450,10 +450,10 @@ function DocumentIcon() {
 function Highlight({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+      <p className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-muted">
         <T>{label}</T>
       </p>
-      <p className="truncate text-[13px] font-medium text-forest-900 dark:text-cream-100">
+      <p className="truncate text-[13px] font-medium text-foreground">
         {value}
       </p>
     </div>

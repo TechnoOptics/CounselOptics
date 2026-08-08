@@ -47,7 +47,7 @@ export function InviteClientForm({ firmId }: { firmId: string }) {
         />
       </div>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+        <p className="text-[11px] text-muted">
           <T>They&rsquo;ll get a magic-link email and an Advottic account.</T>
         </p>
         <button type="submit" className="btn-primary" disabled={pending}>

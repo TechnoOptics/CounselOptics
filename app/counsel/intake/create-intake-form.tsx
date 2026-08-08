@@ -253,7 +253,7 @@ export function CreateIntakeForm({
       <p className="eyebrow"><T>New intake</T></p>
 
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Request type</T>{' '}
           <span aria-hidden className="text-rose-600 dark:text-rose-300">
             *
@@ -272,7 +272,7 @@ export function CreateIntakeForm({
             </option>
           ))}
         </select>
-        <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
+        <span className="block text-[11.5px] text-muted mt-1">
           {inhouse ? (
             <T>In-house request. Capture who submitted it, who is involved, and when it is due.</T>
           ) : (
@@ -289,7 +289,7 @@ export function CreateIntakeForm({
             region make the requirement legible in both the visual and
             the accessibility tree.
           */}
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             {inhouse ? <T>Request title / subject</T> : <T>Client name</T>}{' '}
             <span aria-hidden className="text-rose-600 dark:text-rose-300">
               *
@@ -313,7 +313,7 @@ export function CreateIntakeForm({
         {inhouse ? (
           <>
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Submitted by</T>
               </span>
               <input
@@ -325,13 +325,13 @@ export function CreateIntakeForm({
                 placeholder={t('Who is filing this request')}
               />
               {employeeMode && (
-                <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
+                <span className="block text-[11.5px] text-muted mt-1">
                   <T>Filed as you. Legal will see who submitted this.</T>
                 </span>
               )}
             </label>
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Priority</T>
               </span>
               <select name="priority" className="input" defaultValue="Normal">
@@ -343,24 +343,24 @@ export function CreateIntakeForm({
               </select>
             </label>
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Due by</T>
               </span>
               <input name="dueBy" type="date" className="input" />
             </label>
             {!employeeMode && (
               <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Expiry / valid until</T>
                 </span>
                 <input name="expiry" type="date" className="input" />
-                <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
+                <span className="block text-[11.5px] text-muted mt-1">
                   <T>Set by legal once the document/term is known.</T>
                 </span>
               </label>
             )}
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Confidentiality</T>
               </span>
               <select
@@ -376,7 +376,7 @@ export function CreateIntakeForm({
               </select>
             </label>
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>State</T>
               </span>
               <select name="state" className="input" defaultValue="">
@@ -392,19 +392,19 @@ export function CreateIntakeForm({
         ) : (
           <>
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Client email</T>
               </span>
               <input name="clientEmail" type="email" className="input" />
             </label>
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Phone</T>
               </span>
               <input name="clientPhone" type="tel" className="input" />
             </label>
             <label className="block sm:col-span-2">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>State</T>
               </span>
               <select name="state" className="input" defaultValue="">
@@ -444,7 +444,7 @@ export function CreateIntakeForm({
 
       <div className="block">
         <div className="flex items-center justify-between gap-2 mb-1.5">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100">
+          <span className="block text-sm font-medium text-foreground">
             {inhouse ? <T>Details / desired outcome</T> : <T>Matter summary</T>}
           </span>
           <VoiceDictateButton
@@ -468,9 +468,9 @@ export function CreateIntakeForm({
       </div>
 
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Reference links</T>{' '}
-          <span className="text-ink-500 dark:text-cream-100/55 font-normal">
+          <span className="text-muted font-normal">
             <T>(optional)</T>
           </span>
         </span>
@@ -482,11 +482,11 @@ export function CreateIntakeForm({
         />
       </label>
 
-      <div className="space-y-3 rounded-xl ring-1 ring-ink-200 dark:ring-forest-700/40 p-4">
+      <div className="space-y-3 rounded-xl ring-1 ring-edge p-4">
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Attach documents</T>{' '}
-            <span className="text-ink-500 dark:text-cream-100/55 font-normal">
+            <span className="text-muted font-normal">
               <T>(optional, up to 8 files / 25 MB each)</T>
             </span>
           </span>
@@ -502,10 +502,10 @@ export function CreateIntakeForm({
               setScorecard(null);
               setReviewErr(null);
             }}
-            className="block w-full text-sm text-ink-700 dark:text-cream-100/80 file:mr-3 file:rounded-lg file:border-0 file:bg-gold-400 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-forest-950 hover:file:bg-gold-300"
+            className="block w-full text-sm text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-gold-400 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-forest-950 hover:file:bg-gold-300"
           />
           {fileNames.length > 0 && (
-            <span className="block text-[11.5px] text-ink-600 dark:text-cream-100/65 mt-1.5">
+            <span className="block text-[11.5px] text-muted mt-1.5">
               {fileNames.join(', ')}
             </span>
           )}
@@ -513,7 +513,7 @@ export function CreateIntakeForm({
 
         {fileNames.length > 0 && (
           <>
-            <p className="text-[12px] text-ink-600 dark:text-cream-100/65 leading-relaxed">
+            <p className="text-[12px] text-muted leading-relaxed">
               <T>Attached contracts must pass</T>{' '}
               <strong>Advottic Review</strong>{' '}
               <T>
@@ -522,7 +522,7 @@ export function CreateIntakeForm({
                 state&rsquo;s law, and suggests fixes.
               </T>
             </p>
-            <details className="text-[12px] text-ink-500 dark:text-cream-100/55">
+            <details className="text-[12px] text-muted">
               <summary className="cursor-pointer select-none">
                 <T>Scanned file unreadable? Paste the contract text</T>
               </summary>
@@ -604,10 +604,10 @@ function PartyList({
   }
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-forest-900 dark:text-cream-100">
+      <p className="text-sm font-medium text-foreground">
         {label}
       </p>
-      <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55">{hint}</p>
+      <p className="text-[11.5px] text-muted">{hint}</p>
       <div className="space-y-1.5">
         {values.map((v, i) => (
           <input
@@ -622,7 +622,7 @@ function PartyList({
       <button
         type="button"
         onClick={() => onChange([...values, ''])}
-        className="text-[12px] underline text-ink-700 dark:text-cream-100/85"
+        className="text-[12px] underline text-foreground"
       >
         <T>Add another</T>
       </button>
@@ -656,11 +656,11 @@ function Scorecard({ s }: { s: DocScorecard }) {
           {s.grade}
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">
+          <p className="text-sm font-semibold text-foreground">
             Advottic Review{' '}
             {s.passes ? <T>· Cleared to submit</T> : <T>· Blocked</T>}
           </p>
-          <p className="text-[12px] text-ink-600 dark:text-cream-100/65 leading-snug">
+          <p className="text-[12px] text-muted leading-snug">
             {s.passes ? (
               <T>Grade C or higher. You can submit this request.</T>
             ) : (
@@ -670,12 +670,12 @@ function Scorecard({ s }: { s: DocScorecard }) {
         </div>
       </div>
 
-      <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+      <p className="text-[13px] text-foreground leading-relaxed">
         {s.summary}
       </p>
 
       <div>
-        <div className="flex items-center justify-between text-[11.5px] text-ink-600 dark:text-cream-100/65 mb-1">
+        <div className="flex items-center justify-between text-[11.5px] text-muted mb-1">
           <span><T>Bias:</T> {s.biasToward}</span>
           <span className="font-mono">{s.biasScore}/100</span>
         </div>
@@ -695,14 +695,14 @@ function Scorecard({ s }: { s: DocScorecard }) {
 
       {s.vulnerabilities.length > 0 && (
         <div>
-          <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
+          <p className="text-[12px] font-semibold text-foreground mb-1">
             <T>Vulnerabilities</T>
           </p>
           <ul className="space-y-1">
             {s.vulnerabilities.map((v, i) => (
               <li
                 key={i}
-                className="text-[12.5px] text-ink-700 dark:text-cream-100/75 flex gap-2"
+                className="text-[12.5px] text-foreground flex gap-2"
               >
                 <span className="text-rose-500">•</span>
                 <span>{v}</span>
@@ -713,24 +713,24 @@ function Scorecard({ s }: { s: DocScorecard }) {
       )}
 
       <div>
-        <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
+        <p className="text-[12px] font-semibold text-foreground mb-1">
           <T>State-law relevance</T>
         </p>
-        <p className="text-[12.5px] text-ink-700 dark:text-cream-100/75 leading-relaxed">
+        <p className="text-[12.5px] text-foreground leading-relaxed">
           {s.stateLawNotes}
         </p>
       </div>
 
       {s.suggestedRevisions.length > 0 && (
         <div>
-          <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
+          <p className="text-[12px] font-semibold text-foreground mb-1">
             <T>Suggested revisions</T>
           </p>
           <ol className="space-y-1 list-decimal pl-4">
             {s.suggestedRevisions.map((v, i) => (
               <li
                 key={i}
-                className="text-[12.5px] text-ink-700 dark:text-cream-100/75"
+                className="text-[12.5px] text-foreground"
               >
                 {v}
               </li>

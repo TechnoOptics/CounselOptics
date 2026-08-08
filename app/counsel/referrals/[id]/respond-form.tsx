@@ -41,7 +41,7 @@ export function RespondToReferralForm({
   return (
     <section className="card p-5 sm:p-6 space-y-4">
       <p className="eyebrow"><T>Respond to this referral</T></p>
-      <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
+      <p className="text-[12.5px] text-muted leading-relaxed">
         <T>Accepting requires confirming the client has agreed to the
         co-counsel arrangement IN WRITING. Paste the email / text / signed
         consent into the field below; we capture it on the record so the
@@ -49,7 +49,7 @@ export function RespondToReferralForm({
       </p>
 
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Client consent record</T>
         </span>
         <textarea
