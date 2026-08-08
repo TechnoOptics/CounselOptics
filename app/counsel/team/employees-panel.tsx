@@ -65,7 +65,7 @@ export function EmployeesPanel({
     <section className="card p-5 sm:p-6 space-y-4">
       <div>
         <p className="eyebrow"><T>Employees</T></p>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">
+        <p className="text-[12px] text-muted mt-1 max-w-2xl leading-relaxed">
           <T>People here get the employee portal only - file requests to
           legal, track their own, run Advottic Review. They never see
           cases, clients, or the rest of Counsel.</T>
@@ -94,7 +94,7 @@ export function EmployeesPanel({
           disabled={pending}
         />
         <div className="sm:col-span-4 flex items-center justify-between gap-3">
-          <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+          <p className="text-[11px] text-muted">
             <T>They get portal access the next time they sign in with this
             email.</T>
           </p>
@@ -115,7 +115,7 @@ export function EmployeesPanel({
       </form>
 
       {initial.length > 0 && (
-        <ul className="divide-y divide-ink-100 dark:divide-forest-700/40">
+        <ul className="divide-y divide-edge">
           {initial.map((e) => {
             const inactive = e.deactivatedAt !== null;
             return (
@@ -127,13 +127,13 @@ export function EmployeesPanel({
                   <p
                     className={`font-medium truncate ${
                       inactive
-                        ? 'text-ink-400 dark:text-cream-100/40 line-through'
-                        : 'text-ink-900 dark:text-cream-100'
+                        ? 'text-muted line-through'
+                        : 'text-foreground'
                     }`}
                   >
                     {e.displayName || e.email}
                   </p>
-                  <p className="text-[12px] text-ink-500 dark:text-cream-100/55 truncate">
+                  <p className="text-[12px] text-muted truncate">
                     {e.email}
                     {e.department && ` · ${e.department}`}
                     {' · '}
@@ -147,7 +147,7 @@ export function EmployeesPanel({
                     onChange={(ev) => assignRole(e.id, ev.target.value)}
                     disabled={pending || inactive}
                     aria-label={`Role for ${e.displayName || e.email}`}
-                    className="text-[12px] rounded-md bg-transparent ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-1 text-ink-700 dark:text-cream-100/85 disabled:opacity-50"
+                    className="text-[12px] rounded-md bg-transparent ring-1 ring-edge px-2 py-1 text-foreground disabled:opacity-50"
                   >
                     <option value=""><T>Default access</T></option>
                     {roles.map((r) => (
@@ -160,7 +160,7 @@ export function EmployeesPanel({
                     type="button"
                     onClick={() => toggle(e.id, inactive)}
                     disabled={pending}
-                    className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-[12px] text-ink-700 dark:text-cream-100/85 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                    className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-[12px] text-foreground ring-1 ring-edge hover:bg-surface-2 disabled:opacity-50"
                   >
                     {inactive ? <T>Reactivate</T> : <T>Deactivate</T>}
                   </button>

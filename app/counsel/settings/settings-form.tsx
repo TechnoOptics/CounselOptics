@@ -60,8 +60,8 @@ export function SettingsForm({
         currentUrl={defaultValues.letterheadUrl}
       />
 
-      <div className="pt-2 border-t border-ink-200 dark:border-forest-700/40 space-y-4">
-        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-2xl">
+      <div className="pt-2 border-t border-edge space-y-4">
+        <p className="text-[12.5px] text-muted leading-relaxed max-w-2xl">
           <T>
             You can upload a letterhead image above, design one below, or do
             both. If you have both, the uploaded image is the one Advottic
@@ -90,7 +90,7 @@ export function SettingsForm({
         <div>
           <label className="label" htmlFor="brandName">
             <T>Product name</T>{' '}
-            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+            <span className="text-muted font-normal">
               <T>(shown in the header + footer)</T>
             </span>
           </label>
@@ -108,7 +108,7 @@ export function SettingsForm({
         <div>
           <label className="label" htmlFor="portalTagline">
             <T>Employee portal tagline</T>{' '}
-            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+            <span className="text-muted font-normal">
               <T>(optional)</T>
             </span>
           </label>
@@ -139,7 +139,7 @@ export function SettingsForm({
             />
           </div>
           <span
-            className="h-10 w-10 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60"
+            className="h-10 w-10 rounded-md ring-1 ring-edge"
             style={{ backgroundColor: defaultValues.accentColor }}
             aria-hidden
           />
@@ -151,7 +151,7 @@ export function SettingsForm({
         <label
           className={`flex items-start gap-3 rounded-lg ring-1 p-3.5 transition-colors ${
             hasLogo
-              ? 'ring-ink-200 dark:ring-forest-700/50'
+              ? 'ring-edge'
               : 'ring-ink-100 dark:ring-forest-700/30 opacity-60'
           }`}
         >
@@ -163,10 +163,10 @@ export function SettingsForm({
             className="mt-0.5 h-4 w-4 flex-none accent-gold-500"
           />
           <span>
-            <span className="block text-sm font-medium text-forest-900 dark:text-cream-100">
+            <span className="block text-sm font-medium text-foreground">
               <T>Use only our logo (hide the Advottic logo)</T>
             </span>
-            <span className="block text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 leading-relaxed">
+            <span className="block text-[12px] text-muted mt-0.5 leading-relaxed">
               {hasLogo ? (
                 <T>
                   The header and portal lead with your logo and name. The
@@ -183,7 +183,7 @@ export function SettingsForm({
         <div>
           <label className="label" htmlFor="jurisdictions">
             <T>Jurisdictions</T>{' '}
-            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+            <span className="text-muted font-normal">
               <T>(comma-separated)</T>
             </span>
           </label>
@@ -198,7 +198,7 @@ export function SettingsForm({
         <div>
           <label className="label" htmlFor="practiceAreas">
             <T>Practice areas</T>{' '}
-            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+            <span className="text-muted font-normal">
               <T>(comma-separated)</T>
             </span>
           </label>

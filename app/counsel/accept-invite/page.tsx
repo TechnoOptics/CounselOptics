@@ -27,15 +27,15 @@ export default async function CounselAcceptInvitePage({
   return (
     <div className="max-w-lg mx-auto card p-6 sm:p-8 space-y-4 animate-fade-up">
       <p className="eyebrow"><T>Counsel invitation</T></p>
-      <h1 className="text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <h1 className="text-2xl font-medium tracking-[-0.01em] text-foreground">
         <T>Accept your invitation</T>
       </h1>
-      <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
+      <p className="text-sm text-muted leading-relaxed">
         <T>You&rsquo;ve been invited to join a firm on Advottic Counsel. Confirm to add the
         firm to your account.</T>
       </p>
       <AcceptInviteClient token={token} />
-      <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+      <p className="text-[11px] text-muted">
         <T>Wrong account?</T>{' '}
         <Link href="/auth/sign-out" className="underline">
           <T>Sign out</T>

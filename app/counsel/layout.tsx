@@ -129,10 +129,10 @@ export default async function CounselLayout({
   if (!isSupabaseConfigured()) {
     return (
       <div className="max-w-xl mx-auto card p-8 mt-10">
-        <h1 className="text-2xl text-forest-900 dark:text-cream-100">
+        <h1 className="text-2xl text-foreground">
           Counsel mode is not available
         </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2">
+        <p className="text-sm text-muted mt-2">
           Auth is not configured on this deployment. Set the Supabase
           environment variables and redeploy.
         </p>

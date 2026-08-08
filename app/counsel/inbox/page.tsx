@@ -102,7 +102,7 @@ export default async function CounselInboxPage() {
             one yourself?</T>{' '}
             <Link
               href="/counsel/intake"
-              className="underline text-forest-900 dark:text-cream-100"
+              className="underline text-foreground"
             >
               <T>New intake</T>
             </Link>

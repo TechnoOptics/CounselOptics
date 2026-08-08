@@ -58,7 +58,7 @@ export function DisconnectButton({
 
   return (
     <>
-      <span className="text-[12px] text-ink-700 dark:text-cream-100/80">
+      <span className="text-[12px] text-foreground">
         <T>Are you sure?</T>
       </span>
       <button

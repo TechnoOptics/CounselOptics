@@ -22,14 +22,14 @@ export default async function MigratePage() {
       <div>
         <Link
           href="/counsel/import"
-          className="text-[13px] text-forest-700 dark:text-gold-300 hover:underline"
+          className="text-[13px] text-accent-text hover:underline"
         >
           <T>← Back to import</T>
         </Link>
-        <h1 className="text-2xl sm:text-3xl text-forest-900 dark:text-cream-100 mt-2">
+        <h1 className="text-2xl sm:text-3xl text-foreground mt-2">
           <T>Migrate from another platform</T>
         </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed max-w-2xl">
+        <p className="text-sm text-muted mt-2 leading-relaxed max-w-2xl">
           <T>Move everything that matters (matters, attachments and images,
           notes, and the history behind them) with the original dates kept
           intact. Start with a universal bundle or connect ServiceNow; more

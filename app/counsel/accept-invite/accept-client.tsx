@@ -35,7 +35,7 @@ export function AcceptInviteClient({ token }: { token: string }) {
     <div className="space-y-3">
       {!token && (
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Invitation token</T>
           </span>
           <input

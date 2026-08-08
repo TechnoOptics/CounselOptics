@@ -103,26 +103,26 @@ export function TeamMemberRow({
 
   return (
     <tr>
-      <td className="px-4 py-2.5 text-ink-900 dark:text-cream-100">
+      <td className="px-4 py-2.5 text-foreground">
         {member.displayName ?? '-'}
         {isMe && (
-          <span className="ml-2 text-[10px] uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
+          <span className="ml-2 text-[10px] uppercase tracking-wider text-muted">
             <T>(you)</T>
           </span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-ink-700 dark:text-cream-100/80">
+      <td className="px-4 py-2.5 text-foreground">
         {member.email ?? '-'}
       </td>
       <td className="px-4 py-2.5">
         {member.role === 'owner' ? (
           <div>
-            <span className="text-ink-700 dark:text-cream-100/80">{FIRM_ROLE_LABEL.owner}</span>
+            <span className="text-foreground">{FIRM_ROLE_LABEL.owner}</span>
             {isMe && (
               <button
                 type="button"
                 onClick={() => setShowTransfer((v) => !v)}
-                className="block text-[11px] text-forest-700 dark:text-gold-400 hover:underline mt-0.5"
+                className="block text-[11px] text-accent-text hover:underline mt-0.5"
               >
                 <T>Transfer ownership…</T>
               </button>
@@ -166,12 +166,12 @@ export function TeamMemberRow({
             ))}
           </select>
         ) : (
-          <span className="text-ink-700 dark:text-cream-100/80">
+          <span className="text-foreground">
             {FIRM_ROLE_LABEL[role]}
           </span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-ink-500 dark:text-cream-100/55 font-mono text-[11px] tabular-nums">
+      <td className="px-4 py-2.5 text-muted font-mono text-[11px] tabular-nums">
         {new Date(member.joinedAt).toLocaleDateString()}
       </td>
       <td className="px-4 py-2.5 text-right">

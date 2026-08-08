@@ -27,7 +27,7 @@ export default async function CounselApiTokensPage() {
         backLink={
           <Link
             href="/counsel/profile"
-            className="text-sm text-ink-500 hover:text-forest-900 dark:text-cream-100/55 dark:hover:text-cream-100"
+            className="text-sm text-muted hover:text-foreground"
           >
             &larr; <T>Your account</T>
           </Link>
