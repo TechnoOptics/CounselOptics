@@ -33,12 +33,27 @@ describe('native controls follow the app theme, not the OS', () => {
   });
 
   it('marks the always-dark shells dark whatever the user chose', () => {
-    for (const shell of ['.counsel-shell', '.enterprise-shell', '.hq-shell']) {
+    // `.counsel-shell` is NOT on this list any more, and that is the
+    // change rather than an omission: counsel has two themes now, so its
+    // dark half is `.dark`, which this same block already declares.
+    for (const shell of ['.enterprise-shell', '.hq-shell']) {
       const block = rules.match(
         new RegExp(`${shell.replace('.', '\\.')}[^{]*\\{[^}]*color-scheme:\\s*dark`),
       );
       expect(block, `${shell} should carry color-scheme: dark`).not.toBeNull();
     }
+  });
+
+  it('gives each counsel theme the scheme it actually paints', () => {
+    // Both halves have to be stated. Inheriting from the root is what
+    // the bug above WAS: a dark counsel under a light `html` got light
+    // native chrome, and now a light counsel under a dark `html` would
+    // get dark chrome for the mirror-image reason. Every counsel root
+    // carries `.dark` when it is dark, so `.dark` covers that half.
+    expect(rules).toMatch(/(?:^|[\s,])\.dark[\s,][^{]*\{[^}]*color-scheme:\s*dark/);
+    expect(rules).toMatch(
+      /\.counsel-shell:not\(\.dark\)\s*\{[^}]*color-scheme:\s*light\s*;/,
+    );
   });
 
   it('lets the controls themselves inherit it', () => {

@@ -191,7 +191,7 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
               </p>
             )}
             {props.isAdmin && (
-              <span className="badge bg-forest-900 text-cream-200 mt-2">Admin</span>
+              <span className="badge bg-surface text-cream-200 mt-2">Admin</span>
             )}
           </div>
 

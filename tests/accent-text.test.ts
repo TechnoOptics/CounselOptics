@@ -13,6 +13,7 @@ import {
   ACHROMATIC_CHROMA,
   DARK_SURFACE_GROUPS,
   DEFAULT_ACCENT,
+  LIGHT_SURFACE_GROUPS,
   accentOn,
   contrastRatio,
   deriveAccentText,
@@ -131,7 +132,20 @@ describe('the named worst cases, with their measured numbers', () => {
  * ACCENT_TEXT_SURFACES.dark, which means adding a new one to
  * app/globals.css without proving the token on it fails here.
  */
-describe('the proof set covers every surface each dark group can land on', () => {
+/**
+ * Every group, either tone. The sweep below reads SELECTORS out of the
+ * stylesheet, and a selector does not announce its tone: `.counsel-shell`
+ * and `.counsel-shell:not(.dark)` are the same shape and paint opposite
+ * grounds. So both maps are searched together for attribution, and each
+ * group is then measured against its own surfaces.
+ */
+const ALL_SURFACE_GROUPS = {
+  ...DARK_SURFACE_GROUPS,
+  ...LIGHT_SURFACE_GROUPS,
+} as const;
+type SurfaceGroup = keyof typeof ALL_SURFACE_GROUPS;
+
+describe('the proof set covers every surface each group can land on', () => {
   /**
    * A solid `background-color` declared under a dark scope, split into
    * the scope it hangs off and the rest of the selector, in source
@@ -148,21 +162,29 @@ describe('the proof set covers every surface each dark group can land on', () =>
   /** Every selector any group claims, so an unclaimed one is visible. */
   const CLAIMED_SCOPES = [
     ...new Set(
-      Object.values(DARK_SURFACE_GROUPS).flatMap(
+      Object.values(ALL_SURFACE_GROUPS).flatMap(
         (g) => g.scopes as readonly string[],
       ),
     ),
-  ];
+  ]
+    // Longest first, so `.dark.counsel-shell .card` attributes to the
+    // counsel-shell compound and not to a shorter scope that happens to
+    // prefix it. `.find` returns the first match, and the compound
+    // selectors only arrived with the light theme.
+    .sort((a, b) => b.length - a.length);
 
   /**
    * Anything shaped like a dark shell scope, claimed or not. This is
    * what turns "a new shell was added" from a silent gap into a failure:
    * `.partner-shell .bg-cream-200` matches here, finds no group, and
-   * fails the attribution test below.
+   * fails the attribution test below. It is deliberately blind to TONE:
+   * `.counsel-shell:not(.dark)` has the same shape as `.counsel-shell`
+   * and paints the opposite ground, so a light shell cannot slip past it
+   * by not looking dark.
    */
-  const LOOKS_DARK_SCOPED = /^(?:html)?\.[\w-]*(?:dark|shell)\b/;
+  const LOOKS_SHELL_SCOPED = /^(?:html)?\.[\w-]*(?:dark|shell)\b/;
 
-  function darkScopedBackgrounds(): BackgroundRule[] {
+  function shellScopedBackgrounds(): BackgroundRule[] {
     const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
     const out: BackgroundRule[] = [];
     let order = 0;
@@ -175,7 +197,7 @@ describe('the proof set covers every surface each dark group can land on', () =>
         .map((s) => s.trim())
         .filter(Boolean);
       if (!parts.length) continue;
-      if (!parts.every((s) => LOOKS_DARK_SCOPED.test(s))) continue;
+      if (!parts.every((s) => LOOKS_SHELL_SCOPED.test(s))) continue;
       const hex = body.match(/background-color:\s*(#[0-9a-fA-F]{6})\s*;/);
       // Translucent overlays composite onto whatever is behind them and
       // can never be lighter than it, so rgba() rules are not surfaces.
@@ -212,10 +234,10 @@ describe('the proof set covers every surface each dark group can land on', () =>
    * `html.dark body` paint different ELEMENTS, so they do not override
    * one another and both are surfaces of the group.
    */
-  function paintedBy(group: DarkSurfaceGroup): Map<string, BackgroundRule> {
-    const scopes = DARK_SURFACE_GROUPS[group].scopes as readonly string[];
+  function paintedBy(group: SurfaceGroup): Map<string, BackgroundRule> {
+    const scopes = ALL_SURFACE_GROUPS[group].scopes as readonly string[];
     const winners = new Map<string, BackgroundRule>();
-    for (const rule of darkScopedBackgrounds()) {
+    for (const rule of shellScopedBackgrounds()) {
       if (!rule.scope || !scopes.includes(rule.scope)) continue;
       const key = rule.key === '' ? rule.selector : rule.key;
       const held = winners.get(key);
@@ -227,24 +249,24 @@ describe('the proof set covers every surface each dark group can land on', () =>
   it('finds the repaint rules at all, so an empty sweep cannot pass', () => {
     // Without this the guards below are vacuously true the moment the
     // regex stops matching the stylesheet.
-    const found = darkScopedBackgrounds();
+    const found = shellScopedBackgrounds();
     expect(found.length).toBeGreaterThanOrEqual(20);
     expect(new Set(found.map((r) => r.hex)).size).toBeGreaterThanOrEqual(8);
   });
 
-  it('attributes every dark-scoped background to a group that claims it', () => {
-    for (const rule of darkScopedBackgrounds()) {
+  it('attributes every shell-scoped background to a group that claims it', () => {
+    for (const rule of shellScopedBackgrounds()) {
       expect(
         rule.scope,
-        `\`${rule.selector}\` paints ${rule.hex} from a selector no group claims; add it to the scopes of a group in DARK_SURFACE_GROUPS`,
+        `\`${rule.selector}\` paints ${rule.hex} from a selector no group claims; add it to the scopes of a group in DARK_SURFACE_GROUPS or LIGHT_SURFACE_GROUPS`,
       ).not.toBeNull();
     }
   });
 
-  for (const group of Object.keys(DARK_SURFACE_GROUPS) as DarkSurfaceGroup[]) {
+  for (const group of Object.keys(ALL_SURFACE_GROUPS) as SurfaceGroup[]) {
     it(`lists every solid background the ${group} group is painted on`, () => {
       const proven = new Set(
-        Object.values(DARK_SURFACE_GROUPS[group].surfaces).map((s) =>
+        Object.values(ALL_SURFACE_GROUPS[group].surfaces).map((s) =>
           s.toLowerCase(),
         ),
       );
@@ -256,7 +278,7 @@ describe('the proof set covers every surface each dark group can land on', () =>
       for (const rule of painted.values()) {
         expect(
           proven.has(rule.hex),
-          `\`${rule.selector}\` paints ${rule.hex} inside the ${group} group, which is not in DARK_SURFACE_GROUPS.${group}.surfaces`,
+          `\`${rule.selector}\` paints ${rule.hex} inside the ${group} group, which is not in that group's \`surfaces\``,
         ).toBe(true);
       }
     });
@@ -270,6 +292,76 @@ describe('the proof set covers every surface each dark group can land on', () =>
     expect(tightestSurface('light')).toBe('#f5edd6');
     expect(tightestInGroup('consumer')).toBe('#2a5a47');
     expect(tightestInGroup('counsel')).toBe('#2c2c31');
+  });
+});
+
+/*
+ * Light counsel is a repaint layer, not a token swap, so most of its
+ * text colours never pass through `--accent-text` and nothing above
+ * measures them. There are 36 of them and they are the difference
+ * between a readable workspace and a white page with white words on it,
+ * which is the specific failure this whole theme can produce.
+ *
+ * So this reads every `color:` the layer declares back out of the
+ * stylesheet and measures it on every surface the same layer paints.
+ * It is deliberately blind to which rule sits on which surface: a
+ * repaint rule cannot know where its call site lands, so each colour
+ * has to clear the floor on all of them.
+ */
+describe('every colour light counsel repaints is legible on every surface it paints', () => {
+  const SCOPE = LIGHT_SURFACE_GROUPS.counselLight.scopes[0];
+  const surfaces = Object.entries(
+    LIGHT_SURFACE_GROUPS.counselLight.surfaces,
+  );
+
+  function repaintedTextColours(): { selector: string; hex: string }[] {
+    const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    const out: { selector: string; hex: string }[] = [];
+    for (const [, selectors, body] of stripped.matchAll(
+      /([^{}]+)\{([^{}]*)\}/g,
+    )) {
+      const parts = selectors
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!parts.length) continue;
+      if (!parts.every((s) => s.startsWith(`${SCOPE} `) || s === SCOPE)) {
+        continue;
+      }
+      // `color:` only, anchored on a declaration boundary so
+      // `border-color` and `background-color` are not swept in.
+      const hex = body.match(/(?:^|[;\s])color:\s*(#[0-9a-fA-F]{6})\s*;/);
+      if (!hex) continue;
+      for (const part of parts) out.push({ selector: part, hex: hex[1] });
+    }
+    return out;
+  }
+
+  const colours = repaintedTextColours();
+
+  it('finds the layer at all, so an empty sweep cannot pass', () => {
+    expect(colours.length).toBeGreaterThanOrEqual(30);
+    expect(new Set(colours.map((c) => c.hex.toLowerCase())).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it(`holds every one of them to ${AA_SMALL_TEXT}:1`, () => {
+    for (const { selector, hex } of colours) {
+      for (const [name, surface] of surfaces) {
+        expect(
+          contrastRatio(hex, surface),
+          `\`${selector}\` paints ${hex}, which measures ${contrastRatio(hex, surface).toFixed(3)}:1 on the ${name} (${surface})`,
+        ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+      }
+    }
+  });
+
+  it('keeps the light pin where it was, so the existing proof still holds', () => {
+    // Adding light counsel's surfaces to ACCENT_TEXT_SURFACES.light only
+    // costs nothing because every one of them is LIGHTER than cream-200.
+    // If a future light counsel surface goes darker than that, every
+    // light-tone number in this file needs re-deriving, and this is
+    // where that shows up.
+    expect(tightestSurface('light')).toBe('#f5edd6');
   });
 });
 
@@ -537,7 +629,7 @@ describe('the fixed status tokens clear the floor on every surface they reach', 
     // nothing ever measured.
     const claimed = new Set<string>([
       ':root',
-      ...Object.values(DARK_SURFACE_GROUPS).flatMap(
+      ...Object.values(ALL_SURFACE_GROUPS).flatMap(
         (g) => g.scopes as readonly string[],
       ),
     ]);

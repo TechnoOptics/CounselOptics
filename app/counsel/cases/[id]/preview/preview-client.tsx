@@ -124,7 +124,7 @@ export function PreviewClient({ caseId, src, label }: { caseId: string; src: str
       <div className="relative flex-1 bg-forest-900/60">
         {error ? (
           <div className="flex h-full items-center justify-center px-6">
-            <div className="max-w-sm rounded-xl border border-cream-50/10 bg-forest-900 p-6 text-center">
+            <div className="max-w-sm rounded-xl border border-cream-50/10 bg-surface p-6 text-center">
               <p className="text-[13.5px] text-cream-100/80">{error}</p>
               <Link href={`/counsel/cases/${caseId}`} className="mt-4 inline-block rounded-lg bg-gold-metal px-4 py-2 text-[13px] font-semibold text-forest-950">
                 <T>Back to the matter</T>

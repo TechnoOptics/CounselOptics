@@ -2652,7 +2652,7 @@ function BulkBar({
       className="fixed inset-x-0 z-40 flex justify-center px-4"
       style={{ bottom: 'calc(1rem + var(--safe-bottom, 0px))' }}
     >
-      <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1 rounded-2xl bg-forest-900 px-3 py-2 text-cream-50 shadow-2xl ring-1 ring-forest-700/50">
+      <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1 rounded-2xl bg-surface px-3 py-2 text-cream-50 shadow-2xl ring-1 ring-forest-700/50">
         <span className="pl-1 text-[13px] font-medium" data-no-translate>
           {count} {t('selected')}
           {hiddenCount > 0 && (
@@ -2702,7 +2702,7 @@ function BulkBar({
             <T>Export</T> ▾
           </button>
           {exportOpen && (
-            <div className="absolute bottom-full left-1/2 z-10 mb-2 w-72 -translate-x-1/2 rounded-xl bg-forest-900 p-1.5 shadow-2xl ring-1 ring-forest-700/60">
+            <div className="absolute bottom-full left-1/2 z-10 mb-2 w-72 -translate-x-1/2 rounded-xl bg-surface p-1.5 shadow-2xl ring-1 ring-forest-700/60">
               <button
                 type="button"
                 onClick={() => { setExportOpen(false); onExportOne(); }}
