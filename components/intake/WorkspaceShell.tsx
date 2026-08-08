@@ -28,11 +28,18 @@ export function WorkspaceShell({
   side,
   sideLabel = 'Conversation',
   mainLabel = 'Request details',
+  sideId,
 }: {
   children: React.ReactNode;
   side: React.ReactNode;
   sideLabel?: string;
   mainLabel?: string;
+  /**
+   * An id on the side pane, so a link elsewhere on the page can jump to
+   * it. Only useful below the two-pane breakpoint, where the panes stack
+   * and the conversation ends up under everything else.
+   */
+  sideId?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<string | undefined>(undefined);
@@ -100,6 +107,7 @@ export function WorkspaceShell({
       </main>
 
       <aside
+        id={sideId}
         aria-label={sideLabel}
         className={`flex min-h-0 min-w-0 flex-col gap-3 ${stacked ? '' : 'overflow-hidden'}`}
       >

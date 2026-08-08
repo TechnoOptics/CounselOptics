@@ -156,8 +156,19 @@ export function ticketTitle(intake: IntakeRow): string {
   );
 }
 
-/** Partner tickets keep their own reference; everything else gets REQ-XXXXXX. */
-export function refFor(intake: IntakeRow): string {
+/**
+ * Partner tickets keep their own reference; everything else gets
+ * REQ-XXXXXX.
+ *
+ * Takes the two fields it actually reads rather than a whole IntakeRow,
+ * so the employee's own request page can show the same reference the
+ * notifications use without selecting columns it has no use for. A
+ * second copy of this rule is how the portal and the email would come
+ * to call one request two different things.
+ */
+export function refFor(
+  intake: Pick<IntakeRow, 'id' | 'intake_answers'>,
+): string {
   const answers = (intake.intake_answers ?? {}) as Record<string, unknown>;
   const partner = (answers.partner ?? null) as { externalId?: string | null } | null;
   return (partner?.externalId ?? '').trim() || ticketRef(intake.id);
