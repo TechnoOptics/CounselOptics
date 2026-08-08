@@ -20,12 +20,39 @@ import {
 import { CreateSigningRequestForm } from './signing-form';
 import { DocumentStatusChanger } from './status-changer';
 import { DocumentArtifactCard } from '@/components/counsel/DocumentArtifactCard';
-import { PageHeader } from '@/components/counsel/ui';
-import { pillSurface } from '@/components/counsel/StatusPill';
+import { StatusPill, pillSurface } from '@/components/counsel/StatusPill';
+import {
+  ActionBar,
+  Chip,
+  MonoRef,
+  PanelCard,
+  relativeTime,
+  shortRef,
+} from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * One document, as the detail pattern in
+ * docs/TECHOTTIC-PARITY-SPEC.md section 3: breadcrumb with a mono
+ * reference, a meta chip row, the action bar as its own bordered card,
+ * then the work in the main column with the document's related records
+ * in the aside.
+ *
+ * The mono reference is the document's id, shortened, because a firm
+ * document carries no reference number of its own; see shortRef. The
+ * pattern's contextual banner is absent because the one live condition
+ * this page has, a document past its due date, already reads in the
+ * action bar in danger text, and a banner saying the same thing twice
+ * is how a banner stops being read.
+ */
 export default async function FirmDocumentDetail({
   params,
 }: {
@@ -75,149 +102,205 @@ export default async function FirmDocumentDetail({
     ? cases.find((c) => c.id === doc.caseId) ?? null
     : null;
 
-  const isOverdue =
+  const statusColor = FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[doc.status]];
+  const isOverdue = Boolean(
     doc.dueAt &&
-    new Date(doc.dueAt).getTime() < Date.now() &&
-    !doc.status.startsWith('signed_') &&
-    doc.status !== 'canceled';
+      new Date(doc.dueAt).getTime() < Date.now() &&
+      !doc.status.startsWith('signed_') &&
+      doc.status !== 'canceled',
+  );
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <p className="text-sm">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex flex-wrap items-center gap-2 text-[12.5px]"
+      >
         <Link
           href="/counsel/documents"
-          className="text-muted hover:text-foreground"
+          className="text-muted transition-colors hover:text-foreground"
         >
-          <T>&larr; Documents</T>
+          <T>Documents</T>
         </Link>
-      </p>
-      <PageHeader
-        align="start"
-        eyebrow={<T>Document</T>}
-        title={doc.name}
-        action={
-          <div className="shrink-0">
-            {canEdit ? (
-              <DocumentStatusChanger
-                firmId={ctx.firm.id}
-                documentId={doc.id}
-                currentStatus={doc.status}
-                statusUpdatedAt={doc.statusUpdatedAt}
-              />
-            ) : (
-              // Same surface as the status changer this stands in for,
-              // so a member who cannot edit sees the state the editors
-              // see rather than a different-looking chip.
-              <span
-                style={pillSurface(
-                  FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[doc.status]],
-                )}
-                className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground"
-              >
-                {FIRM_DOCUMENT_STATUS_LABEL[doc.status] ?? doc.status}
-              </span>
-            )}
-          </div>
-        }
-      >
-        <p className="text-[12px] text-muted mt-1 font-mono">
-          v{doc.version} &middot; {doc.mimeType} &middot; <T>uploaded</T>{' '}
-          {new Date(doc.uploadedAt).toLocaleString()}
-        </p>
-        {doc.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {doc.tags.map((t) => (
-              <span
-                key={t}
-                className="badge bg-surface-2 text-foreground text-[10px]"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-      </PageHeader>
+        <span aria-hidden className="text-muted">
+          /
+        </span>
+        <MonoRef title={doc.id}>{shortRef(doc.id)}</MonoRef>
+      </nav>
 
-      {/* Context strip: case linkage, due date, description */}
-      <section className="card p-4 sm:p-5 grid gap-3 sm:grid-cols-3">
-        <div>
-          <p className="eyebrow text-[10px] mb-1"><T>Case</T></p>
-          {linkedCase ? (
-            <Link
-              href={`/counsel/cases/${linkedCase.id}`}
-              className="text-[13px] font-semibold text-foreground hover:underline truncate block"
-              title={linkedCase.title}
-            >
-              {linkedCase.title}
-            </Link>
-          ) : (
-            <p className="text-[13px] text-muted italic">
-              <T>Not attached to a case</T>
-            </p>
-          )}
+      <header className="min-w-0">
+        <h1
+          className="break-words text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-3xl"
+          data-no-translate
+        >
+          {doc.name}
+        </h1>
+        {/* Meta chip row: the one live state as a pill, the fixed facts
+            of the file as quiet chips, then plain provenance. */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <StatusPill dot color={statusColor}>
+            {FIRM_DOCUMENT_STATUS_LABEL[doc.status] ?? doc.status}
+          </StatusPill>
+          <Chip>
+            <span data-no-translate>v{doc.version}</span>
+          </Chip>
+          <Chip>
+            <span data-no-translate>
+              {doc.mimeType.split('/').pop() ?? doc.mimeType}
+            </span>
+          </Chip>
+          <Chip>
+            <span data-no-translate>{formatBytes(doc.fileSize)}</span>
+          </Chip>
+          {doc.tags.map((tag) => (
+            <Chip key={tag}>
+              <span data-no-translate>{tag}</span>
+            </Chip>
+          ))}
         </div>
-        <div>
-          <p className="eyebrow text-[10px] mb-1"><T>Due date</T></p>
-          {doc.dueAt ? (
+        <p className="mt-2 text-[12px] text-muted">
+          <T>uploaded</T> {relativeTime(doc.uploadedAt)}
+          {' · '}
+          <T>status moved</T> {relativeTime(doc.statusUpdatedAt)}
+        </p>
+      </header>
+
+      {/* Action bar: the one thing this page changes in place is the
+          document's status, with its due state on the right. */}
+      <ActionBar
+        trailing={
+          doc.dueAt ? (
             <p
-              className={`text-[13px] font-semibold ${
-                isOverdue
-                  ? 'text-rose-600 dark:text-rose-300'
-                  : 'text-foreground'
+              className={`text-[12.5px] ${
+                isOverdue ? 'font-semibold text-danger-text' : 'text-muted'
               }`}
             >
-              {new Date(doc.dueAt).toLocaleString()}
-              {isOverdue && (
-                <span className="ml-2 text-[10.5px] font-mono uppercase tracking-wider">
-                  <T>overdue</T>
-                </span>
-              )}
+              {isOverdue ? <T>Overdue since</T> : <T>Due</T>}{' '}
+              {new Date(doc.dueAt).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
             </p>
-          ) : (
-            <p className="text-[13px] text-muted italic">
-              <T>No deadline set</T>
-            </p>
-          )}
-        </div>
-        <div>
-          <p className="eyebrow text-[10px] mb-1"><T>Status moved</T></p>
-          <p className="text-[13px] text-foreground font-mono tabular-nums">
-            {new Date(doc.statusUpdatedAt).toLocaleString()}
-          </p>
-        </div>
-        {doc.description && (
-          <div className="sm:col-span-3 pt-3 border-t border-edge">
-            <p className="eyebrow text-[10px] mb-1"><T>Description</T></p>
-            <p className="text-[13px] text-foreground whitespace-pre-wrap leading-relaxed">
-              {doc.description}
-            </p>
-          </div>
+          ) : undefined
+        }
+      >
+        {canEdit ? (
+          <DocumentStatusChanger
+            firmId={ctx.firm.id}
+            documentId={doc.id}
+            currentStatus={doc.status}
+            statusUpdatedAt={doc.statusUpdatedAt}
+          />
+        ) : (
+          // Same surface as the status changer this stands in for, so a
+          // member who cannot edit sees the state the editors see
+          // rather than a different-looking chip.
+          <span
+            style={pillSurface(statusColor)}
+            className="inline-flex items-center rounded-md px-2.5 py-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground"
+          >
+            {FIRM_DOCUMENT_STATUS_LABEL[doc.status] ?? doc.status}
+          </span>
         )}
-      </section>
+      </ActionBar>
 
-      {artifact && (
-        <>
-          <DocumentArtifactCard artifact={artifact} documentName={doc.name} />
-          {signingRequest && (
-            <p className="text-[13px]">
-              <Link
-                href={`/counsel/signing/${signingRequest.id}`}
-                className="text-muted hover:text-foreground underline"
-              >
-                {signingRequest.status === 'completed' ? (
-                  <T>See who signed and when</T>
-                ) : (
-                  <T>See who has signed so far</T>
-                )}
-              </Link>
-            </p>
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
+          {artifact && (
+            <>
+              <DocumentArtifactCard artifact={artifact} documentName={doc.name} />
+              {signingRequest && (
+                <p className="text-[13px]">
+                  <Link
+                    href={`/counsel/signing/${signingRequest.id}`}
+                    className="text-muted underline hover:text-foreground"
+                  >
+                    {signingRequest.status === 'completed' ? (
+                      <T>See who signed and when</T>
+                    ) : (
+                      <T>See who has signed so far</T>
+                    )}
+                  </Link>
+                </p>
+              )}
+            </>
           )}
-        </>
-      )}
 
-      {canRequestSig && (
-        <CreateSigningRequestForm firmId={ctx.firm.id} documentId={doc.id} />
-      )}
+          {canRequestSig && (
+            <CreateSigningRequestForm firmId={ctx.firm.id} documentId={doc.id} />
+          )}
+        </div>
+
+        <aside className="min-w-0 space-y-4">
+          <PanelCard
+            title={<T>Matter</T>}
+            action={
+              linkedCase ? (
+                <Link
+                  href={`/counsel/cases/${linkedCase.id}`}
+                  className="text-[12px] font-medium text-accent-text hover:underline"
+                >
+                  <T>Open matter</T> &rarr;
+                </Link>
+              ) : undefined
+            }
+          >
+            {linkedCase ? (
+              <p
+                className="text-[13px] font-semibold text-foreground"
+                data-no-translate
+              >
+                {linkedCase.title}
+              </p>
+            ) : (
+              <p className="text-[13px] text-muted">
+                <T>Not attached to a matter.</T>
+              </p>
+            )}
+          </PanelCard>
+
+          {doc.description && (
+            <PanelCard title={<T>Description</T>}>
+              <p
+                className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground"
+                data-no-translate
+              >
+                {doc.description}
+              </p>
+            </PanelCard>
+          )}
+
+          <PanelCard title={<T>File</T>}>
+            <dl className="space-y-2 text-[12.5px]">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted">
+                  <T>Uploaded</T>
+                </dt>
+                <dd className="font-mono tabular-nums text-foreground">
+                  {new Date(doc.uploadedAt).toLocaleString()}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted">
+                  <T>Status moved</T>
+                </dt>
+                <dd className="font-mono tabular-nums text-foreground">
+                  {new Date(doc.statusUpdatedAt).toLocaleString()}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted">
+                  <T>Type</T>
+                </dt>
+                <dd className="font-mono text-foreground" data-no-translate>
+                  {doc.mimeType}
+                </dd>
+              </div>
+            </dl>
+          </PanelCard>
+        </aside>
+      </div>
     </div>
   );
 }
