@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { installSeedTemplateAction } from '@/lib/seed-template-actions';
 import type { SeedTemplate } from '@/lib/seed-templates';
+import { templateNameKey } from '@/lib/template-name-match';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
@@ -28,18 +29,28 @@ export function StandardTemplates({
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
-  const installed = new Set(installedNames.map((n) => n.trim().toLowerCase()));
+  // The same key the install action refuses on, so the button and the save
+  // cannot disagree about whether a firm already has this document. A trimmed
+  // lowercase comparison lived here and in the action, and it is how a firm
+  // ended up with two NDAs one hyphen apart.
+  const installed = new Set(installedNames.map(templateNameKey));
 
   const install = async (slug: string) => {
     setBusy(slug);
     setError(null);
+    setWarning(null);
     const res = await installSeedTemplateAction(firmId, slug);
     setBusy(null);
     if (!res.ok) {
       setError(res.error ?? t('Could not add that template.'));
       return;
     }
+    // Added, and worth saying something about. Not an error: the template is
+    // in the list either way, and the firm is the one who decides whether two
+    // names this close are a problem.
+    if (res.warning) setWarning(res.warning);
     setDone((list) => [...list, slug]);
     // The list below this panel is seeded from a server prop into useState, so
     // it does not know about a template that was created after it mounted.
@@ -69,9 +80,15 @@ export function StandardTemplates({
         </p>
       )}
 
+      {warning && !error && (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
+          {warning}
+        </p>
+      )}
+
       <ul className="mt-3 space-y-3">
         {templates.map((tpl) => {
-          const already = installed.has(tpl.name.trim().toLowerCase()) || done.includes(tpl.slug);
+          const already = installed.has(templateNameKey(tpl.name)) || done.includes(tpl.slug);
           return (
             <li
               key={tpl.slug}
