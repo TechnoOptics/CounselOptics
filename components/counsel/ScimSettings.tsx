@@ -13,9 +13,9 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="space-y-1">
-      <p className="text-xs font-medium text-ink-600 dark:text-cream-100/70"><T>{label}</T></p>
+      <p className="text-xs font-medium text-muted"><T>{label}</T></p>
       <div className="flex items-stretch gap-2">
-        <code className="flex-1 truncate rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-xs text-forest-900 dark:border-forest-700/40 dark:bg-forest-900/40 dark:text-cream-100">
+        <code className="flex-1 truncate rounded-lg border border-edge bg-surface-2 px-3 py-2 text-xs text-foreground">
           {value}
         </code>
         <button
@@ -29,7 +29,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
               () => undefined,
             );
           }}
-          className="shrink-0 rounded-lg border border-ink-200 px-3 py-2 text-xs font-medium text-forest-900 transition hover:bg-ink-50 dark:border-forest-700/40 dark:text-cream-100 dark:hover:bg-forest-900/40"
+          className="shrink-0 rounded-lg border border-edge px-3 py-2 text-xs font-medium text-foreground transition hover:bg-surface-2"
         >
           {copied ? <T>Copied</T> : <T>Copy</T>}
         </button>
@@ -67,17 +67,17 @@ function TokenRow({
   const stateClass =
     state === 'active'
       ? 'text-emerald-700 dark:text-emerald-400'
-      : 'text-ink-500 dark:text-cream-100/50';
+      : 'text-muted';
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-ink-200 py-3 first:border-t-0 dark:border-forest-700/40">
+    <div className="flex items-center justify-between gap-3 border-t border-edge py-3 first:border-t-0">
       <div className="min-w-0 space-y-0.5">
-        <p className="truncate text-sm text-forest-900 dark:text-cream-100">
+        <p className="truncate text-sm text-foreground">
           <T>{tok.label ?? 'SCIM provisioning token'}</T>
           <span className={`ml-2 text-xs font-medium ${stateClass}`}>
             · <T>{stateLabel}</T>
           </span>
         </p>
-        <p className="text-xs text-ink-500 dark:text-cream-100/60">
+        <p className="text-xs text-muted">
           <T>Created</T> <span data-no-translate>{fmtDate(tok.createdAt)}</span>
           {' · '}
           <T>Last used</T> <span data-no-translate>{fmtDate(tok.lastUsedAt)}</span>
@@ -148,7 +148,7 @@ export function ScimSettings({ baseUrl }: { baseUrl: string }) {
     <div className="space-y-5">
       <div className="space-y-3">
         <CopyField label="SCIM base URL (Tenant URL)" value={baseUrl} />
-        <p className="text-xs text-ink-600 dark:text-cream-100/70 leading-relaxed">
+        <p className="text-xs text-muted leading-relaxed">
           <T>Paste this as the</T> <em><T>Tenant URL</T></em>{' '}
           <T>
             in your identity provider (Microsoft Entra ID, Okta, and any SCIM
@@ -158,11 +158,11 @@ export function ScimSettings({ baseUrl }: { baseUrl: string }) {
         </p>
       </div>
 
-      <div className="rounded-xl border border-ink-200 p-4 dark:border-forest-700/40">
-        <p className="text-sm font-medium text-forest-900 dark:text-cream-100">
+      <div className="rounded-xl border border-edge p-4">
+        <p className="text-sm font-medium text-foreground">
           <T>Secret token</T>
         </p>
-        <p className="mt-1 text-xs text-ink-600 dark:text-cream-100/70 leading-relaxed">
+        <p className="mt-1 text-xs text-muted leading-relaxed">
           <T>Generate a token, then paste it into your IdP&rsquo;s</T>{' '}
           <em><T>Secret Token</T></em>{' '}
           <T>
@@ -202,11 +202,11 @@ export function ScimSettings({ baseUrl }: { baseUrl: string }) {
       </div>
 
       {tokens && tokens.length > 0 ? (
-        <div className="rounded-xl border border-ink-200 p-4 dark:border-forest-700/40">
-          <p className="text-sm font-medium text-forest-900 dark:text-cream-100">
+        <div className="rounded-xl border border-edge p-4">
+          <p className="text-sm font-medium text-foreground">
             <T>Issued tokens</T>
           </p>
-          <p className="mt-1 text-xs text-ink-600 dark:text-cream-100/70 leading-relaxed">
+          <p className="mt-1 text-xs text-muted leading-relaxed">
             <T>
               Every token that can provision your directory. Revoke any you no
               longer use. Revoked and expired tokens stop working immediately.

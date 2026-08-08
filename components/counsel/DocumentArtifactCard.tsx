@@ -37,7 +37,7 @@ import type { ResolvedSigningArtifact } from '@/lib/signing-artifact';
 export function DocumentArtifactCard({
   artifact,
   documentName,
-  frameClassName = 'w-full h-[70vh] border-0 bg-ink-50 dark:bg-forest-950',
+  frameClassName = 'w-full h-[70vh] border-0 bg-surface-2',
 }: {
   artifact: ResolvedSigningArtifact;
   /** Used only as the iframe's accessible title, never rendered as text. */
@@ -51,7 +51,7 @@ export function DocumentArtifactCard({
         <p className="eyebrow">
           {executed ? <T>Executed copy</T> : <T>Original as uploaded</T>}
         </p>
-        <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed max-w-[70ch]">
+        <p className="text-[13px] text-foreground leading-relaxed max-w-[70ch]">
           {artifact.notice === 'executed' ? (
             <T>
               Every signer has signed. This is the executed copy, with each
@@ -120,7 +120,7 @@ export function DocumentArtifactCard({
           </div>
         </>
       ) : (
-        <p className="px-5 pb-5 text-[13px] text-ink-500 dark:text-cream-100/55">
+        <p className="px-5 pb-5 text-[13px] text-muted">
           <T>
             Neither the executed copy nor the original could be opened. Reload
             the page, and if it persists the file may have been removed from

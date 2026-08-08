@@ -43,11 +43,11 @@ export function SamlSsoSetup({
         />
       </div>
 
-      <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/50 dark:bg-forest-900/30 p-4">
-        <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100">
+      <div className="rounded-lg ring-1 ring-edge bg-surface-2 p-4">
+        <p className="text-[12px] font-semibold text-foreground">
           <T>Finish setup with Advottic (one-time, per IdP)</T>
         </p>
-        <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+        <p className="text-[12px] text-muted mt-1 leading-relaxed">
           <T>
             The last step, registering the connection, happens on
             Advottic&rsquo;s side, not in your own console. After you create the
@@ -64,7 +64,7 @@ export function SamlSsoSetup({
             day, and email you when it&rsquo;s live.
           </T>
         </p>
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-2 leading-relaxed">
+        <p className="text-[11px] text-muted mt-2 leading-relaxed">
           <T>
             For reference, that registration is a single Supabase Auth command
             run by Advottic:
@@ -77,7 +77,7 @@ export function SamlSsoSetup({
             '# run by Advottic, not in your console\nsupabase sso add --type saml \\\n  --metadata-url <YOUR_IDP_METADATA_URL> \\\n  --domains yourcompany.com'
           }
         />
-        <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+        <p className="text-[12px] text-muted mt-2 leading-relaxed">
           <T>Once we confirm the connection is live, the</T>{' '}
           <strong>
             <T>&ldquo;Sign in with your organization (SSO)&rdquo;</T>
@@ -117,13 +117,13 @@ function CopyField({
   return (
     <div>
       {label && (
-        <p className="text-[11px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
+        <p className="text-[11px] font-semibold text-foreground mb-1">
           <T>{label}</T>
         </p>
       )}
       <div className="flex items-stretch gap-2">
         <code
-          className={`flex-1 min-w-0 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950 px-3 py-2 text-[12px] text-ink-800 dark:text-cream-100/85 overflow-x-auto ${
+          className={`flex-1 min-w-0 rounded-md ring-1 ring-edge bg-surface px-3 py-2 text-[12px] text-foreground overflow-x-auto ${
             mono ? 'whitespace-pre' : 'break-all'
           }`}
         >
@@ -132,13 +132,13 @@ function CopyField({
         <button
           type="button"
           onClick={copy}
-          className="shrink-0 min-h-[40px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 text-[12px] text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+          className="shrink-0 min-h-[40px] rounded-md ring-1 ring-edge px-3 text-[12px] text-foreground hover:bg-surface-2"
         >
           {copied ? <T>Copied</T> : <T>Copy</T>}
         </button>
       </div>
       {hint && (
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1">
+        <p className="text-[11px] text-muted mt-1">
           <T>{hint}</T>
         </p>
       )}

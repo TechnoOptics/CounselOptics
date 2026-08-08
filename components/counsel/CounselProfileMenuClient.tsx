@@ -164,7 +164,7 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
           />
         ) : (
           <span
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-forest-900 text-[12.5px] font-semibold tracking-tight border border-forest-700/30 shadow-sm"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-surface text-foreground text-[12.5px] font-semibold tracking-tight border border-forest-700/30 shadow-sm"
             data-no-translate
           >
             {props.initials}
@@ -178,14 +178,14 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
           id={menuId}
           role="menu"
           aria-label="Account"
-          className="absolute right-0 mt-2 w-72 rounded-xl border border-forest-200 bg-white shadow-card-hover overflow-hidden z-50 max-h-[calc(100vh-5rem)] overflow-y-auto"
+          className="absolute right-0 mt-2 w-72 rounded-xl border border-edge-bright bg-surface shadow-card-hover overflow-hidden z-50 max-h-[calc(100vh-5rem)] overflow-y-auto"
         >
           {/* Identity */}
-          <div className="px-4 py-3 border-b border-ink-100" data-no-translate>
-            <p className="font-semibold text-ink-950 text-sm truncate">{props.displayName}</p>
-            <p className="text-xs text-ink-500 truncate">{props.email}</p>
+          <div className="px-4 py-3 border-b border-edge" data-no-translate>
+            <p className="font-semibold text-foreground text-sm truncate">{props.displayName}</p>
+            <p className="text-xs text-muted truncate">{props.email}</p>
             {props.activeFirmName && (
-              <p className="text-xs text-ink-500 truncate mt-0.5">
+              <p className="text-xs text-muted truncate mt-0.5">
                 {props.activeFirmName}
                 {props.roleLabel ? ` · ${props.roleLabel}` : ''}
               </p>
@@ -196,7 +196,7 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
           </div>
 
           {/* Token balance */}
-          <div className="px-4 py-3 border-b border-ink-100">
+          <div className="px-4 py-3 border-b border-edge">
             <TokenBalanceGauge
               initial={{ combined: 0, firmPool: null, personal: 0, monthlyGrant: 0 }}
             />
@@ -204,8 +204,8 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
 
           {/* Switch firm (multi-firm members, shared-portal only) */}
           {showFirmSwitch && (
-            <div className="border-b border-ink-100 py-1.5" role="group" aria-label="Switch firm">
-              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
+            <div className="border-b border-edge py-1.5" role="group" aria-label="Switch firm">
+              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-muted">
                 <T>Switch firm</T>
               </p>
               {props.memberships.map((m) => {
@@ -220,8 +220,8 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
                     onClick={() => switchFirm(m.firmId)}
                     className={`w-full text-left flex items-center gap-2.5 px-4 py-2 text-sm transition-colors disabled:opacity-60 ${
                       active
-                        ? 'bg-cream-50 text-forest-900 font-semibold'
-                        : 'text-ink-800 hover:bg-cream-50 hover:text-forest-900'
+                        ? 'bg-surface-2 text-foreground font-semibold'
+                        : 'text-foreground hover:bg-surface-2'
                     }`}
                   >
                     <span
@@ -248,8 +248,8 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
 
           {/* View as (owner/admin persona preview) */}
           {props.canPreview && props.activeFirmId && (
-            <div className="border-b border-ink-100 py-1.5" role="group" aria-label="View as">
-              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
+            <div className="border-b border-edge py-1.5" role="group" aria-label="View as">
+              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-muted">
                 <T>View as</T>
               </p>
               <button
@@ -257,12 +257,12 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
                 role="menuitem"
                 disabled={pending}
                 onClick={() => preview('employee')}
-                className="w-full text-left flex items-start gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors disabled:opacity-60"
+                className="w-full text-left flex items-start gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-surface-2 transition-colors disabled:opacity-60"
               >
                 <BadgeIcon />
                 <span>
                   <span className="block font-medium"><T>Employee</T></span>
-                  <span className="block text-[11px] text-ink-500 leading-snug">
+                  <span className="block text-[11px] text-muted leading-snug">
                     <T>The in-house Hub your staff use.</T>
                   </span>
                 </span>
@@ -272,12 +272,12 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
                 role="menuitem"
                 disabled={pending}
                 onClick={() => preview('vendor')}
-                className="w-full text-left flex items-start gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors disabled:opacity-60"
+                className="w-full text-left flex items-start gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-surface-2 transition-colors disabled:opacity-60"
               >
                 <GlobeIcon />
                 <span>
                   <span className="block font-medium"><T>External vendor</T></span>
-                  <span className="block text-[11px] text-ink-500 leading-snug">
+                  <span className="block text-[11px] text-muted leading-snug">
                     <T>What an outside collaborator sees.</T>
                   </span>
                 </span>
@@ -286,8 +286,8 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
           )}
 
           {/* Language */}
-          <div className="border-b border-ink-100 px-4 py-2.5">
-            <p className="pb-1.5 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
+          <div className="border-b border-edge px-4 py-2.5">
+            <p className="pb-1.5 text-[10px] uppercase tracking-[0.18em] font-semibold text-muted">
               <T>Language</T>
             </p>
             <LanguageSwitcher initialLocale={props.locale} />
@@ -312,8 +312,8 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
               nothing in the firm workspace routes a user into the personal
               view. */}
           {showHq && (
-            <div className="border-t border-ink-100 py-1.5">
-              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
+            <div className="border-t border-edge py-1.5">
+              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-muted">
                 <T>Switch portal</T>
               </p>
               {showHq && (
@@ -321,7 +321,7 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
                   href="/admin"
                   onClick={() => setOpen(false)}
                   role="menuitem"
-                  className="flex items-start gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+                  className="flex items-start gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-surface-2 transition-colors"
                 >
                   <span
                     className="h-5 w-5 mt-0.5 rounded inline-flex items-center justify-center text-[11px] font-semibold flex-none text-forest-950"
@@ -339,24 +339,24 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
                       surprise: everything else in this menu stays put. */}
                   <span className="flex-1 min-w-0">
                     <span className="block truncate font-medium">Advottic HQ</span>
-                    <span className="block text-[11px] text-ink-500 leading-snug">
+                    <span className="block text-[11px] text-muted leading-snug">
                       <T>Leaves the firm workspace.</T>
                     </span>
                   </span>
-                  <span aria-hidden className="mt-0.5 text-ink-400">→</span>
+                  <span aria-hidden className="mt-0.5 text-muted">→</span>
                 </a>
               )}
             </div>
           )}
 
           {/* Session */}
-          <div className="border-t border-ink-100">
+          <div className="border-t border-edge">
             <form action="/auth/sign-out" method="post">
               <input type="hidden" name="next" value="/sign-in?switch=1" />
               <button
                 type="submit"
                 role="menuitem"
-                className="w-full text-left px-4 py-2.5 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+                className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-2 transition-colors"
               >
                 <T>Switch account</T>
               </button>
@@ -391,7 +391,7 @@ function MenuLink({
       href={href}
       onClick={onClick}
       role="menuitem"
-      className="block px-4 py-2.5 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+      className="block px-4 py-2.5 text-sm text-foreground hover:bg-surface-2 transition-colors"
     >
       {children}
     </Link>
@@ -408,7 +408,7 @@ const ICON = {
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
   'aria-hidden': true,
-  className: 'flex-none mt-0.5 text-forest-700',
+  className: 'flex-none mt-0.5 text-foreground',
 };
 
 function BadgeIcon() {
@@ -440,7 +440,7 @@ function CheckIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
-      className="flex-none text-forest-700"
+      className="flex-none text-foreground"
     >
       <path d="M20 6L9 17l-5-5" />
     </svg>

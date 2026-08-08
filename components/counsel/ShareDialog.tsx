@@ -50,7 +50,7 @@ export function ShareDialog({ caseId, target, onClose }: { caseId: string; targe
   return (
     <Dialog onClose={onClose} ariaLabel="Share securely" size="sm" elevated>
       <div className="p-5">
-        <h2 className="text-[15px] font-semibold text-forest-900 dark:text-cream-50">Share securely</h2>
+        <h2 className="text-[15px] font-semibold text-foreground">Share securely</h2>
         <p className="mt-1 text-[12.5px] text-forest-500 dark:text-cream-100/50" data-no-translate>{target.label}</p>
 
         {!result ? (
@@ -60,14 +60,14 @@ export function ShareDialog({ caseId, target, onClose }: { caseId: string; targe
               <input
                 type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus
                 placeholder="name@example.com"
-                className="w-full rounded-lg border border-ink-200 dark:border-forest-700/60 bg-white dark:bg-forest-950 px-3 py-2.5 text-[13px] text-forest-900 dark:text-cream-50 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
+                className="w-full rounded-lg border border-edge bg-surface px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
               />
             </label>
             <label className="block">
               <span className="mb-1 block text-[12px] font-medium text-forest-600 dark:text-cream-100/60">Note <span className="text-forest-400 dark:text-cream-100/35">(optional)</span></span>
               <textarea
                 value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={400}
-                className="w-full resize-none rounded-lg border border-ink-200 dark:border-forest-700/60 bg-white dark:bg-forest-950 px-3 py-2 text-[13px] text-forest-900 dark:text-cream-50 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
+                className="w-full resize-none rounded-lg border border-edge bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
               />
             </label>
             <p className="text-[11.5px] leading-relaxed text-forest-400 dark:text-cream-100/40">
@@ -75,7 +75,7 @@ export function ShareDialog({ caseId, target, onClose }: { caseId: string; targe
             </p>
             {error && <p className="text-[12.5px] text-red-600 dark:text-red-400">{error}</p>}
             <div className="flex gap-2 pt-1">
-              <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-ink-200 dark:border-forest-700/60 px-4 py-2.5 text-[13px] font-semibold text-forest-600 dark:text-cream-100/70 hover:bg-ink-50 dark:hover:bg-forest-800/50">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-edge px-4 py-2.5 text-[13px] font-semibold text-forest-600 dark:text-cream-100/70 hover:bg-surface-2">Cancel</button>
               <button type="submit" disabled={busy || !email.trim()} className="flex-1 rounded-lg bg-forest-900 dark:bg-gold-metal px-4 py-2.5 text-[13px] font-semibold text-cream-50 dark:text-forest-950 disabled:opacity-50 hover:brightness-110">
                 {busy ? 'Encrypting…' : 'Encrypt & send'}
               </button>
@@ -106,8 +106,8 @@ function Field({ label, value, mono, copied, onCopy }: { label: string; value: s
     <div>
       <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-forest-400 dark:text-cream-100/40">{label}</span>
       <div className="flex items-stretch gap-1.5">
-        <div className={`min-w-0 flex-1 truncate rounded-lg border border-ink-200 dark:border-forest-700/60 bg-ink-50 dark:bg-forest-950 px-3 py-2 text-[12.5px] text-forest-800 dark:text-cream-100 ${mono ? 'font-mono' : ''}`} data-no-translate>{value}</div>
-        <button type="button" onClick={onCopy} className="shrink-0 rounded-lg border border-ink-200 dark:border-forest-700/60 px-3 text-[12px] font-semibold text-forest-600 dark:text-cream-100/70 hover:bg-gold-500/10 hover:text-gold-700 dark:hover:text-gold-300">
+        <div className={`min-w-0 flex-1 truncate rounded-lg border border-edge bg-surface-2 px-3 py-2 text-[12.5px] text-foreground ${mono ? 'font-mono' : ''}`} data-no-translate>{value}</div>
+        <button type="button" onClick={onCopy} className="shrink-0 rounded-lg border border-edge px-3 text-[12px] font-semibold text-forest-600 dark:text-cream-100/70 hover:bg-gold-500/10 hover:text-gold-700 dark:hover:text-gold-300">
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
