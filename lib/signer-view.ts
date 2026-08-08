@@ -1242,6 +1242,31 @@ export type InternalSignerGate =
   | 'wrong-account';
 
 /**
+ * Whether the one-time access code still stands between this token and
+ * the row it names.
+ *
+ * The condition is trivial and that is exactly why it is a function. It
+ * is the whole of the external signer's proof of identity, it is asked on
+ * every path that lets a token do something (the signature write, the
+ * document bytes, the copy, and the decline), and it had been written out
+ * by hand at each of them. This repo has already had one control drift
+ * apart across three hand-written copies that each claimed to agree, so
+ * the copies that decide whether a stranger may act now call one
+ * predicate.
+ *
+ * Nothing here is defaulted. A row with a code hash and no verification
+ * timestamp is refused, whichever caller is asking.
+ */
+export function accessCodeStillRequired(input: {
+  /** firm_signatures.access_code_hash. */
+  accessCodeHash: string | null | undefined;
+  /** firm_signatures.access_code_verified_at. */
+  accessCodeVerifiedAt: string | null | undefined;
+}): boolean {
+  return Boolean(input.accessCodeHash) && !input.accessCodeVerifiedAt;
+}
+
+/**
  * The credential an internal signer has, which until now was none.
  *
  * Two kinds of person reach /sign/[token]. An EXTERNAL signer is a
