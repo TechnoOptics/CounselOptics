@@ -113,7 +113,7 @@ export function CreateSigningRequestForm({
           described here rather than quoted because <T> looks a whole
           static sentence up in a dictionary and an interpolated number
           would break that lookup. */}
-      <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+      <p className="text-[11px] text-muted leading-relaxed">
         <T>Each signer gets a branded link that opens the document inside
         Advottic. Once they sign, that link cannot be used to sign again, and
         it keeps working for a limited period afterwards so they can download
@@ -165,7 +165,7 @@ export function CreateSigningRequestForm({
         + <T>Add another signer</T>
       </button>
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Message (optional)</T>
         </span>
         <textarea
@@ -177,7 +177,7 @@ export function CreateSigningRequestForm({
           disabled={pending}
         />
       </label>
-      <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+      <label className="flex items-start gap-3 text-[13px] text-foreground">
         <input
           type="checkbox"
           checked={signerCanDownload}

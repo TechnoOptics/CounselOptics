@@ -107,10 +107,10 @@ export function AidChat() {
               <SparkIcon />
             </span>
             <div>
-              <p className="text-2xl text-forest-900 dark:text-cream-100">
+              <p className="text-2xl text-foreground">
                 <T>Ask Advottic Aid</T>
               </p>
-              <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
+              <p className="text-sm text-muted mt-1.5 max-w-md leading-relaxed">
                 <T>
                   Research questions, grounded in your firm&rsquo;s
                   jurisdictions and real case law, plus instant retrieval
@@ -124,7 +124,7 @@ export function AidChat() {
                   key={s}
                   type="button"
                   onClick={() => send(s)}
-                  className="text-left text-[13px] rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-2.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/50 transition-colors"
+                  className="text-left text-[13px] rounded-lg ring-1 ring-edge px-3 py-2.5 text-foreground hover:bg-surface-2 transition-colors"
                 >
                   <T>{s}</T>
                 </button>
@@ -142,12 +142,12 @@ export function AidChat() {
               <div
                 className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap ${
                   m.role === 'user'
-                    ? 'bg-gold-500/15 ring-1 ring-gold-500/25 text-ink-900 dark:text-cream-100'
-                    : 'bg-forest-900/40 ring-1 ring-forest-700/40 text-ink-800 dark:text-cream-100/90'
+                    ? 'bg-gold-500/15 ring-1 ring-gold-500/25 text-foreground'
+                    : 'bg-forest-900/40 ring-1 ring-forest-700/40 text-foreground'
                 }`}
               >
                 {m.role === 'assistant' && !m.content && busy ? (
-                  <span className="text-ink-500 dark:text-cream-100/55 italic">
+                  <span className="text-muted italic">
                     <T>Researching...</T>
                   </span>
                 ) : m.role === 'assistant' ? (
@@ -160,7 +160,7 @@ export function AidChat() {
           ))
         )}
       </div>
-      <div className="border-t border-ink-200 dark:border-forest-700/40 p-3 sm:p-4 pb-[calc(0.75rem+var(--safe-bottom))] sm:pb-[calc(1rem+var(--safe-bottom))]">
+      <div className="border-t border-edge p-3 sm:p-4 pb-[calc(0.75rem+var(--safe-bottom))] sm:pb-[calc(1rem+var(--safe-bottom))]">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -190,7 +190,7 @@ export function AidChat() {
             {busy ? '...' : <T>Ask</T>}
           </button>
         </form>
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-2">
+        <p className="text-[11px] text-muted mt-2">
           <T>
             Research assistance, not legal advice. Verify citations
             before relying on them.

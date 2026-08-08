@@ -35,7 +35,7 @@ export function RecallButton({ requestId }: { requestId: string }) {
     <div className="flex flex-col items-end gap-1">
       {confirming ? (
         <div className="flex items-center gap-2">
-          <span className="text-[12px] text-ink-600 dark:text-cream-100/70">
+          <span className="text-[12px] text-muted">
             <T>Recall and disable all links?</T>
           </span>
           <button
@@ -50,7 +50,7 @@ export function RecallButton({ requestId }: { requestId: string }) {
             type="button"
             onClick={() => setConfirming(false)}
             disabled={pending}
-            className="inline-flex items-center min-h-[36px] px-3 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[12px]"
+            className="inline-flex items-center min-h-[36px] px-3 rounded-md ring-1 ring-edge text-[12px]"
           >
             <T>Cancel</T>
           </button>

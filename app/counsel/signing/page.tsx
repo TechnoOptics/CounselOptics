@@ -28,12 +28,12 @@ function RequestRow({ req }: { req: FirmSigningRequestSummary }) {
         className="flex flex-wrap items-baseline justify-between gap-2"
       >
         <div className="min-w-0">
-          <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+          <p className="font-semibold text-foreground truncate">
             {req.recipients.length > 0
               ? req.recipients.join(', ')
               : `Request #${req.id.slice(0, 8)}`}
           </p>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+          <p className="text-[12px] text-muted mt-0.5">
             {req.completedAt ? (
               <>
                 <T>Signed</T> {new Date(req.completedAt).toLocaleDateString()}
@@ -112,7 +112,7 @@ export default async function CounselSigningPage() {
         }
       />
       <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/30 dark:ring-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15">
-        <p className="text-sm text-ink-700 dark:text-cream-100/85 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           <strong><T>UETA-aligned signing.</T></strong>{' '}
           <T>
             Each request hashes the document at creation, captures intent
@@ -130,7 +130,7 @@ export default async function CounselSigningPage() {
           <SectionTitle>
             <T>Fully executed</T>
           </SectionTitle>
-          <p className="text-[13px] text-ink-600 dark:text-cream-100/70 max-w-[70ch]">
+          <p className="text-[13px] text-muted max-w-[70ch]">
             <T>
               Every signer is in on these. Open one to read the executed copy,
               compare it against the original, and download either.
@@ -146,7 +146,7 @@ export default async function CounselSigningPage() {
                     {group.category}
                   </p>
                 )}
-                <ul className="card divide-y divide-ink-100 dark:divide-forest-700/40">
+                <ul className="card divide-y divide-edge">
                   {group.rows.map((req) => (
                     <RequestRow key={req.id} req={req} />
                   ))}
@@ -170,7 +170,7 @@ export default async function CounselSigningPage() {
                 <T>Everything else</T>
               </SectionTitle>
             )}
-            <ul className="card divide-y divide-ink-100 dark:divide-forest-700/40">
+            <ul className="card divide-y divide-edge">
               {rest.map((req) => (
                 <RequestRow key={req.id} req={req} />
               ))}

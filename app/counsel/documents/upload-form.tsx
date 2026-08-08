@@ -68,7 +68,7 @@ export function UploadDocumentForm({
       <p className="eyebrow"><T>Upload a document</T></p>
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>File</T>
           </span>
           <label
@@ -77,7 +77,7 @@ export function UploadDocumentForm({
           >
             <T>Choose file</T>
           </label>
-          <span className="ml-3 text-sm text-ink-500 dark:text-cream-100/55 truncate">
+          <span className="ml-3 text-sm text-muted truncate">
             {fileLabel || t('No file selected')}
           </span>
           <input
@@ -93,7 +93,7 @@ export function UploadDocumentForm({
           />
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Display name (optional)</T>
           </span>
           <input name="name" placeholder={t('Renewal lease - 2026')} className="input" />
@@ -102,10 +102,10 @@ export function UploadDocumentForm({
 
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Attach to case</T>{' '}
             {cases.length === 0 && (
-              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+              <span className="text-muted font-normal">
                 <T>(no cases yet - create one in the Cases tab)</T>
               </span>
             )}
@@ -125,7 +125,7 @@ export function UploadDocumentForm({
           </select>
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Initial status</T>
           </span>
           <select name="status" className="input" defaultValue="submitted">
@@ -142,18 +142,18 @@ export function UploadDocumentForm({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="text-[12px] font-medium text-ink-600 dark:text-cream-100/70 hover:text-ink-900 dark:hover:text-cream-100 underline"
+          className="text-[12px] font-medium text-muted hover:text-foreground underline"
         >
           {expanded ? <T>Hide</T> : <T>Add</T>} <T>description, tags, and due date</T>
         </button>
       </div>
 
       {expanded && (
-        <div className="space-y-3 rounded-lg p-4 bg-ink-50/40 dark:bg-forest-900/30 ring-1 ring-ink-200 dark:ring-forest-700/40">
+        <div className="space-y-3 rounded-lg p-4 bg-surface-2 ring-1 ring-edge">
           <label className="block">
-            <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+            <span className="block text-sm font-medium text-foreground mb-1.5">
               <T>Description</T>{' '}
-              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+              <span className="text-muted font-normal">
                 <T>(context, scope, what this is for)</T>
               </span>
             </span>
@@ -166,9 +166,9 @@ export function UploadDocumentForm({
           </label>
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Tags</T>{' '}
-                <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+                <span className="text-muted font-normal">
                   <T>(comma-separated)</T>
                 </span>
               </span>
@@ -179,7 +179,7 @@ export function UploadDocumentForm({
               />
             </label>
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Due date (optional)</T>
               </span>
               <input
@@ -193,7 +193,7 @@ export function UploadDocumentForm({
       )}
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+        <p className="text-[11px] text-muted">
           <T>Up to 50 MB. Stored encrypted in private firm vault.</T>
         </p>
         <button type="submit" className="btn-primary" disabled={pending}>

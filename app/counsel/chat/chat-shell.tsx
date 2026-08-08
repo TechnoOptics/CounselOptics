@@ -217,7 +217,7 @@ export function ChatShell({
           <button
             type="button"
             onClick={() => setShowNewChannel((v) => !v)}
-            className="text-[11px] text-forest-900 dark:text-cream-100/85 hover:underline"
+            className="text-[11px] text-foreground hover:underline"
           >
             <T>+ New</T>
           </button>
@@ -225,7 +225,7 @@ export function ChatShell({
         {showNewChannel && (
           <form
             action={newChannel}
-            className="mb-3 p-2 rounded bg-cream-50 dark:bg-forest-800/40 ring-1 ring-ink-200 dark:ring-forest-700/40 space-y-2"
+            className="mb-3 p-2 rounded bg-surface-2 ring-1 ring-edge space-y-2"
           >
             <input
               name="name"
@@ -249,7 +249,7 @@ export function ChatShell({
                 className={`w-full text-left px-2 py-1 rounded text-sm flex items-center gap-1.5 ${
                   c.id === activeId
                     ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 font-semibold'
-                    : 'text-ink-700 dark:text-cream-100/85 hover:bg-ink-50 dark:hover:bg-forest-800/60'
+                    : 'text-foreground hover:bg-surface-2'
                 }`}
               >
                 <span aria-hidden>#</span>
@@ -261,19 +261,19 @@ export function ChatShell({
       </aside>
 
       <section className="card flex flex-col min-h-0">
-        <header className="px-4 py-3 border-b border-ink-100 dark:border-forest-700/40">
-          <p className="font-semibold text-forest-900 dark:text-cream-100">
+        <header className="px-4 py-3 border-b border-edge">
+          <p className="font-semibold text-foreground">
             {active ? `#${active.name}` : <T>No channel selected</T>}
           </p>
           {active?.topic && (
-            <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+            <p className="text-[11px] text-muted mt-0.5">
               {active.topic}
             </p>
           )}
         </header>
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 ? (
-            <p className="text-sm text-ink-500 dark:text-cream-100/55 italic">
+            <p className="text-sm text-muted italic">
               <T>No messages yet. Say hi.</T>
             </p>
           ) : (
@@ -288,12 +288,12 @@ export function ChatShell({
                   className={`inline-block px-3 py-1.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                     m.userId === userId
                       ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 rounded-tr-sm'
-                      : 'bg-ink-100 text-ink-900 dark:bg-forest-800/60 dark:text-cream-100 rounded-tl-sm'
+                      : 'bg-surface-2 text-foreground rounded-tl-sm'
                   }`}
                 >
                   {m.body}
                 </p>
-                <p className="text-[10px] text-ink-500 dark:text-cream-100/70 mt-0.5 font-mono tabular-nums">
+                <p className="text-[10px] text-muted mt-0.5 font-mono tabular-nums">
                   {new Date(m.createdAt).toLocaleTimeString([], {
                     hour: 'numeric',
                     minute: '2-digit',
@@ -308,7 +308,7 @@ export function ChatShell({
             e.preventDefault();
             send();
           }}
-          className="border-t border-ink-100 dark:border-forest-700/40 p-2 pb-[calc(0.5rem+var(--safe-bottom))] flex items-end gap-2"
+          className="border-t border-edge p-2 pb-[calc(0.5rem+var(--safe-bottom))] flex items-end gap-2"
         >
           <textarea
             value={draft}
