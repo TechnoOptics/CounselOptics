@@ -1,4 +1,14 @@
-'use server';
+// NOT `'use server'`. Every export of a 'use server' module is a public HTTP
+// endpoint, and every function here takes the identity it acts on from its own
+// arguments and writes through the service-role client with no caller
+// authentication: applyTopupPurchase credits a paid token pack, debitTokens can
+// empty any user's balance or any firm's pool. This module has only server-side
+// importers (the Stripe webhook, the IAP entitlement helper, the token-balance
+// route and Bella's metering hook) and was never meant to be an action
+// boundary. `server-only` both removes the endpoints and turns any future
+// client import into a build error instead of a silent exposure.
+// Guarded by tests/token-economy-not-an-action.test.ts.
+import 'server-only';
 
 import { createAdminSupabase } from './supabase/admin';
 import {
