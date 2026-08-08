@@ -11,6 +11,7 @@ import {
   TIME_BILLING_HREFS,
 } from '@/lib/menu-config';
 import { T } from '@/components/i18n/LocaleProvider';
+import { CounselScopePanel } from '@/components/counsel/CounselScopePanel';
 import {
   BillingIcon,
   CalIcon,
@@ -101,6 +102,7 @@ export function CounselSidebar({
   pathname,
   tenantMode = false,
   hideTimeBilling = false,
+  ticketPrefix = null,
 }: {
   firm: Firm;
   membership: FirmMember;
@@ -128,6 +130,12 @@ export function CounselSidebar({
    * from the rail.
    */
   hideTimeBilling?: boolean;
+  /**
+   * firm_settings.ticket_prefix, resolved by the layout. Null when the
+   * firm has not set one, in which case the scope panel shows no
+   * prefix rather than a made-up one.
+   */
+  ticketPrefix?: string | null;
 }) {
   // The pathname prop is forwarded from the server layout for the
   // initial SSR pass (so the right item is highlighted on first
@@ -150,13 +158,26 @@ export function CounselSidebar({
     ),
   );
   return (
-    <nav className="card p-3 space-y-0.5">
-      <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-ink-500 dark:text-cream-100/55 px-2 pt-1 pb-2">
+    // No `card`. The rail is not a tile floating on the page any more:
+    // it runs flush and full height on --surface, and the panel it used
+    // to sit in became a rounded rectangle inside a rounded rectangle
+    // the moment the shell around it got its own edge. The surface and
+    // the 1px right edge now belong to CounselSidebarShell, so this is
+    // just the nav.
+    <nav className="space-y-0.5 px-3 py-3">
+      <p
+        className="px-2 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted"
+        data-no-translate
+      >
         {firm.name}
       </p>
+      <CounselScopePanel
+        practiceAreas={firm.practiceAreas}
+        ticketPrefix={ticketPrefix}
+      />
       {sections.map((sec) => (
         <div key={sec.section}>
-          <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/60 px-2 pt-2 pb-0.5">
+          <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-muted px-2 pt-2 pb-0.5">
             <T>{sec.section}</T>
           </p>
           {sec.items.map((item) => {
@@ -198,7 +219,7 @@ export function CounselSidebar({
       ))}
       {(membership.role === 'owner' || membership.role === 'admin') && (
         <>
-          <div className="my-2 border-t border-ink-100 dark:border-forest-700/40" />
+          <div className="my-2 border-t border-edge" />
           {(() => {
             const active = isCounselItemActive('/counsel/settings', livePathname);
             const href = tenantHref('/counsel/settings', tenantMode);

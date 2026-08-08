@@ -100,28 +100,26 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
   const t = useT();
   const { collapsed, setCollapsed } = useSidebarCollapse();
 
-  // The rail never scrolls on its own. It is sticky, and a sticky box that is
-  // taller than the viewport can only ever show whatever its top offset admits,
-  // so with a fixed `top: 6rem` the lower nav rows would be unreachable.
+  // The rail runs FLUSH: full height, its own scroll, one 1px right edge, and
+  // no margin between it and the content column. That is what replaced the
+  // rounded panel it used to float in.
   //
-  // Instead the top offset is derived from the rail's own height:
-  //   min(6rem, 100dvh - railHeight - 1rem)
-  // A rail that fits resolves to 6rem and pins below the header exactly as
-  // before. A rail taller than the viewport resolves to a negative offset, so
-  // it rides up with the page until its last row clears the bottom edge and
-  // then holds there. Every destination stays reachable through ordinary page
-  // scrolling, and the panel itself has no scrollbar.
+  // Its top offset is the header's height, measured, because the header is
+  // sticky and full width: an offset of 0 would slide the first nav rows under
+  // it, and a hardcoded rem value drifts the moment the header gains a row or
+  // the device reports a notch inset. The same number sets the height, so the
+  // rail ends exactly at the bottom of the viewport and scrolls internally
+  // when it is taller than that.
   //
-  // Only the height needs measuring; CSS re-evaluates 100dvh on its own, so a
-  // window resize needs no listener. The SSR default matches the old `top-24`.
-  const railRef = useRef<HTMLDivElement>(null);
-  const [stickyTop, setStickyTop] = useState('6rem');
+  // This REPLACED a measurement of the rail's own height that existed to keep
+  // a non-scrolling sticky panel reachable. A rail with `overflow-y: auto` has
+  // no such problem, so that arithmetic is gone rather than moved.
+  const [headerHeight, setHeaderHeight] = useState(64);
 
   useEffect(() => {
-    const el = railRef.current;
-    if (!el) return;
-    const measure = () =>
-      setStickyTop(`min(6rem, calc(100dvh - ${el.offsetHeight}px - 1rem))`);
+    const el = document.querySelector('.counsel-shell > header');
+    if (!(el instanceof HTMLElement)) return;
+    const measure = () => setHeaderHeight(el.offsetHeight);
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
@@ -131,20 +129,22 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
 
   return (
     <div
-      ref={railRef}
       className="hidden md:block flex-none sticky self-start"
-      style={{ top: stickyTop }}
+      style={{
+        top: headerHeight,
+        height: `calc(100dvh - ${headerHeight}px)`,
+      }}
     >
-      <div className="relative flex items-start">
+      <div className="relative flex h-full items-stretch">
         {/* Sidebar panel */}
         <div
           className={
-            'overflow-hidden transition-[width] duration-300 ease-out motion-reduce:transition-none ' +
-            (collapsed ? 'w-0' : 'w-56')
+            'h-full overflow-hidden border-r border-edge bg-surface transition-[width] duration-300 ease-out motion-reduce:transition-none ' +
+            (collapsed ? 'w-0 border-r-0' : 'w-56')
           }
         >
-          <div className="w-56">
-            <div className="flex justify-end pb-1">
+          <div className="flex h-full w-56 flex-col">
+            <div className="flex justify-end px-2 pt-2">
               <button
                 type="button"
                 onClick={() => setCollapsed(true)}
@@ -152,7 +152,7 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
                 aria-controls="counsel-sidebar-panel"
                 aria-label={t('Collapse menu')}
                 title={t('Collapse menu')}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-ink-500 dark:text-cream-100/55 hover:bg-cream-50 dark:hover:bg-forest-800/40 hover:text-forest-900 dark:hover:text-cream-100 transition-colors"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-foreground transition-colors"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -162,7 +162,12 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
             </div>
             {/* Content only renders when expanded, so collapsed nav links are
                 never left hidden-but-focusable for keyboard / screen readers. */}
-            <div id="counsel-sidebar-panel" className="pr-0.5 pb-4">{!collapsed && children}</div>
+            <div
+              id="counsel-sidebar-panel"
+              className="min-h-0 flex-1 overflow-y-auto pb-4"
+            >
+              {!collapsed && children}
+            </div>
           </div>
         </div>
 
@@ -183,14 +188,14 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
             aria-controls="counsel-sidebar-panel"
             aria-label={t('Show menu')}
             title={t('Show menu')}
-            className="group -ml-1 mt-1 inline-flex flex-col items-center gap-2 rounded-r-lg bg-white dark:bg-forest-900/70 ring-1 ring-ink-200 dark:ring-forest-700/50 py-3 px-1.5 shadow-card hover:bg-cream-50 dark:hover:bg-forest-800/60 transition-colors"
+            className="group mt-2 inline-flex h-fit flex-col items-center gap-2 self-start rounded-r-lg border border-l-0 border-edge bg-surface px-1.5 py-3 transition-colors hover:bg-surface-2"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden className="text-ink-500 dark:text-cream-100/70 group-hover:text-forest-900 dark:group-hover:text-cream-100">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden className="text-muted group-hover:text-foreground">
               <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M4 6v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
             <span
-              className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-400 dark:text-cream-100/55 group-hover:text-forest-900 dark:group-hover:text-cream-100"
+              className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted group-hover:text-foreground"
               style={{ writingMode: 'vertical-rl' }}
             >
               <T>Menu</T>
