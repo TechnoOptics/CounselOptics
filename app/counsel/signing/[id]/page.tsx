@@ -20,8 +20,15 @@ import { RecallButton } from './recall-button';
 import { ReopenButton } from './reopen-button';
 import { ResendButton } from './resend-button';
 import { DocumentArtifactCard } from '@/components/counsel/DocumentArtifactCard';
-import { PageHeader } from '@/components/counsel/ui';
 import { StatusPill } from '@/components/counsel/StatusPill';
+import {
+  ActionBar,
+  Chip,
+  MonoRef,
+  PanelCard,
+  relativeTime,
+  shortRef,
+} from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +36,21 @@ export const dynamic = 'force-dynamic';
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
 
+/**
+ * One signing request, as the detail pattern in
+ * docs/TECHOTTIC-PARITY-SPEC.md section 3.
+ *
+ * The pattern's contextual banner earns its place here: a declined
+ * request, a request somebody asked for changes on and a recalled
+ * request are all live conditions that change what the reader should do
+ * next, and none of them is legible from the status pill alone. The
+ * control that acts on the condition sits in the action bar with the
+ * other controls rather than inside the banner, so there is one place
+ * on the page where things happen.
+ *
+ * The mono reference is the request's id, shortened, because a signing
+ * request carries no reference number of its own.
+ */
 export default async function SigningRequestDetail({
   params,
 }: {
@@ -69,178 +91,281 @@ export default async function SigningRequestDetail({
     ctx.membership.role,
   );
 
+  const status = data.request.status;
+  const signed = data.signatures.filter((s) => s.signedAt).length;
+  const total = data.signatures.length;
+  const live = status !== 'completed' && status !== 'canceled';
+  const stalled = status === 'rejected' || status === 'changes_requested';
+
   return (
     <div className="space-y-6 animate-fade-up">
-      <p className="text-sm">
-        <Link href="/counsel/signing" className="text-muted hover:text-foreground">
-          <T>&larr; Signing requests</T>
-        </Link>
-      </p>
-      <PageHeader
-        size="sm"
-        eyebrow={<T>Signing request</T>}
-        title={doc?.name ?? <T>Document</T>}
-        action={
-          <div className="flex flex-col items-end gap-2">
-            <StatusPill
-              size="sm"
-              color={FIRM_SIGNING_STATUS_COLOR[data.request.status]}
-            >
-              {FIRM_SIGNING_STATUS_LABEL[data.request.status]}
-            </StatusPill>
-            {data.request.status !== 'completed' &&
-              data.request.status !== 'canceled' && (
-                <RecallButton requestId={data.request.id} />
-              )}
-          </div>
-        }
+      <nav
+        aria-label="Breadcrumb"
+        className="flex flex-wrap items-center gap-2 text-[12.5px]"
       >
-        <p className="text-[12px] text-muted mt-1 font-mono">
-          <T>Request</T> #{data.request.id.slice(0, 8)} &middot; <T>Sent</T>{' '}
-          {data.request.sentAt
-            ? new Date(data.request.sentAt).toLocaleString()
-            : <T>not yet</T>}
-        </p>
-      </PageHeader>
-
-      {(data.request.status === 'rejected' ||
-        data.request.status === 'changes_requested' ||
-        data.request.status === 'canceled') && (
-        <div
-          className={`card p-4 text-sm ${
-            data.request.status === 'canceled'
-              ? 'ring-1 ring-edge text-foreground'
-              : 'ring-1 ring-amber-300/50 dark:ring-amber-600/30 bg-amber-50/50 dark:bg-amber-950/15 text-amber-900 dark:text-amber-200'
-          }`}
+        <Link
+          href="/counsel/signing"
+          className="text-muted transition-colors hover:text-foreground"
         >
-          <p>
-            {data.request.status === 'canceled' ? (
-              <T>You recalled this request. Its sign links no longer work. Send a new request from Documents when the document is ready.</T>
-            ) : data.request.status === 'rejected' ? (
-              <T>A signer declined to sign. Review their note below. Reopen to send the revised document without losing signatures already collected, or send a fresh request.</T>
+          <T>Signing requests</T>
+        </Link>
+        <span aria-hidden className="text-muted">
+          /
+        </span>
+        <MonoRef title={data.request.id}>{shortRef(data.request.id)}</MonoRef>
+      </nav>
+
+      <header className="min-w-0">
+        <h1
+          className="break-words text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-3xl"
+          data-no-translate
+        >
+          {doc?.name ?? 'Document'}
+        </h1>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <StatusPill dot color={FIRM_SIGNING_STATUS_COLOR[status]}>
+            {FIRM_SIGNING_STATUS_LABEL[status]}
+          </StatusPill>
+          {total > 0 && (
+            <Chip>
+              <span data-no-translate>
+                {signed}/{total}
+              </span>{' '}
+              <T>signed</T>
+            </Chip>
+          )}
+          <Chip>
+            {data.request.signerCanDownload ? (
+              <T>signers may keep a copy</T>
             ) : (
-              <T>A signer requested changes. Review their note below. Reopen to put the document back out for signature (anyone who already signed stays signed), or send a fresh request.</T>
+              <T>no signer copy</T>
+            )}
+          </Chip>
+        </div>
+        <p className="mt-2 text-[12px] text-muted">
+          <T>created</T> {relativeTime(data.request.createdAt)}
+          {data.request.sentAt && (
+            <>
+              {' · '}
+              <T>sent</T> {relativeTime(data.request.sentAt)}
+            </>
+          )}
+          {data.request.completedAt && (
+            <>
+              {' · '}
+              <T>completed</T> {relativeTime(data.request.completedAt)}
+            </>
+          )}
+        </p>
+      </header>
+
+      {(stalled || status === 'canceled') && (
+        <section className="card p-4 text-sm leading-relaxed">
+          <p className="font-semibold text-warn-text">
+            {status === 'canceled' ? (
+              <T>This request was recalled.</T>
+            ) : status === 'rejected' ? (
+              <T>A signer declined to sign.</T>
+            ) : (
+              <T>A signer asked for changes.</T>
             )}
           </p>
-          {(data.request.status === 'rejected' ||
-            data.request.status === 'changes_requested') && (
-            <div className="mt-3">
-              <ReopenButton requestId={data.request.id} />
-            </div>
+          <p className="mt-1 text-foreground">
+            {status === 'canceled' ? (
+              <T>Its sign links no longer work. Send a new request from Documents when the document is ready.</T>
+            ) : status === 'rejected' ? (
+              <T>Read their note below. Reopening sends the revised document without losing signatures already collected; a fresh request starts over.</T>
+            ) : (
+              <T>Read their note below. Reopening puts the document back out for signature and anyone who already signed stays signed; a fresh request starts over.</T>
+            )}
+          </p>
+        </section>
+      )}
+
+      {/* Action bar: what this page can do to the request, with its
+          progress on the left. Recall and reopen are mutually
+          exclusive, so the bar never carries both. */}
+      <ActionBar
+        trailing={
+          <>
+            {stalled && <ReopenButton requestId={data.request.id} />}
+            {live && !stalled && <RecallButton requestId={data.request.id} />}
+          </>
+        }
+      >
+        <p className="text-[12.5px] text-muted">
+          {total > 0 ? (
+            <>
+              <span className="font-semibold tabular-nums text-foreground">
+                {signed}/{total}
+              </span>{' '}
+              <T>signers are in</T>
+            </>
+          ) : (
+            <T>This request has no signers on it.</T>
+          )}
+        </p>
+      </ActionBar>
+
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
+          <PanelCard title={<T>Signers</T>}>
+            <p className="text-[11.5px] leading-relaxed text-muted">
+              {data.request.signerCanDownload ? (
+                <T>
+                  Signers can download a copy of this document once they have
+                  signed.
+                </T>
+              ) : (
+                <T>
+                  Signers cannot download a copy of this document. The download
+                  is refused by the server, and they are told to ask you for a
+                  copy.
+                </T>
+              )}
+            </p>
+            <ul className="mt-3 space-y-3">
+              {data.signatures.map((sig) => (
+                <li
+                  key={sig.id}
+                  className="flex flex-wrap items-baseline justify-between gap-3 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p
+                      className="truncate font-medium text-foreground"
+                      data-no-translate
+                    >
+                      {sig.signerName || sig.signerEmail}
+                    </p>
+                    <p className="text-[11px] text-muted" data-no-translate>
+                      {sig.signerEmail}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {sig.signedAt ? (
+                      <span className="font-mono text-[12px] tabular-nums text-emerald-700 dark:text-emerald-300">
+                        <T>Signed</T> {new Date(sig.signedAt).toLocaleString()}
+                      </span>
+                    ) : sig.response ? (
+                      <span
+                        className={`text-[12px] font-medium ${
+                          sig.response === 'rejected'
+                            ? 'text-danger-text'
+                            : 'text-warn-text'
+                        }`}
+                      >
+                        {sig.response === 'rejected' ? (
+                          <T>Declined</T>
+                        ) : (
+                          <T>Requested changes</T>
+                        )}
+                        {sig.respondedAt
+                          ? ` · ${new Date(sig.respondedAt).toLocaleDateString()}`
+                          : ''}
+                      </span>
+                    ) : (
+                      <span className="text-[12px] text-warn-text">
+                        <T>Awaiting signature</T>
+                        {sig.accessCodeRequired &&
+                          (sig.accessVerifiedAt ? (
+                            <span className="text-muted">
+                              {' '}
+                              <T>· code verified</T>
+                            </span>
+                          ) : (
+                            <span className="text-muted">
+                              {' '}
+                              <T>· code sent</T>
+                            </span>
+                          ))}
+                      </span>
+                    )}
+                    {!sig.signedAt && !sig.response && live && !stalled && (
+                      <p className="mt-0.5 flex items-start justify-end gap-3">
+                        <ExternalLink
+                          href={`${SITE_URL}/sign/${sig.token}`}
+                          className="text-[11px] text-foreground underline"
+                        >
+                          <T>Open sign link</T>
+                        </ExternalLink>
+                        {canResend && (
+                          <ResendButton
+                            firmId={data.request.firmId}
+                            signatureId={sig.id}
+                            rotatesCode={sig.accessCodeRequired}
+                            alreadyUnlocked={!!sig.accessVerifiedAt}
+                          />
+                        )}
+                      </p>
+                    )}
+                    {sig.responseNote && (
+                      <p
+                        className="mt-1 max-w-[42ch] text-[12px] italic text-muted"
+                        data-no-translate
+                      >
+                        &ldquo;{sig.responseNote}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </PanelCard>
+
+          {artifact && (
+            <DocumentArtifactCard
+              artifact={artifact}
+              documentName={doc?.name ?? 'Document'}
+              frameClassName="w-full h-[60vh] border-0 bg-surface-2"
+            />
           )}
         </div>
-      )}
 
-      {data.request.message && (
-        <p className="card p-4 text-sm text-foreground italic leading-relaxed">
-          &ldquo;{data.request.message}&rdquo;
-        </p>
-      )}
+        <aside className="min-w-0 space-y-4">
+          <PanelCard
+            title={<T>Document</T>}
+            action={
+              doc ? (
+                <Link
+                  href={`/counsel/documents/${doc.id}`}
+                  className="text-[12px] font-medium text-accent-text hover:underline"
+                >
+                  <T>Open document</T> &rarr;
+                </Link>
+              ) : undefined
+            }
+          >
+            {doc ? (
+              <>
+                <p
+                  className="text-[13px] font-semibold text-foreground"
+                  data-no-translate
+                >
+                  {doc.name}
+                </p>
+                <p className="mt-1 font-mono text-[11.5px] text-muted" data-no-translate>
+                  v{doc.version} &middot; {doc.mimeType}
+                </p>
+              </>
+            ) : (
+              <p className="text-[13px] text-muted">
+                <T>The document behind this request is no longer in the vault.</T>
+              </p>
+            )}
+          </PanelCard>
 
-      <section className="card p-5 sm:p-6 space-y-3">
-        <p className="eyebrow"><T>Signers</T></p>
-        <p className="text-[11px] text-muted leading-relaxed">
-          {data.request.signerCanDownload ? (
-            <T>Signers can download a copy of this document once they have
-            signed.</T>
-          ) : (
-            <T>Signers cannot download a copy of this document. The download is
-            refused by the server, and they are told to ask you for a copy.</T>
+          {data.request.message && (
+            <PanelCard title={<T>Message to signers</T>}>
+              <p
+                className="text-[13px] italic leading-relaxed text-foreground"
+                data-no-translate
+              >
+                &ldquo;{data.request.message}&rdquo;
+              </p>
+            </PanelCard>
           )}
-        </p>
-        <ul className="space-y-2">
-          {data.signatures.map((sig) => (
-            <li
-              key={sig.id}
-              className="flex flex-wrap items-baseline justify-between gap-3 text-sm"
-            >
-              <div className="min-w-0">
-                <p className="font-medium text-foreground truncate">
-                  {sig.signerName || sig.signerEmail}
-                </p>
-                <p className="text-[11px] text-muted">
-                  {sig.signerEmail}
-                </p>
-              </div>
-              <div className="text-right">
-                {sig.signedAt ? (
-                  <span className="text-[12px] font-mono text-emerald-700 dark:text-emerald-300 tabular-nums">
-                    <T>Signed</T> {new Date(sig.signedAt).toLocaleString()}
-                  </span>
-                ) : sig.response ? (
-                  <span
-                    className={`text-[12px] font-medium ${
-                      sig.response === 'rejected'
-                        ? 'text-rose-700 dark:text-rose-300'
-                        : 'text-amber-700 dark:text-amber-300'
-                    }`}
-                  >
-                    {sig.response === 'rejected' ? (
-                      <T>Declined</T>
-                    ) : (
-                      <T>Requested changes</T>
-                    )}
-                    {sig.respondedAt
-                      ? ` · ${new Date(sig.respondedAt).toLocaleDateString()}`
-                      : ''}
-                  </span>
-                ) : (
-                  <span className="text-[12px] text-amber-700 dark:text-amber-300">
-                    <T>Awaiting signature</T>
-                    {sig.accessCodeRequired &&
-                      (sig.accessVerifiedAt ? (
-                        <span className="text-muted">
-                          {' '}
-                          <T>· code verified</T>
-                        </span>
-                      ) : (
-                        <span className="text-muted">
-                          {' '}
-                          <T>· code sent</T>
-                        </span>
-                      ))}
-                  </span>
-                )}
-                {!sig.signedAt &&
-                  !sig.response &&
-                  data.request.status !== 'canceled' &&
-                  data.request.status !== 'rejected' &&
-                  data.request.status !== 'changes_requested' && (
-                    <p className="mt-0.5 flex items-start justify-end gap-3">
-                      <ExternalLink
-                        href={`${SITE_URL}/sign/${sig.token}`}
-                        className="text-[11px] underline text-foreground"
-                      >
-                        <T>Open sign link</T>
-                      </ExternalLink>
-                      {canResend && (
-                        <ResendButton
-                          firmId={data.request.firmId}
-                          signatureId={sig.id}
-                          rotatesCode={sig.accessCodeRequired}
-                          alreadyUnlocked={!!sig.accessVerifiedAt}
-                        />
-                      )}
-                    </p>
-                  )}
-                {sig.responseNote && (
-                  <p className="mt-1 text-[12px] text-muted italic max-w-[42ch]">
-                    &ldquo;{sig.responseNote}&rdquo;
-                  </p>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {artifact && (
-        <DocumentArtifactCard
-          artifact={artifact}
-          documentName={doc?.name ?? 'Document'}
-          frameClassName="w-full h-[60vh] border-0 bg-surface-2"
-        />
-      )}
+        </aside>
+      </div>
     </div>
   );
 }
