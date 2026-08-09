@@ -12,6 +12,7 @@ import {
   callerIsFirmMember,
   requireActiveFirm,
   FIRM_MANAGE_ROLES,
+  FIRM_MATTER_ROLE_REFUSAL,
   FIRM_POSTING_ROLES,
 } from './firm-authz';
 import {
@@ -5376,8 +5377,12 @@ export async function createFirmCaseAction(
   input: CreateFirmCaseInput,
 ): Promise<{ ok: boolean; error?: string; caseId?: string }> {
   const user = await requireUser();
-  if (!(await callerIsFirmMember(firmId))) {
-    return { ok: false, error: 'You do not have access to this firm.' };
+  // Membership is not the question: `staff` is a firm member and is sold
+  // read-only access to non-privileged surfaces. Opening a matter is neither
+  // read-only nor non-privileged, and the insert below runs on the service
+  // role, so this check is the only thing standing in front of it.
+  if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+    return { ok: false, error: FIRM_MATTER_ROLE_REFUSAL };
   }
   await requireActiveFirm(firmId);
   const admin = createAdminSupabase();
@@ -5472,8 +5477,10 @@ export async function updateFirmCaseAction(
   input: CreateFirmCaseInput,
 ): Promise<{ ok: boolean; error?: string }> {
   await requireUser();
-  if (!(await callerIsFirmMember(firmId))) {
-    return { ok: false, error: 'You do not have access to this firm.' };
+  // Answered before the matter is looked up, so a role that cannot reach
+  // matters cannot use this endpoint to find out which ids are real.
+  if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+    return { ok: false, error: FIRM_MATTER_ROLE_REFUSAL };
   }
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server not configured.' };
@@ -5569,9 +5576,14 @@ export async function setCaseAssigneeAction(
     .eq('id', caseId)
     .maybeSingle();
   const firmId = (caseRow as { firm_id: string | null } | null)?.firm_id ?? null;
-  if (!firmId) return { ok: false, error: 'Matter not found.' };
-  if (!(await callerIsFirmMember(firmId))) {
-    return { ok: false, error: 'You do not have access to this matter.' };
+  // One sentence for "no such matter", "not a firm matter" and "not yours".
+  // The id is the caller's argument, so answering those apart would let a
+  // stranger walk ids and learn which ones exist.
+  if (!firmId) return { ok: false, error: 'You do not have access to this matter.' };
+  // Reassigning a matter is running it, which is what `staff` is sold as NOT
+  // being able to do. The update below is a service-role write.
+  if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+    return { ok: false, error: FIRM_MATTER_ROLE_REFUSAL };
   }
 
   if (assigneeUserId) {

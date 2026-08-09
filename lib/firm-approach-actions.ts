@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { waitUntil } from '@vercel/functions';
 import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { callerHasFirmRole, FIRM_POSTING_ROLES } from './firm-authz';
+import {
+  callerHasFirmRole,
+  FIRM_MATTER_ROLE_REFUSAL,
+  FIRM_POSTING_ROLES,
+} from './firm-authz';
 import { aiConfigured } from './timeline-ai';
 import { resolveTimelineAccess } from './timeline-entitlement';
 import { loadCaseEvidenceDigest } from './case-evidence-digest';
@@ -102,6 +106,19 @@ const toApproach = (r: Row): Approach => ({
   updatedAt: r.updated_at,
 });
 
+/**
+ * The current user may reach `caseId` as a member of `firmId`, or as a
+ * co-counsel guest scoped to that matter.
+ *
+ * A saved approach is the firm's theory of the case: privileged work product
+ * about a matter. Everything past this point runs on the ADMIN client, so this
+ * is the whole gate, and firm MEMBERSHIP is not the right question on its own.
+ * `staff` is sold read-only access to non-privileged surfaces, and the applied
+ * 20260731 migration already refuses that role the matter row itself.
+ *
+ * The role is answered BEFORE the matter lookup, so a caller whose role cannot
+ * reach matters learns nothing about whether the id they passed is real.
+ */
 async function assertFirmCase(
   firmId: string,
   caseId: string,
@@ -116,6 +133,9 @@ async function assertFirmCase(
     .eq('user_id', user.id)
     .maybeSingle();
   if (member) {
+    if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+      return { ok: false, error: FIRM_MATTER_ROLE_REFUSAL };
+    }
     const { data: kase } = await supabase
       .from('cases')
       .select('id')
@@ -510,9 +530,10 @@ export async function deleteFirmApproach(
 ): Promise<{ ok: boolean; error?: string }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
-  // assertFirmCase admits any firm role and outside co-counsel guests. Building
-  // an approach is collaborative work; deleting the firm's saved work product
-  // is not.
+  // assertFirmCase now settles the firm ROLE, so what this still uniquely
+  // refuses is the outside co-counsel GUEST, who holds no firm role at all.
+  // Building an approach is collaborative work; deleting the firm's saved work
+  // product is not.
   if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
     return { ok: false, error: 'Your role cannot delete a saved approach.' };
   }

@@ -3,6 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import {
+  callerHasFirmRole,
+  FIRM_MATTER_ROLE_REFUSAL,
+  FIRM_POSTING_ROLES,
+} from './firm-authz';
 import { aiConfigured } from './timeline-ai';
 import { resolveTimelineAccess } from './timeline-entitlement';
 import { generateLegalReviewDraft, type LegalReviewFacts } from './legal-review-ai';
@@ -59,6 +64,22 @@ export type LegalReview = {
   generatedAt: string;
 };
 
+/**
+ * The current user may reach `caseId` as a member of `firmId`.
+ *
+ * There is no co-counsel guest branch here, unlike the timeline and approach
+ * modules: a legal review is the firm's own analysis of the claims a matter
+ * implicates, and it is firm-internal.
+ *
+ * Membership alone is not the question. Everything past this point runs on the
+ * ADMIN client, so this is the whole gate, and `staff` is sold read-only access
+ * to non-privileged surfaces. The applied 20260731 migration already refuses
+ * that role the matter row itself; without this check the service-role path
+ * would hand over the analysis of it regardless.
+ *
+ * The role is answered BEFORE the matter lookup, so the refusal cannot be read
+ * as confirmation that the id passed in is a real matter in this firm.
+ */
 async function assertFirmCase(
   firmId: string,
   caseId: string,
@@ -73,6 +94,9 @@ async function assertFirmCase(
     .eq('user_id', user.id)
     .maybeSingle();
   if (!member) return { ok: false, error: 'You do not have access to this firm.' };
+  if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+    return { ok: false, error: FIRM_MATTER_ROLE_REFUSAL };
+  }
   const { data: kase } = await supabase
     .from('cases')
     .select('id')

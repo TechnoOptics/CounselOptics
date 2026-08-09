@@ -39,10 +39,23 @@ export const FIRM_ADMIN_ROLES: readonly FirmRole[] = ['owner', 'admin'];
 export const FIRM_MANAGE_ROLES: readonly FirmRole[] = ['owner', 'admin', 'attorney'];
 
 /**
- * Do case work: create and edit matters, post documents and evidence.
- * Matches the `firm_documents` write and `cases` update policies.
- * Deliberately excludes `staff`, which is advertised to firm owners as
- * "read-only access to non-privileged surfaces".
+ * Reach a matter at all: read it, create and edit it, post documents and
+ * evidence against it.
+ *
+ * Matches the `firm_documents` write and `cases` update policies, and ALSO
+ * the read policies. `supabase/migrations/20260731_staff_role_read_scope.sql`
+ * is applied, and it names this same four-role set in
+ * `cases_firm_member_select` and `firm_documents_member_select`. Reads and
+ * writes of matter material therefore have one role set, not two, and this is
+ * it: a second constant listing the same four roles would be a copy waiting to
+ * drift, which is the failure this whole module exists to prevent.
+ *
+ * Deliberately excludes `staff`, which lib/firm-types.ts advertises to a firm
+ * owner IN WRITING, at the moment they send the invitation, as "read-only
+ * access to non-privileged surfaces. Useful for receptionists or billing
+ * staff." A matter's timeline, its case approaches and its legal review are
+ * privileged work product, so "read-only" is not a licence to read them; the
+ * applied migration above already refuses `staff` the matter row itself.
  */
 export const FIRM_POSTING_ROLES: readonly FirmRole[] = [
   'owner',
@@ -50,6 +63,18 @@ export const FIRM_POSTING_ROLES: readonly FirmRole[] = [
   'attorney',
   'paralegal',
 ];
+
+/**
+ * What someone whose role does not reach matter material is told.
+ *
+ * One sentence, exported rather than written out at each of the four call
+ * sites, for the reason the role sets above are: a rule copied per call site
+ * drifts. It says what the limit is without confirming or denying that the
+ * matter in the argument exists, so it is safe to return before any lookup,
+ * which is where every caller returns it from.
+ */
+export const FIRM_MATTER_ROLE_REFUSAL =
+  'Your role does not include access to matter records.';
 
 /**
  * The caller's role in `firmId`, distinguishing "they hold no role" from "the
