@@ -4,8 +4,40 @@ import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { callerIsFirmMember } from './firm-authz';
 import { safeStorageUpload } from './upload-safety';
 import { getContractType } from './contract-types';
+
+/**
+ * Where a contract's file lives, keyed by whoever owns the contract: a firm id
+ * under firm-documents, a user id under user-vault. Built here and validated
+ * here, off one definition, so the layout an upload creates and the layout a
+ * later read insists on cannot drift apart.
+ */
+function contractPrefix(ownerId: string): string {
+  return `${ownerId}/contracts/`;
+}
+
+/**
+ * A stored `file_path` may be handed to the SERVICE-ROLE client only when it
+ * sits inside its own owner's prefix.
+ *
+ * `user_contracts.file_path` is a plain column. Nothing in the row policy
+ * constrains it, so its value is whatever was stored there, and every export of
+ * this module is a public HTTP endpoint reachable with arguments of the
+ * caller's choosing. A row the caller is entitled to therefore proves nothing
+ * about the file it names.
+ *
+ * Rejects, never rewrites: a path that does not match is either a bug here or
+ * somebody reaching for a file that is not theirs, and repointing it at
+ * something harmless would hide both.
+ */
+function isContractPath(ownerId: string, path: string | null | undefined): boolean {
+  if (!ownerId || !path) return false;
+  // A traversal segment would let a matching prefix still resolve elsewhere.
+  if (path.includes('..')) return false;
+  return path.startsWith(contractPrefix(ownerId));
+}
 
 /**
  * Upload + register a contract in the user's repository (consumer)
@@ -20,6 +52,14 @@ export async function uploadContractAction(
 ): Promise<{ ok: boolean; error?: string; contractId?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  // `firmId` is an argument, so it is the caller's to choose, and the firm
+  // branch below writes into that firm's prefix. The check belongs HERE, above
+  // every byte: an upload that lands and is checked afterwards has already put
+  // a file in someone else's repository, which is the same defect class as a
+  // delete that wipes storage and then checks.
+  if (options.firmId && !(await callerIsFirmMember(options.firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
 
   const file = formData.get('file');
   const name = String(formData.get('name') ?? '').trim();
@@ -66,7 +106,7 @@ export async function uploadContractAction(
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_ ]/g, '').slice(0, 100);
     const id = crypto.randomUUID();
     if (options.firmId) {
-      filePath = `${options.firmId}/contracts/${id}/${safeName}`;
+      filePath = `${contractPrefix(options.firmId)}${id}/${safeName}`;
       const supabase = createServerSupabase();
       const buffer = Buffer.from(await file.arrayBuffer());
       // Central chokepoint: magic-byte + dangerous-content screen.
@@ -80,7 +120,7 @@ export async function uploadContractAction(
       });
       if (!uploaded.ok) return { ok: false, error: uploaded.error };
     } else {
-      filePath = `${user.id}/contracts/${id}/${safeName}`;
+      filePath = `${contractPrefix(user.id)}${id}/${safeName}`;
       const admin = createAdminSupabase();
       if (!admin) return { ok: false, error: 'Service role not configured.' };
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -181,9 +221,28 @@ export async function reviewContractAction(
     tags: string[];
   };
 
+  // The read above went through RLS, which is not the gate that matters here:
+  // the download below runs on the service role, which bypasses RLS entirely.
+  // State the entitlement in the action, on the one firm axis this codebase
+  // has, and separately for a contract a person owns themselves.
+  if (contract.firm_id) {
+    if (!(await callerIsFirmMember(contract.firm_id))) {
+      return { ok: false, error: 'You do not have access to this firm.' };
+    }
+  } else if (!contract.user_id || contract.user_id !== user.id) {
+    return { ok: false, error: 'Contract not found.' };
+  }
+  const owner = contract.firm_id ?? contract.user_id ?? '';
+
   // Pull the file body for review when available.
   let bodyText = '';
   if (contract.file_path) {
+    // Entitlement to the ROW is not entitlement to whatever path the row
+    // happens to name. Refuse outright rather than quietly reviewing the
+    // metadata alone, which would hide the mismatch from everyone.
+    if (!isContractPath(owner, contract.file_path)) {
+      return { ok: false, error: 'That file does not belong to this contract.' };
+    }
     const admin = createAdminSupabase();
     if (admin) {
       const bucket = contract.firm_id ? 'firm-documents' : 'user-vault';
@@ -289,7 +348,7 @@ this is legal advice.`;
     ? parsed.suggestions.map(String)
     : [];
 
-  await supabase
+  const { data: saved, error: saveErr } = await supabase
     .from('user_contracts')
     .update({
       review_summary: summary,
@@ -302,7 +361,15 @@ this is legal advice.`;
       status: 'reviewed',
       updated_at: new Date().toISOString(),
     })
-    .eq('id', contractId);
+    .eq('id', contractId)
+    .select('id');
+  if (saveErr) return { ok: false, error: saveErr.message };
+  // An update that matched no rows comes back clean from PostgREST. Handing
+  // the caller a review that was never stored would have them read it once and
+  // find it gone on the next page load.
+  if (!saved || saved.length === 0) {
+    return { ok: false, error: 'The review could not be saved to this contract.' };
+  }
 
   revalidatePath(`/contracts/${contractId}`);
   revalidatePath(`/counsel/contracts/${contractId}`);
@@ -315,11 +382,34 @@ export async function deleteContractAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
-  const { error } = await supabase
+  // The delete used to carry an id and nothing else, leaving the row policy as
+  // the only thing standing between a posted id and someone else's contract.
+  // Name who the row belongs to, and say so here in the action.
+  const { data: found } = await supabase
+    .from('user_contracts')
+    .select('id, user_id, firm_id')
+    .eq('id', contractId)
+    .maybeSingle();
+  const row = found as { id: string; user_id: string | null; firm_id: string | null } | null;
+  if (!row) return { ok: false, error: 'Contract not found.' };
+  if (row.firm_id) {
+    if (!(await callerIsFirmMember(row.firm_id))) {
+      return { ok: false, error: 'You do not have access to this firm.' };
+    }
+  } else if (!row.user_id || row.user_id !== user.id) {
+    return { ok: false, error: 'Contract not found.' };
+  }
+  const { data: deleted, error } = await supabase
     .from('user_contracts')
     .delete()
-    .eq('id', contractId);
+    .eq('id', contractId)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  // PostgREST calls a delete that matched nothing a success, so an empty
+  // result is the refusal and the caller has to be told.
+  if (!deleted || deleted.length === 0) {
+    return { ok: false, error: 'That contract could not be deleted.' };
+  }
   revalidatePath('/contracts');
   revalidatePath('/counsel/contracts');
   return { ok: true };
