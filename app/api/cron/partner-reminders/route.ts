@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { readPartnerConfig } from '@/lib/partner-config-core';
 import { partnerTicketEvent } from '@/lib/partner-notify';
-import type { ThreadMessage } from '@/lib/intake-thread';
+import { latestSharedIntakeMessage } from '@/lib/portal-scope';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,9 +11,9 @@ export const dynamic = 'force-dynamic';
  * GET /api/cron/partner-reminders
  *
  * Hourly Vercel Cron. Finds partner-app tickets that are still waiting on
- * the legal team (open status, and the last word in the thread belongs to
- * the employee, or the thread is empty) past the firm's configured
- * remindAfterHours. Sends the legal team a bell + email nudge via
+ * the legal team (open status, and the last shared message on the request
+ * belongs to the employee, or there are no messages) past the firm's
+ * configured remindAfterHours. Sends the legal team a bell + email nudge via
  * partnerTicketEvent('ticket.reminder').
  *
  * Idempotency: after nudging, partner.lastReminderAt is stamped on the
@@ -91,17 +91,33 @@ export async function GET(req: NextRequest) {
     const windowMs = cfg.remindAfterHours * 3_600_000;
 
     const answers = row.intake_answers ?? {};
-    const thread = Array.isArray(answers.thread) ? (answers.thread as ThreadMessage[]) : [];
-    const lastMessage = thread[thread.length - 1];
-    // Waiting-on-legal = the employee spoke last (or never got a reply).
-    if (lastMessage && lastMessage.role === 'legal') continue;
 
-    const waitingSince = Date.parse(lastMessage?.at ?? row.created_at);
-    if (Number.isNaN(waitingSince) || Date.now() - waitingSince < windowMs) continue;
+    // Cheap gates first, on data already in hand. A ticket cannot be waiting
+    // longer than it has existed, so failing the age check on created_at also
+    // fails it on any later message: this prefilter can never drop a ticket
+    // that would have qualified, and it keeps the message lookup below down to
+    // the few tickets actually due.
+    const createdAt = Date.parse(row.created_at);
+    if (Number.isNaN(createdAt) || Date.now() - createdAt < windowMs) continue;
 
     const partner = (answers.partner ?? {}) as Record<string, unknown>;
     const lastReminder = Date.parse(String(partner.lastReminderAt ?? ''));
     if (!Number.isNaN(lastReminder) && Date.now() - lastReminder < windowMs) continue;
+
+    // Who spoke last comes from firm_intake_messages, never the legacy
+    // intake_answers.thread jsonb. That array stopped being written when the
+    // conversation moved to its own table, so it read as empty on every ticket
+    // filed since: nobody ever looked like they had been answered, the clock
+    // never moved off created_at, and a firm's legal team was nudged about the
+    // same ticket every window forever, including minutes after they replied.
+    // lib/portal-open-requests.ts fixed the employee's side of the same
+    // migration; this is the other side of it.
+    const lastMessage = await latestSharedIntakeMessage(admin, row.id);
+    // Waiting-on-legal = the employee spoke last (or never got a reply).
+    if (lastMessage?.author_role === 'legal') continue;
+
+    const waitingSince = Date.parse(lastMessage?.created_at ?? row.created_at);
+    if (Number.isNaN(waitingSince) || Date.now() - waitingSince < windowMs) continue;
 
     await partnerTicketEvent(row.id, 'ticket.reminder');
     await admin

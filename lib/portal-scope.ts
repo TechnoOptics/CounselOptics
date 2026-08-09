@@ -110,3 +110,34 @@ export async function intakesAwaitingReply(
   }
   return awaiting;
 }
+
+/**
+ * The newest shared message on one request, or null when it has none.
+ *
+ * The mirror image of intakesAwaitingReply, for the side that asks "is legal
+ * still the one who owes an answer". It is deliberately per-request rather
+ * than batched: the reminder sweep only needs this for the handful of tickets
+ * that have already passed every cheap gate, and a batched newest-first query
+ * silently mislabels a quiet request as having no messages once a chattier one
+ * fills the row limit. Guessing "no messages" is the direction that sends mail
+ * to attorneys who are not owed a nudge.
+ *
+ * Only `visibility = 'shared'` counts. An internal legal note is not an answer
+ * to the employee, and treating it as one would stop a reminder the requester
+ * is still waiting on.
+ */
+export async function latestSharedIntakeMessage(
+  admin: Admin,
+  intakeId: string,
+): Promise<{ author_role: string; created_at: string } | null> {
+  const { data } = await admin
+    .from('firm_intake_messages')
+    .select('author_role, created_at')
+    .eq('intake_id', intakeId)
+    .eq('visibility', 'shared')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as { author_role: string; created_at: string } | null) ?? null;
+}
