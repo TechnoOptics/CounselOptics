@@ -4,7 +4,9 @@
 -- ============================ NOT APPLIED ================================
 -- Written 2026-08-06 on branch feat/qr-mobile-signing. The owner applies
 -- this and regenerates supabase/schema-fingerprint.sha256 in the same
--- change, or the CI drift gate fails on the next push.
+-- change. Nothing in CI will notice if they forget: the schema-drift
+-- gate skips while the SUPABASE_DB_URL secret is unset. See
+-- scripts/schema/README.md, "Current status".
 -- =========================================================================
 --
 -- Why a separate token rather than reusing firm_signatures.token:

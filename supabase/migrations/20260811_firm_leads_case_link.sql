@@ -1,8 +1,10 @@
 -- Link a marketplace lead to the matter a firm opened from it.
 --
 -- APPLYING THIS IS THE OWNER'S STEP. It is not applied here, and
--- supabase/schema-fingerprint.sha256 must be regenerated after it is applied,
--- or the schema-drift gate in CI fails. The fingerprint now covers function
+-- supabase/schema-fingerprint.sha256 must be regenerated after it is applied.
+-- The schema-drift gate in CI will not enforce that today: it skips while the
+-- SUPABASE_DB_URL secret is unset (scripts/schema/README.md, "Current
+-- status"). The fingerprint now covers function
 -- EXECUTE grants and table/column grants as well as structure.
 --
 -- WHY IT IS NEEDED. An accepted lead had no exit: the firm-side page offered a

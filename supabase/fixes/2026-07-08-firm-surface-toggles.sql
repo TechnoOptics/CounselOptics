@@ -23,6 +23,8 @@ alter table public.firm_settings
   add column if not exists hide_time_billing boolean not null default false;
 
 -- NOTE: after applying this migration to the live DB, regenerate the schema
--- fingerprint or CI (schema-drift gate) will fail:
+-- fingerprint. CI will not catch it if you do not: the schema-drift gate
+-- skips while the SUPABASE_DB_URL secret is unset (scripts/schema/README.md,
+-- "Current status"). Regenerate with:
 --   psql "$SUPABASE_DB_URL" -X -q -t -A -f scripts/schema/fingerprint-hash.sql \
 --     | tr -d '[:space:]' > supabase/schema-fingerprint.sha256

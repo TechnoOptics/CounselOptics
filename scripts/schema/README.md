@@ -23,6 +23,18 @@ migration that nobody committed a fingerprint update for.
   repo secret is set (a **read-only** connection string is enough, since the
   check only reads catalog metadata).
 
+## Current status: NOT ENABLED, so the gate catches nothing
+
+As of 2026-08-09 the `SUPABASE_DB_URL` repo secret does not exist, and the
+`Compare live schema fingerprint to committed baseline` step of the Schema
+drift workflow reports `skipped` on every run, including the most recent run
+on `main`. The job still finishes green, because skipping is not failing.
+
+Read that before trusting any note anywhere in this repo that says CI will
+fail on a stale fingerprint. Until the secret is added, regenerating
+`supabase/schema-fingerprint.sha256` after applying a migration is a purely
+human discipline with no automated backstop.
+
 ## Enabling the gate
 
 Add a repo secret `SUPABASE_DB_URL` (Settings → Secrets and variables →

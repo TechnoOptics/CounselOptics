@@ -5,8 +5,10 @@ import { SectionPhoto } from '@/components/marketing/SectionPhoto';
  * Top-of-home-page audience selector. Two big captivating cards:
  *
  *   Left  - Personal: people building their own case file (default
- *           audience for /; tapping "Continue" smooth-scrolls to the
- *           rest of /'s personal-flavored content via #personal-flow).
+ *           audience for /). Its CTA reads "Start free - no card
+ *           needed" and navigates to /cases/new. It does not scroll:
+ *           there is no "Continue" button and no #personal-flow
+ *           anchor anywhere in the app.
  *   Right - Enterprise: firms, in-house teams, paralegals (links to
  *           /enterprise which has a parallel layout but with copy and
  *           proof points sized for a firm pitch).

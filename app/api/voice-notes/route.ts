@@ -17,8 +17,13 @@ export const dynamic = 'force-dynamic';
  * Auth: Bearer adv_ token with read scope (the watch's pairing
  * token). Body: { transcription: string, case_id?: string }
  *
- * Lands in user_drafts as a "voice_note" template. The /inbox/drafts
- * surface already lists those.
+ * Lands in user_drafts as a "voice_note" template.
+ *
+ * DEFECT, recorded rather than fixed here: nothing reads user_drafts.
+ * There is no /inbox/drafts route (app/inbox has page.tsx, documents
+ * and leads only) and no redirect to one, yet the response below still
+ * hands the watch client `open_url: '/inbox/drafts'`, which 404s. A
+ * saved voice note is currently unreachable in the product.
  */
 export async function POST(req: NextRequest) {
   const verified = await verifyApiToken(req.headers.get('authorization'));

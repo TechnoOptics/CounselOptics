@@ -25,8 +25,12 @@ export const runtime = 'nodejs';
  * account at purchase time - we collect their name/email/phone and
  * send a redemption email once Stripe confirms payment via webhook.
  *
- * Auth: signed in or guest. If signed in, gifter_user_id is set so
- * the gifter can later look up gift status from their /gifts page.
+ * Auth: signed in or guest. If signed in, gifter_user_id is set, but
+ * no surface reads it back: there is no /gifts page and nothing links
+ * to one. The gift surfaces are /gift, /gift/sent (a single-gift
+ * confirmation keyed by ?id=) and /gift/claim/[token]. A gifter cannot
+ * currently list the gifts they have sent; the data is there, the page
+ * is not.
  *
  * Stripe uses inline `price_data` (no pre-configured Price ID
  * required) so a new tier or duration combination is purely a

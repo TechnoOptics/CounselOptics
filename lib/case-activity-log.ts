@@ -10,7 +10,14 @@ import { createNotification } from './notifications';
  *
  * All writes go through the ADMIN client (service role) from server code that
  * has already authorized the actor - the table has no anon/authenticated insert
- * policy. Reads are firm-scoped by RLS, and additionally re-checked here.
+ * policy.
+ *
+ * Reads go through the ADMIN client too, so RLS is not involved on this path.
+ * A case_activity_firm_read policy does exist
+ * (supabase/fixes/2026-07-13-case-activity-stream.sql), but nothing here is
+ * subject to it. The `firm_id` comparison in listCaseActivity is the only
+ * thing scoping a read, and the `firmId` it compares against comes from the
+ * caller.
  */
 
 export type CaseActivityAction =
@@ -220,7 +227,11 @@ async function fanOutActivityNotification(
 
 /**
  * Firm-scoped read of a matter's activity feed. Verifies the matter belongs to
- * `firmId` before returning anything (defense in depth on top of RLS).
+ * `firmId` before returning anything.
+ *
+ * That check is not defense in depth, it is the defense: the read below uses
+ * the service-role client and RLS never runs. A caller that passes a `firmId`
+ * it has not established the user belongs to gets another firm's feed.
  */
 export async function listCaseActivity(
   firmId: string,

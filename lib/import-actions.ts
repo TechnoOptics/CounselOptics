@@ -25,8 +25,15 @@ import { parseCsv } from './csv';
  * joined_at). When no paralegal is on the firm, falls back to the
  * importer's user_id so the data still has an owner.
  *
- * All writes use the admin (service-role) client. We verify firm
- * membership at the top of every action before doing any work.
+ * All writes use the admin (service-role) client, and every action that
+ * touches the database calls requireFirmMember before doing any work.
+ *
+ * Not every export does, so do not read the above as "this module is
+ * membership-gated". previewCsvAction and previewJsonDumpAction have no gate:
+ * they parse text the caller supplied and hand back a preview of it. Both are
+ * `'use server'` exports and therefore public endpoints, which is tolerable
+ * only for as long as they read nothing and write nothing. Anything added to
+ * either that touches the database owes a requireFirmMember first.
  */
 
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };

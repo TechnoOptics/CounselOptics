@@ -2,8 +2,10 @@
 --
 -- ============================ NOT APPLIED ================================
 -- Written 2026-08-01. The owner applies this and regenerates
--- supabase/schema-fingerprint.sha256 in the same change, or the CI drift
--- gate fails on the next push.
+-- supabase/schema-fingerprint.sha256 in the same change. Nothing in CI
+-- will notice if they forget: the schema-drift gate skips while the
+-- SUPABASE_DB_URL secret is unset. See scripts/schema/README.md,
+-- "Current status".
 -- =========================================================================
 --
 -- Columns on firms rather than metadata jsonb because these are read on

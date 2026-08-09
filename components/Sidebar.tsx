@@ -70,7 +70,9 @@ function useActive() {
 
 /**
  * Desktop / tablet sidebar. Hidden on small screens (mobile, narrow folded
- * foldables) where SidebarMobile renders a horizontal scroll bar instead.
+ * foldables), where MobileNav takes over: it is exported from this same file,
+ * mounted in app/layout.tsx, and renders a burger button over a vertical
+ * dropdown menu, not a horizontal scroll bar.
  *
  * `initialPrefs` carries the user's saved customization for the
  * consumer portal: hidden item ids + reordered ids. Loaded server-

@@ -17,10 +17,16 @@ import type { Project, ProjectFolder, ProjectItem } from './project-types';
  * firm_projects* member policies.
  *
  * The STORAGE side does not work that way. Uploading, opening and deleting a
- * project document all go through the service-role client, which bypasses RLS,
- * so on those three paths the checks written into the action are the only
- * authorization there is: membership in the named firm, from lib/firm-authz.ts,
- * and confinement of the path to that firm's own prefix (isFirmProjectPath).
+ * project document all go through the service-role client, which bypasses RLS
+ * on the object itself.
+ *
+ * The three paths are NOT gated alike, so do not read one and assume the
+ * others. getProjectDocumentUrlAction and deleteProjectItemAction call
+ * callerIsFirmMember (lib/firm-authz.ts) and isFirmProjectPath, and on those
+ * two the in-action checks are the only authorization there is.
+ * uploadProjectDocumentAction calls neither: its only gate is the RLS-scoped
+ * `firm_projects` lookup at the top, so the firm_projects_member policy is
+ * what protects it. Removing that lookup would leave the upload unguarded.
  */
 
 // 50 MB / file, matching the firm document upload limit (firm-actions.ts) so

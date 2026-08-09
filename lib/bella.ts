@@ -1261,10 +1261,25 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
 
 /**
  * Run a single Bella tool, returning a JSON-serializable result that
- * goes back to Claude as a tool_result. RLS scopes everything to the
- * current user (createServerSupabase reads cookies); on top of that,
- * the `portal` argument adds a firm-vs-consumer-vs-hq scope so a
- * user's personal cases never leak into a firm chat and vice versa.
+ * goes back to Claude as a tool_result.
+ *
+ * Do not read this as "RLS scopes everything". Only the two consumer
+ * case tools (search_my_cases, get_case_detail) use the user-scoped
+ * cookie client, so only those two are behind RLS. Every firm-side
+ * loader below uses the service-role admin client and is therefore
+ * scoped by the `firmId` argument alone, plus the FIRM_ONLY guard
+ * that refuses the tool unless portal === 'firm'. `portal` and
+ * `firmId` come from resolvePortal in app/api/bella/route.ts, which
+ * proves firm membership before either is set; they are the whole
+ * access control for those tools, so a new firm tool that forgets
+ * `.eq('firm_id', firmId)` leaks across firms with nothing to catch
+ * it.
+ *
+ * Two dispatches below already take no firmId, and neither is an
+ * oversight to copy. `list_leads` reads firm_leads, a marketplace
+ * pool with no firm_id column that every member firm is meant to
+ * see. `list_access_requests` reads firm_access_requests, which is
+ * an HQ table: see the note on loadAccessRequests.
  */
 async function executeTool(
   name: ToolName,
@@ -1987,7 +2002,9 @@ async function searchCourtListener(input: Record<string, unknown>) {
 // app/counsel/page.tsx so Bella sees exactly what the dashboard
 // shows. All three require a verified firm portal (the executeTool
 // FIRM_ONLY guard ensures portal === 'firm' before they run); each
-// uses the user-scoped server client so RLS still applies on top.
+// then uses the service-role admin client, so RLS is NOT in play
+// and `.eq('firm_id', firmId)` is the only thing keeping one firm's
+// rows out of another firm's chat. See loadFirmOverview for why.
 // ===========================================================================
 
 async function loadFirmOverview(
@@ -2543,6 +2560,22 @@ async function loadTeamMembers(
   return { ok: true, count: hydrated.length, members: hydrated };
 }
 
+/**
+ * KNOWN DEFECT, recorded here rather than fixed, because fixing it is a
+ * behaviour change and belongs in its own review.
+ *
+ * firm_access_requests is an HQ table: an organization asking Advottic for
+ * a Counsel workspace. Its only other readers are HQ-admin gated
+ * (app/admin/counsel-requests/page.tsx redirects unless isCurrentUserAdmin,
+ * and lib/hq-storage.ts). This loader takes no firmId and applies no firm
+ * filter, so it returns EVERY organization's request - name, contact name,
+ * contact email, role, firm type, team size, jurisdictions - through the
+ * service-role client.
+ *
+ * The audience is also inverted. `list_access_requests` is in FIRM_ONLY, so
+ * any member of any firm can ask Bella for it, while HQ admin, the one
+ * caller with a legitimate reason, is refused by that same guard.
+ */
 async function loadAccessRequests(
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {

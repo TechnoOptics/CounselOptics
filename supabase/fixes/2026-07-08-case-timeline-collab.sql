@@ -142,6 +142,8 @@ create policy case_chat_messages_update on public.case_chat_messages
   with check (author_user_id = auth.uid());
 
 -- NOTE: after applying this migration to the live DB, regenerate the schema
--- fingerprint or CI (schema-drift gate) will fail:
+-- fingerprint. CI will not catch it if you do not: the schema-drift gate
+-- skips while the SUPABASE_DB_URL secret is unset (scripts/schema/README.md,
+-- "Current status"). Regenerate with:
 --   psql "$SUPABASE_DB_URL" -X -q -t -A -f scripts/schema/fingerprint-hash.sql \
 --     | tr -d '[:space:]' > supabase/schema-fingerprint.sha256

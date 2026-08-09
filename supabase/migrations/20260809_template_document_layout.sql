@@ -3,9 +3,10 @@
 -- ============================ NOT APPLIED ================================
 -- Written 2026-08-08. Applying this and regenerating
 -- supabase/schema-fingerprint.sha256 is the OWNER'S step, not an
--- implementer's: the CI drift gate hashes the live schema against that
--- committed fingerprint, so applying one without the other fails the next
--- push either way round.
+-- implementer's. The CI drift gate is designed to hash the live schema
+-- against that committed fingerprint, but it is not doing so: it skips
+-- while the SUPABASE_DB_URL secret is unset, so applying one without the
+-- other fails nothing. See scripts/schema/README.md, "Current status".
 -- =========================================================================
 --
 -- WHAT THIS IS HALF OF. The firm-wide default lives on
