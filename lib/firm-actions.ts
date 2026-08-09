@@ -1029,7 +1029,15 @@ export async function acceptFirmInvitationAction(
 
   // Insert membership (idempotent via UNIQUE constraint - if they
   // were already added we still mark the invite accepted).
-  await admin
+  //
+  // CONFIRMED, not assumed. PostgREST resolves rather than throws, so an
+  // insert that wrote nothing used to return here indistinguishable from one
+  // that wrote a row, and the three writes below then reported a firm the
+  // caller had not actually joined. `alreadyAMember` is what makes the
+  // idempotent case still pass: re-accepting an invitation trips the UNIQUE
+  // constraint and returns no row, which is a success for someone who is
+  // already inside and the only failure that matters for anyone else.
+  const { data: memberRow, error: memberErr } = await admin
     .from('firm_members')
     .insert({
       firm_id: invRow.firm_id,
@@ -1040,7 +1048,20 @@ export async function acceptFirmInvitationAction(
     })
     .select('id')
     .maybeSingle();
+  if (!memberRow && !alreadyAMember) {
+    console.error(
+      'acceptFirmInvitationAction: the membership row was not created',
+      memberErr?.message,
+    );
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
   // Add the new member to the default #general channel if it exists.
+  //
+  // Deliberately the one write here that is NOT fatal. Not every firm has a
+  // default channel, a re-accept trips the same UNIQUE constraint as above,
+  // and refusing an otherwise complete membership over a chat convenience
+  // would strand a person who has in fact joined. Logged so a systemic
+  // failure is still visible.
   const { data: defaultChan } = await admin
     .from('firm_channels')
     .select('id')
@@ -1048,7 +1069,7 @@ export async function acceptFirmInvitationAction(
     .eq('is_default', true)
     .maybeSingle();
   if (defaultChan) {
-    await admin
+    const { error: chanErr } = await admin
       .from('firm_channel_members')
       .insert({
         channel_id: (defaultChan as { id: string }).id,
@@ -1056,16 +1077,42 @@ export async function acceptFirmInvitationAction(
       })
       .select('id')
       .maybeSingle();
+    if (chanErr) {
+      console.error(
+        'acceptFirmInvitationAction: could not add the new member to #general',
+        chanErr.message,
+      );
+    }
   }
-  await admin
-    .from('firm_invitations')
-    .update({ accepted_at: new Date().toISOString() })
-    .eq('id', invRow.id);
-  // Activate the firm for the user.
-  await admin
+  // Activate the firm for the user. A profiles row exists for every auth user
+  // (handle_new_user creates one on signup), so matching none means the read
+  // this action is about to report is not the one the caller will land on.
+  const { data: activated } = await admin
     .from('profiles')
     .update({ active_firm_id: invRow.firm_id })
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('id');
+  if ((activated ?? []).length === 0) {
+    console.error(
+      'acceptFirmInvitationAction: no profiles row to activate the firm on',
+    );
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
+  // Marked used LAST, and confirmed. Consuming the invitation is the step that
+  // cannot be retried, so it goes after everything that can: if any write
+  // above refuses, the invitation is still live and the caller can simply try
+  // again, which the seat check and `alreadyAMember` above make idempotent.
+  const { data: consumed } = await admin
+    .from('firm_invitations')
+    .update({ accepted_at: new Date().toISOString() })
+    .eq('id', invRow.id)
+    .select('id');
+  if ((consumed ?? []).length === 0) {
+    console.error(
+      'acceptFirmInvitationAction: the invitation could not be marked as used',
+    );
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
   revalidatePath('/counsel');
   return { ok: true, firmId: invRow.firm_id };
 }
@@ -4410,6 +4457,68 @@ function buildWebhookPayload(args: {
 // Webhook configs (Phase 2 - Slack/Teams/generic fan-out)
 // =====================================================================
 
+/**
+ * WHY ALL FOUR OF THESE ARE OWNER/ADMIN GATED.
+ *
+ * A row in firm_webhook_configs is an outbound egress channel for an
+ * organization's matter-room chat. fanoutWebhooks above reads the table
+ * through the SERVICE-ROLE client on every message send and POSTs a preview of
+ * the message body to whatever `url` the row carries, so planting one row is
+ * enough to redirect a firm's privileged conversation to an arbitrary
+ * endpoint. Reading the table is the mirror of that: a Slack or Teams incoming
+ * webhook URL is itself a bearer credential, so `url` is a secret and listing
+ * it is disclosure, not metadata.
+ *
+ * These four exports had `requireUser()` and nothing else. Every export of a
+ * `'use server'` module is a public HTTP endpoint callable with arguments of
+ * the caller's choosing, so "the settings page already redirects anyone who is
+ * not an owner or an admin" was never the gate; it was a courtesy to a
+ * browser. The gate has to be here.
+ *
+ * The role set is callerIsFirmAdmin, from lib/firm-authz, because that is the
+ * set app/counsel/settings/page.tsx has always redirected to. Nothing that the
+ * product offers a person is being taken away: attorney, paralegal and staff
+ * could not reach this surface in the UI before and cannot now.
+ *
+ * firm_webhook_configs has no CREATE TABLE, no policy and no grant anywhere in
+ * this repository, so nothing here may lean on RLS as a second line. See
+ * supabase/fixes/2026-08-12-firm-webhook-configs-rls.sql, which is written but
+ * NOT applied.
+ */
+
+/**
+ * One sentence for "no such webhook" and for "that webhook belongs to another
+ * firm". Answering those differently turns the id argument into an existence
+ * oracle that a stranger can walk. The caller is an owner or an admin of the
+ * webhook's own organization, or they learn nothing at all.
+ */
+const WEBHOOK_NOT_AVAILABLE = 'That webhook is not available to you.';
+
+/**
+ * Resolve which organization a webhook id belongs to and confirm the caller
+ * administers it.
+ *
+ * The lookup runs through the USER-scoped client on purpose. These four
+ * actions touch no service-role client, so if a policy is ever added to this
+ * table the read fails closed rather than reaching past it.
+ */
+async function authorizeWebhook(
+  webhookId: string,
+): Promise<{ ok: true; firmId: string } | { ok: false; error: string }> {
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_webhook_configs')
+    .select('firm_id')
+    .eq('id', webhookId)
+    .maybeSingle();
+  const firmId = (data as { firm_id?: string } | null)?.firm_id ?? null;
+  if (!firmId) return { ok: false, error: WEBHOOK_NOT_AVAILABLE };
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: WEBHOOK_NOT_AVAILABLE };
+  }
+  return { ok: true, firmId };
+}
+
 export type FirmWebhookConfig = {
   id: string;
   firmId: string;
@@ -4429,6 +4538,9 @@ export async function listFirmWebhooksAction(
   firmId: string,
 ): Promise<{ ok: boolean; error?: string; webhooks?: FirmWebhookConfig[] }> {
   await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from('firm_webhook_configs')
@@ -4460,6 +4572,9 @@ export async function createFirmWebhookAction(
   formData: FormData,
 ): Promise<{ ok: boolean; error?: string; webhookId?: string }> {
   const user = await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
   const kindRaw = String(formData.get('kind') ?? '').trim().toLowerCase();
   const kind =
     kindRaw === 'slack' || kindRaw === 'teams' || kindRaw === 'generic'
@@ -4520,12 +4635,20 @@ export async function setFirmWebhookActiveAction(
   active: boolean,
 ): Promise<{ ok: boolean; error?: string }> {
   await requireUser();
+  const gate = await authorizeWebhook(webhookId);
+  if (!gate.ok) return { ok: false, error: gate.error };
   const supabase = createServerSupabase();
-  const { error } = await supabase
+  // `.select('id')` is what separates "wrote" from "matched nothing".
+  // PostgREST reports no error on a zero-row update, so without it a caller
+  // whose write was silently dropped is told the toggle moved.
+  const { data, error } = await supabase
     .from('firm_webhook_configs')
     .update({ is_active: active })
-    .eq('id', webhookId);
+    .eq('id', webhookId)
+    .eq('firm_id', gate.firmId)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  if ((data ?? []).length === 0) return { ok: false, error: WEBHOOK_NOT_AVAILABLE };
   revalidatePath('/counsel/settings');
   return { ok: true };
 }
@@ -4534,12 +4657,17 @@ export async function deleteFirmWebhookAction(
   webhookId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   await requireUser();
+  const gate = await authorizeWebhook(webhookId);
+  if (!gate.ok) return { ok: false, error: gate.error };
   const supabase = createServerSupabase();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('firm_webhook_configs')
     .delete()
-    .eq('id', webhookId);
+    .eq('id', webhookId)
+    .eq('firm_id', gate.firmId)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  if ((data ?? []).length === 0) return { ok: false, error: WEBHOOK_NOT_AVAILABLE };
   revalidatePath('/counsel/settings');
   return { ok: true };
 }
