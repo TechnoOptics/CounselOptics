@@ -16,6 +16,7 @@ import type { ApproachArgument } from '@/lib/approach-ai';
 import { exhibitLabel, fuzzyTitleMatch, type TimelineEvent } from '@/lib/timeline-types';
 import { EvidencePreview } from '@/components/EvidencePreview';
 import { EvidenceViewer } from './evidence/evidence-viewer';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 /**
  * Case Theory Console: the firm "prove-the-case" approach board, styled as a
@@ -268,6 +269,7 @@ function ApproachCard({
   const [prompt, setPrompt] = useState(approach.prompt);
   const [connections, setConnections] = useState(approach.connections);
   const [error, setError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const g = approach.generated;
@@ -336,7 +338,6 @@ function ApproachCard({
   }
 
   function remove() {
-    if (typeof window !== 'undefined' && !window.confirm(t('Delete this approach? This cannot be undone.'))) return;
     startTransition(async () => {
       try {
         const res = await deleteFirmApproach(firmId, caseId, approach.id);
@@ -424,7 +425,7 @@ function ApproachCard({
             <RailButton onClick={() => setEditing((v) => !v)} disabled={pending || running}>
               {editing ? <T>Cancel</T> : <T>Edit</T>}
             </RailButton>
-            <RailButton onClick={remove} disabled={pending || running} tone="danger">
+            <RailButton onClick={() => setConfirmRemove(true)} disabled={pending || running} tone="danger">
               <T>Delete</T>
             </RailButton>
           </div>
@@ -516,6 +517,24 @@ function ApproachCard({
           )
         )}
       </div>
+
+      {/* Deleting an approach throws away its assembled argument and its
+          evidence selection. Was a native window.confirm(), suppressed inside
+          the Capacitor WebView. */}
+      {confirmRemove && (
+        <ConfirmDialog
+          question={t('Delete this approach?')}
+          detail={t('The assembled argument and the exhibits picked for it are removed. This cannot be undone.')}
+          confirmLabel={t('Delete')}
+          cancelLabel={t('Keep it')}
+          busy={pending || running}
+          onCancel={() => setConfirmRemove(false)}
+          onConfirm={() => {
+            setConfirmRemove(false);
+            remove();
+          }}
+        />
+      )}
     </div>
   );
 }

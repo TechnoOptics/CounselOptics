@@ -19,6 +19,8 @@ import {
   type IntakeUploadRequest,
 } from '@/lib/intake-conversation-types';
 import { RelativeTime } from './RelativeTime';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { KindIcon } from '@/components/counsel/KindIcon';
 
 /**
  * The context rail beside the conversation: who owns the request, who else is
@@ -55,6 +57,11 @@ export function IntakeWorkPanel({
   const [label, setLabel] = useState('');
   const [note, setNote] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  // Both of these end an access someone else is currently relying on: a
+  // colleague's view of the request, or an upload link already sitting in a
+  // client's inbox. Neither is undone by clicking again.
+  const [removingParticipant, setRemovingParticipant] = useState<IntakeParticipant | null>(null);
+  const [revokingRequest, setRevokingRequest] = useState<IntakeUploadRequest | null>(null);
 
   const legalPeople = people.filter((p) => p.side === 'legal');
   const invitable = people.filter((p) => !participants.some((x) => x.userId === p.userId));
@@ -146,7 +153,7 @@ export function IntakeWorkPanel({
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={() => run(() => removeIntakeParticipantAction(intakeId, p.userId))}
+                  onClick={() => setRemovingParticipant(p)}
                   className="text-[11px] text-ink-400 hover:text-rose-600 dark:text-cream-100/35"
                 >
                   Remove
@@ -210,8 +217,8 @@ export function IntakeWorkPanel({
                   onClick={() => void openDoc(d.path)}
                   className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-cream-50 dark:hover:bg-forest-800/40"
                 >
-                  <span aria-hidden className="mt-0.5">
-                    📄
+                  <span aria-hidden className="mt-0.5 text-ink-400 dark:text-cream-100/45">
+                    <KindIcon kind="document" className="h-3.5 w-3.5" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-forest-900 dark:text-cream-100">
@@ -271,7 +278,7 @@ export function IntakeWorkPanel({
                       <button
                         type="button"
                         disabled={pending}
-                        onClick={() => run(() => revokeIntakeUploadRequestAction(intakeId, r.id))}
+                        onClick={() => setRevokingRequest(r)}
                         className="text-[11.5px] text-ink-400 hover:text-rose-600 dark:text-cream-100/35"
                       >
                         Revoke
@@ -339,6 +346,38 @@ export function IntakeWorkPanel({
             </button>
           )}
         </section>
+      )}
+
+      {removingParticipant && (
+        <ConfirmDialog
+          question="Remove this person from the request?"
+          detail="They lose sight of the conversation and everything filed with it. To bring them back you would invite them again."
+          confirmLabel="Remove"
+          cancelLabel="Keep their access"
+          busy={pending}
+          onCancel={() => setRemovingParticipant(null)}
+          onConfirm={() => {
+            const p = removingParticipant;
+            setRemovingParticipant(null);
+            run(() => removeIntakeParticipantAction(intakeId, p.userId));
+          }}
+        />
+      )}
+
+      {revokingRequest && (
+        <ConfirmDialog
+          question="Revoke this upload link?"
+          detail="The link stops working for whoever it was sent to. A replacement is a new link with a new address, so they would need sending it again."
+          confirmLabel="Revoke"
+          cancelLabel="Leave it working"
+          busy={pending}
+          onCancel={() => setRevokingRequest(null)}
+          onConfirm={() => {
+            const r = revokingRequest;
+            setRevokingRequest(null);
+            run(() => revokeIntakeUploadRequestAction(intakeId, r.id));
+          }}
+        />
       )}
     </div>
   );

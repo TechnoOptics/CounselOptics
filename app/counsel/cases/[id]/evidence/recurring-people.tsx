@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   getRecurringFacesEnabledAction,
   getCaseRecurringPeopleAction,
@@ -67,6 +68,7 @@ export function RecurringPeople({ firmId, caseId }: { firmId: string; caseId: st
   const [people, setPeople] = useState<RecurringPerson[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmDisable, setConfirmDisable] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -126,9 +128,6 @@ export function RecurringPeople({ firmId, caseId }: { firmId: string; caseId: st
   }
 
   async function disable() {
-    if (!window.confirm(t('Turn this off and permanently delete every face grouping this firm has stored? This cannot be undone.'))) {
-      return;
-    }
     setBusy(true);
     setNotice(null);
     const res = await setRecurringFacesEnabledAction(firmId, false);
@@ -217,7 +216,7 @@ export function RecurringPeople({ firmId, caseId }: { firmId: string; caseId: st
         {enabled && canManage && (
           <button
             type="button"
-            onClick={disable}
+            onClick={() => setConfirmDisable(true)}
             disabled={busy}
             className="shrink-0 text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline disabled:opacity-50"
           >
@@ -370,6 +369,25 @@ export function RecurringPeople({ firmId, caseId }: { firmId: string; caseId: st
           </>
         )}
       </div>
+
+      {/* Turning this off wipes every stored face grouping for the whole firm,
+          not just this matter, and nothing brings them back. It used to be a
+          native window.confirm(), which the Capacitor WebView suppresses, so on
+          a phone the firm's biometric data went with a single tap. */}
+      {confirmDisable && (
+        <ConfirmDialog
+          question={t('Turn off recurring people for this firm?')}
+          detail={t('Every face grouping this firm has stored is deleted, across all matters. This cannot be undone, and a new scan would have to start from the beginning.')}
+          confirmLabel={t('Turn off and delete')}
+          cancelLabel={t('Leave it on')}
+          busy={busy}
+          onCancel={() => setConfirmDisable(false)}
+          onConfirm={() => {
+            setConfirmDisable(false);
+            void disable();
+          }}
+        />
+      )}
     </section>
   );
 }

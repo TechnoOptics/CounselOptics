@@ -20,6 +20,7 @@ import {
   type CommunityCaseLink,
   type CommunityCaseLinkPlatform,
 } from '@/lib/community-types';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 type GalleryImageView = { id: string; caption: string | null; url: string };
 
@@ -280,6 +281,9 @@ function GalleryEditor({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // The photo is published, and deleting it deletes the stored file. Putting it
+  // back means finding the original and uploading it again.
+  const [removing, setRemoving] = useState<GalleryImageView | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
@@ -298,13 +302,7 @@ function GalleryEditor({
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => {
-                  setError(null);
-                  startTransition(async () => {
-                    const result = await removeCommunityGalleryImageAction(img.id, caseId);
-                    if (!result.ok) setError(result.error ?? 'Could not remove image.');
-                  });
-                }}
+                onClick={() => setRemoving(img)}
                 className="absolute top-1 right-1 rounded-full bg-forest-950/80 text-white w-6 h-6 text-xs leading-none opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="Remove image"
               >
@@ -345,6 +343,26 @@ function GalleryEditor({
         </p>
       )}
       {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+
+      {removing && (
+        <ConfirmDialog
+          question="Remove this photo?"
+          detail="It comes off your public page and the file is deleted. To put it back you would need the original again."
+          confirmLabel="Remove"
+          cancelLabel="Keep it"
+          busy={pending}
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => {
+            const img = removing;
+            setRemoving(null);
+            setError(null);
+            startTransition(async () => {
+              const result = await removeCommunityGalleryImageAction(img.id, caseId);
+              if (!result.ok) setError(result.error ?? 'Could not remove image.');
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

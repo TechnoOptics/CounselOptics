@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { ArchiveIcon } from '@/components/counsel/EntityIcons';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
@@ -98,7 +99,9 @@ export default async function TimelinePage({
           />
         ) : (
           <div className="rounded-2xl border border-forest-900/10 bg-white p-10 text-center dark:border-cream-50/10 dark:bg-forest-900/40">
-            <div className="text-3xl">🗂️</div>
+            <div className="flex justify-center text-forest-900/40 dark:text-cream-50/40">
+            <ArchiveIcon size={30} />
+          </div>
             <h1 className="mt-2 font-display text-2xl font-semibold text-forest-900 dark:text-cream-50">
               Case Timeline
             </h1>

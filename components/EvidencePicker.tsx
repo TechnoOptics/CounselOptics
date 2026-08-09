@@ -51,7 +51,10 @@ export function EvidencePicker({
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // A load either has not happened, failed, or succeeded and found nothing.
+  // Those are three different things to say, and this used to say the third
+  // for all of them, or show the reader a raw status code.
+  const [error, setError] = useState(false);
   const [vault, setVault] = useState<EvidenceItem[]>([]);
   const [contracts, setContracts] = useState<EvidenceItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -61,7 +64,7 @@ export function EvidencePicker({
   useEffect(() => {
     if (!open || loaded || loading) return;
     setLoading(true);
-    setError(null);
+    setError(false);
     fetch('/api/cases/new-evidence', { cache: 'no-store' })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -82,12 +85,18 @@ export function EvidencePicker({
         );
         setLoaded(true);
       })
-      .catch((e) => {
-        setError(
-          e instanceof Error
-            ? e.message
-            : 'Could not load your existing evidence. Try again.',
-        );
+      .catch(() => {
+        // Deliberately NOT `e.message`. That put "HTTP 500" in front of the
+        // reader, which tells them nothing they can act on and reads as
+        // something being badly wrong with their case. The thrown message is
+        // still useful in the console for whoever is debugging; what the
+        // reader gets is what happened and what to do.
+        setError(true);
+        // `loaded` means the request SETTLED, not that it succeeded. Without
+        // this the effect re-fired the moment `loading` went false and the
+        // panel hammered a failing endpoint forever; that loop predates this
+        // change. Retrying is `setLoaded(false)`, once, on purpose.
+        setLoaded(true);
       })
       .finally(() => setLoading(false));
   }, [open, loaded, loading]);
@@ -208,9 +217,23 @@ export function EvidencePicker({
               Loading your {tab}…
             </p>
           ) : error ? (
-            <p className="text-[13px] text-rose-700 dark:text-rose-300">
-              {error}
-            </p>
+            <div className="space-y-2">
+              <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-snug">
+                We could not load your {tab === 'vault' ? 'vault' : 'contracts'} just
+                now. Nothing has been lost, and everything already on this case is
+                unaffected.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(false);
+                  setLoaded(false);
+                }}
+                className="text-[12.5px] font-semibold underline text-forest-900 dark:text-cream-100"
+              >
+                Try again
+              </button>
+            </div>
           ) : current.length === 0 ? (
             <p className="text-[12.5px] text-ink-500 dark:text-cream-100/55 leading-snug">
               Nothing in your {tab === 'vault' ? 'vault' : 'contracts library'}

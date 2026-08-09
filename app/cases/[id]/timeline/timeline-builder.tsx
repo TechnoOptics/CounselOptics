@@ -7,6 +7,19 @@ import { MediaLightbox } from './media-lightbox';
 import { CaseMap, type MapPoint } from './case-map';
 import { SmartDatePicker } from './smart-date-picker';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { KindIcon } from '@/components/counsel/KindIcon';
+import {
+  ArchiveIcon,
+  CalendarIcon,
+  ClipIcon,
+  CloseIcon,
+  DetailIcon,
+  OrgIcon,
+  PencilIcon,
+  PlaceIcon,
+  TrashIcon,
+} from '@/components/counsel/EntityIcons';
 import {
   createTimelineEvent,
   analyzeTimelineEvent,
@@ -20,7 +33,6 @@ import {
 import {
   formatOccurred,
   sortTimeline,
-  KIND_ICON,
   KIND_LABEL,
   ROLE_LABEL,
   type TimelineBundle,
@@ -32,13 +44,21 @@ import {
   type PersonRole,
 } from '@/lib/timeline-types';
 
-// Small type/label helpers for the attachment chips.
-function mediaIcon(m: TimelineMedia): string {
-  if (/^image\//.test(m.mime)) return '🖼️';
-  if (/^audio\//.test(m.mime)) return '🎙️';
-  if (/^video\//.test(m.mime)) return '🎬';
-  if (m.mime === 'application/pdf' || /\.pdf$/i.test(m.name)) return '📄';
-  return '📎';
+/*
+ * The attachment chip's icon. This returned an emoji per mime type; it now
+ * returns the same stroke icons the rest of the product draws, so a chip
+ * inherits the chip's text colour instead of shipping somebody else's artwork.
+ * A generic attachment has no evidence kind, so it gets the paperclip rather
+ * than being forced into one.
+ */
+function MediaIcon({ m }: { m: TimelineMedia }) {
+  if (/^image\//.test(m.mime)) return <KindIcon kind="photo" className="h-3.5 w-3.5" />;
+  if (/^audio\//.test(m.mime)) return <KindIcon kind="audio" className="h-3.5 w-3.5" />;
+  if (/^video\//.test(m.mime)) return <KindIcon kind="video" className="h-3.5 w-3.5" />;
+  if (m.mime === 'application/pdf' || /\.pdf$/i.test(m.name)) {
+    return <KindIcon kind="document" className="h-3.5 w-3.5" />;
+  }
+  return <ClipIcon size={14} />;
 }
 
 // ── Small hook: lazily resolve a short-lived signed URL for a media path ──
@@ -228,7 +248,9 @@ export function TimelineBuilder({
                 : 'border-forest-900/20 bg-white/60 dark:border-cream-50/15 dark:bg-cream-50/5'
             }`}
           >
-            <div className="text-3xl">🗂️</div>
+            <div className="flex justify-center text-forest-900/40 dark:text-cream-50/40">
+              <ArchiveIcon size={30} />
+            </div>
             <p className="mt-2 font-medium text-forest-900 dark:text-cream-100">
               Drop evidence here, or{' '}
               <button
@@ -462,6 +484,7 @@ function EventCard({
   onCreated: (ev: TimelineEvent) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [viewing, setViewing] = useState<TimelineMedia | null>(null);
   const firstImage = event.media.find((m) => /^image\//.test(m.mime)) ?? null;
   const thumb = useSignedUrl(firstImage?.path ?? null);
@@ -513,8 +536,8 @@ function EventCard({
 
   return (
     <article className="relative rounded-xl border border-forest-900/10 bg-white p-4 shadow-sm dark:border-cream-50/10 dark:bg-forest-900/50">
-      <span className="absolute -left-[38px] top-5 z-10 grid h-6 w-6 place-items-center rounded-full bg-cream-50 text-sm ring-2 ring-forest-900/15 dark:bg-forest-900 dark:ring-cream-50/15" aria-hidden>
-        {KIND_ICON[event.kind]}
+      <span className="absolute -left-[38px] top-5 z-10 grid h-6 w-6 place-items-center rounded-full bg-cream-50 text-forest-800 ring-2 ring-forest-900/15 dark:bg-forest-900 dark:text-cream-200 dark:ring-cream-50/15" aria-hidden>
+        <KindIcon kind={event.kind} className="h-3.5 w-3.5" />
       </span>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -539,11 +562,12 @@ function EventCard({
               {analyzing ? '…' : '↻'}
             </button>
           )}
-          <button type="button" onClick={() => setEditing((v) => !v)} title="Edit"
-            className="rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-forest-900/5 dark:hover:bg-cream-50/10">✎</button>
+          <button type="button" onClick={() => setEditing((v) => !v)} title="Edit" aria-label="Edit this entry"
+            className="grid h-8 w-8 place-items-center rounded-md text-ink-500 hover:bg-forest-900/5 dark:hover:bg-cream-50/10"><PencilIcon size={15} /></button>
           <button type="button"
-            onClick={async () => { if (confirm('Remove this entry?')) { await deleteTimelineEvent(event.id); onDelete(event.id); } }}
-            title="Delete" className="rounded-md px-2 py-1 text-xs text-rose-500 hover:bg-rose-50">🗑</button>
+            onClick={() => setConfirmDelete(true)}
+            title="Delete" aria-label="Remove this entry"
+            className="grid h-8 w-8 place-items-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"><TrashIcon size={15} /></button>
         </div>
       </div>
 
@@ -557,7 +581,7 @@ function EventCard({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {thumb ? <img src={thumb} alt="" data-no-translate className="h-20 w-20 object-cover" />
-              : <div className="grid h-20 w-20 place-items-center bg-forest-900/5 text-2xl dark:bg-cream-50/10">🖼️</div>}
+              : <div className="grid h-20 w-20 place-items-center bg-forest-900/5 text-forest-900/40 dark:bg-cream-50/10 dark:text-cream-50/40"><KindIcon kind="photo" className="h-7 w-7" /></div>}
           </button>
         )}
         {!firstImage && event.media.length > 0 && (
@@ -565,9 +589,9 @@ function EventCard({
             type="button"
             onClick={() => setViewing(event.media[0])}
             title="Open attachment"
-            className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-2xl transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10"
+            className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-forest-900/50 transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10 dark:text-cream-50/50"
           >
-            {mediaIcon(event.media[0])}
+            <MediaIcon m={event.media[0]} />
           </button>
         )}
         <div className="min-w-0 flex-1">
@@ -583,7 +607,7 @@ function EventCard({
                   title={m.name}
                   className="inline-flex max-w-[13rem] items-center gap-1.5 rounded-full border border-forest-900/10 bg-forest-900/[0.03] px-2.5 py-1 text-xs text-ink-600 transition hover:border-gold-500 hover:text-forest-900 dark:border-cream-50/10 dark:bg-cream-50/[0.04] dark:text-cream-300 dark:hover:text-cream-100"
                 >
-                  <span aria-hidden>{mediaIcon(m)}</span>
+                  <MediaIcon m={m} />
                   <span className="truncate" data-no-translate>{m.name}</span>
                 </button>
               ))}
@@ -652,10 +676,10 @@ function EventCard({
                         disabled={!ok || (event.occurredAt?.slice(0, 10) === parseLoose(d)?.slice(0, 10))}
                         onClick={() => void setEntryDate(d)}
                         title={ok ? "Use as this entry's date" : undefined}
-                        className="rounded-full border border-forest-900/15 bg-forest-900/5 px-2 py-0.5 text-xs text-forest-800 enabled:hover:border-gold-500 disabled:opacity-60 dark:border-cream-50/15 dark:bg-cream-50/5 dark:text-cream-200"
+                        className="inline-flex items-center gap-1 rounded-full border border-forest-900/15 bg-forest-900/5 px-2 py-0.5 text-xs text-forest-800 enabled:hover:border-gold-500 disabled:opacity-60 dark:border-cream-50/15 dark:bg-cream-50/5 dark:text-cream-200"
                         data-no-translate
                       >
-                        📅 {d}
+                        <CalendarIcon /> {d}
                       </button>
                     );
                   })}
@@ -679,10 +703,10 @@ function EventCard({
                       target="_blank"
                       rel="noopener noreferrer"
                       title="View on map"
-                      className="rounded-full border border-forest-900/15 bg-forest-900/5 px-2 py-0.5 text-xs text-forest-800 hover:border-gold-500 dark:border-cream-50/15 dark:bg-cream-50/5 dark:text-cream-200"
+                      className="inline-flex items-center gap-1 rounded-full border border-forest-900/15 bg-forest-900/5 px-2 py-0.5 text-xs text-forest-800 hover:border-gold-500 dark:border-cream-50/15 dark:bg-cream-50/5 dark:text-cream-200"
                       data-no-translate
                     >
-                      📍 {loc}
+                      <PlaceIcon /> {loc}
                     </a>
                   ))}
                 </div>
@@ -690,8 +714,8 @@ function EventCard({
               {orgs.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   {orgs.slice(0, 6).map((o) => (
-                    <span key={o} className="rounded-full bg-forest-900/5 px-2 py-0.5 text-xs text-ink-600 dark:bg-cream-50/5 dark:text-cream-300" data-no-translate>
-                      🏢 {o}
+                    <span key={o} className="inline-flex items-center gap-1 rounded-full bg-forest-900/5 px-2 py-0.5 text-xs text-ink-600 dark:bg-cream-50/5 dark:text-cream-300" data-no-translate>
+                      <OrgIcon /> {o}
                     </span>
                   ))}
                 </div>
@@ -737,6 +761,23 @@ function EventCard({
 
       {viewing && (
         <MediaLightbox media={viewing} transcript={transcript} onClose={() => setViewing(null)} />
+      )}
+
+      {/* Was a native confirm(), which the Capacitor WebView suppresses, so on
+          the phone this deleted the entry with no question asked. */}
+      {confirmDelete && (
+        <ConfirmDialog
+          question="Remove this entry?"
+          detail="The entry and anything attached to it come off your timeline. This cannot be undone."
+          confirmLabel="Remove"
+          cancelLabel="Keep it"
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setConfirmDelete(false);
+            await deleteTimelineEvent(event.id);
+            onDelete(event.id);
+          }}
+        />
       )}
     </article>
   );
@@ -802,6 +843,7 @@ function PeopleRail({ caseId, people, events, onAdd, onRemove }: {
   const [name, setName] = useState('');
   const [role, setRole] = useState<PersonRole>('other');
   const [pending, start] = useTransition();
+  const [removing, setRemoving] = useState<CasePerson | null>(null);
   const countFor = (id: string) => events.filter((e) => e.people.includes(id)).length;
   return (
     <div className="rounded-2xl border border-forest-900/10 bg-white p-4 dark:border-cream-50/10 dark:bg-forest-900/50">
@@ -814,8 +856,8 @@ function PeopleRail({ caseId, people, events, onAdd, onRemove }: {
               <span className="block truncate text-sm text-forest-900 dark:text-cream-100" data-no-translate>{p.displayName}</span>
               <span className="text-[11px] text-ink-500 dark:text-cream-300/70">{ROLE_LABEL[p.role]} · {countFor(p.id)} entr{countFor(p.id) === 1 ? 'y' : 'ies'}</span>
             </span>
-            <button type="button" onClick={async () => { if (confirm(`Remove ${p.displayName}?`)) { await deletePerson(p.id); onRemove(p.id); } }}
-              className="text-xs text-ink-400 hover:text-rose-500">✕</button>
+            <button type="button" onClick={() => setRemoving(p)} aria-label={`Remove ${p.displayName}`}
+              className="grid h-8 w-8 flex-none place-items-center rounded-md text-ink-400 hover:text-rose-500"><CloseIcon size={13} /></button>
           </li>
         ))}
         {people.length === 0 && <li className="text-sm text-ink-500 dark:text-cream-300/70">No one tagged yet. Bella will suggest people from your evidence.</li>}
@@ -831,6 +873,23 @@ function PeopleRail({ caseId, people, events, onAdd, onRemove }: {
           onClick={() => start(async () => { const res = await addPerson(caseId, { displayName: name, role }); if (res.person) { onAdd(res.person); setName(''); } })}
           className="rounded-lg bg-forest-900 px-2.5 py-1.5 text-sm text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950">＋</button>
       </div>
+
+      {/* Was a native confirm(), suppressed inside the Capacitor WebView. */}
+      {removing && (
+        <ConfirmDialog
+          question="Remove this person from the case?"
+          detail="They come off every entry they were tagged on. The entries themselves stay."
+          confirmLabel="Remove"
+          cancelLabel="Keep them"
+          onCancel={() => setRemoving(null)}
+          onConfirm={async () => {
+            const p = removing;
+            setRemoving(null);
+            await deletePerson(p.id);
+            onRemove(p.id);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1135,7 +1194,7 @@ function InsightsPanel({ events }: { events: TimelineEvent[] }) {
   return (
     <div className="rounded-2xl border border-gold-500/30 bg-gradient-to-b from-gold-500/[0.07] to-transparent p-4 dark:border-gold-500/25">
       <h2 className="mb-1 flex items-center gap-1.5 font-display text-base font-semibold text-forest-900 dark:text-cream-100">
-        <span aria-hidden>✨</span> Extracted intelligence
+        <span aria-hidden className="text-gold-600 dark:text-gold-500"><DetailIcon size={15} /></span> Extracted intelligence
       </h2>
       <p className="mb-3 text-xs text-ink-500 dark:text-cream-300/70">What Bella pulled from across your evidence.</p>
 
@@ -1157,7 +1216,7 @@ function InsightsPanel({ events }: { events: TimelineEvent[] }) {
                 target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 rounded-full border border-forest-900/15 bg-white px-2 py-0.5 text-xs text-forest-800 hover:border-gold-500 dark:border-cream-50/15 dark:bg-forest-900/50 dark:text-cream-200"
                 data-no-translate>
-                📍 {loc}{n > 1 ? <span className="text-ink-400"> ×{n}</span> : null}
+                <PlaceIcon /> {loc}{n > 1 ? <span className="text-ink-400"> ×{n}</span> : null}
               </a>
             ))}
           </div>
@@ -1169,8 +1228,8 @@ function InsightsPanel({ events }: { events: TimelineEvent[] }) {
           <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-400 dark:text-cream-300/60">Organizations</p>
           <div className="flex flex-wrap gap-1.5">
             {orgs.map(([o, n]) => (
-              <span key={o} className="rounded-full bg-forest-900/5 px-2 py-0.5 text-xs text-ink-600 dark:bg-cream-50/10 dark:text-cream-300" data-no-translate>
-                🏢 {o}{n > 1 ? <span className="text-ink-400"> ×{n}</span> : null}
+              <span key={o} className="inline-flex items-center gap-1 rounded-full bg-forest-900/5 px-2 py-0.5 text-xs text-ink-600 dark:bg-cream-50/10 dark:text-cream-300" data-no-translate>
+                <span className="inline-flex items-center gap-1"><OrgIcon /> {o}</span>{n > 1 ? <span className="text-ink-400"> ×{n}</span> : null}
               </span>
             ))}
           </div>

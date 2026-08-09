@@ -10,6 +10,7 @@ import {
   type Collaborator,
   type CollaboratorRole,
 } from '@/lib/types';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export function CollaboratorsPanel({
   caseId,
@@ -24,6 +25,7 @@ export function CollaboratorsPanel({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [removing, setRemoving] = useState<Collaborator | null>(null);
 
   function invite(formData: FormData) {
     setError(null);
@@ -160,7 +162,7 @@ export function CollaboratorsPanel({
               {isOwner && (
                 <button
                   type="button"
-                  onClick={() => remove(c.id)}
+                  onClick={() => setRemoving(c)}
                   disabled={pending}
                   className="text-xs text-rose-700 hover:text-rose-900 underline"
                 >
@@ -170,6 +172,25 @@ export function CollaboratorsPanel({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Taking someone off the case cuts their access to everything on it. It
+          is not undone by clicking again: they have to be invited afresh and
+          accept again. */}
+      {removing && (
+        <ConfirmDialog
+          question="Remove this person from your case?"
+          detail="They lose access to everything on it straight away. To bring them back you would invite them again and they would have to accept."
+          confirmLabel="Remove"
+          cancelLabel="Keep their access"
+          busy={pending}
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => {
+            const c = removing;
+            setRemoving(null);
+            remove(c.id);
+          }}
+        />
       )}
     </section>
   );

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   uploadCaseImageAction,
   deleteCaseImageAction,
@@ -32,6 +33,7 @@ export function CaseImagesPanel({
   const [images, setImages] = useState<CaseImage[]>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [featured, setFeatured] = useState<string | null>(featuredImageId);
 
   const feature = useCallback(
@@ -99,7 +101,7 @@ export function CaseImagesPanel({
         caseId={caseId}
         busy={busy}
         onUpload={upload}
-        onRemove={remove}
+        onRemove={setRemovingId}
         featuredId={featured}
         onFeature={feature}
       />
@@ -112,10 +114,28 @@ export function CaseImagesPanel({
         caseId={caseId}
         busy={busy}
         onUpload={upload}
-        onRemove={remove}
+        onRemove={setRemovingId}
       />
 
       {error && <p className="text-[11px] text-rose-700 dark:text-rose-300">{error}</p>}
+
+      {/* The stored file goes with the row; the only way back is to find the
+          original and upload it again. */}
+      {removingId && (
+        <ConfirmDialog
+          question={t('Remove this image?')}
+          detail={t('The image is deleted from this matter. To put it back you would need the original file again.')}
+          confirmLabel={t('Remove')}
+          cancelLabel={t('Keep it')}
+          busy={busy}
+          onCancel={() => setRemovingId(null)}
+          onConfirm={() => {
+            const id = removingId;
+            setRemovingId(null);
+            void remove(id);
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -233,24 +253,41 @@ function Thumb({
 
   return (
     <div
-      className={`relative group aspect-square rounded-lg overflow-hidden ring-1 bg-cream-100/60 dark:bg-forest-900/40 ${
+      className={`relative aspect-square rounded-lg overflow-hidden ring-1 bg-cream-100/60 dark:bg-forest-900/40 ${
         featured
           ? 'ring-2 ring-gold-400 dark:ring-gold-300'
           : 'ring-ink-200 dark:ring-forest-700/40'
       }`}
     >
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={url}
-          alt={img.label ?? 'Case image'}
-          onClick={open}
-          className="h-full w-full object-cover cursor-pointer"
-          data-no-translate
-        />
+        // The image IS the control that opens it full size, so it has to be a
+        // button. As a bare <img onClick> it was invisible to the keyboard and
+        // to assistive tech: no role, no tab stop, no Enter or Space.
+        <button
+          type="button"
+          onClick={() => void open()}
+          aria-label={t('Open image full size')}
+          className="block h-full w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt={img.label ?? 'Case image'}
+            className="h-full w-full object-cover"
+            data-no-translate
+          />
+        </button>
       ) : (
         <div className="h-full w-full animate-pulse" />
       )}
+      {/*
+       * The two corner controls. Both were 20px squares revealed only by
+       * `group-hover`, which on a touch screen is two failures at once: the
+       * target is under the 24px floor, and there is no hover to reveal it
+       * with, so on a phone neither control existed. They now carry a 44px
+       * hit area with the same small visible chip inside it, and they are
+       * always visible.
+       */}
       {onFeature && (
         <button
           type="button"
@@ -258,23 +295,31 @@ function Thumb({
           title={featured ? t('Featured party portrait') : t('Feature as party portrait')}
           aria-label={featured ? t('Featured party portrait') : t('Feature as party portrait')}
           aria-pressed={featured}
-          className={`absolute top-1 left-1 h-5 w-5 grid place-items-center rounded-full text-[11px] leading-none transition-opacity ${
-            featured
-              ? 'bg-gold-metal text-forest-950 opacity-100'
-              : 'bg-black/55 text-white opacity-0 group-hover:opacity-100'
-          }`}
+          className="absolute top-0 left-0 grid h-11 w-11 items-start justify-items-start p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
         >
-          {featured ? '★' : '☆'}
+          <span
+            aria-hidden
+            className={`grid h-5 w-5 place-items-center rounded-full text-[11px] leading-none ${
+              featured ? 'bg-gold-metal text-forest-950' : 'bg-black/60 text-white'
+            }`}
+          >
+            {featured ? '★' : '☆'}
+          </span>
         </button>
       )}
       <button
         type="button"
         onClick={() => onRemove(img.id)}
         title={t('Remove')}
-        className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/55 text-white text-[11px] leading-none opacity-0 group-hover:opacity-100 transition-opacity"
         aria-label={t('Remove image')}
+        className="absolute top-0 right-0 grid h-11 w-11 items-start justify-items-end p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
       >
-        ×
+        <span
+          aria-hidden
+          className="grid h-5 w-5 place-items-center rounded-full bg-black/60 text-white text-[11px] leading-none"
+        >
+          ×
+        </span>
       </button>
     </div>
   );

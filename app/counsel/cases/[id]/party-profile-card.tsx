@@ -169,16 +169,26 @@ export function PartyProfileCard({
               } ring-1 ring-ink-300/60 shadow-sm dark:ring-forest-700/50`}
             >
               {url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={url}
-                  alt={subjectName}
-                  onClick={open}
-                  className={`h-full w-full cursor-pointer transition-transform duration-500 hover:scale-[1.03] ${
-                    isBusiness ? 'object-contain p-4' : 'object-cover'
-                  }`}
-                  data-no-translate
-                />
+                // The portrait IS the control that opens it full size, so it
+                // has to be a button. As a bare <img onClick> it had no role,
+                // no tab stop and no key handler, so a keyboard could not
+                // reach it at all.
+                <button
+                  type="button"
+                  onClick={() => void open()}
+                  aria-label={`Open the image of ${subjectName} full size`}
+                  className="block h-full w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={subjectName}
+                    className={`h-full w-full transition-transform duration-500 hover:scale-[1.03] ${
+                      isBusiness ? 'object-contain p-4' : 'object-cover'
+                    }`}
+                    data-no-translate
+                  />
+                </button>
               ) : (
                 <div className="grid h-full w-full place-items-center text-ink-300 dark:text-cream-100/25">
                   {isBusiness ? <BuildingIcon /> : <PersonIcon />}

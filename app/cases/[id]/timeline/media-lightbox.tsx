@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { KindIcon } from '@/components/counsel/KindIcon';
 import { lockScroll } from '@/lib/scroll-lock';
 import { getTimelineMediaUrl } from '@/lib/timeline-actions';
 import type { TimelineMedia } from '@/lib/timeline-types';
@@ -90,7 +91,9 @@ export function MediaLightbox({
           <video src={url} controls autoPlay playsInline className="max-h-[70vh] w-full rounded-lg bg-black shadow-2xl" data-no-translate />
         ) : isAudio ? (
           <div className="w-full max-w-lg rounded-2xl border border-cream-50/10 bg-forest-900/60 p-6">
-            <div className="mb-4 text-center text-5xl">🎙️</div>
+            <div className="mb-4 flex justify-center text-cream-100/70">
+            <KindIcon kind="audio" className="h-10 w-10" />
+          </div>
             <audio src={url} controls autoPlay className="w-full" data-no-translate />
           </div>
         ) : isPdf ? (
