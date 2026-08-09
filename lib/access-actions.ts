@@ -16,7 +16,7 @@ import {
 } from './access-requests';
 
 export type AccessRequestOutcome =
-  | { ok: true; kind: 'internal' | 'external' | 'existing'; message: string }
+  | { ok: true; message: string }
   | { ok: false; error: string };
 
 function siteOrigin(): string {
@@ -24,6 +24,47 @@ function siteOrigin(): string {
     process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, '') ||
     'https://advottic.com'
   );
+}
+
+/**
+ * The one thing this action ever says on success.
+ *
+ * It used to answer differently depending on what it found: "You already have
+ * access" for a provisioned employee, "You're set" for a new internal one,
+ * "Your request is with their legal team" for an external one. Anybody could
+ * therefore type an address into a public form and be told whether that person
+ * already worked somewhere, one address at a time.
+ *
+ * The outcome is now the same sentence whoever asks, and the part that differs
+ * is sent to the address itself. Someone who owns the mailbox still learns
+ * exactly where they stand; someone who merely guessed at it learns nothing.
+ */
+function receivedMessage(firmName: string): string {
+  return `Thanks. If this address can join ${firmName}, we have just emailed it with what happens next. Check your inbox, and your spam folder if it is not there.`;
+}
+
+/**
+ * Tell the address itself what actually happened. Best-effort on purpose: the
+ * access request is already recorded by the time this runs, so a mail failure
+ * must not turn into a failed request. It is also the only channel that
+ * carries the detail now, so a send failure is worth a log line.
+ */
+async function emailTheAddress(args: {
+  to: string;
+  fromName: string;
+  subject: string;
+  html: string;
+}): Promise<void> {
+  try {
+    const sent = await sendEmail(args);
+    if (!sent.ok) {
+      console.error(
+        `[access-request] could not tell ${args.to} the outcome: ${sent.error}`,
+      );
+    }
+  } catch (e) {
+    console.error(`[access-request] could not tell ${args.to} the outcome:`, e);
+  }
 }
 
 /**
@@ -56,13 +97,17 @@ export async function requestWorkspaceAccessAction(
   }
 
   // This action is unauthenticated and emails the firm's admins, so cap
-  // it per IP to prevent it being used to spam a firm's owners.
+  // it per IP to prevent it being used to spam a firm's owners. failClosed
+  // because this is an abuse surface: without it, anyone who can make the
+  // rate-limit store error out is handed an uncapped bypass, and this is
+  // also the cap that makes walking a list of addresses impractical.
   const ip =
     headers().get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   if (
     !(await checkRateLimit(`access-request:${ip}`, {
       limit: 5,
       windowSeconds: 600,
+      failClosed: true,
     }))
   ) {
     return {
@@ -90,12 +135,13 @@ export async function requestWorkspaceAccessAction(
     .ilike('email', email)
     .maybeSingle();
   if (existingEmp && !(existingEmp as { deactivated_at: string | null }).deactivated_at) {
-    return {
-      ok: true,
-      kind: 'existing',
-      message:
-        'You already have access. Just sign in with this email to enter your hub.',
-    };
+    await emailTheAddress({
+      to: email,
+      fromName: firm.name,
+      subject: `You already have access to ${firm.name}`,
+      html: `<p>Someone asked to join <strong>${escape(firm.name)}</strong> with this address.</p><p>You already have access, so there is nothing to approve. Sign in with this address to open your hub: <a href="${siteOrigin()}/sign-in?next=/portal">${siteOrigin()}/sign-in</a></p><p>If this was not you, you can ignore this email. No change was made to your account.</p>`,
+    });
+    return { ok: true, message: receivedMessage(firm.name) };
   }
 
   const classification = classifyEmail(
@@ -118,11 +164,13 @@ export async function requestWorkspaceAccessAction(
         error: 'Could not set up your access. Please try again.',
       };
     }
-    return {
-      ok: true,
-      kind: 'internal',
-      message: `You're set. Sign in with ${email} to open your ${firm.name} hub.`,
-    };
+    await emailTheAddress({
+      to: email,
+      fromName: firm.name,
+      subject: `Your ${firm.name} access is ready`,
+      html: `<p>You are set up on <strong>${escape(firm.name)}</strong>.</p><p>Sign in with this address to open your hub: <a href="${siteOrigin()}/sign-in?next=/portal">${siteOrigin()}/sign-in</a></p>`,
+    });
+    return { ok: true, message: receivedMessage(firm.name) };
   }
 
   // External: queue for legal-admin approval. Idempotent - if a
@@ -136,11 +184,13 @@ export async function requestWorkspaceAccessAction(
     .eq('status', 'pending')
     .maybeSingle();
   if (existingReq) {
-    return {
-      ok: true,
-      kind: 'external',
-      message: `Your request to join ${firm.name} is already with their legal team for approval. You'll get an email when it's reviewed.`,
-    };
+    await emailTheAddress({
+      to: email,
+      fromName: firm.name,
+      subject: `Your request to join ${firm.name}`,
+      html: `<p>Your request to join <strong>${escape(firm.name)}</strong> is already with their legal team for approval.</p><p>You will get an email as soon as it has been reviewed. There is nothing else you need to do.</p>`,
+    });
+    return { ok: true, message: receivedMessage(firm.name) };
   }
   const { error: insErr } = await admin
     .from('firm_signup_requests')
@@ -152,11 +202,7 @@ export async function requestWorkspaceAccessAction(
       status: 'pending',
     });
   if (insErr) {
-    return {
-      ok: true,
-      kind: 'external',
-      message: `Your request to join ${firm.name} is with their legal team for approval. You'll get an email when it's reviewed.`,
-    };
+    return { ok: true, message: receivedMessage(firm.name) };
   }
 
   // Notify the firm's owners/admins (in-app + email). firm_members
@@ -207,11 +253,13 @@ export async function requestWorkspaceAccessAction(
     /* notification is best-effort; the request is already queued */
   }
 
-  return {
-    ok: true,
-    kind: 'external',
-    message: `Your request to join ${firm.name} has been sent to their legal team for approval. You'll get an email once it's reviewed.`,
-  };
+  await emailTheAddress({
+    to: email,
+    fromName: firm.name,
+    subject: `Your request to join ${firm.name}`,
+    html: `<p>Your request to join <strong>${escape(firm.name)}</strong> has been sent to their legal team for approval.</p><p>You will get an email once it has been reviewed. There is nothing else you need to do.</p>`,
+  });
+  return { ok: true, message: receivedMessage(firm.name) };
 }
 
 function escape(s: string): string {

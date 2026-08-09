@@ -22,6 +22,23 @@ import { sendEmail, buildSignInCodeEmailHtml } from './email';
  * fails, or the branded send fails - we return `{ fallback: true }` and the
  * client falls back to Supabase's own `signInWithOtp` (its plain email). So the
  * worst case is the old, unbranded-but-working email; the code path is additive.
+ *
+ * KNOWN, UNFIXED: `delivered` vs `fallback` is an account-existence oracle.
+ * `generateLink({ type: 'magiclink' })` only resolves for an account that
+ * already exists, so a caller who reads which of the two comes back learns
+ * whether an address is registered, one address at a time. The IP bucket below
+ * is what currently makes walking a list slow; it is a cap, not a fix.
+ *
+ * It is deliberately still here. The two outcomes are not cosmetic - they pick
+ * which of two different sends happens, and the fallback is the ONLY path that
+ * creates the account for a brand new user, via the browser's own
+ * `signInWithOtp({ shouldCreateUser: true })`. Collapsing them to one response
+ * means the server has to own both sends, which moves account creation and the
+ * magic link's PKCE verifier off the browser. That is a change to the signup
+ * funnel, it cannot be verified without a real Supabase project and a real
+ * mailbox, and getting it wrong breaks sign-in for every new user. See the
+ * branch report for the two candidate designs; this needs a decision, not a
+ * drive-by.
  */
 
 export type SignInCodeResult =
@@ -44,10 +61,25 @@ export async function requestSignInCode(rawEmail: string): Promise<SignInCodeRes
 
   // Throttle by email and by IP so this custom path can't be used to blast
   // codes at a mailbox. Generous enough for a real person retrying.
+  //
+  // failClosed on both buckets. This is the sign-in surface, so it is exactly
+  // the brute-force target the security-bucket mode in lib/rate-limit.ts
+  // exists for: an attacker who can make the store error out must not be
+  // handed an uncapped path to mint sign-in codes. The store being merely
+  // unconfigured still allows (see checkRateLimit), so local dev sign-in is
+  // unaffected.
   const ip = clientIp();
   const [emailOk, ipOk] = await Promise.all([
-    checkRateLimit(`auth:signin-code:email:${email}`, { limit: 4, windowSeconds: 300 }),
-    checkRateLimit(`auth:signin-code:ip:${ip}`, { limit: 12, windowSeconds: 300 }),
+    checkRateLimit(`auth:signin-code:email:${email}`, {
+      limit: 4,
+      windowSeconds: 300,
+      failClosed: true,
+    }),
+    checkRateLimit(`auth:signin-code:ip:${ip}`, {
+      limit: 12,
+      windowSeconds: 300,
+      failClosed: true,
+    }),
   ]);
   if (!emailOk || !ipOk) {
     return {

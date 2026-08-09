@@ -4,8 +4,12 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { requestWorkspaceAccessAction } from '@/lib/access-actions';
 
+// The success outcome carries no `kind` any more. It used to say whether the
+// address was already a member, newly provisioned, or queued for approval,
+// which told anyone who typed an address in whether that person was already
+// there. The detail now goes to the address itself by email.
 type Outcome =
-  | { ok: true; kind: 'internal' | 'external' | 'existing'; message: string }
+  | { ok: true; message: string }
   | { ok: false; error: string };
 
 export function JoinForm({
@@ -29,41 +33,20 @@ export function JoinForm({
   }
 
   if (result && result.ok) {
-    const isExternal = result.kind === 'external';
     return (
       <div className="space-y-4">
-        <div
-          className={`rounded-xl p-5 ring-1 ${
-            isExternal
-              ? 'ring-amber-700/40 bg-amber-950/25'
-              : 'ring-emerald-700/40 bg-emerald-950/25'
-          }`}
-        >
-          <p
-            className={`font-display text-lg ${
-              isExternal ? 'text-warn-text' : 'text-emerald-200'
-            }`}
-          >
-            {isExternal ? 'Request sent' : "You're all set"}
-          </p>
+        <div className="rounded-xl p-5 ring-1 ring-emerald-700/40 bg-emerald-950/25">
+          <p className="font-display text-lg text-emerald-200">Check your email</p>
           <p className="text-[13px] text-cream-100/80 mt-1.5 leading-relaxed">
             {result.message}
           </p>
         </div>
-        {!isExternal && (
-          <Link
-            href="/sign-in?next=/portal"
-            className="btn w-full bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold justify-center"
-          >
-            Sign in to your hub
+        <p className="text-[12px] text-cream-100/55 text-center">
+          Already have access?{' '}
+          <Link href="/sign-in?next=/portal" className="underline">
+            Sign in
           </Link>
-        )}
-        {isExternal && (
-          <p className="text-[12px] text-cream-100/55 text-center">
-            You can close this page - we&rsquo;ll email you the moment
-            it&rsquo;s reviewed.
-          </p>
-        )}
+        </p>
       </div>
     );
   }
