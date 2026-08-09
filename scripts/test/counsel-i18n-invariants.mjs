@@ -157,6 +157,9 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   'description',
   'helper',
   'hint',
+  // `blurb: string` on the four matter tiles (SectionPanel, the two NavTiles,
+  // ExportPacketTile). Every call site of all four passes a literal.
+  'blurb',
   // static-array .map() params
   'l',
   's',
@@ -176,10 +179,18 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   'it.detail',
   'c.name',
   'sec.section',
+  // CounselGuestNav's tab strip. The array is built in the component from
+  // four string literals; the Folders tab is CONDITIONAL on a fetched folder
+  // list but its label is still the literal 'Folders', never a folder name.
+  'it.label',
   // constant-map lookups (static enum -> UI label/hint maps)
   'STATUS_HINT[s]',
   'FIRM_ROLE_DESCRIPTION[r]',
   'FIRM_ROLE_LABEL[membership.role]',
+  'SCIM_STATE_LABEL[state]',
+  // a local whose every branch is a string literal
+  // (party-profile-card: isBusiness ? 'Entity' : isPerson ? 'Individual' : 'Subject')
+  'classification',
   // pluralization / choice ternaries whose branches are all string literals
   "emptyMessage ?? 'No requests here yet.'",
   "allDocs.length === 1 ? 'document' : 'documents'",
@@ -191,6 +202,9 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   "result.casesCreated === 1 ? 'matter' : 'matters'",
   "result.attachmentsCreated === 1 ? 'attachment' : 'attachments'",
   "failures.length === 1 ? 'failure - expand to inspect' : 'failures - expand to inspect'",
+  "e.attachments === 1 ? 'file' : 'files'",
+  "e.attachments === 1 ? 'attachment' : 'attachments'",
+  "isBusiness ? 'Opposing party (business)' : 'Opposing party'",
 ]);
 
 // Directories / files to scan for braced <T> wraps.
