@@ -34,6 +34,7 @@ import { MatterChatPanel } from './matter-chat-panel';
 import { CaseInvitePanel } from './case-invite-panel';
 import { LinkedProjectsPanel } from './linked-projects-panel';
 import { MatterFacts } from './matter-facts';
+import { NamingConventions } from './naming-conventions';
 import { CaseMenu } from '@/components/counsel/CaseMenu';
 import { EditMatterForm } from './edit-matter-form';
 import { listCaseImages } from '@/lib/case-images-actions';
@@ -245,7 +246,7 @@ export default async function CounselCaseDetailPage({
   const { data: caseRow } = await supabase
     .from('cases')
     .select(
-      'id, title, subject_name, subject_type, subject_profile, case_type, posture, status, jurisdiction_country, jurisdiction_state, jurisdiction_city, hearing_at, hearing_location, hearing_notes, description, firm_id, created_at, updated_at',
+      'id, title, subject_name, subject_type, subject_profile, case_type, posture, status, jurisdiction_country, jurisdiction_state, jurisdiction_city, hearing_at, hearing_location, hearing_notes, description, firm_id, created_at, updated_at, text_normalizations',
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -269,6 +270,7 @@ export default async function CounselCaseDetailPage({
     firm_id: string | null;
     created_at: string;
     updated_at: string;
+    text_normalizations: unknown;
   };
   if (c.firm_id !== ctx.firm.id) notFound();
 
@@ -590,6 +592,10 @@ export default async function CounselCaseDetailPage({
         hearingLocation={c.hearing_location}
         hearingNotes={c.hearing_notes}
       />
+
+      {/* Any wording this matter rewrites in generated text and exports, shown
+          before a document is produced rather than only inside it. */}
+      <NamingConventions rules={c.text_normalizations} />
 
       <div className="-mt-3">
         <EditMatterForm

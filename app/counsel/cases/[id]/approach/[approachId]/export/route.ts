@@ -310,6 +310,9 @@ export async function GET(
   };
 
   // Apply the matter's naming conventions (e.g. SH → STH) to all derived text.
+  // normalizeExhibitData records what it actually substituted on
+  // `normalizations`, and the renderer prints that in the Certification
+  // section, so this packet discloses its own wording changes.
   const normalized = normalizeExhibitData(data, toNormRules(c.text_normalizations));
   const pdf = await generateTimelineExhibitPdf(normalized);
   const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 50);

@@ -351,6 +351,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   // Apply the matter's naming conventions (e.g. SH → STH) to all derived text
   // so stored copy generated before the rule existed still renders correctly.
+  // normalizeExhibitData records what it actually substituted on
+  // `normalizations`, and the renderer prints that in the Certification
+  // section: this document is filed, so it has to disclose its own wording
+  // changes rather than carry them silently.
   const normalized = normalizeExhibitData(data, toNormRules(c.text_normalizations));
   const pdf = await generateTimelineExhibitPdf(normalized);
   const scopeSlug = sections && sections.length === 1 ? `-${sections[0]}` : '';

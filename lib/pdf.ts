@@ -1403,6 +1403,14 @@ export type TimelineExhibitData = {
     /** Forensic metadata pulled from the file (EXIF/GPS/device/authoring). */
     coreDetails: { label: string; value: string }[];
   }[];
+  /**
+   * The naming-convention substitutions that were actually applied to the text
+   * of this exhibit. Set by normalizeExhibitData(); it is not something a
+   * caller fills in. generateTimelineExhibitPdf() prints it in the
+   * Certification section, so a substitution can never reach a filed document
+   * without the document saying so.
+   */
+  normalizations?: NormRule[] | null;
 };
 
 /**
@@ -1413,11 +1421,27 @@ export type TimelineExhibitData = {
  * VERBATIM, since the exhibit must reproduce the original evidence unaltered.
  * This is the export-time guarantee that stored text generated before a rule
  * existed still renders in the correct form.
+ *
+ * The exhibit is offered as a true account of the record, so a substitution
+ * that nobody can see is a document-integrity problem, not a convenience. This
+ * function therefore records which rules actually changed something and hands
+ * that list back on `normalizations`, and the renderer discloses it. The
+ * tracking lives here, in the same function that performs the substitution, so
+ * the disclosure cannot drift away from what was done.
  */
 export function normalizeExhibitData(data: TimelineExhibitData, rules: NormRule[]): TimelineExhibitData {
   if (!rules.length) return data;
-  const s = <T extends string | null | undefined>(t: T): T =>
-    (typeof t === 'string' ? (normalizeString(t, rules) as T) : t);
+  const applied = new Set<number>();
+  const s = <T extends string | null | undefined>(t: T): T => {
+    if (typeof t !== 'string') return t;
+    let out: string = t;
+    rules.forEach((rule, i) => {
+      const next = normalizeString(out, [rule]);
+      if (next !== out) applied.add(i);
+      out = next;
+    });
+    return out as T;
+  };
   return {
     ...data,
     caseTitle: s(data.caseTitle),
@@ -1428,13 +1452,22 @@ export function normalizeExhibitData(data: TimelineExhibitData, rules: NormRule[
     narrativeTimeline: data.narrativeTimeline
       ? data.narrativeTimeline.map((t) => ({ when: s(t.when), title: s(t.title), significance: s(t.significance) }))
       : data.narrativeTimeline,
-    entities: data.entities.map((e) => ({
-      ...e,
-      name: s(e.name),
-      roleLabel: s(e.roleLabel),
-      aliases: e.aliases.map((a) => s(a)),
-      notes: s(e.notes),
-    })),
+    entities: data.entities.map((e) => {
+      // A rule that rewrites the party's name usually rewrites its own alias
+      // too ("S.H." and "SH" both become "STH"), and the profile then reads
+      // "STH a.k.a. STH" on the page. An alias identical to the name is not an
+      // alias, so drop the collapsed duplicates rather than print them.
+      const name = s(e.name);
+      const seen = new Set<string>([name]);
+      const aliases: string[] = [];
+      for (const a of e.aliases) {
+        const v = s(a);
+        if (!v || seen.has(v)) continue;
+        seen.add(v);
+        aliases.push(v);
+      }
+      return { ...e, name, roleLabel: s(e.roleLabel), aliases, notes: s(e.notes) };
+    }),
     entries: data.entries.map((en) => ({
       ...en,
       title: s(en.title),
@@ -1444,6 +1477,10 @@ export function normalizeExhibitData(data: TimelineExhibitData, rules: NormRule[
       people: en.people.map((p) => s(p)),
       // exhibits (reproduced source files) are left verbatim
     })),
+    // Only the rules that changed something are disclosed. A rule that matched
+    // nothing produced no substitution in this document, and naming it would
+    // describe the exhibit inaccurately.
+    normalizations: rules.filter((_, i) => applied.has(i)),
   };
 }
 
@@ -1887,6 +1924,16 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         body(doc, `This exhibit was assembled from ${input.entries.length} catalogued item(s) and ${totalExhibits} source file(s) submitted in connection with the above matter, and was prepared using counsel case-management software. Each file reproduced or referenced herein is identified by its original filename, media type, byte size, and a SHA-256 cryptographic digest computed at the time of intake. A digest that matches the original file establishes that the file has not been altered since it was catalogued.`);
         gap(doc, 8);
         body(doc, 'Items are numbered sequentially and every page carries a unique Bates-style identifier. Any description, transcription, or observation provided as a summary is included for organisational assistance only, and must be independently verified by counsel.');
+        // A reader must be able to establish what this document says about
+        // itself. Where the matter's naming conventions rewrote wording, the
+        // exhibit states the substitutions it contains, so nothing is changed
+        // silently on a record offered as a true account.
+        const subs = input.normalizations ?? [];
+        if (subs.length) {
+          gap(doc, 8);
+          const list = subs.map((r) => `"${r.from}" is written as "${r.to}"`).join('; ');
+          body(doc, `Naming conventions. This matter records substitutions that are applied to the descriptive text of this exhibit so terminology stays consistent across the record: ${list}. The substitutions apply only to the descriptions, summaries, party details and narrative written in this exhibit. Source files reproduced or referenced herein, including their filenames and their SHA-256 digests, are unaltered.`);
+        }
         gap(doc, 18);
         doc.save().moveTo(MARGIN, doc.y).lineTo(MARGIN + 56, doc.y).lineWidth(2.5).stroke(COLOR.amber).restore();
         gap(doc, 12);
