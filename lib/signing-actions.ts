@@ -189,7 +189,13 @@ export async function reopenSigningRequestAction(
           userId: r.signer_user_id as string,
           type: 'system',
           title: `${ctx.firm.name} reopened a document for your signature`,
-          body: 'A revised version is ready. Your signing link is active again.',
+          // Not "a revised version is ready", which this notice used to say
+          // and which was never true: reopening does not touch the request's
+          // document_id, and nothing in this product replaces the file behind
+          // a request. Telling a signer who objected that their objection was
+          // answered, and then handing them the identical document, is the
+          // defect. See the banner copy on /counsel/signing/[id].
+          body: 'Your signing link is active again. The document has not changed.',
         }).catch(() => null),
       ),
   );

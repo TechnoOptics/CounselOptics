@@ -170,13 +170,25 @@ export default async function SigningRequestDetail({
               <T>A signer asked for changes.</T>
             )}
           </p>
+          {/* WHY THIS SAYS "THE SAME DOCUMENT".
+              It used to say reopening "sends the revised document". There is
+              no document-replacement path anywhere in this product: a signing
+              request holds one document_id, reopening does not touch it, and
+              firm_documents.version is written as the literal 1 by every
+              insert and incremented by nothing. So the signer who objected was
+              sent the identical file with no explanation.
+              Nor is the claim one to build behind: a signature is evidence
+              about a particular set of bytes, which is what the audit chain
+              hashes, so a request cannot swap its file and keep the signatures
+              made on the old one. Revising means a fresh request, and that is
+              what this says. */}
           <p className="mt-1 text-foreground">
             {status === 'canceled' ? (
               <T>Its sign links no longer work. Send a new request from Documents when the document is ready.</T>
             ) : status === 'rejected' ? (
-              <T>Read their note below. Reopening sends the revised document without losing signatures already collected; a fresh request starts over.</T>
+              <T>Read their note below. Reopening makes their link work again and puts the same document in front of them; anyone who already signed stays signed. The file on a request cannot be swapped, so if the document itself has to change, send a fresh request from Documents with the revised one.</T>
             ) : (
-              <T>Read their note below. Reopening puts the document back out for signature and anyone who already signed stays signed; a fresh request starts over.</T>
+              <T>Read their note below. Reopening makes their link work again and puts the same document in front of them; anyone who already signed stays signed. The file on a request cannot be swapped, so if the changes they asked for are changes to the document, send a fresh request from Documents with the revised one.</T>
             )}
           </p>
         </section>

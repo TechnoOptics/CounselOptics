@@ -207,6 +207,89 @@ export async function guestCanReadCase(
   return true;
 }
 
+/** Where a co-counsel guest whose access has been cut lands. */
+export const GUEST_ACCESS_ENDED_PATH = '/counsel/guest/access-ended';
+
+/** What is known about an outside attorney whose access has ended. */
+export type EndedGuestAccess = {
+  firmId: string;
+  firmName: string | null;
+  endedAt: string;
+};
+
+/**
+ * The person who WAS a co-counsel guest and is not one any more.
+ *
+ * resolveGuestContextForUser fails closed on a deactivated identity, which is
+ * correct and is not in question here. What was missing is what happens NEXT:
+ * with no firm membership and no guest context, app/counsel/layout.tsx sent
+ * them to /counsel/request, which opens "Counsel is invitation only" and asks
+ * them to tell us about their team. Somebody who was working a matter
+ * yesterday was shown a pitch, and nowhere on it said their access had ended.
+ * The revocation is right; the destination and the silence were not.
+ *
+ * WHAT THIS CAN AND CANNOT SEE. A FIRM-PROVISIONED guest leaves a record
+ * behind: firm_guest_accounts.deactivated_at, which is exactly what was just
+ * written. An EMAIL-INVITED guest does not: removing them deletes the
+ * case_collaborators row and nothing anywhere remembers they were ever on the
+ * matter, so they are indistinguishable from any other signed-in stranger and
+ * still land on /counsel/request. Saying so is better than guessing, and
+ * guessing here would mean telling a genuine applicant that access they never
+ * had has ended.
+ *
+ * Returns null for a firm member, an active guest, and anyone with no
+ * provisioned identity at all.
+ */
+export async function resolveEndedGuestAccess(
+  user: User,
+): Promise<EndedGuestAccess | null> {
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+
+  // A firm member is not a guest, ended or otherwise.
+  const { data: memberRow } = await admin
+    .from('firm_members')
+    .select('id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+  if (memberRow) return null;
+
+  const { data: guestRow } = await admin
+    .from('firm_guest_accounts')
+    .select('firm_id, deactivated_at')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const guest = guestRow as
+    | { firm_id: string; deactivated_at: string | null }
+    | null;
+  if (!guest || !guest.deactivated_at) return null;
+
+  const firm = await getFirmByIdAdmin(guest.firm_id).catch(() => null);
+  return {
+    firmId: guest.firm_id,
+    firmName: firm?.name ?? null,
+    endedAt: guest.deactivated_at,
+  };
+}
+
+/**
+ * Where the counsel layout sends a signed-in user who belongs to no firm.
+ *
+ * A pure-ish decision with one lookup, kept here rather than inline in the
+ * layout so it can be tested directly: the layout is a server component that
+ * cannot be called without a request.
+ */
+export async function counselNoMembershipDestination(
+  user: User,
+  pathname: string,
+): Promise<string | null> {
+  // An invitation is the one thing a non-member is allowed to open.
+  if (pathname === '/counsel/accept-invite') return null;
+  const ended = await resolveEndedGuestAccess(user);
+  return ended ? GUEST_ACCESS_ENDED_PATH : '/counsel/request';
+}
+
 /** Where to send a guest who hit a path they may not reach. */
 export function guestFallbackPath(guest: GuestContext): string {
   if (guest.mustChangePassword) return '/counsel/guest/password';

@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getActiveFirmContext, listFirmCases } from '@/lib/firm-storage';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { TimerWidget } from '@/components/TimerWidget';
+import { AssignMatter } from './assign-matter';
 import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import {
@@ -40,6 +41,13 @@ export default async function CounselTimePage() {
 
   const supabase = createServerSupabase();
   const openTimer = await listOpenTimer(ctx.firm.id);
+  // The matters a timer can be started on, and the ones an orphaned entry can
+  // be moved onto. Time that names no matter cannot go on any invoice, so this
+  // page cannot offer a timer without them.
+  const caseOptions = (await listFirmCases(ctx.firm.id)).map((c) => ({
+    id: c.id,
+    title: c.title,
+  }));
 
   const { data: entriesRaw } = await supabase
     .from('firm_time_entries')
@@ -94,10 +102,17 @@ export default async function CounselTimePage() {
         title={<T>Time entries</T>}
         subtitle={
           <T>Every billable and non-billable minute logged across the firm.
-          Start a timer from the case page and it lands here. Unbilled
-          entries roll up into invoices on the billing tab.</T>
+          Start a timer here or from a matter, and pick the matter it belongs
+          to: an invoice is drawn from one matter&rsquo;s unbilled time, so time
+          with no matter on it cannot be billed.</T>
         }
-        action={<TimerWidget firmId={ctx.firm.id} initial={openTimer} />}
+        action={
+          <TimerWidget
+            firmId={ctx.firm.id}
+            initial={openTimer}
+            cases={caseOptions}
+          />
+        }
       />
 
       <section className="grid gap-3 sm:grid-cols-4">
@@ -199,6 +214,16 @@ export default async function CounselTimePage() {
                           <MonoRef title={e.case_id}>
                             {e.case_id.slice(0, 8)}
                           </MonoRef>
+                        ) : !e.invoice_id &&
+                          e.user_id === user.id &&
+                          caseOptions.length > 0 ? (
+                          // The recovery control, and only where it would
+                          // work: the reader's own entry, not yet invoiced.
+                          <AssignMatter
+                            firmId={ctx.firm.id}
+                            entryId={e.id}
+                            cases={caseOptions}
+                          />
                         ) : (
                           <span className="text-[12px] text-muted">
                             <T>None</T>

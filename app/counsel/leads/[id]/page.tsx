@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmLeadForFirm } from '@/lib/marketplace-storage';
 import { LeadResponseForm } from './lead-response-form';
+import { OpenMatterButton } from './open-matter-button';
 import { PageHeader } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import {
@@ -169,6 +170,16 @@ export default async function FirmLeadDetailPage({
                   Reach out within 24 hours. The consumer is expecting you.
                 </T>
               </p>
+              {/* The exit. Only drawn when the lead-to-matter link can be
+                  read, because without it a second press would open a second
+                  matter under the same person's name. */}
+              {lead.caseLink.supported && (
+                <OpenMatterButton
+                  firmId={ctx.firm.id}
+                  leadId={lead.id}
+                  caseId={lead.caseLink.caseId}
+                />
+              )}
             </PanelCard>
           ) : lead.firmResponse ? (
             <PanelCard title={<T>Your response</T>}>

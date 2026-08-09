@@ -3,7 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { callerIsFirmAdmin, requireActiveFirm } from './firm-authz';
+import {
+  FIRM_POSTING_ROLES,
+  callerHasFirmRole,
+  callerIsFirmAdmin,
+  requireActiveFirm,
+} from './firm-authz';
 import { isStorableRateCents, rateRangeError } from './billing-rates';
 
 export type TimeEntry = {
@@ -207,6 +212,28 @@ export async function listFirmMemberRatesAction(
 }
 
 /**
+ * WHY A TIME ENTRY MUST NAME A MATTER
+ *
+ * buildDraftInvoiceAction bills one matter at a time: it takes a caseId and
+ * filters `.eq('case_id', caseId)`. So an entry with no matter on it can never
+ * appear on any invoice. It was still counted in the "Unbilled" figure on
+ * /counsel/time, and skipped by "Ready to invoice" on /counsel/billing, which
+ * groups by case and drops the ones with none. The hours were logged, priced,
+ * shown as owed, and unbillable, with no control anywhere to correct one.
+ *
+ * /counsel/time mounted the timer with no matter at all, so every timer started
+ * from that page produced exactly that entry.
+ *
+ * Both halves are fixed, and both are needed. Requiring a matter at the point
+ * the timer starts stops new ones being made; it does nothing for the hours
+ * already on the books, which is what assignTimeEntryToCaseAction below is for.
+ * A refusal to start is a visible inconvenience; an entry that silently cannot
+ * be billed is lost revenue nobody notices.
+ */
+const NO_MATTER_ERROR =
+  'Pick the matter this time belongs to. Time with no matter on it cannot be put on an invoice.';
+
+/**
  * Start a timer for the current user. The timer stays open
  * (ended_at = null) until stopTimer or any subsequent startTimer
  * implicitly closes it - we enforce one open timer per user per
@@ -223,6 +250,9 @@ export async function startTimerAction(
 ): Promise<{ ok: boolean; error?: string; entryId?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  // Before anything is written. Bella reaches this too, and a refusal that
+  // names the missing fact is a better answer than an hour it cannot bill.
+  if (!opts.caseId) return { ok: false, error: NO_MATTER_ERROR };
   const supabase = createServerSupabase();
   const { data: member } = await supabase
     .from('firm_members')
@@ -321,6 +351,9 @@ export async function logManualEntryAction(
 ): Promise<{ ok: boolean; error?: string; entryId?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  // Same requirement as the timer, for the same reason: this is the other way
+  // an entry gets into the ledger, and one without a matter cannot be billed.
+  if (!input.caseId) return { ok: false, error: NO_MATTER_ERROR };
   // A back-filled entry must be a positive whole number of seconds, capped at
   // 24h, which guards against a negative/absurd duration inflating an invoice.
   const dur = input.durationSeconds;
@@ -361,6 +394,85 @@ export async function logManualEntryAction(
   }
   revalidatePath('/counsel');
   return { ok: true, entryId: (data as { id: string }).id };
+}
+
+/**
+ * Put an existing entry that has no matter onto one, so it can be invoiced.
+ *
+ * This is the recovery half of the fix above: every hour logged before the
+ * timer required a matter is sitting in the ledger priced and unbillable, and
+ * there was no edit or delete control anywhere to correct one.
+ *
+ * SCOPE, deliberately narrow on three axes.
+ *
+ * Only entries with NO matter. Moving an entry BETWEEN matters is a different
+ * change with a different risk (the matter it leaves has already been shown to
+ * a client as its unbilled figure), and nothing here needs it.
+ *
+ * Only entries not yet on an invoice. An entry claimed by an invoice was
+ * already summed into that invoice's subtotal; moving it would leave the
+ * invoice disagreeing with its own lines, on a document that may already have
+ * been sent. Same reason the rate re-stamp carries `.is('invoice_id', null)`.
+ *
+ * Only the person whose entry it is. The firm_time_entries write policy is
+ * self-scoped (user_id = auth.uid()), so this runs on the caller's own
+ * RLS-scoped client and needs no service-role client and no second
+ * authorization axis. The cost is that an admin cannot fix a colleague's
+ * entry; the colleague can, and inventing an admin path here would mean
+ * writing past RLS for a convenience.
+ */
+export async function assignTimeEntryToCaseAction(
+  firmId: string,
+  entryId: string,
+  caseId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  if (!firmId || !entryId || !caseId) {
+    return { ok: false, error: 'That entry could not be found.' };
+  }
+  if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+    return { ok: false, error: 'Your role cannot change time entries.' };
+  }
+  await requireActiveFirm(firmId);
+
+  const supabase = createServerSupabase();
+  // The matter has to be this organization's, checked against the row rather
+  // than against anything the caller passed alongside it.
+  const { data: matter } = await supabase
+    .from('cases')
+    .select('id')
+    .eq('id', caseId)
+    .eq('firm_id', firmId)
+    .maybeSingle();
+  if (!matter) {
+    return { ok: false, error: 'That matter is not one of this organization’s.' };
+  }
+
+  const { data: updated, error } = await supabase
+    .from('firm_time_entries')
+    .update({ case_id: caseId })
+    .eq('id', entryId)
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .is('case_id', null)
+    .is('invoice_id', null)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  // PostgREST reports no error when an UPDATE matches nothing, so the row
+  // count is the only evidence that anything moved.
+  if (((updated ?? []) as unknown[]).length === 0) {
+    return {
+      ok: false,
+      error:
+        'That entry was not moved. It may already be on an invoice, already be on a matter, or belong to someone else.',
+    };
+  }
+
+  revalidatePath('/counsel/time');
+  revalidatePath('/counsel/billing');
+  revalidatePath(`/counsel/cases/${caseId}`);
+  return { ok: true };
 }
 
 async function syncOpenDurations(firmId: string, userId: string) {

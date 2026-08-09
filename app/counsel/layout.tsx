@@ -24,6 +24,8 @@ import { getCounselTheme } from '@/lib/counsel-theme';
 import { counselShellClass } from '@/lib/counsel-theme-values';
 import { accentOn } from '@/lib/accent-text';
 import {
+  GUEST_ACCESS_ENDED_PATH,
+  counselNoMembershipDestination,
   getGuestContext,
   guestPathAllowed,
   guestFallbackPath,
@@ -111,7 +113,12 @@ export default async function CounselLayout({
   const isSelfShelledCounselRoute =
     pathname === '/counsel/request' ||
     pathname === '/counsel/welcome' ||
-    pathname === '/counsel/access-ended';
+    pathname === '/counsel/access-ended' ||
+    // Same load-bearing reason as /counsel/access-ended: the page a person is
+    // sent to when their access ended must sit outside the gates that sent
+    // them, or it redirects to itself. It resolves its own user and turns
+    // anyone who still has access away.
+    pathname === GUEST_ACCESS_ENDED_PATH;
   if (isSelfShelledCounselRoute) return <>{children}</>;
 
   // Phase 2 white-label: middleware injects tenant headers when the
@@ -278,8 +285,13 @@ export default async function CounselLayout({
     }
   }
 
-  if (myFirms.length === 0 && pathname !== '/counsel/accept-invite') {
-    redirect('/counsel/request');
+  // No firm membership. Where that goes depends on who they are: an outside
+  // attorney whose access was just cut is not an applicant, and used to be
+  // handed the invitation-only pitch with nothing on it saying their access
+  // had ended. counselNoMembershipDestination holds that decision.
+  if (myFirms.length === 0) {
+    const destination = await counselNoMembershipDestination(user, pathname);
+    if (destination) redirect(destination);
   }
 
   // On a tenant subdomain, the firm context is dictated by the URL,

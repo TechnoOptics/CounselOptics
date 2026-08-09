@@ -1,5 +1,37 @@
 import { createAdminSupabase } from './supabase/admin';
 
+type AdminClient = NonNullable<ReturnType<typeof createAdminSupabase>>;
+
+/**
+ * The matter a lead was opened into, when that link can be read at all.
+ *
+ * `supported: false` means the `firm_leads.case_id` column is not on this
+ * deployment yet (the migration that adds it is applied by the owner). It is
+ * kept apart from "no matter yet" on purpose: without the column there is no
+ * way to tell a first conversion from a fifth, so the surface hides the
+ * control rather than offering one that would open a duplicate matter every
+ * time it is pressed.
+ */
+export type LeadCaseLink =
+  | { supported: true; caseId: string | null }
+  | { supported: false };
+
+export async function readLeadCaseLink(
+  admin: AdminClient,
+  leadId: string,
+): Promise<LeadCaseLink> {
+  const { data, error } = await admin
+    .from('firm_leads')
+    .select('case_id')
+    .eq('id', leadId)
+    .maybeSingle();
+  if (error) return { supported: false };
+  return {
+    supported: true,
+    caseId: (data as { case_id?: string | null } | null)?.case_id ?? null,
+  };
+}
+
 export type FirmLeadForFirm = {
   id: string;
   contactNameMasked: string;
@@ -23,6 +55,8 @@ export type FirmLeadForFirm = {
   contactEmail?: string | null;
   contactPhone?: string | null;
   contactName?: string | null;
+  /** The matter this lead was opened into, when the link can be read. */
+  caseLink: LeadCaseLink;
 };
 
 /** The routing inputs a firm advertises: where it practises, and in what. */
@@ -40,6 +74,10 @@ type LeadRouting = {
 /**
  * The lead statuses a firm may still see, and therefore still act on.
  * A closed or withdrawn lead has left the marketplace for everyone.
+ *
+ * "Everyone" excludes the one firm the consumer actually chose: see
+ * listFirmLeadsForFirm, which unions this set with the leads that firm was
+ * accepted on, because accepting is itself what closes a lead.
  */
 const ANSWERABLE_LEAD_STATUSES: readonly string[] = ['open', 'matched'];
 
@@ -138,6 +176,21 @@ export async function routedLeadForFirm(
  * the firm's "interested" response, the contact channels stay
  * masked - the firm sees enough to decide whether to take the
  * matter, no more.
+ *
+ * Which leads are on offer is decided by leadIsRoutedToFirm, the same
+ * predicate the response gate in lib/marketplace-actions.ts calls, so what a
+ * firm can see here and what it can answer there cannot come apart.
+ *
+ * A lead this firm has been ACCEPTED on is read back too, and that is not a
+ * widening of what the firm may see. Accepting is what reveals the contact
+ * details in the first place, and acceptFirmAction closes the lead in the same
+ * breath: it writes `firm_leads.status = 'closed'`. So the status filter below
+ * used to drop every accepted lead, which meant the "Contact details unlocked"
+ * panel could never render and the "Lead accepted you - open the lead" notice
+ * the same action sends firm members pointed at a page that answered 404. The
+ * jurisdiction and practice-area match is skipped for those leads for the same
+ * reason: the relationship already exists, and a firm that has since edited its
+ * practice areas must not lose the client it was chosen by.
  */
 export async function listFirmLeadsForFirm(
   firmId: string,
@@ -156,39 +209,12 @@ export async function listFirmLeadsForFirm(
   const firm = firmRow as FirmRouting | null;
   if (!firm) return [];
 
-  // Leads in any of the firm's states.
-  const { data: leadsRaw } = await admin
-    .from('firm_leads')
-    .select(
-      'id, contact_name, contact_email, contact_phone, jurisdiction_state, practice_areas, summary, budget, urgency, status, created_at',
-    )
-    .in('status', [...ANSWERABLE_LEAD_STATUSES])
-    .order('created_at', { ascending: false });
-  const leads = ((leadsRaw ?? []) as Array<{
-    id: string;
-    contact_name: string;
-    contact_email: string;
-    contact_phone: string | null;
-    jurisdiction_state: string | null;
-    practice_areas: string[] | null;
-    summary: string;
-    budget: string | null;
-    urgency: string | null;
-    status: string;
-    created_at: string;
-  }>).filter((l) => leadIsRoutedToFirm(firm, l));
-
-  if (leads.length === 0) return [];
-
-  // Pull responses this firm has made.
+  // Responses this firm has made, read FIRST because the accepted ones decide
+  // which leads are readable at all.
   const { data: respRaw } = await admin
     .from('firm_lead_responses')
     .select('lead_id, response_type, proposed_fee, message, created_at')
-    .eq('firm_id', firmId)
-    .in(
-      'lead_id',
-      leads.map((l) => l.id),
-    );
+    .eq('firm_id', firmId);
   const respMap = new Map<
     string,
     {
@@ -206,6 +232,72 @@ export async function listFirmLeadsForFirm(
     created_at: string;
   }>) {
     respMap.set(r.lead_id, r);
+  }
+  const acceptedLeadIds = Array.from(respMap.entries())
+    .filter(([, r]) => r.response_type === 'accepted')
+    .map(([leadId]) => leadId);
+
+  type LeadRow = {
+    id: string;
+    contact_name: string;
+    contact_email: string;
+    contact_phone: string | null;
+    jurisdiction_state: string | null;
+    practice_areas: string[] | null;
+    summary: string;
+    budget: string | null;
+    urgency: string | null;
+    status: string;
+    created_at: string;
+  };
+  const LEAD_COLUMNS =
+    'id, contact_name, contact_email, contact_phone, jurisdiction_state, practice_areas, summary, budget, urgency, status, created_at';
+
+  // Leads in any of the firm's states.
+  const { data: leadsRaw } = await admin
+    .from('firm_leads')
+    .select(LEAD_COLUMNS)
+    .in('status', [...ANSWERABLE_LEAD_STATUSES])
+    .order('created_at', { ascending: false });
+  const matched = ((leadsRaw ?? []) as LeadRow[]).filter((l) =>
+    leadIsRoutedToFirm(firm, l),
+  );
+
+  // The leads this firm was chosen on, whatever their status now is.
+  let acceptedLeads: LeadRow[] = [];
+  if (acceptedLeadIds.length > 0) {
+    const { data: acceptedRaw } = await admin
+      .from('firm_leads')
+      .select(LEAD_COLUMNS)
+      .in('id', acceptedLeadIds)
+      .order('created_at', { ascending: false });
+    acceptedLeads = (acceptedRaw ?? []) as LeadRow[];
+  }
+
+  const byId = new Map<string, LeadRow>();
+  for (const l of [...matched, ...acceptedLeads]) byId.set(l.id, l);
+  const leads = Array.from(byId.values()).sort(
+    (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
+  );
+
+  if (leads.length === 0) return [];
+
+  // Which of these have already been opened into a matter. One query for the
+  // whole page, and tolerant of the column not existing yet (see LeadCaseLink).
+  const { data: linkRaw, error: linkError } = await admin
+    .from('firm_leads')
+    .select('id, case_id')
+    .in(
+      'id',
+      leads.map((l) => l.id),
+    );
+  const linkSupported = !linkError;
+  const linkMap = new Map<string, string | null>();
+  for (const row of (linkRaw ?? []) as Array<{
+    id: string;
+    case_id: string | null;
+  }>) {
+    linkMap.set(row.id, row.case_id ?? null);
   }
 
   return leads.map((l) => {
@@ -233,6 +325,9 @@ export async function listFirmLeadsForFirm(
       contactEmail: accepted ? l.contact_email : null,
       contactPhone: accepted ? l.contact_phone : null,
       contactName: accepted ? l.contact_name : null,
+      caseLink: linkSupported
+        ? { supported: true, caseId: linkMap.get(l.id) ?? null }
+        : { supported: false },
     };
   });
 }
