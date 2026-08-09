@@ -5,6 +5,7 @@ import { createAdminSupabase } from './supabase/admin';
 import { createNotification } from './notifications';
 import { sendEmail, buildIntakeActivityEmailHtml } from './email';
 import { portalStatusLabel } from './portal-status';
+import { intakeTitle } from './intake-request';
 import {
   ticketRef,
   type IntakeAttachment,
@@ -146,14 +147,9 @@ export function siteUrl(): string {
   return (process.env.NEXT_PUBLIC_SITE_URL || 'https://advottic.com').trim().replace(/\/+$/, '');
 }
 
+/** One rule for what a request is called; see lib/intake-request.ts. */
 export function ticketTitle(intake: IntakeRow): string {
-  const answers = (intake.intake_answers ?? {}) as Record<string, unknown>;
-  return (
-    String(answers.subject ?? '').trim() ||
-    (intake.matter_type ?? '').trim() ||
-    (intake.client_name ?? '').trim() ||
-    'Legal request'
-  );
+  return intakeTitle(intake);
 }
 
 /**
