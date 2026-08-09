@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SectionPhoto } from '@/components/marketing/SectionPhoto';
 
 /**
  * Top-of-home-page audience selector. Two big captivating cards:
@@ -111,6 +112,17 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
       )}
 
       <div className="relative z-10">
+        {/* One photograph per audience, above the pitch rather than behind
+            it. The card already carries a gold halo and a glowing strip;
+            a picture underneath the type would fight both and could not be
+            held to a contrast floor. */}
+        <SectionPhoto
+          src={config.photo.src}
+          alt={config.photo.alt}
+          aspect="aspect-[16/7]"
+          sizes="(min-width: 1024px) 42vw, 92vw"
+          className="mb-6"
+        />
         <div className="flex items-center justify-between mb-5">
           <p
             className={`inline-flex items-center gap-2.5 text-[10px] tracking-[0.28em] uppercase font-semibold ${
@@ -272,6 +284,10 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
 }
 
 const PERSONAL = {
+  photo: {
+    src: '/marketing/person-working-at-laptop.webp',
+    alt: 'A woman working at a laptop on the counter of the cafe she runs.',
+  },
   eyebrow: 'For one person',
   headline: "When it's just you, your evidence, and the date on the calendar.",
   subhead:
@@ -293,6 +309,10 @@ const PERSONAL = {
 };
 
 const ENTERPRISE = {
+  photo: {
+    src: '/marketing/people-reviewing-documents.webp',
+    alt: 'Three colleagues around a table, reading through printed documents together.',
+  },
   eyebrow: 'For firms, in-house, counsel',
   headline: 'Run every matter through one calm, secure, audited surface.',
   subhead:

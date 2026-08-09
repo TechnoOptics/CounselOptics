@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SectionPhoto } from '@/components/marketing/SectionPhoto';
 
 /**
  * Compact "What Advottic is, and isn't" section. Mirrors the role
@@ -16,7 +17,19 @@ import Link from 'next/link';
  *   - `dark`: forest hero background with gold accents, suits a
  *     focal moment (e.g. final CTA section, welcome page).
  */
-export function AboutTeaser({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
+export function AboutTeaser({
+  tone = 'light',
+  photo,
+}: {
+  tone?: 'light' | 'dark';
+  /**
+   * Optional. This component is mounted on the marketing home AND on the
+   * welcome page, so the picture is opt-in per surface rather than
+   * assumed: a reader who has just signed up does not need a stock
+   * photograph between them and the product.
+   */
+  photo?: { src: string; alt: string };
+}) {
   const isDark = tone === 'dark';
   return (
     <section
@@ -37,6 +50,16 @@ export function AboutTeaser({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
         className={`hero-orb hero-orb--cream ${isDark ? 'opacity-30' : 'opacity-15'} hero-orb--b`}
         style={{ width: 180, height: 180, left: '-40px', bottom: '-80px' }}
       />
+
+      {photo && (
+        <SectionPhoto
+          src={photo.src}
+          alt={photo.alt}
+          aspect="aspect-[21/7]"
+          sizes="(min-width: 1280px) 1100px, (min-width: 1024px) 68vw, 92vw"
+          className="relative max-w-3xl mx-auto mb-10"
+        />
+      )}
 
       <div className="relative max-w-3xl mx-auto text-center">
         <p
