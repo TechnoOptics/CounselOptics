@@ -1,4 +1,6 @@
 import { createServerSupabase } from './supabase/server';
+import { createAdminSupabase } from './supabase/admin';
+import { callerIsFirmMember } from './firm-authz';
 import { isIntakeOpen } from './intake-lanes';
 
 /**
@@ -82,6 +84,42 @@ function avgDays(pairs: Array<[string | null, string | null]>): number | null {
   return spans.reduce((s, n) => s + n, 0) / spans.length;
 }
 
+/**
+ * The firm's meetings, read with the SERVICE-ROLE client behind an explicit
+ * membership check.
+ *
+ * Every other read in getFirmAnalytics goes through the user-scoped client,
+ * and for every other table that is correct. firm_meetings is different: it
+ * has RLS enabled and no policies at all, so a user-scoped select on it
+ * returns an empty set for every caller and every firm, with no error. The
+ * counts below would then read zero for a firm with a full calendar, and
+ * nothing would say so. Every other reader and writer of this table already
+ * uses the service-role client, so service-role is the table's design and the
+ * user-scoped read here was the bug.
+ *
+ * The membership check is NOT redundant with the caller's own gate. `firmId`
+ * is an argument. Until now RLS was the backstop if a caller ever passed one
+ * that was not theirs; once this read bypasses RLS, this check is the only
+ * thing left, so it goes in front of the query rather than beside it. It is
+ * lib/firm-authz.ts, the one firm authorization axis, not a second one.
+ *
+ * A caller who is not a member gets an empty list, which is exactly what they
+ * got before, so no surface changes shape on the refusal path.
+ */
+async function readFirmMeetings(
+  firmId: string,
+): Promise<Array<{ start_at: string }>> {
+  if (!(await callerIsFirmMember(firmId))) return [];
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+  const { data } = await admin
+    .from('firm_meetings')
+    .select('start_at')
+    .eq('firm_id', firmId)
+    .limit(5000);
+  return (data ?? []) as Array<{ start_at: string }>;
+}
+
 export async function getFirmAnalytics(firmId: string): Promise<FirmAnalytics> {
   const supabase = createServerSupabase();
   const now = new Date();
@@ -94,7 +132,7 @@ export async function getFirmAnalytics(firmId: string): Promise<FirmAnalytics> {
     signingRes,
     documentsRes,
     casesRes,
-    meetingsRes,
+    meetingRows,
     invoicesRes,
     trustRes,
     membersRes,
@@ -112,7 +150,7 @@ export async function getFirmAnalytics(firmId: string): Promise<FirmAnalytics> {
       .limit(5000),
     supabase.from('firm_documents').select('status').eq('firm_id', firmId).limit(5000),
     supabase.from('cases').select('status').eq('firm_id', firmId).limit(5000),
-    supabase.from('firm_meetings').select('start_at').eq('firm_id', firmId).limit(5000),
+    readFirmMeetings(firmId),
     supabase
       .from('firm_invoices')
       .select('status, total_cents, paid_at')
@@ -198,7 +236,7 @@ export async function getFirmAnalytics(firmId: string): Promise<FirmAnalytics> {
   const cases = (casesRes.data ?? []) as Array<{ status: string | null }>;
 
   // ---- Meetings ----
-  const meetings = (meetingsRes.data ?? []) as Array<{ start_at: string }>;
+  const meetings = meetingRows;
   const meetingsBlock = {
     total: meetings.length,
     upcoming: meetings.filter((m) => Date.parse(m.start_at) >= nowMs).length,

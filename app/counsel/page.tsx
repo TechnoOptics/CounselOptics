@@ -11,6 +11,7 @@ import {
   listFirmCases,
 } from '@/lib/firm-storage';
 import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
+import { createAdminSupabase } from '@/lib/supabase/admin';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { AskAdvottic } from '@/components/counsel/AskAdvottic';
 import { DashboardCustomizer } from '@/components/counsel/DashboardCustomizer';
@@ -184,18 +185,40 @@ export default async function CounselDashboard() {
   }));
 
   // Upcoming meetings (next 14 days, top 5).
+  //
+  // Read with the SERVICE-ROLE client, not the user-scoped one above.
+  // firm_meetings has RLS enabled and no policies at all, so a user-scoped
+  // select on it comes back empty for every caller and every firm, and an
+  // empty result is indistinguishable from a firm with nothing booked. This
+  // tile therefore said "Nothing on the calendar" and offered to connect
+  // Microsoft 365 while /counsel/calendar, which already reads the table
+  // through the admin client, showed the same firm its meetings.
+  //
+  // Service-role is the table's design, not a workaround: every other reader
+  // of firm_meetings (the calendar page, /portal, /portal/calendar, both
+  // Bella loaders) goes through it, and every writer does too.
+  //
+  // Authorization for this read is `ctx`, resolved above by
+  // getActiveFirmContext() (falling back to listMyFirms()[0]), both of which
+  // return a firm ONLY after reading the caller's own firm_members row
+  // through the user-scoped client. ctx.firm.id is therefore a firm this
+  // caller belongs to; it never comes from the request. A second membership
+  // query here would be a third read of the row we just read.
   const horizon = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const upperMeetings = new Date(
     Date.now() + 14 * 24 * 60 * 60 * 1000,
   ).toISOString();
-  const { data: meetingRows } = await supabase
-    .from('firm_meetings')
-    .select('id, topic, provider, start_at, join_url')
-    .eq('firm_id', ctx.firm.id)
-    .gte('start_at', horizon)
-    .lte('start_at', upperMeetings)
-    .order('start_at', { ascending: true })
-    .limit(5);
+  const admin = createAdminSupabase();
+  const { data: meetingRows } = admin
+    ? await admin
+        .from('firm_meetings')
+        .select('id, topic, provider, start_at, join_url')
+        .eq('firm_id', ctx.firm.id)
+        .gte('start_at', horizon)
+        .lte('start_at', upperMeetings)
+        .order('start_at', { ascending: true })
+        .limit(5)
+    : { data: null };
   const meetings = ((meetingRows ?? []) as Array<{
     id: string;
     topic: string;
