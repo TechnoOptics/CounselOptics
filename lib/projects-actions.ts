@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { callerIsFirmMember } from './firm-authz';
 import { createFirmCaseAction } from './firm-actions';
 import { importFileAsCaseEvidence, loadCaseContext } from './case-evidence';
 import { aiConfigured } from './timeline-ai';
@@ -11,10 +12,15 @@ import type { Project, ProjectFolder, ProjectItem } from './project-types';
 
 /**
  * Firm projects: a lightweight workspace of named folders holding notes
- * and documents, with an archive. All reads and writes go through the
- * RLS-scoped client, so firm-membership is enforced by the
- * firm_projects* member policies - no service-role writes except the
- * storage upload (pathed under the firm + project).
+ * and documents, with an archive. Every ROW read and write goes through the
+ * RLS-scoped client, so firm-membership on those is enforced by the
+ * firm_projects* member policies.
+ *
+ * The STORAGE side does not work that way. Uploading, opening and deleting a
+ * project document all go through the service-role client, which bypasses RLS,
+ * so on those three paths the checks written into the action are the only
+ * authorization there is: membership in the named firm, from lib/firm-authz.ts,
+ * and confinement of the path to that firm's own prefix (isFirmProjectPath).
  */
 
 // 50 MB / file, matching the firm document upload limit (firm-actions.ts) so
@@ -26,6 +32,38 @@ function safeName(name: string): string {
   return (
     name.replace(/[^\w.\- ]+/g, '_').replace(/\s+/g, '_').slice(0, 120) || 'file'
   );
+}
+
+/**
+ * Where one firm's project documents live in the firm-documents bucket.
+ *
+ * Written once and read by every guard below, so the layout the upload creates
+ * and the layout the guards insist on cannot drift apart.
+ */
+function firmProjectPrefix(firmId: string): string {
+  return `projects/${firmId}/`;
+}
+
+/**
+ * A stored path may be handed to the SERVICE-ROLE client only when it names a
+ * file inside `firmId`'s own project prefix.
+ *
+ * `firm_project_items.storage_path` is a plain column and the row policy on
+ * that table constrains only `firm_id`, so its value is whatever the caller
+ * chose to store. Every export of this module is a public HTTP endpoint, and
+ * the service role bypasses RLS entirely, so a row that passes the row policy
+ * proves nothing at all about the path it carries: a member of firm A can plant
+ * a row of their own naming a file under firm B's prefix.
+ *
+ * It rejects, and never rewrites. A path that does not match is either a bug in
+ * this module or somebody reaching for another firm's document, and silently
+ * repointing it at something safe would hide both.
+ */
+function isFirmProjectPath(firmId: string, path: string | null | undefined): boolean {
+  if (!firmId || !path) return false;
+  // A traversal segment would let a matching prefix still resolve elsewhere.
+  if (path.includes('..')) return false;
+  return path.startsWith(firmProjectPrefix(firmId));
 }
 
 type ProjectRow = {
@@ -231,29 +269,38 @@ export async function deleteFolderAction(
   folderId: string,
   projectId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const supabase = createServerSupabase();
-  // Folder delete cascades its items (FK on delete cascade). Storage
-  // files for those items are best-effort cleaned by the admin client.
-  const admin = createAdminSupabase();
-  if (admin) {
-    const { data: docs } = await supabase
-      .from('firm_project_items')
-      .select('storage_path')
-      .eq('folder_id', folderId)
-      .not('storage_path', 'is', null);
-    const paths = ((docs ?? []) as Array<{ storage_path: string | null }>)
-      .map((d) => d.storage_path)
-      .filter((p): p is string => Boolean(p));
-    if (paths.length > 0) {
-      await admin.storage.from('firm-documents').remove(paths);
-    }
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
   }
-  const { error } = await supabase
+  const supabase = createServerSupabase();
+  // Folder delete cascades its items (FK on delete cascade), so the paths have
+  // to be read while the rows still exist. Reading is not irreversible; the
+  // wipe below is, and it waits until the folder delete has actually landed.
+  const { data: docs } = await supabase
+    .from('firm_project_items')
+    .select('storage_path')
+    .eq('firm_id', firmId)
+    .eq('folder_id', folderId)
+    .not('storage_path', 'is', null);
+  const { data: deleted, error } = await supabase
     .from('firm_project_folders')
     .delete()
     .eq('firm_id', firmId)
-    .eq('id', folderId);
+    .eq('id', folderId)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  // PostgREST reports a delete that matched nothing as a success, so an empty
+  // result is the refusal and has to be told to the caller.
+  if (!deleted || deleted.length === 0) {
+    return { ok: false, error: 'That folder is not in this firm.' };
+  }
+  const paths = ((docs ?? []) as Array<{ storage_path: string | null }>)
+    .map((d) => d.storage_path)
+    .filter((p): p is string => isFirmProjectPath(firmId, p));
+  if (paths.length > 0) {
+    const admin = createAdminSupabase();
+    if (admin) await admin.storage.from('firm-documents').remove(paths);
+  }
   revalidatePath(`/counsel/projects/${projectId}`);
   return { ok: true };
 }
@@ -317,7 +364,7 @@ export async function uploadProjectDocumentAction(
   const id =
     globalThis.crypto?.randomUUID?.() ??
     `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const path = `projects/${firmId}/${projectId}/${id}-${safeName(file.name)}`;
+  const path = `${firmProjectPrefix(firmId)}${projectId}/${id}-${safeName(file.name)}`;
   const { error: upErr } = await admin.storage
     .from('firm-documents')
     .upload(path, file, {
@@ -368,33 +415,39 @@ export async function deleteProjectItemAction(
   itemId: string,
   projectId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
   const supabase = createServerSupabase();
-  const { data: item } = await supabase
-    .from('firm_project_items')
-    .select('storage_path')
-    .eq('firm_id', firmId)
-    .eq('id', itemId)
-    .maybeSingle();
-  const { error } = await supabase
+  // The delete returns the row it removed, so the path comes back from the
+  // write that was already gated rather than from a separate read.
+  const { data: deleted, error } = await supabase
     .from('firm_project_items')
     .delete()
     .eq('firm_id', firmId)
-    .eq('id', itemId);
+    .eq('id', itemId)
+    .select('storage_path');
   if (error) return { ok: false, error: error.message };
-  const path = (item as { storage_path: string | null } | null)?.storage_path;
-  if (path) {
+  if (!deleted || deleted.length === 0) {
+    return { ok: false, error: 'That item is not in this firm.' };
+  }
+  const path = (deleted as Array<{ storage_path: string | null }>)[0].storage_path;
+  if (isFirmProjectPath(firmId, path)) {
     const admin = createAdminSupabase();
-    if (admin) await admin.storage.from('firm-documents').remove([path]);
+    if (admin) await admin.storage.from('firm-documents').remove([path as string]);
   }
   revalidatePath(`/counsel/projects/${projectId}`);
   return { ok: true };
 }
 
-/** Short-TTL signed URL for a project document, after RLS confirms access. */
+/** Short-TTL signed URL for a project document, for a member of its firm. */
 export async function getProjectDocumentUrlAction(
   firmId: string,
   itemId: string,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
   const supabase = createServerSupabase();
   const { data: item } = await supabase
     .from('firm_project_items')
@@ -404,6 +457,9 @@ export async function getProjectDocumentUrlAction(
     .maybeSingle();
   const path = (item as { storage_path: string | null } | null)?.storage_path;
   if (!path) return { ok: false, error: 'Document not found.' };
+  if (!isFirmProjectPath(firmId, path)) {
+    return { ok: false, error: 'That file is not in this firm.' };
+  }
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
   const { data, error } = await admin.storage
@@ -422,20 +478,6 @@ export async function getProjectDocumentUrlAction(
 // and the evidence import runs through the admin client (case_timeline_events
 // RLS is case-membership only, which firm members are not, so firm-case writes
 // go through admin exactly like createFirmCaseAction).
-
-/** True when the current user is a member of `firmId`. */
-async function callerInFirm(firmId: string): Promise<boolean> {
-  const user = await getCurrentUser();
-  if (!user) return false;
-  const supabase = createServerSupabase();
-  const { data } = await supabase
-    .from('firm_members')
-    .select('id')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  return Boolean(data);
-}
 
 /** Light case options for the "associate an existing case" picker. */
 export async function listFirmCaseOptions(
@@ -476,7 +518,7 @@ export async function associateProjectWithCaseAction(
   projectId: string,
   caseId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!(await callerInFirm(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
+  if (!(await callerIsFirmMember(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
   const supabase = createServerSupabase();
   // Both sides must belong to this firm, so a stray/forged id can't cross firms.
   const [{ data: proj }, { data: kase }] = await Promise.all([
@@ -502,7 +544,7 @@ export async function unlinkProjectFromCaseAction(
   firmId: string,
   projectId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!(await callerInFirm(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
+  if (!(await callerIsFirmMember(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
   const supabase = createServerSupabase();
   const { data: proj } = await supabase
     .from('firm_projects').select('case_id').eq('id', projectId).eq('firm_id', firmId).maybeSingle();
@@ -523,7 +565,7 @@ export async function createCaseFromProjectAction(
   firmId: string,
   projectId: string,
 ): Promise<{ ok: boolean; error?: string; caseId?: string }> {
-  if (!(await callerInFirm(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
+  if (!(await callerIsFirmMember(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
   const supabase = createServerSupabase();
   const { data: projRow } = await supabase
     .from('firm_projects')
@@ -570,7 +612,7 @@ export async function pullProjectFilesIntoCaseAction(
 ): Promise<{ ok: boolean; error?: string; imported?: number; failed?: number; errors?: string[] }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
-  if (!(await callerInFirm(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
+  if (!(await callerIsFirmMember(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
   const supabase = createServerSupabase();
