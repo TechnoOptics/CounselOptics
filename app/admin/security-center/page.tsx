@@ -12,6 +12,7 @@ import {
   type PostureGrade,
 } from '@/lib/security-scan';
 import { LocaleTime } from '@/components/LocaleTime';
+import { AcknowledgeEventButton } from './acknowledge-event';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -21,6 +22,7 @@ export const metadata = {
 const SINCE_24H = () => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
 type SecurityEventRow = {
+  id: string;
   kind: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   occurred_at: string;
@@ -100,11 +102,19 @@ async function gatherThreatMonitor(
         .from('security_events')
         .select('id', { count: 'exact', head: true })
         .is('acknowledged_at', null),
-      // The feed. Newest first with no time filter, so a quiet week still
-      // shows the last thing that happened.
+      // The feed. No time filter, so a quiet week still shows the last
+      // thing that happened.
+      //
+      // Open events sort first. The twelve rows rendered below are the only
+      // ones carrying an Acknowledge control, and ordering purely by time
+      // put a backlog older than the newest twelve permanently out of
+      // reach - which is a control that exists and cannot be used on the
+      // thing it exists for. Newest first inside each group.
       admin
         .from('security_events')
-        .select('kind, severity, occurred_at, acknowledged_at')
+        // `id` so an open row can carry that control at all.
+        .select('id, kind, severity, occurred_at, acknowledged_at')
+        .order('acknowledged_at', { ascending: true, nullsFirst: true })
         .order('occurred_at', { ascending: false })
         .limit(60),
       // The "/24h" tiles. These have to be their own query: the 24-hour
@@ -490,9 +500,9 @@ function ThreatPanel({ threat }: { threat: ThreatMonitor }) {
             </p>
           ) : (
             <ul className="space-y-1.5">
-              {threat.recent.map((e, i) => (
+              {threat.recent.map((e) => (
                 <li
-                  key={i}
+                  key={e.id}
                   className="flex items-center justify-between gap-3 text-[11.5px]"
                 >
                   <span className="flex items-center gap-2 min-w-0">
@@ -501,13 +511,25 @@ function ThreatPanel({ threat }: { threat: ThreatMonitor }) {
                       {e.kind}
                     </span>
                   </span>
-                  <span className="text-cream-100/45 shrink-0">
-                    <LocaleTime iso={e.occurred_at} mode="datetime" />
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="text-cream-100/45">
+                      <LocaleTime iso={e.occurred_at} mode="datetime" />
+                    </span>
+                    {e.acknowledged_at ? (
+                      <span className="text-cream-100/35">closed</span>
+                    ) : (
+                      <AcknowledgeEventButton eventId={e.id} />
+                    )}
                   </span>
                 </li>
               ))}
             </ul>
           )}
+          <p className="text-[11px] text-cream-100/45 mt-2 leading-snug">
+            Open events are listed first. Acknowledging closes one for triage:
+            the open count above and the posture grade both read that state,
+            so this is what moves them.
+          </p>
         </article>
         <article className="card p-4 ring-1 ring-white/10 bg-white/[0.03]">
           <p className="text-[12px] font-semibold text-cream-100 mb-2">
