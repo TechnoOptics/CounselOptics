@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { readIntakeFolder } from '@/lib/request-folders';
+import { intakeTitle } from '@/lib/intake-request';
 import {
   INTAKE_LANE_BLURB,
   INTAKE_LANE_LABEL,
@@ -232,8 +233,11 @@ export function IntakeInbox({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-semibold text-foreground truncate flex items-center gap-2 min-w-0">
+                          {/* What the request is. `client_name` alone put
+                              the requester's name where the subject goes on
+                              every partner-filed ticket. */}
                           <span className="truncate">
-                            {i.client_name}
+                            {intakeTitle(i)}
                           </span>
                           {i._replyNeeded && (
                             <span className="shrink-0 inline-flex items-center rounded-full bg-gold-500 px-2 py-[1px] text-[10px] font-bold uppercase tracking-[0.1em] text-forest-950">

@@ -9,6 +9,7 @@ import {
 } from '@/lib/intake-uploads';
 import type { DocScorecard } from '@/lib/doc-review';
 import { resolveIntakeReviewGate } from '@/lib/intake-review-gate';
+import { inhouseIntakeAnswers } from '@/lib/intake-request';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import {
@@ -163,18 +164,10 @@ export function CreateIntakeForm({
     };
 
     if (inhouse) {
-      const submittedBy =
-        String(formData.get('submittedBy') ?? '').trim() || null;
-      const dueBy = String(formData.get('dueBy') ?? '').trim() || null;
-      const expiry = String(formData.get('expiry') ?? '').trim() || null;
-      const priority = String(formData.get('priority') ?? '').trim() || null;
-      const confidentiality =
-        String(formData.get('confidentiality') ?? '').trim() || null;
-      intakeAnswers.submitted_by = submittedBy;
-      intakeAnswers.due_by = dueBy;
-      intakeAnswers.expiry = expiry;
-      intakeAnswers.priority = priority;
-      intakeAnswers.confidentiality = confidentiality;
+      // Includes the title itself, under `subject`. It also goes to
+      // `client_name` below, but that column holds the requester's name on
+      // the partner path, so no reader can use it to name a request.
+      Object.assign(intakeAnswers, inhouseIntakeAnswers(formData, subject));
     } else {
       clientEmail = String(formData.get('clientEmail') ?? '').trim() || null;
       clientPhone = String(formData.get('clientPhone') ?? '').trim() || null;
