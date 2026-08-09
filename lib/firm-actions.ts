@@ -2253,24 +2253,23 @@ export async function scheduleMeetingFromIntakeAction(
     return { ok: false, error: 'Pick a time in the future.' };
   }
 
+  // INTAKE_COLS rather than the four fields this used to read: the meeting
+  // is announced with insertIntakeMessage below, which wants the whole row.
   const { data: row } = await admin
     .from('firm_matter_intakes')
-    .select('firm_id, created_by, client_name, intake_answers')
+    .select(INTAKE_COLS)
     .eq('id', intakeId)
     .maybeSingle();
-  const intake = row as {
-    firm_id: string;
-    created_by: string | null;
-    client_name: string;
-    intake_answers: Record<string, unknown> | null;
-  } | null;
+  const intake = (row as IntakeRow | null) ?? null;
   if (!intake || intake.firm_id !== firmId) {
     return { ok: false, error: 'Request not found.' };
   }
 
   const title =
     String(formData.get('title') ?? '').trim() ||
-    `Advottic: ${intake.client_name}`;
+    // client_name is nullable, which the old cast hid: an unnamed request
+    // put the word "null" in the calendar invite the requester receives.
+    `Advottic: ${intake.client_name?.trim() || 'legal request'}`;
   const attendees = new Set<string>();
   String(formData.get('attendees') ?? '')
     .split(/[,;\s]+/)
@@ -2313,41 +2312,42 @@ export async function scheduleMeetingFromIntakeAction(
     /* calendar persistence is best-effort */
   }
 
-  // Post the meeting into the request thread so it lives in the
-  // conversation, and notify the requester.
-  const { data: mem } = await admin
-    .from('firm_members')
-    .select('display_name')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const byName =
-    (mem as { display_name?: string } | null)?.display_name || 'Legal';
+  // Post the meeting into the conversation, and notify the requester.
+  //
+  // This is the request's live conversation: a row in firm_intake_messages,
+  // the same table postIntakeMessageAction writes and the panel reads. It
+  // used to append to the `intake_answers.thread` jsonb array the
+  // conversation left behind in 20260727_intake_conversation.sql, so the one
+  // message on the ticket the requester most needs to see - the join link -
+  // was written where nothing reads.
+  //
+  // 'legal' rather than 'system' for the same reason as the decision trail
+  // above: a person scheduled this, and it is the requester who is being
+  // told. See recordIntakeDecisionEvent.
+  const byName = await firmActorName(admin, user.id);
   const when = new Date(startMs).toLocaleString();
   const providerLabel =
     result.provider === 'microsoft' ? 'Microsoft Teams' : 'Zoom';
-  const answers = (intake.intake_answers ?? {}) as Record<string, unknown>;
-  const thread = Array.isArray(answers.thread)
-    ? (answers.thread as unknown[])
-    : [];
-  const msg = {
-    id:
-      globalThis.crypto?.randomUUID?.() ??
-      `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    byUserId: user.id,
-    name: byName,
-    role: 'legal' as const,
-    at: new Date().toISOString(),
-    text: `📅 ${providerLabel} meeting scheduled for ${when} (${durationMin} min).\nJoin: ${result.joinUrl}`,
-  };
-  await admin
-    .from('firm_matter_intakes')
-    .update({
-      intake_answers: { ...answers, thread: [...thread, msg] },
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', intakeId);
+  const posted = await insertIntakeMessage({
+    admin,
+    intake,
+    authorUserId: user.id,
+    authorName: byName,
+    authorRole: 'legal',
+    visibility: 'shared',
+    body: `${providerLabel} meeting scheduled for ${when} (${durationMin} min).\nJoin: ${result.joinUrl}`,
+    kind: 'event',
+    eventType: 'meeting_scheduled',
+  });
+  if (!posted) {
+    console.error(
+      `[intake-meeting] request ${intakeId} has a ${result.provider} meeting but the conversation entry was not written`,
+    );
+  }
 
+  // The requester's own notification, not notifyIntakeActivity: the meeting
+  // already has a typed notification with its own copy, and fanning the
+  // message out as well would ring the same person twice for one meeting.
   if (intake.created_by) {
     try {
       const { createNotification } = await import('./notifications');
@@ -2364,8 +2364,7 @@ export async function scheduleMeetingFromIntakeAction(
     }
   }
 
-  revalidatePath(`/counsel/intake/${intakeId}`);
-  revalidatePath(`/portal/${intakeId}`);
+  revalidateIntake(intakeId);
   return { ok: true, joinUrl: result.joinUrl };
 }
 

@@ -33,8 +33,10 @@ import {
  *   2. Creates a `firm_matter_intakes` row, the SAME intake object the legal
  *      team already works in the counsel Intake inbox (kanban, conflict check,
  *      convert-to-case, uploads, thread). No parallel pipeline.
- *   3. Conversation flows through the intake thread (`intake_answers.thread`),
- *      readable/writable from both the portal and the partner API.
+ *   3. Conversation flows through `firm_intake_messages` (the table the
+ *      counsel panel and the portal both read; the `intake_answers.thread`
+ *      jsonb it replaced is dead), readable/writable from both the portal
+ *      and the partner API.
  *
  * Every ticket carries `intake_answers.partner = { source, externalId,
  * employeeEmail }` so the partner app can correlate by its own ticket id and
