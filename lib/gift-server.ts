@@ -82,7 +82,7 @@ export async function applyGiftPaid(input: {
   // skip the status write but may still re-send the email if it
   // hadn't been sent yet (e.g. an earlier email send failed).
   if (gift.status === 'pending_payment') {
-    await admin
+    const { error: statusErr } = await admin
       .from('gift_subscriptions')
       .update({
         status: 'paid_pending_claim',
@@ -91,6 +91,16 @@ export async function applyGiftPaid(input: {
         stripe_session_id: input.stripeSessionId,
       })
       .eq('id', gift.id);
+    if (statusErr) {
+      // The customer has paid. Reporting success here would let the webhook
+      // return 2xx, Stripe would stop redelivering, and the gift would sit in
+      // pending_payment forever with nothing left to correct it. Fail instead:
+      // this whole function is idempotent, so redelivery is safe.
+      return {
+        ok: false,
+        error: `Could not mark gift paid: ${statusErr.message}`,
+      };
+    }
   }
 
   if (gift.email_sent_at) {
@@ -158,10 +168,18 @@ export async function applyGiftPaid(input: {
     };
   }
 
-  await admin
+  const { error: stampErr } = await admin
     .from('gift_subscriptions')
     .update({ email_sent_at: new Date().toISOString() })
     .eq('id', gift.id);
+  if (stampErr) {
+    // The email is already out. Losing this stamp only risks a duplicate send
+    // on a later redelivery, so do not fail the webhook over it, but do not
+    // swallow it either.
+    console.error(
+      `[gift] could not stamp email_sent_at for gift ${gift.id}: ${stampErr.message}`,
+    );
+  }
 
   return { ok: true };
 }

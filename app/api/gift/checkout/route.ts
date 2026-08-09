@@ -239,16 +239,32 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     // Roll back the DB row so we don't leave orphaned pending_payment
     // rows on Stripe failures (rate limit, bad API key, etc.).
-    await admin.from('gift_subscriptions').delete().eq('id', giftId);
+    const { error: rollbackErr } = await admin
+      .from('gift_subscriptions')
+      .delete()
+      .eq('id', giftId);
+    if (rollbackErr) {
+      console.error(
+        `[gift] could not roll back orphaned gift ${giftId}: ${rollbackErr.message}`,
+      );
+    }
     const msg = e instanceof Error ? e.message : 'Stripe error.';
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 
   // Persist the Stripe session id so the webhook can match it back.
-  await admin
+  const { error: sessionErr } = await admin
     .from('gift_subscriptions')
     .update({ stripe_session_id: session.id })
     .eq('id', giftId);
+  if (sessionErr) {
+    // Not fatal: the webhook matches on gift_id from the session metadata,
+    // and writes this id itself when it marks the gift paid. Losing it here
+    // only costs the pre-payment audit trail.
+    console.error(
+      `[gift] could not persist stripe_session_id for ${giftId}: ${sessionErr.message}`,
+    );
+  }
 
   return NextResponse.json({ url: session.url, gift_id: giftId });
 }

@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
           typeof sessionMeta.gift_id === 'string'
         ) {
           const { applyGiftPaid } = await import('@/lib/gift-server');
-          await applyGiftPaid({
+          const giftApplied = await applyGiftPaid({
             giftId: sessionMeta.gift_id,
             paymentIntentId:
               typeof session.payment_intent === 'string'
@@ -235,6 +235,15 @@ export async function POST(req: NextRequest) {
             stripeSessionId: session.id,
             amountCents: session.amount_total ?? null,
           });
+          // Same rule as the invoice path above: a 2xx ends Stripe's retries,
+          // so acknowledging a gift we failed to mark paid strands it in
+          // pending_payment permanently. applyGiftPaid is idempotent.
+          if (!giftApplied.ok) {
+            return NextResponse.json(
+              { error: giftApplied.error ?? 'Gift activation failed.' },
+              { status: 500 },
+            );
+          }
           await notifyAdminOfRevenue({
             kind: 'subscription_created',
             email:

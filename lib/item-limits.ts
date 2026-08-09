@@ -222,13 +222,19 @@ export async function applyMonthlyOverageDebit(input: {
   if (!state.isOver || state.monthlyOverageTokens <= 0) {
     // Even when nothing is owed, advance the period-end stamp so a
     // retry on the same period stays a no-op.
-    await admin
+    const { error: stampErr } = await admin
       .from('profiles')
       .update({
         token_overage_period_end: input.periodEnd,
         updated_at: new Date().toISOString(),
       })
       .eq('id', input.userId);
+    if (stampErr) {
+      // Nothing was owed, so a lost stamp only costs a recompute next time.
+      console.error(
+        `[item-limits] could not advance overage period for ${input.userId}: ${stampErr.message}`,
+      );
+    }
     return { debited: 0, itemsOver: 0 };
   }
 
@@ -240,7 +246,7 @@ export async function applyMonthlyOverageDebit(input: {
   const debit = Math.min(balance, state.monthlyOverageTokens);
   const nextBalance = balance - debit;
 
-  await admin
+  const { error: debitErr } = await admin
     .from('profiles')
     .update({
       token_balance: nextBalance,
@@ -248,26 +254,41 @@ export async function applyMonthlyOverageDebit(input: {
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.userId);
+  if (debitErr) {
+    // Balance and period stamp move in the SAME update, so a failure leaves
+    // both untouched and the next renewal retries cleanly. Report no debit
+    // rather than a debit that never happened.
+    console.error(
+      `[item-limits] overage debit failed for ${input.userId}: ${debitErr.message}`,
+    );
+    return { debited: 0, itemsOver: state.overage };
+  }
 
   // Write to the token ledger so the /billing history shows the
   // overage debit alongside grants and top-ups. Best-effort; a ledger
   // failure must not block the webhook handler.
-  try {
-    await admin.from('token_ledger').insert({
-      user_id: input.userId,
-      delta: -debit,
-      balance_after: nextBalance,
-      reason: 'item_overage_debit',
-      metadata: {
-        items_used: state.itemsUsed,
-        item_limit: state.itemLimit,
-        items_over: state.overage,
-        tier: input.tier,
-        period_end: input.periodEnd,
-      },
-    });
-  } catch {
-    /* ledger failures must not crash the webhook */
+  //
+  // NOTE: postgrest-js resolves with { error } rather than throwing, so the
+  // try/catch this used to rely on never fired. The result has to be checked.
+  const { error: ledgerErr } = await admin.from('token_ledger').insert({
+    user_id: input.userId,
+    delta: -debit,
+    balance_after: nextBalance,
+    reason: 'item_overage_debit',
+    metadata: {
+      items_used: state.itemsUsed,
+      item_limit: state.itemLimit,
+      items_over: state.overage,
+      tier: input.tier,
+      period_end: input.periodEnd,
+    },
+  });
+  if (ledgerErr) {
+    // The balance is already debited; this only costs the /billing history
+    // row, so it must not un-debit the user or crash the webhook.
+    console.error(
+      `[item-limits] overage ledger row dropped for ${input.userId}: ${ledgerErr.message}`,
+    );
   }
 
   return { debited: debit, itemsOver: state.overage };

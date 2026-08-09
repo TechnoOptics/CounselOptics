@@ -137,7 +137,7 @@ export async function claimGiftAction(
 
   // Mark the gift row claimed. Best-effort: even if this update
   // fails the subscription is already live; we'll log + ignore.
-  await admin
+  const { error: claimErr } = await admin
     .from('gift_subscriptions')
     .update({
       status: 'claimed',
@@ -146,6 +146,14 @@ export async function claimGiftAction(
       expires_at: newExpiry.toISOString(),
     })
     .eq('id', gift.id);
+  if (claimErr) {
+    // The subscription is live, so do not fail the claim. But the row still
+    // reads as unclaimed, which means this gift can be redeemed a second time
+    // for another free extension, so it cannot be silent.
+    console.error(
+      `[gift] gift ${gift.id} was redeemed but not marked claimed (re-redeemable): ${claimErr.message}`,
+    );
+  }
 
   revalidatePath(`/gift/claim/${token}`);
   revalidatePath('/billing');

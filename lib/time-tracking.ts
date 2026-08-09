@@ -284,7 +284,7 @@ export async function startTimerAction(
     .default_rate_cents;
 
   // Implicitly stop any other open timer this user has on this firm.
-  await supabase
+  const { error: stopErr } = await supabase
     .from('firm_time_entries')
     .update({
       ended_at: new Date().toISOString(),
@@ -293,6 +293,14 @@ export async function startTimerAction(
     .eq('firm_id', firmId)
     .eq('user_id', user.id)
     .is('ended_at', null);
+  if (stopErr) {
+    // Leaves the user with two open timers, which double-counts billable
+    // time on the next invoice. Not worth blocking the new timer over, but
+    // it must be visible.
+    console.error(
+      `[time-tracking] could not stop open timers for ${user.id} on firm ${firmId}: ${stopErr.message}`,
+    );
+  }
   // Recompute their durations now that we have ended_at set.
   await syncOpenDurations(firmId, user.id);
 
@@ -541,10 +549,17 @@ async function syncOpenDurations(firmId: string, userId: string) {
         (Date.parse(r.ended_at) - Date.parse(r.started_at)) / 1000,
       ),
     );
-    await supabase
+    const { error: durationErr } = await supabase
       .from('firm_time_entries')
       .update({ duration_seconds: seconds })
       .eq('id', r.id);
+    if (durationErr) {
+      // The entry keeps a null duration, so it is closed but unbillable and
+      // silently missing from the invoice.
+      console.error(
+        `[time-tracking] could not set duration on entry ${r.id}: ${durationErr.message}`,
+      );
+    }
   }
 }
 
