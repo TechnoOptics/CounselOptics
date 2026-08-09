@@ -343,17 +343,69 @@ export async function createCaseAction(
 const MAX_ATTACHED_EVIDENCE = 25;
 
 /**
+ * Where a person's own vault files live, per source.
+ *
+ * The two source tables do NOT share a convention, so this takes the source
+ * rather than assuming one layout. Both are written in exactly one place:
+ *   user_receipts.file_path  -> `<user-id>/receipts/<uuid>/<name>`,
+ *                               lib/receipts-actions.ts uploadReceiptAction
+ *   user_contracts.file_path -> `<owner-id>/contracts/<uuid>/<name>`,
+ *                               lib/contracts-actions.ts uploadContractAction
+ *
+ * The contract owner is the FIRM for a firm-side upload and the USER for a
+ * consumer one, and the two are mutually exclusive on the row: a firm upload
+ * stores `user_id: null`. Every read on this path is filtered to the caller's
+ * own `user_id`, so the only contract layout reachable here is the consumer
+ * one, and the owner is always the caller. A firm-owned path therefore cannot
+ * satisfy this prefix, which is the point: a row carrying one was not written
+ * by either uploader.
+ */
+function vaultPrefix(userId: string, source: 'vault' | 'contract'): string {
+  return `${userId}/${source === 'vault' ? 'receipts' : 'contracts'}/`;
+}
+
+/**
+ * A stored path may be handed to the SERVICE-ROLE client only when it sits
+ * inside this user's own vault prefix for that source.
+ *
+ * `file_path` is a plain column on both tables, and neither insert policy
+ * constrains it. Filtering the ROW by `user_id` proves the row is the caller's
+ * and proves nothing at all about the path inside it, so without this a person
+ * could store any path on a row of their own and have the service role copy a
+ * stranger's document into their case as an exhibit.
+ *
+ * Rejects, never rewrites. A path that does not match was not written by
+ * either uploader, and repointing it at something plausible would hide that.
+ */
+function isOwnVaultPath(
+  userId: string,
+  source: 'vault' | 'contract',
+  path: string | null | undefined,
+): boolean {
+  if (!userId || !path) return false;
+  // A traversal segment would let a matching prefix still resolve elsewhere.
+  if (path.includes('..')) return false;
+  return path.startsWith(vaultPrefix(userId, source));
+}
+
+/**
  * Copy the vault receipts / contracts the user selected in the new-case
  * wizard's Evidence step into the new case as exhibits.
  *
  * `raw` is the JSON the EvidencePicker serialized into the `attachedItems`
  * hidden field: `[{ id, source: 'vault' | 'contract' }]`. For each item we
- * re-verify ownership (scoped to the current user), download the source
- * file from its bucket, and hand it to addExhibit so it goes through the
- * same labeling + magic-byte screening as any other exhibit upload.
+ * re-verify ownership of the row AND confinement of its stored path, download
+ * the source file from its bucket, and hand it to addExhibit so it goes
+ * through the same labeling + magic-byte screening as any other exhibit
+ * upload.
  *
- * Entirely best-effort: a bad/duplicate item is skipped, never thrown, so
- * it can't fail the case creation the user already completed.
+ * Still best-effort per item, and deliberately so: this runs AFTER the case
+ * row is committed and the action redirects, so there is no whole-batch
+ * failure available that would not throw away a case the person already
+ * finished, and one refused item must not cost them the other twenty-four.
+ * What is not best-effort is telling them. Anything that did not attach is
+ * counted and reported in one notification against the new case, because an
+ * incomplete evidence packet that nobody mentions is its own defect.
  */
 async function attachSelectedEvidence(caseId: string, raw: string): Promise<void> {
   if (!raw || !usingSupabase()) return;
@@ -381,6 +433,7 @@ async function attachSelectedEvidence(caseId: string, raw: string): Promise<void
   const admin = createAdminSupabase();
   if (!admin) return;
 
+  let missed = 0;
   for (const item of items) {
     try {
       let bucket: string;
@@ -393,12 +446,16 @@ async function attachSelectedEvidence(caseId: string, raw: string): Promise<void
           .from('user_receipts')
           .select('file_path, mime_type, label')
           .eq('id', item.id)
-          .eq('user_id', user.id) // ownership: only the caller's own items
+          // Scopes the ROW to the caller. Says nothing about the path in it.
+          .eq('user_id', user.id)
           .maybeSingle();
         const row = data as
           | { file_path?: string; mime_type?: string | null; label?: string | null }
           | null;
-        if (!row?.file_path) continue;
+        if (!row?.file_path) {
+          missed += 1;
+          continue;
+        }
         bucket = 'user-vault';
         filePath = row.file_path;
         mime = row.mime_type ?? null;
@@ -418,19 +475,40 @@ async function attachSelectedEvidence(caseId: string, raw: string): Promise<void
               firm_id?: string | null;
             }
           | null;
-        if (!row?.file_path) continue;
-        // Contracts live in firm-documents when firm-scoped, else user-vault
-        // (mirrors the download logic in contracts-actions).
+        if (!row?.file_path) {
+          missed += 1;
+          continue;
+        }
+        // A firm-scoped contract carries user_id null, so the filter above
+        // never returns one and this always resolves to the vault. Kept
+        // faithful to where contracts live rather than hard-coded, and the
+        // prefix check below is what actually refuses a row claiming
+        // otherwise.
         bucket = row.firm_id ? 'firm-documents' : 'user-vault';
         filePath = row.file_path;
         mime = row.mime_type ?? null;
         title = row.name?.trim() || 'Contract';
       }
 
+      // Owning the row is not owning the path. Nothing is fetched until the
+      // stored path is confirmed to sit inside this person's own prefix.
+      if (!isOwnVaultPath(user.id, item.source, filePath)) {
+        console.error(
+          '[createCaseAction] refused an attached item whose stored path is outside the owner prefix',
+          item.source,
+          item.id,
+        );
+        missed += 1;
+        continue;
+      }
+
       const { data: blob, error: dlErr } = await admin.storage
         .from(bucket)
         .download(filePath);
-      if (dlErr || !blob) continue;
+      if (dlErr || !blob) {
+        missed += 1;
+        continue;
+      }
 
       const dotExt = filePath.includes('.') ? `.${filePath.split('.').pop()}` : '';
       const safeTitle =
@@ -450,6 +528,28 @@ async function attachSelectedEvidence(caseId: string, raw: string): Promise<void
       });
     } catch (err) {
       console.error('[createCaseAction] attach evidence failed', item.id, err);
+      missed += 1;
+    }
+  }
+
+  // Say so. Silently handing someone a case that is short of the evidence they
+  // picked is how they find out in front of a judge.
+  if (missed > 0) {
+    try {
+      const { createNotification } = await import('./notifications');
+      await createNotification({
+        userId: user.id,
+        type: 'system',
+        title:
+          missed === 1
+            ? 'One item did not attach to your new case'
+            : `${missed} items did not attach to your new case`,
+        body: 'You can add them from the case page whenever you are ready.',
+        link: `/cases/${caseId}`,
+        caseId,
+      });
+    } catch (err) {
+      console.error('[createCaseAction] could not report unattached items', err);
     }
   }
 }
