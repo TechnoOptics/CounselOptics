@@ -46,6 +46,11 @@ export function CounselSearch({
   const [query, setQuery] = useState('');
   const [matters, setMatters] = useState<Matter[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // The palette has two halves. The nav half is local and always works; the
+  // matter half comes over the network. When that request failed, `loaded`
+  // was set anyway and the panel said "Nothing here matches that", which
+  // tells a reader their matter is gone. It is not gone; it was not fetched.
+  const [mattersFailed, setMattersFailed] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -66,6 +71,9 @@ export function CounselSearch({
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
+    // `loaded` means the request settled, success or failure, so a failed
+    // load does not spin. Retrying is `setLoaded(false)`, which re-runs this
+    // and puts the panel back into its "Looking through this firm" state.
     if (loaded) return;
     let cancelled = false;
     fetch('/api/counsel/search')
@@ -73,12 +81,16 @@ export function CounselSearch({
       .then((data) => {
         if (cancelled) return;
         setMatters(Array.isArray(data?.matters) ? data.matters : []);
+        setMattersFailed(false);
         setLoaded(true);
       })
       .catch(() => {
-        // The nav half of the palette needs no request, so a failed
-        // fetch narrows the results rather than breaking the panel.
-        if (!cancelled) setLoaded(true);
+        // The nav half of the palette needs no request, so a failed fetch
+        // narrows the results rather than breaking the panel. Say so: the
+        // pages still work, the matters are simply not in this list.
+        if (cancelled) return;
+        setMattersFailed(true);
+        setLoaded(true);
       });
     return () => {
       cancelled = true;
@@ -178,11 +190,28 @@ export function CounselSearch({
               />
             </div>
             <ul className="max-h-[52vh] overflow-y-auto py-1">
+              {/* Shown whether or not there are results, because a partial
+                  list is the misleading case: pages appear, matters silently
+                  do not. */}
+              {mattersFailed && (
+                <li className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-edge px-4 py-2.5 text-[12.5px] text-muted">
+                  <span>{t('Your matters could not be loaded, so only pages are listed here.')}</span>
+                  <button
+                    type="button"
+                    onClick={() => setLoaded(false)}
+                    className="font-semibold underline text-foreground"
+                  >
+                    {t('Try again')}
+                  </button>
+                </li>
+              )}
               {results.length === 0 && (
                 <li className="px-4 py-6 text-center text-[13px] text-muted">
-                  {loaded
-                    ? t('Nothing here matches that.')
-                    : t('Looking through this firm.')}
+                  {!loaded
+                    ? t('Looking through this firm.')
+                    : mattersFailed
+                      ? t('No pages match that.')
+                      : t('Nothing here matches that.')}
                 </li>
               )}
               {results.map((r, i) => (

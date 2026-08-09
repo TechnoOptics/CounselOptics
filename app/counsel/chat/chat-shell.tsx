@@ -53,6 +53,12 @@ export function ChatShell({
   const [draft, setDraft] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const [showNewChannel, setShowNewChannel] = useState(false);
+  // A thread that failed to load and a thread with nothing in it look
+  // identical if all you track is `messages`. They are not the same thing to
+  // a reader: one says "start talking", the other says "you are not seeing
+  // what is here". `historyState` keeps them apart.
+  const [historyState, setHistoryState] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [retry, setRetry] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Read path: Realtime subscription + initial backfill + heartbeat.
@@ -70,14 +76,23 @@ export function ChatShell({
           `/api/firm/messages?channelId=${encodeURIComponent(channelId)}`,
           { cache: 'no-store' },
         );
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setHistoryState('failed');
+          return;
+        }
         const json = (await res.json()) as { messages: FirmMessage[] };
         if (cancelled) return;
         setMessages(json.messages);
+        setHistoryState('ready');
       } catch {
-        /* next tick will retry via heartbeat */
+        // The heartbeat below retries on its own, and a later success flips
+        // this back to 'ready'. Until then the reader is told, rather than
+        // shown an empty room.
+        if (!cancelled) setHistoryState('failed');
       }
     }
+    setHistoryState('loading');
+    setMessages([]);
     loadHistory();
 
     // Realtime subscription. Postgres-level filter keeps us off
@@ -173,7 +188,7 @@ export function ChatShell({
       clearInterval(heartbeat);
       supabase.removeChannel(sub);
     };
-  }, [activeId]);
+  }, [activeId, retry]);
 
   // Scroll to bottom when messages change.
   useEffect(() => {
@@ -272,7 +287,33 @@ export function ChatShell({
           )}
         </header>
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-          {messages.length === 0 ? (
+          {messages.length === 0 && historyState === 'loading' ? (
+            <p className="text-sm text-muted">
+              <T>Loading this conversation&hellip;</T>
+            </p>
+          ) : messages.length === 0 && historyState === 'failed' ? (
+            <div className="space-y-2">
+              <p className="text-sm text-foreground">
+                <T>
+                  We could not load this conversation. Nothing has been lost;
+                  we just could not reach it from here.
+                </T>
+              </p>
+              <p className="text-[12.5px] text-muted">
+                <T>
+                  It will keep trying on its own. You can also check your
+                  connection and try now.
+                </T>
+              </p>
+              <button
+                type="button"
+                onClick={() => setRetry((n) => n + 1)}
+                className="text-[12.5px] font-semibold underline text-foreground"
+              >
+                <T>Try again</T>
+              </button>
+            </div>
+          ) : messages.length === 0 ? (
             <p className="text-sm text-muted italic">
               <T>No messages yet. Say hi.</T>
             </p>
