@@ -4,7 +4,11 @@ import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { callerHasFirmRole, FIRM_POSTING_ROLES } from './firm-authz';
+import {
+  callerHasFirmRole,
+  FIRM_MATTER_ROLE_REFUSAL,
+  FIRM_POSTING_ROLES,
+} from './firm-authz';
 import { safeStorageUpload } from './upload-safety';
 import { buildNarrative, aiConfigured } from './timeline-ai';
 import { toNormRules, normalizeString } from './text-normalize';
@@ -89,7 +93,21 @@ function safeName(name: string): string {
   return (name.replace(/[^\w.\- ]+/g, '_').replace(/\s+/g, '_').slice(0, 120)) || 'file';
 }
 
-/** The current user is a member of `firmId` AND `caseId` belongs to that firm. */
+/**
+ * The current user may reach `caseId` as a member of `firmId`, or as a
+ * co-counsel guest scoped to that matter.
+ *
+ * Membership alone is not enough. Every action in this module goes through the
+ * ADMIN client once this returns ok, so RLS is not behind it and this function
+ * is the whole gate. `staff` is sold as read-only access to non-privileged
+ * surfaces and the applied 20260731 migration already refuses that role the
+ * matter row itself; a firm-native builder that runs on the service role would
+ * otherwise hand it the timeline anyway.
+ *
+ * The role check is answered BEFORE the matter lookup on purpose. Returning it
+ * afterwards would tell a caller whose role cannot reach matters whether the
+ * id they guessed is a real matter in this firm.
+ */
 async function assertFirmCase(
   firmId: string,
   caseId: string,
@@ -101,6 +119,9 @@ async function assertFirmCase(
     supabase.from('firm_members').select('id').eq('firm_id', firmId).eq('user_id', user.id).maybeSingle(),
     supabase.from('cases').select('id').eq('id', caseId).eq('firm_id', firmId).maybeSingle(),
   ]);
+  if (memberRes.data && !(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+    return { ok: false, error: FIRM_MATTER_ROLE_REFUSAL };
+  }
   if (!kaseRes.data) return { ok: false, error: 'That matter is not in this firm.' };
   if (memberRes.data) return { ok: true, userId: user.id };
   // Co-counsel GUEST scoped to this matter: co-counsel may build the timeline
@@ -333,8 +354,10 @@ export async function deleteFirmPerson(
 ): Promise<{ ok: boolean; error?: string }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
-  // assertFirmCase admits any firm role and outside co-counsel guests, which is
-  // right for building the timeline but not for removing part of it.
+  // assertFirmCase now settles the firm ROLE, so what this still uniquely
+  // refuses is the outside co-counsel GUEST: building a matter's timeline is
+  // collaborative work, removing part of it is not. A guest holds no firm role
+  // at all, so callerHasFirmRole is false for them here.
   if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
     return { ok: false, error: 'Your role cannot remove people from this matter.' };
   }
