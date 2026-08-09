@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { callerIsFirmMember } from './firm-authz';
+import { routedLeadForFirm } from './marketplace-storage';
 
 /**
  * Marketplace lead submission. The consumer (signed in or not)
@@ -139,6 +141,29 @@ export async function submitFirmLeadAction(
 /**
  * Firm responds to a lead with "interested" + an optional proposed
  * fee, or "pass". The consumer sees the response in their inbox.
+ *
+ * Two gates, and both are load-bearing, because this is a `'use server'`
+ * export and therefore a public HTTP endpoint that anyone signed in can call
+ * with a firmId and a leadId of their own choosing.
+ *
+ *   1. The caller must be a member of the firm they are answering as.
+ *      Routed through lib/firm-authz.ts, which reads firm_members with the
+ *      USER-scoped client, so a caller can only ever confirm their own
+ *      membership row. The service-role client below bypasses RLS entirely
+ *      and cannot be the thing that decides this.
+ *
+ *   2. The lead must be one of the leads routed to that firm. This one was
+ *      missing, and its absence meant any firm could answer any lead by id,
+ *      including one that was never offered to it: the consumer then got a
+ *      notification saying a firm they had never been shown was interested in
+ *      their matter, with no way to tell it apart from a real match. The
+ *      answerable set is the visible set, so the gate is the same predicate
+ *      the firm-side inbox filters on (lib/marketplace-storage.ts), not a
+ *      second rule that could drift away from it.
+ *
+ * The refusal for gate 2 is identical whether the lead does not exist, was
+ * never routed here, or has since closed, so it cannot be used to probe for
+ * lead ids.
  */
 export async function respondToLeadAction(
   firmId: string,
@@ -153,25 +178,16 @@ export async function respondToLeadAction(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server is not fully configured.' };
 
-  // Membership gate (RLS would also enforce).
-  const { data: member } = await admin
-    .from('firm_members')
-    .select('role')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!member) {
+  if (!(await callerIsFirmMember(firmId))) {
     return { ok: false, error: 'You are not a member of that firm.' };
   }
 
-  const { data: lead } = await admin
-    .from('firm_leads')
-    .select('id, user_id, contact_email, contact_name, summary')
-    .eq('id', leadId)
-    .maybeSingle();
-  if (!lead) return { ok: false, error: 'Lead not found.' };
+  const lead = await routedLeadForFirm(firmId, leadId);
+  if (!lead) {
+    return { ok: false, error: 'That lead is not open to your firm.' };
+  }
 
-  const { error: upsertErr } = await admin
+  const { data: saved, error: upsertErr } = await admin
     .from('firm_lead_responses')
     .upsert(
       {
@@ -183,11 +199,18 @@ export async function respondToLeadAction(
         proposed_fee: proposedFee,
       },
       { onConflict: 'lead_id,firm_id' },
-    );
+    )
+    .select('id');
   if (upsertErr) return { ok: false, error: upsertErr.message };
+  // PostgREST reports a write that matched nothing as a success with a null
+  // error, so the row count is the only evidence the response was stored. Say
+  // so rather than notifying the consumer about a response that is not there.
+  if (!saved || (saved as unknown[]).length === 0) {
+    return { ok: false, error: 'Your response could not be saved. Please try again.' };
+  }
 
   // Notify the consumer (when we know who they are).
-  const consumerUserId = (lead as { user_id?: string | null }).user_id;
+  const consumerUserId = lead.user_id;
   if (consumerUserId && responseType === 'interested') {
     const { createNotification } = await import('./notifications');
     const { data: firmRow } = await admin

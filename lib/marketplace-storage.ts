@@ -25,6 +25,114 @@ export type FirmLeadForFirm = {
   contactName?: string | null;
 };
 
+/** The routing inputs a firm advertises: where it practises, and in what. */
+type FirmRouting = {
+  jurisdictions: string[] | null;
+  practice_areas: string[] | null;
+};
+
+/** The routing inputs a lead carries. */
+type LeadRouting = {
+  jurisdiction_state: string | null;
+  practice_areas: string[] | null;
+};
+
+/**
+ * The lead statuses a firm may still see, and therefore still act on.
+ * A closed or withdrawn lead has left the marketplace for everyone.
+ */
+const ANSWERABLE_LEAD_STATUSES: readonly string[] = ['open', 'matched'];
+
+/**
+ * THE routing predicate: was this lead routed to this firm?
+ *
+ * firm_leads deliberately has no firm SELECT policy (see
+ * supabase/fixes/2026-07-03-marketplace-schema.sql), so this function, not the
+ * database, is what decides which consumers a given firm is allowed to reach.
+ * It exists as one exported function rather than as an inline filter because
+ * both the read path and the write path have to agree on it forever: the set a
+ * firm may SEE and the set a firm may ANSWER are the same set, and two copies
+ * of that rule would drift the moment either side was tuned.
+ *
+ * Matching is deliberately generous in the two places the product treats as
+ * "unrestricted" rather than as "no match": a firm that has named no
+ * jurisdictions is taken to serve all of them, and a lead with no state is
+ * offered to everyone. Tightening either is a product decision, not a
+ * security fix, and it belongs here where both callers pick it up.
+ */
+export function leadIsRoutedToFirm(
+  firm: FirmRouting,
+  lead: LeadRouting,
+): boolean {
+  const jurisdictions = (firm.jurisdictions ?? []).map((j) =>
+    j.toUpperCase().replace(/^US-/, ''),
+  );
+  const firmAreas = (firm.practice_areas ?? []).map((p) => p.toLowerCase());
+  const matchesJur =
+    !lead.jurisdiction_state ||
+    jurisdictions.length === 0 ||
+    jurisdictions.includes(lead.jurisdiction_state.toUpperCase());
+  const matchesArea =
+    firmAreas.includes('all') ||
+    (lead.practice_areas ?? []).some((p) => firmAreas.includes(p.toLowerCase()));
+  return matchesJur && matchesArea;
+}
+
+/** The fields a caller needs once a lead has been confirmed as routed here. */
+export type RoutedLead = {
+  id: string;
+  user_id: string | null;
+  contact_email: string;
+  contact_name: string | null;
+  summary: string;
+};
+
+/**
+ * The lead `leadId`, but only when it is one of the leads routed to `firmId`.
+ *
+ * Null covers all three of "no such lead", "that lead was never routed here",
+ * and "that lead has closed", so a caller cannot use the answer to learn
+ * whether a lead id exists. Callers must turn all of them into one refusal.
+ */
+export async function routedLeadForFirm(
+  firmId: string,
+  leadId: string,
+): Promise<RoutedLead | null> {
+  if (!firmId || !leadId) return null;
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('jurisdictions, practice_areas')
+    .eq('id', firmId)
+    .maybeSingle();
+  const firm = firmRow as FirmRouting | null;
+  if (!firm) return null;
+
+  const { data: leadRow } = await admin
+    .from('firm_leads')
+    .select(
+      'id, user_id, contact_email, contact_name, summary, jurisdiction_state, practice_areas, status',
+    )
+    .eq('id', leadId)
+    .maybeSingle();
+  const lead = leadRow as
+    | (RoutedLead & LeadRouting & { status: string })
+    | null;
+  if (!lead) return null;
+  if (!ANSWERABLE_LEAD_STATUSES.includes(lead.status)) return null;
+  if (!leadIsRoutedToFirm(firm, lead)) return null;
+
+  return {
+    id: lead.id,
+    user_id: lead.user_id ?? null,
+    contact_email: lead.contact_email,
+    contact_name: lead.contact_name ?? null,
+    summary: lead.summary,
+  };
+}
+
 /**
  * Lead readout for the firm-side inbox. Until the consumer accepts
  * the firm's "interested" response, the contact channels stay
@@ -45,14 +153,8 @@ export async function listFirmLeadsForFirm(
     .select('jurisdictions, practice_areas')
     .eq('id', firmId)
     .maybeSingle();
-  const firm = firmRow as
-    | { jurisdictions: string[] | null; practice_areas: string[] | null }
-    | null;
+  const firm = firmRow as FirmRouting | null;
   if (!firm) return [];
-  const jurisdictions = (firm.jurisdictions ?? []).map((j) =>
-    j.toUpperCase().replace(/^US-/, ''),
-  );
-  const firmAreas = (firm.practice_areas ?? []).map((p) => p.toLowerCase());
 
   // Leads in any of the firm's states.
   const { data: leadsRaw } = await admin
@@ -60,7 +162,7 @@ export async function listFirmLeadsForFirm(
     .select(
       'id, contact_name, contact_email, contact_phone, jurisdiction_state, practice_areas, summary, budget, urgency, status, created_at',
     )
-    .in('status', ['open', 'matched'])
+    .in('status', [...ANSWERABLE_LEAD_STATUSES])
     .order('created_at', { ascending: false });
   const leads = ((leadsRaw ?? []) as Array<{
     id: string;
@@ -74,18 +176,7 @@ export async function listFirmLeadsForFirm(
     urgency: string | null;
     status: string;
     created_at: string;
-  }>).filter((l) => {
-    const matchesJur =
-      !l.jurisdiction_state ||
-      jurisdictions.length === 0 ||
-      jurisdictions.includes(l.jurisdiction_state.toUpperCase());
-    const matchesArea =
-      firmAreas.includes('all') ||
-      (l.practice_areas ?? []).some((p) =>
-        firmAreas.includes(p.toLowerCase()),
-      );
-    return matchesJur && matchesArea;
-  });
+  }>).filter((l) => leadIsRoutedToFirm(firm, l));
 
   if (leads.length === 0) return [];
 
