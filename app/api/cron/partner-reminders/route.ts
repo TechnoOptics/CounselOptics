@@ -22,16 +22,33 @@ export const dynamic = 'force-dynamic';
  * not one per cron tick.
  *
  * Schedule via vercel.json: { "path": "/api/cron/partner-reminders",
- * "schedule": "0 * * * *" }. Auth: CRON_SECRET, same as the other crons.
+ * "schedule": "0 * * * *" }. Auth: `Authorization: Bearer <CRON_SECRET>`,
+ * which Vercel Cron sets for a scheduled path. The shape below is the one at
+ * app/api/cron/health and app/api/cron/deadlines.
+ *
+ * The unset case is the point. `if (expected && got !== expected)` reads as an
+ * auth check and is not one: with CRON_SECRET missing the condition is false
+ * and every anonymous request falls straight through to the sweep. This route
+ * sends a bell and an email to a firm's legal team, so an open version of it
+ * is a way for anybody to make the product send mail to real attorneys, and
+ * the returned counts leak how many tickets a firm has waiting. A missing
+ * secret means this deployment cannot authenticate anyone, which is a reason
+ * to refuse, not a reason to admit everyone.
  */
 
 const OPEN_STATUSES = ['in_progress', 'conflict_check_passed', 'conflict_check_flagged', 'engaged'];
 
 export async function GET(req: NextRequest) {
-  const expected = process.env.CRON_SECRET?.trim();
-  const got = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
-  if (expected && got !== expected) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  if (!cronSecret) {
+    return NextResponse.json(
+      { error: 'Server misconfigured: CRON_SECRET is not set' },
+      { status: 503 },
+    );
+  }
+  const auth = req.headers.get('authorization') ?? '';
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   const admin = createAdminSupabase();
   if (!admin) return NextResponse.json({ error: 'not configured' }, { status: 500 });
