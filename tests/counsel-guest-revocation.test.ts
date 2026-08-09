@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { stripComments } from './support/strip-comments';
 
 /**
  * Security-sensitive: case-scoped Counsel GUEST access must be strictly scoped,
@@ -231,6 +233,91 @@ describe('revokeGuestAccessOnRemoval', () => {
     });
     await mod.revokeGuestAccessOnRemoval({ userId: null, firmId: 'firm-1' });
     expect(db.tables.firm_guest_accounts[0]!.deactivated_at).toBeNull();
+  });
+});
+
+/**
+ * Where a revoked guest is SENT, which is a separate question from whether
+ * their access was cut.
+ *
+ * The cut is tested above and was always right. What was wrong is that the
+ * layout then treated them as a stranger and redirected to /counsel/request,
+ * the invitation-only application form, with nothing anywhere saying their
+ * access had ended.
+ *
+ * Mutations these are meant to catch:
+ *   - drop the `deactivated_at` requirement in resolveEndedGuestAccess ->
+ *     "says nothing about a guest who still has access" goes red.
+ *   - return '/counsel/request' unconditionally from
+ *     counselNoMembershipDestination -> "sends a revoked guest to the page
+ *     that explains it" goes red.
+ *   - restore the literal redirect in the layout -> the source guard goes red.
+ */
+describe('a revoked guest is told, not sold to', () => {
+  const user = { id: 'guest-1', email: 'g@example.com', user_metadata: {} } as never;
+
+  function seedProvisioned(deactivatedAt: string | null) {
+    db.tables.firm_guest_accounts.push({
+      id: 'ga-1',
+      user_id: 'guest-1',
+      firm_id: 'firm-1',
+      username: 'g',
+      must_change_password: false,
+      deactivated_at: deactivatedAt,
+    });
+  }
+
+  it('recognises a provisioned guest whose access was cut', async () => {
+    seedProvisioned('2026-08-08T00:00:00Z');
+    const ended = await mod.resolveEndedGuestAccess(user);
+    expect(ended).not.toBeNull();
+    expect(ended!.firmId).toBe('firm-1');
+    expect(ended!.endedAt).toBe('2026-08-08T00:00:00Z');
+  });
+
+  it('says nothing about a guest who still has access', async () => {
+    seedProvisioned(null);
+    seedAttorneyGuestOnCase();
+    expect(await mod.resolveEndedGuestAccess(user)).toBeNull();
+  });
+
+  it('says nothing about a firm member, or about a stranger', async () => {
+    seedProvisioned('2026-08-08T00:00:00Z');
+    db.tables.firm_members.push({ id: 'm1', user_id: 'guest-1', firm_id: 'firm-1' });
+    expect(await mod.resolveEndedGuestAccess(user)).toBeNull();
+    db.reset();
+    expect(await mod.resolveEndedGuestAccess(user)).toBeNull();
+  });
+
+  it('sends a revoked guest to the page that explains it', async () => {
+    seedProvisioned('2026-08-08T00:00:00Z');
+    expect(await mod.counselNoMembershipDestination(user, '/counsel')).toBe(
+      mod.GUEST_ACCESS_ENDED_PATH,
+    );
+  });
+
+  it('still sends a genuine applicant to the application form', async () => {
+    expect(await mod.counselNoMembershipDestination(user, '/counsel')).toBe(
+      '/counsel/request',
+    );
+  });
+
+  it('never redirects anyone away from an invitation they are opening', async () => {
+    seedProvisioned('2026-08-08T00:00:00Z');
+    expect(
+      await mod.counselNoMembershipDestination(user, '/counsel/accept-invite'),
+    ).toBeNull();
+  });
+
+  it('leaves the layout with no hard-coded pitch redirect', () => {
+    const src = stripComments(
+      readFileSync(new URL('../app/counsel/layout.tsx', import.meta.url), 'utf8'),
+    );
+    expect(
+      /redirect\(\s*['"]\/counsel\/request['"]\s*\)/.test(src),
+      'The no-membership destination is decided by counselNoMembershipDestination, so that a revoked guest is not handed the invitation-only pitch.',
+    ).toBe(false);
+    expect(src).toContain('counselNoMembershipDestination');
   });
 });
 

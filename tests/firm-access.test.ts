@@ -1022,6 +1022,12 @@ describe('the counsel shell redirect', () => {
           : null,
       guestPathAllowed: () => true,
       guestFallbackPath: () => '/counsel',
+      // The no-membership destination, held OPEN in the sense that matters
+      // here: it never sends anyone anywhere, so the only redirects these
+      // tests can observe are the access gates they are about.
+      GUEST_ACCESS_ENDED_PATH: '/counsel/guest/access-ended',
+      counselNoMembershipDestination: async () => null,
+      resolveEndedGuestAccess: async () => null,
     }));
     // The chrome, stubbed. None of these is ever invoked: a server component
     // returns an element tree that merely HOLDS the component function, so
