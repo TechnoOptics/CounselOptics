@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getCurrentUser } from '@/lib/supabase/server';
+import { getCurrentUser, isCurrentUserAdmin } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,10 +15,19 @@ export const dynamic = 'force-dynamic';
  * type/capability. The Twilio REST API is rock-solid for the same
  * operations.
  *
- * Auth: requires the signed-in Advottic user to be in the hardcoded
- * admin allowlist. This is the only place in the codebase that
- * directly touches Twilio's account-level APIs (buying numbers,
- * changing senders), so the gate is intentionally narrow.
+ * Auth: isCurrentUserAdmin, which reads profiles.is_admin. This is
+ * the HQ axis, and it is the same one app/admin and the other
+ * /api/admin routes use. It used to be a Set of email addresses
+ * written into this file, which was wrong in both directions: it
+ * kept granting access to anyone whose address was still listed
+ * after they left, and it was invisible to whoever manages admin
+ * access, who has no reason to expect a grant to live in a route
+ * handler. Revoking admin in the database now revokes it here.
+ *
+ * This is the only place in the codebase that directly touches
+ * Twilio's account-level APIs (buying numbers, changing senders),
+ * and a route handler is a public HTTP endpoint, so the check has
+ * to be here rather than on whatever page links to it.
  *
  * Response: { ok: true, phone_number: '+18...', phone_number_sid:
  * 'PNxxx', messaging_service_sid: 'MGxxx', attached: true }
@@ -26,10 +35,6 @@ export const dynamic = 'force-dynamic';
  * Idempotency: not idempotent - re-calling buys another number. The
  * caller is responsible for only invoking once per intended purchase.
  */
-
-const ADMIN_EMAILS = new Set<string>([
-  'contact@advottic.com',
-]);
 
 const TWILIO_BASE = 'https://api.twilio.com/2010-04-01';
 const MESSAGING_BASE = 'https://messaging.twilio.com/v1';
@@ -39,7 +44,7 @@ export async function POST(_req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
   }
-  if (!user.email || !ADMIN_EMAILS.has(user.email.toLowerCase())) {
+  if (!(await isCurrentUserAdmin())) {
     return NextResponse.json(
       { error: 'Admin only.' },
       { status: 403 },

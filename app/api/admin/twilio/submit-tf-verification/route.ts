@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getCurrentUser } from '@/lib/supabase/server';
+import { getCurrentUser, isCurrentUserAdmin } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,9 +30,14 @@ export const dynamic = 'force-dynamic';
  *
  * If anything is missing Twilio returns a 4xx with a precise error
  * which we surface verbatim so the caller can patch + retry.
+ *
+ * Auth: isCurrentUserAdmin, the HQ axis, same as the sibling buy-tf
+ * route. It used to be a Set of email addresses written into this
+ * file, which drifted from reality the moment anyone joined or left
+ * and was invisible to whoever manages admin access. The body of
+ * this request carries the company EIN, so the gate is on the
+ * request, not on a page.
  */
-
-const ADMIN_EMAILS = new Set<string>(['contact@advottic.com']);
 
 const MESSAGING_BASE = 'https://messaging.twilio.com/v1';
 
@@ -41,7 +46,7 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
   }
-  if (!user.email || !ADMIN_EMAILS.has(user.email.toLowerCase())) {
+  if (!(await isCurrentUserAdmin())) {
     return NextResponse.json({ error: 'Admin only.' }, { status: 403 });
   }
 
