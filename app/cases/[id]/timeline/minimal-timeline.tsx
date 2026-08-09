@@ -12,6 +12,7 @@ import {
   getTimelineMediaUrl,
 } from '@/lib/timeline-actions';
 import { inviteCollaboratorAction } from '@/lib/actions';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   formatOccurred,
   sortTimeline,
@@ -251,6 +252,7 @@ function MinimalCard({ event, onChange, onDelete }: {
   event: TimelineEvent; onChange: (ev: TimelineEvent) => void; onDelete: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [viewing, setViewing] = useState<TimelineMedia | null>(null);
   const img = event.media.find((m) => /^image\//.test(m.mime)) ?? null;
   const thumb = useSignedUrl(img?.path ?? null);
@@ -270,7 +272,7 @@ function MinimalCard({ event, onChange, onDelete }: {
         </div>
         <div className="flex flex-none gap-1">
           <button type="button" onClick={() => setEditing((v) => !v)} className="rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-forest-900/5 dark:hover:bg-cream-50/10">✎</button>
-          <button type="button" onClick={async () => { if (confirm('Remove this item?')) { await deleteTimelineEvent(event.id); onDelete(event.id); } }}
+          <button type="button" onClick={() => setConfirmDelete(true)} title="Delete" aria-label="Remove this item"
             className="rounded-md px-2 py-1 text-xs text-rose-500 hover:bg-rose-50">🗑</button>
         </div>
       </div>
@@ -317,6 +319,22 @@ function MinimalCard({ event, onChange, onDelete }: {
       </div>
       {editing && <MinimalEditor event={event} onSaved={(ev) => { onChange(ev); setEditing(false); }} onCancel={() => setEditing(false)} />}
       {viewing && <MediaLightbox media={viewing} transcript={transcript} onClose={() => setViewing(null)} />}
+
+      {/* Was a native confirm(), suppressed inside the Capacitor WebView. */}
+      {confirmDelete && (
+        <ConfirmDialog
+          question="Remove this item?"
+          detail="The item and anything attached to it come off your timeline. This cannot be undone."
+          confirmLabel="Remove"
+          cancelLabel="Keep it"
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setConfirmDelete(false);
+            await deleteTimelineEvent(event.id);
+            onDelete(event.id);
+          }}
+        />
+      )}
     </article>
   );
 }

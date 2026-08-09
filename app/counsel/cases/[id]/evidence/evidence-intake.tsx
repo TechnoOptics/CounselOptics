@@ -55,6 +55,7 @@ import { DuplicateDialog, type DuplicateAction, type DuplicateEntry } from './du
 import { ShareExportDialog } from './share-export-dialog';
 import { ShareDialog, type ShareTarget } from '@/components/counsel/ShareDialog';
 import { Dialog } from '@/components/Dialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   ArchiveIcon,
   CalendarIcon,
@@ -405,6 +406,11 @@ export function EvidenceIntake({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
+  // Destructive-action confirmations. Both used to be native window.confirm(),
+  // which the Capacitor WebView suppresses, so on a phone the bulk delete ran
+  // with no question asked and the overwrite prompt never appeared.
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [confirmOverwriteId, setConfirmOverwriteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     // Fast first paint on a heavy matter: open with every folder section
@@ -1002,19 +1008,14 @@ export function EvidenceIntake({
           return n;
         });
         if (res.needsConfirm) {
-          if (
-            typeof window !== 'undefined' &&
-            window.confirm(t('This entry was corrected by hand. Re-analysing replaces those edits. Continue?'))
-          ) {
-            reanalyze(id, true);
-          }
+          setConfirmOverwriteId(id);
           return;
         }
         if (res.event) setEvents((list) => list.map((e) => (e.id === id ? res.event! : e)));
         else if (res.error) setError(res.error);
       });
     },
-    [firmId, caseId, t],
+    [firmId, caseId],
   );
 
   const remove = useCallback(
@@ -1338,9 +1339,6 @@ export function EvidenceIntake({
   const bulkDelete = useCallback(async () => {
     const ids = selectedIds;
     if (ids.length === 0) return;
-    if (typeof window !== 'undefined' && !window.confirm(t('Delete {n} selected item(s)? This cannot be undone.').replace('{n}', String(ids.length)))) {
-      return;
-    }
     await deleteIds(ids);
     clearSelection();
     setNotice(t('Deleted {n} item(s).').replace('{n}', String(ids.length)));
@@ -2237,7 +2235,7 @@ export function EvidenceIntake({
           timelineMode={selectedAllOnTimeline ? 'remove' : 'add'}
           onSelectAll={selectAllVisible}
           onClear={clearSelection}
-          onDelete={() => void bulkDelete()}
+          onDelete={() => setConfirmBulkDelete(true)}
           onReanalyze={() => void bulkReanalyze()}
           onShare={bulkSecureShare}
           onIndex={() => void bulkShare()}
@@ -2270,6 +2268,38 @@ export function EvidenceIntake({
           onClose={() => setViewerIndex(null)}
           onTimeline={isOnTimeline(viewerEvent)}
           onToggleTimeline={() => toggleOnTimeline(viewerEvent.id, !isOnTimeline(viewerEvent))}
+        />
+      )}
+
+      {/* Deleting the selection. Irreversible: the rows and their stored files go. */}
+      {confirmBulkDelete && (
+        <ConfirmDialog
+          question={t('Delete {n} selected item(s)?').replace('{n}', String(selectedIds.length))}
+          detail={t('The items and their files are removed from this matter. This cannot be undone.')}
+          confirmLabel={t('Delete')}
+          cancelLabel={t('Keep them')}
+          busy={busy}
+          onCancel={() => setConfirmBulkDelete(false)}
+          onConfirm={() => {
+            setConfirmBulkDelete(false);
+            void bulkDelete();
+          }}
+        />
+      )}
+
+      {/* Re-analysing a hand-corrected entry throws the correction away. */}
+      {confirmOverwriteId && (
+        <ConfirmDialog
+          question={t('Replace the corrections on this entry?')}
+          detail={t('This entry was corrected by hand. Re-analysing writes over those edits.')}
+          confirmLabel={t('Re-analyse')}
+          cancelLabel={t('Keep my edits')}
+          onCancel={() => setConfirmOverwriteId(null)}
+          onConfirm={() => {
+            const id = confirmOverwriteId;
+            setConfirmOverwriteId(null);
+            reanalyze(id, true);
+          }}
         />
       )}
 

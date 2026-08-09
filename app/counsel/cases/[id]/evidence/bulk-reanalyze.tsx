@@ -8,6 +8,7 @@ import {
   reanalyzeCaseEvidenceBatchAction,
 } from '@/lib/case-evidence-bulk';
 import { analyzeCaseFacesAction } from '@/lib/face-actions';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 /**
  * "Reanalyze all evidence" control. Re-runs extraction over every item in the
@@ -24,12 +25,10 @@ export function BulkReanalyze({ firmId, caseId }: { firmId: string; caseId: stri
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmRun, setConfirmRun] = useState(false);
 
   const run = useCallback(async () => {
     if (busy) return;
-    if (!window.confirm(t('Re-analyse every item in this matter? Items you have edited by hand are left as they are.'))) {
-      return;
-    }
     setBusy(true);
     setNotice(null);
     setProgress({ done: 0, total: 0 });
@@ -88,7 +87,7 @@ export function BulkReanalyze({ firmId, caseId }: { firmId: string; caseId: stri
     <div className="flex flex-wrap items-center gap-3">
       <button
         type="button"
-        onClick={() => void run()}
+        onClick={() => setConfirmRun(true)}
         disabled={busy}
         className="inline-flex items-center rounded-full ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-[13px] text-forest-800 dark:text-cream-100/80 disabled:opacity-50"
       >
@@ -103,6 +102,25 @@ export function BulkReanalyze({ firmId, caseId }: { firmId: string; caseId: stri
         <span className="text-[12px] text-ink-600 dark:text-cream-100/70" data-no-translate>
           {notice}
         </span>
+      )}
+
+      {/* Not destructive (hand edits survive), but it re-reads the whole matter
+          and spends tokens doing it, so it stays a deliberate choice. Neutral
+          tone: nothing is lost. Was a native window.confirm(), which the
+          Capacitor WebView suppresses. */}
+      {confirmRun && (
+        <ConfirmDialog
+          question={t('Re-analyse every item in this matter?')}
+          detail={t('Anything you corrected by hand is left exactly as it is. On a large matter this takes a few minutes.')}
+          confirmLabel={t('Re-analyse all')}
+          cancelLabel={t('Not now')}
+          tone="neutral"
+          onCancel={() => setConfirmRun(false)}
+          onConfirm={() => {
+            setConfirmRun(false);
+            void run();
+          }}
+        />
       )}
     </div>
   );

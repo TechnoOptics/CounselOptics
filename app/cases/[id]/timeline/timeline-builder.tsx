@@ -7,6 +7,7 @@ import { MediaLightbox } from './media-lightbox';
 import { CaseMap, type MapPoint } from './case-map';
 import { SmartDatePicker } from './smart-date-picker';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   createTimelineEvent,
   analyzeTimelineEvent,
@@ -462,6 +463,7 @@ function EventCard({
   onCreated: (ev: TimelineEvent) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [viewing, setViewing] = useState<TimelineMedia | null>(null);
   const firstImage = event.media.find((m) => /^image\//.test(m.mime)) ?? null;
   const thumb = useSignedUrl(firstImage?.path ?? null);
@@ -542,7 +544,7 @@ function EventCard({
           <button type="button" onClick={() => setEditing((v) => !v)} title="Edit"
             className="rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-forest-900/5 dark:hover:bg-cream-50/10">✎</button>
           <button type="button"
-            onClick={async () => { if (confirm('Remove this entry?')) { await deleteTimelineEvent(event.id); onDelete(event.id); } }}
+            onClick={() => setConfirmDelete(true)}
             title="Delete" className="rounded-md px-2 py-1 text-xs text-rose-500 hover:bg-rose-50">🗑</button>
         </div>
       </div>
@@ -738,6 +740,23 @@ function EventCard({
       {viewing && (
         <MediaLightbox media={viewing} transcript={transcript} onClose={() => setViewing(null)} />
       )}
+
+      {/* Was a native confirm(), which the Capacitor WebView suppresses, so on
+          the phone this deleted the entry with no question asked. */}
+      {confirmDelete && (
+        <ConfirmDialog
+          question="Remove this entry?"
+          detail="The entry and anything attached to it come off your timeline. This cannot be undone."
+          confirmLabel="Remove"
+          cancelLabel="Keep it"
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setConfirmDelete(false);
+            await deleteTimelineEvent(event.id);
+            onDelete(event.id);
+          }}
+        />
+      )}
     </article>
   );
 }
@@ -802,6 +821,7 @@ function PeopleRail({ caseId, people, events, onAdd, onRemove }: {
   const [name, setName] = useState('');
   const [role, setRole] = useState<PersonRole>('other');
   const [pending, start] = useTransition();
+  const [removing, setRemoving] = useState<CasePerson | null>(null);
   const countFor = (id: string) => events.filter((e) => e.people.includes(id)).length;
   return (
     <div className="rounded-2xl border border-forest-900/10 bg-white p-4 dark:border-cream-50/10 dark:bg-forest-900/50">
@@ -814,7 +834,7 @@ function PeopleRail({ caseId, people, events, onAdd, onRemove }: {
               <span className="block truncate text-sm text-forest-900 dark:text-cream-100" data-no-translate>{p.displayName}</span>
               <span className="text-[11px] text-ink-500 dark:text-cream-300/70">{ROLE_LABEL[p.role]} · {countFor(p.id)} entr{countFor(p.id) === 1 ? 'y' : 'ies'}</span>
             </span>
-            <button type="button" onClick={async () => { if (confirm(`Remove ${p.displayName}?`)) { await deletePerson(p.id); onRemove(p.id); } }}
+            <button type="button" onClick={() => setRemoving(p)} aria-label={`Remove ${p.displayName}`}
               className="text-xs text-ink-400 hover:text-rose-500">✕</button>
           </li>
         ))}
@@ -831,6 +851,23 @@ function PeopleRail({ caseId, people, events, onAdd, onRemove }: {
           onClick={() => start(async () => { const res = await addPerson(caseId, { displayName: name, role }); if (res.person) { onAdd(res.person); setName(''); } })}
           className="rounded-lg bg-forest-900 px-2.5 py-1.5 text-sm text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950">＋</button>
       </div>
+
+      {/* Was a native confirm(), suppressed inside the Capacitor WebView. */}
+      {removing && (
+        <ConfirmDialog
+          question="Remove this person from the case?"
+          detail="They come off every entry they were tagged on. The entries themselves stay."
+          confirmLabel="Remove"
+          cancelLabel="Keep them"
+          onCancel={() => setRemoving(null)}
+          onConfirm={async () => {
+            const p = removing;
+            setRemoving(null);
+            await deletePerson(p.id);
+            onRemove(p.id);
+          }}
+        />
+      )}
     </div>
   );
 }

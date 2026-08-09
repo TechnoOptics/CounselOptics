@@ -6,12 +6,14 @@ import {
   resendCounselInviteAction,
   revokeCounselGrantAction,
 } from '@/lib/firm-actions';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export function GrantActions({ grantId }: { grantId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   function resend() {
     setError(null);
@@ -27,9 +29,6 @@ export function GrantActions({ grantId }: { grantId: string }) {
   }
 
   function revoke() {
-    if (!confirm('Revoke this invitation? The recipient will no longer be able to use the link.')) {
-      return;
-    }
     setError(null);
     setOk(null);
     startTransition(async () => {
@@ -51,7 +50,7 @@ export function GrantActions({ grantId }: { grantId: string }) {
       </button>
       <button
         type="button"
-        onClick={revoke}
+        onClick={() => setConfirming(true)}
         disabled={pending}
         className="btn-ghost text-[12px] text-rose-700 dark:text-rose-300"
       >
@@ -62,6 +61,21 @@ export function GrantActions({ grantId }: { grantId: string }) {
       )}
       {ok && (
         <span className="text-[11px] text-emerald-700 dark:text-emerald-300">{ok}</span>
+      )}
+
+      {/* Was a native confirm(), which the Capacitor WebView suppresses. */}
+      {confirming && (
+        <ConfirmDialog
+          question="Revoke this invitation?"
+          detail="The link stops working. Whoever it was sent to can no longer use it, and a new invitation would have to be sent."
+          confirmLabel="Revoke"
+          busy={pending}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => {
+            setConfirming(false);
+            revoke();
+          }}
+        />
       )}
     </div>
   );
