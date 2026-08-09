@@ -19,14 +19,30 @@ export const maxDuration = 60;
  * Schedule via vercel.json:
  *   { "path": "/api/cron/analyze-evidence", "schedule": "*\/5 * * * *" }
  *
- * Auth: CRON_SECRET in the Authorization header, same as the other cron routes.
- * Vercel Cron sets this automatically when configured.
+ * Auth: `Authorization: Bearer <CRON_SECRET>`, which Vercel Cron sets for a
+ * scheduled path. The shape below is the one at app/api/cron/health and
+ * app/api/cron/deadlines.
+ *
+ * The unset case is the point. `if (expected && got !== expected)` reads as an
+ * auth check and is not one: with CRON_SECRET missing the condition is false
+ * and every anonymous request falls straight through to the sweep. This route
+ * runs AI analysis over firm evidence, so an open version of it lets anybody
+ * burn the account's model tokens on demand, and the returned counts leak how
+ * much evidence is queued. A missing secret means this deployment cannot
+ * authenticate anyone, which is a reason to refuse, not a reason to admit
+ * everyone.
  */
 export async function GET(req: NextRequest) {
-  const expected = process.env.CRON_SECRET?.trim();
-  const got = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
-  if (expected && got !== expected) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  if (!cronSecret) {
+    return NextResponse.json(
+      { error: 'Server misconfigured: CRON_SECRET is not set' },
+      { status: 503 },
+    );
+  }
+  const auth = req.headers.get('authorization') ?? '';
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   if (!aiConfigured()) {
     return NextResponse.json({ ok: false, reason: 'ai-not-configured' });

@@ -6,7 +6,7 @@ import { createAdminSupabase } from './supabase/admin';
 import { getFirmBySlug } from './firm-storage';
 import { requireActiveFirm } from './firm-authz';
 import { createNotification } from './notifications';
-import { sendEmail } from './email';
+import { sendEmail, isEmailConfigured } from './email';
 import { headers } from 'next/headers';
 import { checkRateLimit } from './rate-limit';
 import {
@@ -16,7 +16,7 @@ import {
 } from './access-requests';
 
 export type AccessRequestOutcome =
-  | { ok: true; kind: 'internal' | 'external' | 'existing'; message: string }
+  | { ok: true; message: string }
   | { ok: false; error: string };
 
 function siteOrigin(): string {
@@ -24,6 +24,82 @@ function siteOrigin(): string {
     process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, '') ||
     'https://advottic.com'
   );
+}
+
+/**
+ * The one thing this action ever says on success.
+ *
+ * It used to answer differently depending on what it found: "You already have
+ * access" for a provisioned employee, "You're set" for a new internal one,
+ * "Your request is with their legal team" for an external one. Anybody could
+ * therefore type an address into a public form and be told whether that person
+ * already worked somewhere, one address at a time.
+ *
+ * The outcome is now the same sentence whoever asks, and the part that differs
+ * is sent to the address itself. Someone who owns the mailbox still learns
+ * exactly where they stand; someone who merely guessed at it learns nothing.
+ *
+ * This sentence states, flatly, that an email went out. It is only ever
+ * returned after a send that actually succeeded. Anything else returns
+ * COULD_NOT_FINISH, which claims nothing.
+ *
+ * It echoes back the address the caller typed. That is the caller's own input,
+ * so it discloses nothing about who has an account, and it restores the one
+ * useful thing the old per-outcome copy did: someone who mistyped their
+ * address can see it here, rather than waiting on an email that went somewhere
+ * else. The response still does not vary with anything we looked up.
+ */
+function received(address: string): string {
+  return `Thanks. We have emailed ${address} with what happens next. Check your inbox, and your spam folder if it is not there.`;
+}
+
+/**
+ * What the caller sees when the outcome could not be delivered.
+ *
+ * It has to be honest without being alarming, and it has to leave the person
+ * somewhere to go: whoever is looking at this is trying to get into their
+ * legal team's workspace and has no other way in. So it says plainly that it
+ * did not finish, offers a retry, and names a human fallback. It does not
+ * blame them, does not mention email infrastructure, and does not vary with
+ * anything we looked up, so it stays uniform for the same reason received()
+ * does.
+ */
+const COULD_NOT_FINISH =
+  'We could not finish that just now. Please try again in a few minutes, or contact your legal team directly.';
+
+/**
+ * Tell the address itself what actually happened, and report whether that
+ * worked.
+ *
+ * This used to be best-effort and return nothing, which is how the caller
+ * ended up able to say "we have emailed this address" when no email existed.
+ * The outcome email is now the ONLY channel carrying the result, so a failed
+ * send is a failed action, and the boolean is the caller's evidence.
+ *
+ * The console.error is the operator's channel, matching what the health digest
+ * and the collaborator invite sender already do. It is deliberately not a
+ * security_events row: the `kind` column is pinned by a live CHECK constraint,
+ * and inventing a value there fails at runtime in production rather than here.
+ */
+async function emailTheAddress(args: {
+  to: string;
+  fromName: string;
+  subject: string;
+  html: string;
+}): Promise<boolean> {
+  try {
+    const sent = await sendEmail(args);
+    if (!sent.ok) {
+      console.error(
+        `[access-request] could not tell ${args.to} the outcome: ${sent.error}`,
+      );
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`[access-request] could not tell ${args.to} the outcome:`, e);
+    return false;
+  }
 }
 
 /**
@@ -56,19 +132,36 @@ export async function requestWorkspaceAccessAction(
   }
 
   // This action is unauthenticated and emails the firm's admins, so cap
-  // it per IP to prevent it being used to spam a firm's owners.
+  // it per IP to prevent it being used to spam a firm's owners. failClosed
+  // because this is an abuse surface: without it, anyone who can make the
+  // rate-limit store error out is handed an uncapped bypass, and this is
+  // also the cap that makes walking a list of addresses impractical.
   const ip =
     headers().get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   if (
     !(await checkRateLimit(`access-request:${ip}`, {
       limit: 5,
       windowSeconds: 600,
+      failClosed: true,
     }))
   ) {
     return {
       ok: false,
       error: 'Too many requests right now. Please try again in a few minutes.',
     };
+  }
+
+  // Fail closed on the credential, before anything is written. Every outcome
+  // of this action is now delivered by email, so a deployment that cannot send
+  // cannot honestly tell anyone anything. Refusing here beats provisioning an
+  // employee, or queueing a request for approval, and then showing a screen
+  // that tells someone to check an inbox nothing was sent to. Checked before
+  // the firm and the address are looked at, so it cannot depend on either.
+  if (!isEmailConfigured()) {
+    console.error(
+      '[access-request] refused: RESEND_API_KEY is not configured, so no outcome could be delivered',
+    );
+    return { ok: false, error: COULD_NOT_FINISH };
   }
 
   const firm = await getFirmBySlug(firmSlug);
@@ -90,12 +183,14 @@ export async function requestWorkspaceAccessAction(
     .ilike('email', email)
     .maybeSingle();
   if (existingEmp && !(existingEmp as { deactivated_at: string | null }).deactivated_at) {
-    return {
-      ok: true,
-      kind: 'existing',
-      message:
-        'You already have access. Just sign in with this email to enter your hub.',
-    };
+    const told = await emailTheAddress({
+      to: email,
+      fromName: firm.name,
+      subject: `You already have access to ${firm.name}`,
+      html: `<p>Someone asked to join <strong>${escape(firm.name)}</strong> with this address.</p><p>You already have access, so there is nothing to approve. Sign in with this address to open your hub: <a href="${siteOrigin()}/sign-in?next=/portal">${siteOrigin()}/sign-in</a></p><p>If this was not you, you can ignore this email. No change was made to your account.</p>`,
+    });
+    if (!told) return { ok: false, error: COULD_NOT_FINISH };
+    return { ok: true, message: received(email) };
   }
 
   const classification = classifyEmail(
@@ -118,11 +213,14 @@ export async function requestWorkspaceAccessAction(
         error: 'Could not set up your access. Please try again.',
       };
     }
-    return {
-      ok: true,
-      kind: 'internal',
-      message: `You're set. Sign in with ${email} to open your ${firm.name} hub.`,
-    };
+    const told = await emailTheAddress({
+      to: email,
+      fromName: firm.name,
+      subject: `Your ${firm.name} access is ready`,
+      html: `<p>You are set up on <strong>${escape(firm.name)}</strong>.</p><p>Sign in with this address to open your hub: <a href="${siteOrigin()}/sign-in?next=/portal">${siteOrigin()}/sign-in</a></p>`,
+    });
+    if (!told) return { ok: false, error: COULD_NOT_FINISH };
+    return { ok: true, message: received(email) };
   }
 
   // External: queue for legal-admin approval. Idempotent - if a
@@ -136,11 +234,14 @@ export async function requestWorkspaceAccessAction(
     .eq('status', 'pending')
     .maybeSingle();
   if (existingReq) {
-    return {
-      ok: true,
-      kind: 'external',
-      message: `Your request to join ${firm.name} is already with their legal team for approval. You'll get an email when it's reviewed.`,
-    };
+    const told = await emailTheAddress({
+      to: email,
+      fromName: firm.name,
+      subject: `Your request to join ${firm.name}`,
+      html: `<p>Your request to join <strong>${escape(firm.name)}</strong> is already with their legal team for approval.</p><p>You will get an email as soon as it has been reviewed. There is nothing else you need to do.</p>`,
+    });
+    if (!told) return { ok: false, error: COULD_NOT_FINISH };
+    return { ok: true, message: received(email) };
   }
   const { error: insErr } = await admin
     .from('firm_signup_requests')
@@ -152,11 +253,15 @@ export async function requestWorkspaceAccessAction(
       status: 'pending',
     });
   if (insErr) {
-    return {
-      ok: true,
-      kind: 'external',
-      message: `Your request to join ${firm.name} is with their legal team for approval. You'll get an email when it's reviewed.`,
-    };
+    // The request was not recorded, and nothing was sent. This used to return
+    // the success sentence anyway, which told the person their request was
+    // with the legal team when no row existed and no email had gone out. A
+    // retry is safe: the duplicate-pending race resolves to the existingReq
+    // branch above and succeeds there.
+    console.error(
+      `[access-request] could not queue the request for ${email}: ${insErr.message}`,
+    );
+    return { ok: false, error: COULD_NOT_FINISH };
   }
 
   // Notify the firm's owners/admins (in-app + email). firm_members
@@ -207,11 +312,14 @@ export async function requestWorkspaceAccessAction(
     /* notification is best-effort; the request is already queued */
   }
 
-  return {
-    ok: true,
-    kind: 'external',
-    message: `Your request to join ${firm.name} has been sent to their legal team for approval. You'll get an email once it's reviewed.`,
-  };
+  const told = await emailTheAddress({
+    to: email,
+    fromName: firm.name,
+    subject: `Your request to join ${firm.name}`,
+    html: `<p>Your request to join <strong>${escape(firm.name)}</strong> has been sent to their legal team for approval.</p><p>You will get an email once it has been reviewed. There is nothing else you need to do.</p>`,
+  });
+  if (!told) return { ok: false, error: COULD_NOT_FINISH };
+  return { ok: true, message: received(email) };
 }
 
 function escape(s: string): string {
