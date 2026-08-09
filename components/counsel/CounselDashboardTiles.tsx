@@ -141,7 +141,12 @@ export function DashboardTileRenderer({
         href="/counsel/documents"
         eyebrow="Documents"
         headline={String(data.counts.documents)}
-        metric={<T>Versioned</T>}
+        // Was "Versioned". Nothing is versioned: `firm_documents.version`
+        // is written as the literal 1 at all five insert sites and no code
+        // path ever increments it, so the word described a feature that
+        // does not exist. This is the same wording the metric strip on the
+        // dashboard already uses for the same number.
+        metric={<T>held for this firm</T>}
         body="Contracts, motions, evidence packets."
         accent={data.accent}
       />;
