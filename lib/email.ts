@@ -22,6 +22,20 @@ export type EmailResult =
   | { ok: true; id: string }
   | { ok: false; error: string };
 
+/**
+ * Whether this deployment can actually deliver mail.
+ *
+ * sendEmail already reports a missing key as `ok: false`, so this is not a
+ * second gate on the send itself. It is for callers that do work FIRST and
+ * describe it to the user SECOND: they can refuse up front instead of
+ * performing the work and then showing a screen that talks about an email
+ * nobody could send. Check this before the work, and still check the result
+ * of sendEmail afterwards, because a configured key can fail on the wire.
+ */
+export function isEmailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY?.trim());
+}
+
 export async function sendEmail(input: {
   to: string;
   subject: string;
