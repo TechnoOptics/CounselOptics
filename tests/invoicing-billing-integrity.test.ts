@@ -34,6 +34,14 @@ const db = vi.hoisted(() => ({
   /** Same idea for the draft -> sent transition on firm_invoices. */
   onSend: null as null | (() => void),
   adminAvailable: true,
+  /**
+   * Tables the RLS-scoped client's writes are filtered out of entirely, as
+   * a member whose policy does not admit the row would be. Modelled the way
+   * PostgREST actually behaves: the rows simply do not match, so the write
+   * resolves `error: null` with nothing affected. A fake that returned an
+   * error here could not detect this defect class at all.
+   */
+  rlsBlockedWrites: new Set<string>(),
   seq: 0,
   reset() {
     this.tables = {
@@ -45,6 +53,7 @@ const db = vi.hoisted(() => ({
     this.onClaim = null;
     this.onSend = null;
     this.adminAvailable = true;
+    this.rlsBlockedWrites = new Set<string>();
     this.seq = 0;
   },
 }));
@@ -166,6 +175,13 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
         (r) => r.user_id === AUTH_UID && (r.invoice_id ?? null) === null,
       );
     }
+    if (
+      this.rls &&
+      this.op !== 'select' &&
+      db.rlsBlockedWrites.has(this.table)
+    ) {
+      rows = [];
+    }
 
     if (this.op === 'update') {
       for (const r of rows) Object.assign(r, this.payload);
@@ -242,7 +258,23 @@ vi.mock('../lib/supabase/server', () => ({
 vi.mock('../lib/supabase/admin', () => ({
   createAdminSupabase: () => (db.adminAvailable ? adminClient : null),
 }));
-vi.mock('../lib/notifications', () => ({ createNotification: async () => null }));
+/**
+ * Recorded, not just swallowed: "the firm was told the money cleared" is
+ * itself one of the false claims a dropped write produces, so a test has to
+ * be able to assert it did not go out.
+ */
+const notices = vi.hoisted(() => ({
+  sent: [] as Array<{ title: string }>,
+  reset() {
+    this.sent = [];
+  },
+}));
+vi.mock('../lib/notifications', () => ({
+  createNotification: async (input: { title: string }) => {
+    notices.sent.push({ title: input.title });
+    return null;
+  },
+}));
 vi.mock('../lib/email', () => ({
   sendEmail: async (input: { to: string; subject: string }) => {
     if (!mail.deliverable) {
@@ -651,6 +683,90 @@ describe('the payment link dies with the invoice', () => {
     expect(res.ok).toBe(true);
     expect(db.tables.firm_invoices[0].status).toBe('void');
     expect(res.error).toMatch(/payment link/i);
+  });
+});
+
+/**
+ * "Marked paid" has to mean the row says paid.
+ *
+ * This is the write that produced the worst outcome in this codebase's
+ * history of the shape: PostgREST answers a zero-row UPDATE with
+ * `error: null`, so the flip to paid resolved cleanly whether or not any
+ * row moved, and everything after it asserted that it had. The firm was
+ * notified the money had cleared and the client's Stripe Pay button was
+ * switched off, while the invoice sat in Outstanding - a bill nobody was
+ * chasing that nobody could pay.
+ *
+ * Both ways the write can match nothing are exercised: the member's RLS
+ * policy not admitting the row, and a colleague moving the invoice between
+ * the read and the write. Every gate ahead of the guard is deliberately
+ * held open (the caller is a seeded poster, the invoice is live and
+ * unpaid), so a refusal here can only have come from the guard itself.
+ */
+describe('markInvoicePaidAction will not report money it did not collect', () => {
+  beforeEach(() => {
+    db.reset();
+    mail.reset();
+    stripe.reset();
+    notices.reset();
+    seedFirmAndTime();
+    installStripeStub();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.STRIPE_SECRET_KEY;
+  });
+
+  it('refuses when the member client is not admitted to the row', async () => {
+    seedSentInvoiceWithLink();
+    db.rlsBlockedWrites.add('firm_invoices');
+
+    const res = await markInvoicePaidAction('inv-1');
+
+    expect(res).toEqual({
+      ok: false,
+      error: 'This invoice changed while marking it paid. Reload and try again.',
+    });
+    // Order and outcome are different claims, so the side effects are
+    // asserted on their own: the invoice is still outstanding, its Pay
+    // button still works, and nobody was told the money arrived.
+    const inv = db.tables.firm_invoices[0];
+    expect(inv.status).toBe('sent');
+    expect(inv.paid_at).toBeNull();
+    expect(inv.stripe_payment_link).toBe('https://buy.stripe.com/plink_live');
+    expect(stripe.deactivated).toEqual([]);
+    expect(notices.sent).toEqual([]);
+  });
+
+  it('loses the race to a colleague who voided the invoice first', async () => {
+    seedSentInvoiceWithLink();
+    // Fires as the UPDATE executes, before its predicates are evaluated -
+    // exactly the window Postgres re-checks the WHERE clause in.
+    db.onSend = () => {
+      db.tables.firm_invoices[0].status = 'void';
+    };
+
+    const res = await markInvoicePaidAction('inv-1');
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('changed while marking it paid');
+    // A written-off receivable must not come back as collected.
+    expect(db.tables.firm_invoices[0].status).toBe('void');
+    expect(db.tables.firm_invoices[0].paid_at).toBeNull();
+    expect(stripe.deactivated).toEqual([]);
+    expect(notices.sent).toEqual([]);
+  });
+
+  it('still reports paid, and acts on it, when the row really moves', async () => {
+    seedSentInvoiceWithLink();
+
+    const res = await markInvoicePaidAction('inv-1');
+
+    expect(res.ok).toBe(true);
+    expect(db.tables.firm_invoices[0].status).toBe('paid');
+    expect(stripe.deactivated).toEqual(['plink_live']);
+    expect(notices.sent).toEqual([{ title: 'Invoice INV-00001 paid' }]);
   });
 });
 

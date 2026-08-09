@@ -662,7 +662,17 @@ export async function markInvoicePaidAction(
     };
   }
 
-  await supabase
+  // Atomic transition, read back, exactly as voidInvoiceAction and
+  // sendInvoiceAction do. This is the money-critical write on this path and
+  // it was the only one here running unread: PostgREST answers a zero-row
+  // UPDATE with error null, so an invoice this member's RLS policy will not
+  // let them touch - or one a colleague voided between the read above and
+  // this write - resolved cleanly and the firm was told the money had
+  // cleared. Everything downstream of this point asserts that it landed:
+  // the payment link is switched off and the drafter is notified the
+  // invoice is paid, which together leave a client unable to pay a bill
+  // that is still outstanding and a firm that has stopped chasing it.
+  const { data: paidRows, error: paidErr } = await supabase
     .from('firm_invoices')
     .update({
       status: 'paid',
@@ -673,7 +683,18 @@ export async function markInvoicePaidAction(
       // waiting to happen, not just an untidy record.
       stripe_payment_link: null,
     })
-    .eq('id', invoice.id);
+    .eq('id', invoice.id)
+    .eq('status', invoice.status)
+    .select('id');
+  if (paidErr) {
+    return { ok: false, error: paidErr.message ?? 'Could not mark this invoice paid.' };
+  }
+  if (!paidRows || paidRows.length === 0) {
+    return {
+      ok: false,
+      error: 'This invoice changed while marking it paid. Reload and try again.',
+    };
+  }
 
   const linkOff = await deactivatePaymentLink(invoice.stripe_payment_link_id);
 
