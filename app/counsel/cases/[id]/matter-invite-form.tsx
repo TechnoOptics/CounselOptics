@@ -12,6 +12,7 @@ import {
 import type { CaseGuestAccount } from '@/lib/counsel-guest';
 import type { Collaborator, CollaboratorRole } from '@/lib/types';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 /**
  * Firm-facing labels for the four invite roles, keyed by the underlying
@@ -101,6 +102,11 @@ export function MatterInviteForm({
       if (!result.ok) setError(result.error ?? 'Remove failed.');
     });
   }
+
+  // Removing a collaborator ends their access to the matter immediately. It is
+  // not a toggle: getting them back means a fresh invitation they have to
+  // accept again.
+  const [removing, setRemoving] = useState<Collaborator | null>(null);
 
   // Firm-provisioned guest accounts (owner/admin only).
   const [showGuest, setShowGuest] = useState(false);
@@ -299,7 +305,7 @@ export function MatterInviteForm({
               {canManage && (
                 <button
                   type="button"
-                  onClick={() => remove(c.id)}
+                  onClick={() => setRemoving(c)}
                   disabled={pending}
                   className="shrink-0 text-[12px] text-rose-700 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-200 underline"
                 >
@@ -450,6 +456,22 @@ export function MatterInviteForm({
             </ul>
           )}
         </div>
+      )}
+
+      {removing && (
+        <ConfirmDialog
+          question="Remove this person from the matter?"
+          detail="Their access ends straight away, including anything already shared with them. To bring them back you would invite them again and they would have to accept."
+          confirmLabel="Remove"
+          cancelLabel="Keep their access"
+          busy={pending}
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => {
+            const c = removing;
+            setRemoving(null);
+            remove(c.id);
+          }}
+        />
       )}
     </section>
   );

@@ -15,6 +15,7 @@ import { createBrowserSupabase } from '@/lib/supabase/client';
 // Shared with both counsel account pages. A pure passthrough outside a
 // LocaleProvider, so the consumer profile is unchanged.
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 type Factor = { id: string; friendlyName?: string | null; status: string };
 type Step = 'idle' | 'enrolling' | 'verifying';
@@ -30,6 +31,10 @@ export function MfaSettings() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Taking a second factor off an account is a security downgrade, and it is
+  // not an undo away: getting it back means enrolling from scratch, scanning a
+  // fresh QR code and verifying a fresh six-digit code. One tap was not enough.
+  const [removingFactor, setRemovingFactor] = useState<Factor | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -162,7 +167,7 @@ export function MfaSettings() {
               </span>
               <button
                 type="button"
-                onClick={() => remove(f.id)}
+                onClick={() => setRemovingFactor(f)}
                 disabled={busy}
                 className="btn-ghost text-rose-700 hover:text-rose-900 hover:bg-rose-50 text-sm"
               >
@@ -244,6 +249,22 @@ export function MfaSettings() {
         <p className="rounded-md border border-rose-300 bg-rose-100 dark:border-rose-700/50 dark:bg-rose-950/40 px-3 py-2 text-xs text-rose-900 dark:text-rose-200">
           {error}
         </p>
+      )}
+
+      {removingFactor && (
+        <ConfirmDialog
+          question={t('Turn off two-factor authentication?')}
+          detail={t('Your account goes back to a password alone. To turn it on again you would set up the authenticator app from the start, with a new code to scan.')}
+          confirmLabel={t('Turn off')}
+          cancelLabel={t('Keep it on')}
+          busy={busy}
+          onCancel={() => setRemovingFactor(null)}
+          onConfirm={() => {
+            const f = removingFactor;
+            setRemovingFactor(null);
+            void remove(f.id);
+          }}
+        />
       )}
     </section>
   );

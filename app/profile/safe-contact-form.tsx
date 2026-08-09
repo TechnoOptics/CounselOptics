@@ -7,6 +7,7 @@ import {
   deleteSafeWitnessContactAction,
   updateUserPhoneAction,
 } from '@/lib/actions';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 const DEFAULT_MESSAGE =
   'Safe mode activated. I need you. Please send help.';
@@ -72,6 +73,7 @@ export function SafeContactForm({
   const [addPending, startAddTransition] = useTransition();
   const [userPhonePending, startUserPhoneTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<SafeWitnessContactRow | null>(null);
   const [feedback, setFeedback] = useState<
     null | { kind: 'ok'; text: string } | { kind: 'error'; text: string }
   >(null);
@@ -352,7 +354,7 @@ export function SafeContactForm({
                   </div>
                   <button
                     type="button"
-                    onClick={() => removeContact(c.id)}
+                    onClick={() => setRemoving(c)}
                     disabled={deletingId === c.id}
                     className="text-[11.5px] text-rose-700 dark:text-rose-300 hover:text-rose-900 dark:hover:text-rose-200 underline px-1 disabled:opacity-50"
                   >
@@ -484,6 +486,26 @@ export function SafeContactForm({
         >
           {feedback.text}
         </p>
+      )}
+
+      {/* Safe Witness is the personal-safety feature: this is who gets told,
+          and with what phone number, if the reader triggers an alert. Losing a
+          contact by mistap is not a cosmetic error, and putting one back means
+          re-entering the details and telling them the PIN again. */}
+      {removing && (
+        <ConfirmDialog
+          question="Remove this safety contact?"
+          detail="They will not be told if you send a Safe Witness alert. To add them back you would enter their details again and share your PIN with them again."
+          confirmLabel="Remove"
+          cancelLabel="Keep them"
+          busy={deletingId === removing.id}
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => {
+            const c = removing;
+            setRemoving(null);
+            void removeContact(c.id);
+          }}
+        />
       )}
     </div>
   );

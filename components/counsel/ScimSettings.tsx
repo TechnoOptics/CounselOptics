@@ -8,6 +8,7 @@ import {
   type ScimTokenSummary,
 } from '@/lib/scim-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
@@ -106,6 +107,11 @@ export function ScimSettings({ baseUrl }: { baseUrl: string }) {
   const [error, setError] = useState<string | null>(null);
   const [tokens, setTokens] = useState<ScimTokenSummary[] | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  // Revoking is immediate and one-way: the secret is stored as a hash, so a
+  // replacement is a DIFFERENT token and every IdP that provisions this firm
+  // has to be reconfigured with it. Until someone does that, provisioning is
+  // silently dead.
+  const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const res = await listScimTokensAction();
@@ -217,13 +223,29 @@ export function ScimSettings({ baseUrl }: { baseUrl: string }) {
               <TokenRow
                 key={tok.id}
                 tok={tok}
-                onRevoke={revoke}
+                onRevoke={setConfirmRevokeId}
                 busy={revokingId === tok.id}
               />
             ))}
           </div>
         </div>
       ) : null}
+
+      {confirmRevokeId && (
+        <ConfirmDialog
+          question={t('Revoke this provisioning token?')}
+          detail={t('It stops working straight away, and any identity provider still using it can no longer add or remove people in this firm. A new token is a different secret, so you would paste it into your provider again.')}
+          confirmLabel={t('Revoke')}
+          cancelLabel={t('Cancel')}
+          busy={busy}
+          onCancel={() => setConfirmRevokeId(null)}
+          onConfirm={() => {
+            const id = confirmRevokeId;
+            setConfirmRevokeId(null);
+            void revoke(id);
+          }}
+        />
+      )}
     </div>
   );
 }

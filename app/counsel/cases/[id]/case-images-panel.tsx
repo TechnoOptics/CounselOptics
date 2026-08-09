@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   uploadCaseImageAction,
   deleteCaseImageAction,
@@ -32,6 +33,7 @@ export function CaseImagesPanel({
   const [images, setImages] = useState<CaseImage[]>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [featured, setFeatured] = useState<string | null>(featuredImageId);
 
   const feature = useCallback(
@@ -99,7 +101,7 @@ export function CaseImagesPanel({
         caseId={caseId}
         busy={busy}
         onUpload={upload}
-        onRemove={remove}
+        onRemove={setRemovingId}
         featuredId={featured}
         onFeature={feature}
       />
@@ -112,10 +114,28 @@ export function CaseImagesPanel({
         caseId={caseId}
         busy={busy}
         onUpload={upload}
-        onRemove={remove}
+        onRemove={setRemovingId}
       />
 
       {error && <p className="text-[11px] text-rose-700 dark:text-rose-300">{error}</p>}
+
+      {/* The stored file goes with the row; the only way back is to find the
+          original and upload it again. */}
+      {removingId && (
+        <ConfirmDialog
+          question={t('Remove this image?')}
+          detail={t('The image is deleted from this matter. To put it back you would need the original file again.')}
+          confirmLabel={t('Remove')}
+          cancelLabel={t('Keep it')}
+          busy={busy}
+          onCancel={() => setRemovingId(null)}
+          onConfirm={() => {
+            const id = removingId;
+            setRemovingId(null);
+            void remove(id);
+          }}
+        />
+      )}
     </section>
   );
 }

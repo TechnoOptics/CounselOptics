@@ -411,6 +411,9 @@ export function EvidenceIntake({
   // with no question asked and the overwrite prompt never appeared.
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmOverwriteId, setConfirmOverwriteId] = useState<string | null>(null);
+  // The per-card delete. The bulk path above already asks; this one did not,
+  // and it destroys exactly the same thing one item at a time.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     // Fast first paint on a heavy matter: open with every folder section
@@ -1755,7 +1758,7 @@ export function EvidenceIntake({
     onToggleSelect: () => toggleSelect(e.id),
     onOpenViewer: () => openViewer(e.id),
     onReanalyze: () => reanalyze(e.id),
-    onDelete: () => remove(e.id),
+    onDelete: () => setConfirmDeleteId(e.id),
     onToggleExclude: () => toggleExclude(e.id, !e.aiExtracted?.excluded),
     onToggleTimeline: () => toggleOnTimeline(e.id, !isOnTimeline(e)),
   });
@@ -2268,6 +2271,23 @@ export function EvidenceIntake({
           onClose={() => setViewerIndex(null)}
           onTimeline={isOnTimeline(viewerEvent)}
           onToggleTimeline={() => toggleOnTimeline(viewerEvent.id, !isOnTimeline(viewerEvent))}
+        />
+      )}
+
+      {/* Deleting one item from its own card. */}
+      {confirmDeleteId && (
+        <ConfirmDialog
+          question={t('Delete this item?')}
+          detail={t('The item and its file are removed from this matter. This cannot be undone.')}
+          confirmLabel={t('Delete')}
+          cancelLabel={t('Keep it')}
+          busy={pending}
+          onCancel={() => setConfirmDeleteId(null)}
+          onConfirm={() => {
+            const id = confirmDeleteId;
+            setConfirmDeleteId(null);
+            remove(id);
+          }}
         />
       )}
 
