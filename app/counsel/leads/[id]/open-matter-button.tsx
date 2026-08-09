@@ -68,7 +68,7 @@ export function OpenMatterButton({
         </T>
       </p>
       {error && (
-        <p className="mt-2 text-[12px] text-rose-600 dark:text-rose-300">
+        <p className="mt-2 text-[12px] text-rose-700 dark:text-rose-300">
           {error}
         </p>
       )}

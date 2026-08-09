@@ -125,7 +125,7 @@ export function TimerWidget({
     // server would refuse.
     if (!cases || cases.length === 0) {
       return (
-        <p className="text-[12.5px] text-ink-500 dark:text-cream-100/70">
+        <p className="text-[12.5px] text-muted">
           Open a matter first. Time is logged against one so it can be invoiced.
         </p>
       );
@@ -154,7 +154,7 @@ export function TimerWidget({
           {startButton}
         </div>
         {error && (
-          <p className="text-[12px] text-rose-600 dark:text-rose-300">{error}</p>
+          <p className="text-[12px] text-rose-700 dark:text-rose-300">{error}</p>
         )}
       </div>
     );

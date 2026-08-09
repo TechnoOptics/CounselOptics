@@ -73,7 +73,7 @@ export function AssignMatter({
         </button>
       </div>
       {error && (
-        <p className="text-[11.5px] text-rose-600 dark:text-rose-300">{error}</p>
+        <p className="text-[11.5px] text-rose-700 dark:text-rose-300">{error}</p>
       )}
     </div>
   );
