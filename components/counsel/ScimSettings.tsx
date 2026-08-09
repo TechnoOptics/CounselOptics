@@ -48,6 +48,19 @@ function fmtDate(iso: string | null): string {
 }
 
 type TokenState = 'active' | 'revoked' | 'expired';
+
+/**
+ * A constant enum -> label map rather than a ternary assigned to a local, so
+ * the counsel i18n guard can see at a glance that the wrapped value is a
+ * fixed UI string. A translated wrap around a bare local name cannot be
+ * checked by reading the guard's allowlist; a named constant can.
+ */
+const SCIM_STATE_LABEL: Record<TokenState, string> = {
+  active: 'Active',
+  revoked: 'Revoked',
+  expired: 'Expired',
+};
+
 function tokenState(tok: ScimTokenSummary): TokenState {
   if (tok.revokedAt) return 'revoked';
   if (tok.expiresAt && Date.parse(tok.expiresAt) <= Date.now()) return 'expired';
@@ -64,7 +77,6 @@ function TokenRow({
   busy: boolean;
 }) {
   const state = tokenState(tok);
-  const stateLabel = state === 'active' ? 'Active' : state === 'revoked' ? 'Revoked' : 'Expired';
   const stateClass =
     state === 'active'
       ? 'text-emerald-700 dark:text-emerald-400'
@@ -73,9 +85,16 @@ function TokenRow({
     <div className="flex items-center justify-between gap-3 border-t border-edge py-3 first:border-t-0">
       <div className="min-w-0 space-y-0.5">
         <p className="truncate text-sm text-foreground">
-          <T>{tok.label ?? 'SCIM provisioning token'}</T>
+          {/* `label` is a stored column, not a fixed string: only the
+              fallback is ours to translate. The value itself is rendered as
+              data, the same way the dates below it are. */}
+          {tok.label ? (
+            <span data-no-translate>{tok.label}</span>
+          ) : (
+            <T>SCIM provisioning token</T>
+          )}
           <span className={`ml-2 text-xs font-medium ${stateClass}`}>
-            · <T>{stateLabel}</T>
+            · <T>{SCIM_STATE_LABEL[state]}</T>
           </span>
         </p>
         <p className="text-xs text-muted">
