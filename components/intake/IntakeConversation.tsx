@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LockIcon } from '@/components/counsel/EntityIcons';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import {
   getIntakeFileUrlAction,
@@ -443,7 +444,7 @@ export function IntakeConversation({
                             onClick={() => void openFile(a.path)}
                             className="flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white/80 px-2.5 py-1.5 text-[12px] text-forest-900 hover:border-gold-500/60 dark:border-forest-700/50 dark:bg-forest-900/70 dark:text-cream-100"
                           >
-                            <span aria-hidden>📎</span>
+                            <PaperclipIcon />
                             <span className="max-w-[170px] truncate">{a.name}</span>
                             {a.size > 0 && (
                               <span className="text-ink-400 dark:text-cream-100/40">
@@ -505,7 +506,7 @@ export function IntakeConversation({
                     : 'text-ink-500 dark:text-cream-100/55'
                 }`}
               >
-                🔒 Internal note
+                <span className="inline-flex items-center gap-1"><LockIcon size={12} /> Internal note</span>
               </button>
             </div>
           )}
@@ -517,7 +518,7 @@ export function IntakeConversation({
                   key={a.path}
                   className="flex items-center gap-1.5 rounded-lg border border-gold-500/40 bg-gold-500/10 px-2.5 py-1 text-[12px] text-forest-900 dark:text-cream-100"
                 >
-                  <span aria-hidden>📎</span>
+                  <PaperclipIcon />
                   <span className="max-w-[180px] truncate">{a.name}</span>
                   <button
                     type="button"
@@ -685,11 +686,13 @@ function highlightMentions(text: string, people: IntakePerson[]): React.ReactNod
 }
 
 /**
- * Attach control glyph. Drawn stroke SVG rather than the 📎 emoji that used to
- * sit here: this composer is shared by the employee Hub and the counsel matter
- * view, so the emoji shipped to firm users too, and it rendered in whatever
- * face the reader's OS happened to supply. Matches the icon set drawn in
- * app/counsel/intake/[id]/page.tsx (CalendarIcon / DocumentIcon).
+ * Attach control glyph, and now the glyph for every attachment chip in this
+ * file too. It replaced a paperclip emoji on the compose button; the same
+ * emoji stayed on the two chip lists below it for a while afterwards, which
+ * is the usual way a rule half-lands. This composer is shared by the employee
+ * Hub and the counsel matter view, so anything drawn here ships to firm users
+ * as well, rendered in whatever face the reader's OS happens to supply.
+ * Matches the icon set drawn in app/counsel/intake/[id]/page.tsx.
  */
 function PaperclipIcon() {
   return (

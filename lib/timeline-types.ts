@@ -325,16 +325,26 @@ export const KIND_LABEL: Record<TimelineKind, string> = {
   event: 'Event',
 };
 
-export const KIND_ICON: Record<TimelineKind, string> = {
-  photo: '🖼️',
-  document: '📄',
-  receipt: '🧾',
-  audio: '🎙️',
-  video: '🎬',
-  message: '💬',
-  note: '📝',
-  event: '📌',
-};
+/*
+ * There is no KIND_ICON here any more, and that is the point.
+ *
+ * It was a Record<TimelineKind, string> of emoji, rendered on the badge of
+ * every entry on the consumer timeline. An emoji is somebody else's artwork,
+ * a different drawing on every platform, it cannot take the colour of the
+ * text around it, and beside the hand-drawn icons the rest of the product
+ * uses it reads as unfinished. The consumer timeline is the screen a person
+ * shows a lawyer.
+ *
+ * The replacement is components/counsel/KindIcon.tsx, which had already drawn
+ * this exact vocabulary as stroke SVG for the firm evidence surfaces. It sits
+ * under counsel/ by history, not by dependency: it imports nothing but the
+ * TimelineKind type from this file.
+ *
+ * DOCUMENT_TYPE_ICON, FOLDER_ICON and their contentIconFor() reader went with
+ * it. Those were twenty-eight more emoji with no consumer anywhere in the
+ * repo, dead code whose only remaining purpose was to hand a future caller
+ * the thing that was just removed.
+ */
 
 /**
  * A controlled vocabulary of content-derived document types the reader can
@@ -372,46 +382,6 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
-/** Icon for each recognised content type. */
-export const DOCUMENT_TYPE_ICON: Record<DocumentType, string> = {
-  receipt: '🧾',
-  invoice: '🧾',
-  bank_statement: '🏦',
-  check: '💵',
-  tax_form: '🧮',
-  insurance: '🛡️',
-  contract: '📜',
-  agreement: '📜',
-  lease: '🏠',
-  letter: '✉️',
-  email: '📧',
-  court_filing: '⚖️',
-  police_report: '🚔',
-  medical_record: '🩺',
-  id_document: '🪪',
-  passport: '🛂',
-  drivers_license: '🪪',
-  business_card: '📇',
-  report: '📊',
-  spreadsheet: '📈',
-  screenshot: '📱',
-  message: '💬',
-  photo: '🖼️',
-  map: '🗺️',
-  other: '📎',
-};
-
-/** Fallback icon by filing folder, used when no content type was detected. */
-export const FOLDER_ICON: Record<EvidenceFolder, string> = {
-  'Scene & photos': '🖼️',
-  Communications: '💬',
-  'Financial & receipts': '🧾',
-  'Identity & people': '🪪',
-  'Documents & contracts': '📄',
-  'Location & maps': '🗺️',
-  Other: '📎',
-};
-
 /** Snap an arbitrary model/user document-type string onto the controlled list. */
 export function normalizeDocumentType(raw: string | null | undefined): DocumentType | null {
   const s = (raw ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -426,23 +396,6 @@ export function normalizeDocumentType(raw: string | null | undefined): DocumentT
   if (/photograph|picture|image/.test(s)) return 'photo';
   if (/deed|memo|agreement/.test(s)) return 'contract';
   return null;
-}
-
-/**
- * The single best icon for an evidence item, most specific first: the recognised
- * content type, then the filing folder, then the file's medium (kind). This is
- * what makes a photo of a receipt show a receipt icon rather than a generic
- * image icon.
- */
-export function contentIconFor(ev: {
-  kind: TimelineKind;
-  aiExtracted?: AiExtracted | null;
-}): string {
-  const dt = normalizeDocumentType(ev.aiExtracted?.document_type);
-  if (dt) return DOCUMENT_TYPE_ICON[dt];
-  const folder = normalizeFolder(ev.aiExtracted?.folder);
-  if (folder) return FOLDER_ICON[folder];
-  return KIND_ICON[ev.kind] ?? '📎';
 }
 
 /** Render a stable exhibit number as a padded label, e.g. 1 -> "EX-0001". */

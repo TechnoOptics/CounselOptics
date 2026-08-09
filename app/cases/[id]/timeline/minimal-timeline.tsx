@@ -13,10 +13,11 @@ import {
 } from '@/lib/timeline-actions';
 import { inviteCollaboratorAction } from '@/lib/actions';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { KindIcon } from '@/components/counsel/KindIcon';
+import { ArchiveIcon, ClipIcon, PencilIcon, PersonIcon, TrashIcon } from '@/components/counsel/EntityIcons';
 import {
   formatOccurred,
   sortTimeline,
-  KIND_ICON,
   KIND_LABEL,
   type TimelineBundle,
   type TimelineEvent,
@@ -25,12 +26,15 @@ import {
   type OccurredPrecision,
 } from '@/lib/timeline-types';
 
-function mediaIcon(m: TimelineMedia): string {
-  if (/^image\//.test(m.mime)) return '🖼️';
-  if (/^audio\//.test(m.mime)) return '🎙️';
-  if (/^video\//.test(m.mime)) return '🎬';
-  if (m.mime === 'application/pdf' || /\.pdf$/i.test(m.name)) return '📄';
-  return '📎';
+/* Stroke icons rather than emoji, matching the builder view. */
+function MediaIcon({ m }: { m: TimelineMedia }) {
+  if (/^image\//.test(m.mime)) return <KindIcon kind="photo" className="h-3.5 w-3.5" />;
+  if (/^audio\//.test(m.mime)) return <KindIcon kind="audio" className="h-3.5 w-3.5" />;
+  if (/^video\//.test(m.mime)) return <KindIcon kind="video" className="h-3.5 w-3.5" />;
+  if (m.mime === 'application/pdf' || /\.pdf$/i.test(m.name)) {
+    return <KindIcon kind="document" className="h-3.5 w-3.5" />;
+  }
+  return <ClipIcon size={14} />;
 }
 
 const urlCache = new Map<string, string>();
@@ -130,7 +134,9 @@ export function MinimalTimeline({
           dragOver ? 'border-gold-500 bg-gold-500/10' : 'border-forest-900/20 bg-white/60 dark:border-cream-50/15 dark:bg-cream-50/5'
         }`}
       >
-        <div className="text-3xl">🗂️</div>
+        <div className="flex justify-center text-forest-900/40 dark:text-cream-50/40">
+          <ArchiveIcon size={30} />
+        </div>
         <p className="mt-2 font-medium text-forest-900 dark:text-cream-100">
           Drop files here, or{' '}
           <button type="button" onClick={() => fileRef.current?.click()} className="text-gold-700 underline underline-offset-2 dark:text-gold-500">browse</button>
@@ -262,7 +268,7 @@ function MinimalCard({ event, onChange, onDelete }: {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-ink-500 dark:text-cream-300/70">
-            <span>{KIND_ICON[event.kind]}</span>
+            <KindIcon kind={event.kind} className="h-3.5 w-3.5" />
             <span className="font-medium text-forest-700 dark:text-gold-500">{formatOccurred(event.occurredAt, event.occurredPrecision)}</span>
             <span aria-hidden>·</span><span>{KIND_LABEL[event.kind]}</span>
           </div>
@@ -271,9 +277,10 @@ function MinimalCard({ event, onChange, onDelete }: {
           </h3>
         </div>
         <div className="flex flex-none gap-1">
-          <button type="button" onClick={() => setEditing((v) => !v)} className="rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-forest-900/5 dark:hover:bg-cream-50/10">✎</button>
+          <button type="button" onClick={() => setEditing((v) => !v)} title="Edit" aria-label="Edit this item"
+            className="grid h-8 w-8 place-items-center rounded-md text-ink-500 hover:bg-forest-900/5 dark:hover:bg-cream-50/10"><PencilIcon size={15} /></button>
           <button type="button" onClick={() => setConfirmDelete(true)} title="Delete" aria-label="Remove this item"
-            className="rounded-md px-2 py-1 text-xs text-rose-500 hover:bg-rose-50">🗑</button>
+              className="grid h-8 w-8 place-items-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"><TrashIcon size={15} /></button>
         </div>
       </div>
       <div className="mt-3 flex gap-3">
@@ -285,16 +292,16 @@ function MinimalCard({ event, onChange, onDelete }: {
             className="flex-none overflow-hidden rounded-lg ring-1 ring-forest-900/10 transition hover:ring-2 hover:ring-gold-500"
           >
             {thumb ? <img src={thumb} alt="" data-no-translate className="h-16 w-16 object-cover" />
-              : <div className="grid h-16 w-16 place-items-center bg-forest-900/5 dark:bg-cream-50/10">🖼️</div>}
+              : <div className="grid h-16 w-16 place-items-center bg-forest-900/5 text-forest-900/40 dark:bg-cream-50/10 dark:text-cream-50/40"><KindIcon kind="photo" className="h-6 w-6" /></div>}
           </button>
         ) : event.media.length > 0 ? (
           <button
             type="button"
             onClick={() => setViewing(event.media[0])}
             title="Open attachment"
-            className="grid h-16 w-16 flex-none place-items-center rounded-lg bg-forest-900/5 text-xl transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10"
+            className="grid h-16 w-16 flex-none place-items-center rounded-lg bg-forest-900/5 text-forest-900/50 transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10 dark:text-cream-50/50"
           >
-            {mediaIcon(event.media[0])}
+            <MediaIcon m={event.media[0]} />
           </button>
         ) : null}
         <div className="min-w-0 flex-1">
@@ -309,7 +316,7 @@ function MinimalCard({ event, onChange, onDelete }: {
                   title={m.name}
                   className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-full border border-forest-900/10 bg-forest-900/[0.03] px-2.5 py-1 text-xs text-ink-600 transition hover:border-gold-500 hover:text-forest-900 dark:border-cream-50/10 dark:bg-cream-50/[0.04] dark:text-cream-300 dark:hover:text-cream-100"
                 >
-                  <span aria-hidden>{mediaIcon(m)}</span>
+                  <MediaIcon m={m} />
                   <span className="truncate" data-no-translate>{m.name}</span>
                 </button>
               ))}
@@ -397,7 +404,7 @@ function InviteFirm({ caseId }: { caseId: string }) {
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 rounded-full border border-forest-900/15 bg-white px-2.5 py-1 text-xs font-medium text-forest-800 hover:border-gold-500 dark:border-cream-50/15 dark:bg-forest-900/40 dark:text-cream-200"
       >
-        ⚖️ Invite your law firm
+        <PersonIcon /> Invite your law firm
       </button>
     );
   }

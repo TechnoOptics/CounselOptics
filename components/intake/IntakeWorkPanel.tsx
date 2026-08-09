@@ -20,6 +20,7 @@ import {
 } from '@/lib/intake-conversation-types';
 import { RelativeTime } from './RelativeTime';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { KindIcon } from '@/components/counsel/KindIcon';
 
 /**
  * The context rail beside the conversation: who owns the request, who else is
@@ -216,8 +217,8 @@ export function IntakeWorkPanel({
                   onClick={() => void openDoc(d.path)}
                   className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-cream-50 dark:hover:bg-forest-800/40"
                 >
-                  <span aria-hidden className="mt-0.5">
-                    📄
+                  <span aria-hidden className="mt-0.5 text-ink-400 dark:text-cream-100/45">
+                    <KindIcon kind="document" className="h-3.5 w-3.5" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-forest-900 dark:text-cream-100">

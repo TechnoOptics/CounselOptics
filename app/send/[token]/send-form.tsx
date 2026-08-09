@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { ClipIcon } from '@/components/counsel/EntityIcons';
+import { KindIcon } from '@/components/counsel/KindIcon';
 import { submitUploadRequestAction } from '@/lib/intake-upload-public';
 import { formatBytes } from '@/lib/intake-conversation-types';
 
@@ -71,8 +73,8 @@ export function SendForm({ token, remaining }: { token: string; remaining: numbe
             setError(null);
           }}
         />
-        <span className="block text-2xl" aria-hidden>
-          📎
+        <span className="flex justify-center text-forest-900/40 dark:text-cream-50/40" aria-hidden>
+          <ClipIcon size={26} />
         </span>
         <span className="mt-2 block text-[14px] font-medium text-forest-900 dark:text-cream-100">
           Choose file{remaining > 1 ? 's' : ''}
@@ -89,7 +91,9 @@ export function SendForm({ token, remaining }: { token: string; remaining: numbe
               key={f.name}
               className="flex items-center gap-2 rounded-lg border border-ink-200 px-3 py-2 text-[13px] text-forest-900 dark:border-forest-700/50 dark:text-cream-100"
             >
-              <span aria-hidden>📄</span>
+              <span aria-hidden className="text-ink-400 dark:text-cream-100/45">
+                <KindIcon kind="document" className="h-3.5 w-3.5" />
+              </span>
               <span className="min-w-0 flex-1 truncate">{f.name}</span>
               <span className="text-ink-400 dark:text-cream-100/40">{formatBytes(f.size)}</span>
             </li>

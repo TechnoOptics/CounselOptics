@@ -119,3 +119,47 @@ export function ArchiveIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/**
+ * An attached file. Added when the consumer timeline and the /send drop-box
+ * were still drawing a paperclip emoji; it belongs to this set rather than to
+ * a fourth one drawn locally.
+ */
+export function ClipIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M20.5 11.5 12 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5" />
+    </Icon>
+  );
+}
+
+/** Destroys the thing it sits on. */
+export function TrashIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 6.5h16" />
+      <path d="M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5" />
+      <path d="M6.5 6.5 7.4 19a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12.5" />
+      <path d="M10.5 10v6.5M13.5 10v6.5" />
+    </Icon>
+  );
+}
+
+/** Edit in place. */
+export function PencilIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 20h4.2l10-10a2.4 2.4 0 0 0-3.4-3.4l-10 10V20Z" />
+      <path d="M13.8 7.6l2.6 2.6" />
+    </Icon>
+  );
+}
+
+/** Dismiss, or take off a list. */
+export function CloseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </Icon>
+  );
+}

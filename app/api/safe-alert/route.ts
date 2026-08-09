@@ -123,7 +123,31 @@ ${
 <p style="font-size:12px;color:#71717a">Sent automatically by Advottic Safe Witness. Advottic does not contact law enforcement on anyone’s behalf.</p>
 </div>`;
 
-  const subject = `🛡 Safe Witness alert from ${who}`;
+  /*
+   * The shield emoji is gone from this subject, and it is worth saying why,
+   * because the argument FOR keeping it is real: an emoji is a fast thing to
+   * spot in a crowded inbox, and this is the one email in the product where a
+   * missed message is the failure that matters.
+   *
+   * It loses to two things.
+   *
+   * First, deliverability. A leading emoji in a transactional subject is a
+   * well-known spam heuristic, and this mail is already shaped like the thing
+   * filters distrust: sent by a machine, urgent wording, a link to a map, an
+   * unfamiliar sender to the recipient. Recognition is worth nothing from the
+   * spam folder, and going to spam is a total failure of a personal-safety
+   * feature, where a smaller subject line is a partial one.
+   *
+   * Second, it does not render everywhere. Outlook desktop draws U+1F6E1 as a
+   * missing-glyph box on common fonts, and a safety alert whose subject opens
+   * with a broken character reads as a spoof, which is precisely the moment
+   * the recipient must not hesitate.
+   *
+   * The recognition it was buying is available for free in words: the subject
+   * already leads with "Safe Witness alert" and carries the person's name,
+   * which is what the contact was told to look for when they were set up.
+   */
+  const subject = `Safe Witness alert from ${who}`;
 
   // Fire to the contact and to the user themselves (off-device copy).
   const targets = [contactEmail];
