@@ -6,6 +6,7 @@ import { createNotification } from './notifications';
 import { sendEmail, buildIntakeActivityEmailHtml } from './email';
 import { portalStatusLabel } from './portal-status';
 import { intakeTitle } from './intake-request';
+import { emailOptedOutUserIds } from './notify-prefs';
 import {
   ticketRef,
   type IntakeAttachment,
@@ -291,6 +292,10 @@ export async function notifyIntakeActivity(input: {
     const emails = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const emailBy = new Map((emails.data?.users ?? []).map((u) => [u.id, u.email ?? null] as const));
 
+    // Who has turned email off in the Hub. The bell below still fires for
+    // them; only the mail is held back. See lib/notify-prefs.ts.
+    const emailOff = await emailOptedOutUserIds(admin, [...recipients]);
+
     // The status line is built per recipient, not once for everybody.
     // `intake.status` is the firm's internal vocabulary: an employee was
     // being emailed "conflict check passed" or "converted", which is exactly
@@ -329,6 +334,7 @@ export async function notifyIntakeActivity(input: {
 
         const to = emailBy.get(userId);
         if (!to) return;
+        if (emailOff.has(userId)) return;
         await sendEmail({
           to,
           fromName: brand.name,

@@ -2,6 +2,7 @@ import 'server-only';
 import crypto from 'crypto';
 import { createAdminSupabase } from './supabase/admin';
 import { readPartnerConfig } from './partner-config-core';
+import { employeeEmailOptedOut } from './notify-prefs';
 import type { ThreadMessage } from './intake-thread';
 
 type AdminSupabase = NonNullable<ReturnType<typeof createAdminSupabase>>;
@@ -111,6 +112,7 @@ async function notifyLegalTeam(
 
 /** Email the ticket's employee (partner.employeeEmail). */
 async function emailEmployee(
+  admin: AdminSupabase,
   row: IntakeLite,
   args: { subject: string; body: string; firmName?: string | null },
 ): Promise<void> {
@@ -119,6 +121,8 @@ async function emailEmployee(
     const to =
       String(partner?.employeeEmail ?? row.client_email ?? '').trim().toLowerCase();
     if (!to) return;
+    // The employee's own choice in the Hub, which nothing used to read.
+    if (await employeeEmailOptedOut(admin, row.firm_id, to)) return;
     const { sendEmail } = await import('./email');
     const portalLink = `${siteOrigin()}/portal/${row.id}`;
     await sendEmail({
@@ -277,7 +281,7 @@ export async function partnerTicketEvent(
         break;
       case 'ticket.legal_replied':
         if (!quiet) {
-          await emailEmployee(row, {
+          await emailEmployee(admin, row, {
             subject: `Legal replied to your request: ${subject}`,
             body:
               opts?.message?.text && opts.message.text.length > 0
@@ -302,7 +306,7 @@ export async function partnerTicketEvent(
         await firePartnerWebhook(admin, row, event, {});
         // Terminal states also close the loop with the employee directly.
         if (!quiet && (row.status === 'converted' || row.status === 'rejected')) {
-          await emailEmployee(row, {
+          await emailEmployee(admin, row, {
             subject:
               row.status === 'converted'
                 ? `Your request became a matter: ${subject}`

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
+import { employeeWantsEmail } from '@/lib/notify-prefs';
 import { ProfileForm } from './profile-form';
 import { PageHeader } from '@/components/counsel/ui';
 
@@ -15,29 +16,20 @@ export default async function HubProfilePage() {
   if (persona.kind !== 'employee') redirect('/portal');
 
   const admin = createAdminSupabase();
-  let phone = '';
-  let prefs = { email: true, sms: false, reminders: true };
+  // One preference, because one is what the send paths honour. The read
+  // rule lives in lib/notify-prefs.ts so the page and the mailers cannot
+  // disagree about what an absent key means.
+  let prefs = { email: true };
   if (admin) {
     const { data } = await admin
       .from('firm_employees')
-      .select('phone, notify_prefs')
+      .select('notify_prefs')
       .eq('user_id', user.id)
       .is('deactivated_at', null)
       .limit(1)
       .maybeSingle();
-    const r = data as {
-      phone?: string | null;
-      notify_prefs?: Record<string, unknown> | null;
-    } | null;
-    if (r) {
-      phone = r.phone ?? '';
-      const p = r.notify_prefs ?? {};
-      prefs = {
-        email: p.email !== false,
-        sms: p.sms === true,
-        reminders: p.reminders !== false,
-      };
-    }
+    const r = data as { notify_prefs?: Record<string, unknown> | null } | null;
+    if (r) prefs = { email: employeeWantsEmail(r.notify_prefs) };
   }
 
   return (
@@ -47,8 +39,8 @@ export default async function HubProfilePage() {
         title={<>Profile &amp; notifications</>}
         subtitle={
           <>
-            Choose how {persona.firm.name}&rsquo;s legal team reaches you about
-            replies, meetings, and anything due.
+            Choose whether {persona.firm.name}&rsquo;s legal team emails you
+            when they reply to one of your requests.
           </>
         }
       />
@@ -63,10 +55,7 @@ export default async function HubProfilePage() {
         </p>
       </div>
 
-      <ProfileForm
-        defaultPhone={phone}
-        defaultPrefs={prefs}
-      />
+      <ProfileForm defaultPrefs={prefs} />
     </div>
   );
 }

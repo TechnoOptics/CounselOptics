@@ -3,12 +3,19 @@
 import { useState, useTransition } from 'react';
 import { saveHubProfileAction } from '@/lib/hub-actions';
 
+/**
+ * One toggle, because one is what the product can honour.
+ *
+ * This form used to offer three: email, text message, and due-date
+ * reminders, plus a mobile number to text. Nothing read any of them.
+ * Text messages and reminders have no send path to an employee anywhere in
+ * the codebase, so they are gone rather than left drawn; email is now
+ * checked on both paths that mail an employee. See lib/notify-prefs.ts.
+ */
 export function ProfileForm({
-  defaultPhone,
   defaultPrefs,
 }: {
-  defaultPhone: string;
-  defaultPrefs: { email: boolean; sms: boolean; reminders: boolean };
+  defaultPrefs: { email: boolean };
 }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -24,78 +31,29 @@ export function ProfileForm({
     });
   }
 
-  const Toggle = ({
-    name,
-    label,
-    hint,
-    defaultChecked,
-  }: {
-    name: string;
-    label: string;
-    hint: string;
-    defaultChecked: boolean;
-  }) => (
-    <label className="flex items-start gap-3 py-3 cursor-pointer">
-      <input
-        type="checkbox"
-        name={name}
-        defaultChecked={defaultChecked}
-        className="mt-0.5 h-4 w-4 accent-gold-400"
-      />
-      <span>
-        <span className="block text-[13.5px] font-medium text-cream-100">
-          {label}
-        </span>
-        <span className="block text-[12px] text-cream-100/55">{hint}</span>
-      </span>
-    </label>
-  );
-
   return (
     <form action={submit} className="popup-panel p-5 sm:p-6 space-y-5">
       <div>
-        <label className="block">
-          <span className="block text-sm font-medium text-cream-100 mb-1.5">
-            Mobile number{' '}
-            <span className="text-cream-100/60 font-normal">
-              (for text reminders)
-            </span>
-          </span>
-          <input
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            defaultValue={defaultPhone}
-            placeholder="+1 555 123 4567"
-            className="input"
-          />
-        </label>
-      </div>
-
-      <div className="border-t border-forest-700/40 pt-2">
         <p className="text-[11px] uppercase tracking-[0.16em] text-cream-100/60 mb-1">
           How should we notify you?
         </p>
-        <div className="divide-y divide-forest-700/30">
-          <Toggle
+        <label className="flex items-start gap-3 py-3 cursor-pointer">
+          <input
+            type="checkbox"
             name="notifyEmail"
-            label="Email"
-            hint="Replies from legal, approvals, and confirmations."
             defaultChecked={defaultPrefs.email}
+            className="mt-0.5 h-4 w-4 accent-gold-400"
           />
-          <Toggle
-            name="notifySms"
-            label="Text message"
-            hint="Time-sensitive pings to the number above."
-            defaultChecked={defaultPrefs.sms}
-          />
-          <Toggle
-            name="notifyReminders"
-            label="Due-date reminders"
-            hint="A heads-up before anything is due or expiring."
-            defaultChecked={defaultPrefs.reminders}
-          />
-        </div>
+          <span>
+            <span className="block text-[13.5px] font-medium text-cream-100">
+              Email
+            </span>
+            <span className="block text-[12px] text-cream-100/55">
+              Replies from legal on your requests. Turn this off and they
+              still appear in the Hub, you just will not be emailed.
+            </span>
+          </span>
+        </label>
       </div>
 
       {error && (
@@ -105,7 +63,7 @@ export function ProfileForm({
       )}
       {saved && (
         <p className="rounded-lg ring-1 ring-emerald-700/40 bg-emerald-950/30 px-3 py-2 text-[12.5px] text-emerald-200">
-          Saved. Your notification preferences are updated.
+          Saved.
         </p>
       )}
 
