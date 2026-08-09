@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
+import { stripComments } from './support/strip-comments';
 
 /*
  * `window.confirm()` must not appear in any rendered surface.
@@ -19,10 +20,10 @@ import { join, relative } from 'node:path';
  * WHAT THIS CANNOT TELL YOU: that the replacement dialogs are reachable, or
  * that their copy is right. It only proves the broken mechanism is gone.
  *
- * Comments are stripped before matching. Without that, this file's own
- * subject matter would satisfy it: several of the converted call sites carry a
- * comment naming `window.confirm()` as the thing they replaced, and a guard a
- * comment can satisfy is not a guard.
+ * Comments are stripped before matching (tests/support/strip-comments.ts).
+ * Without that, this file's own subject matter would satisfy it: several of the
+ * converted call sites carry a comment naming `window.confirm()` as the thing
+ * they replaced, and a guard a comment can satisfy is not a guard.
  */
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -38,16 +39,6 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/**
- * Remove block comments, then line comments. The line-comment rule requires a
- * line start or whitespace before the slashes so a `https://` inside a string
- * survives; a `//` after a colon is never a comment in this codebase.
- */
-function stripComments(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|\s)\/\/[^\n]*/gm, '$1');
-}
 
 /*
  * Anchored on the CALL, with its opening paren, in each form that reaches the

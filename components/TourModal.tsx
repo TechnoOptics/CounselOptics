@@ -204,8 +204,23 @@ export function TourModal({ visible }: { visible: boolean }) {
         </div>
         {/* Progress dots. On mobile we keep them inside the safe-area
             with a bit more margin so the home-bar gesture doesn't eat
-            them. Desktop sits absolute against the card border. */}
-        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 pb-[var(--safe-bottom)]">
+            them. Desktop sits absolute against the card border.
+
+            The dot is 4px tall, which is the right SIZE for a progress
+            indicator and the wrong size for a target: it was also the whole
+            hit area, so on a phone it was unhittable. The button is now a
+            32px-tall transparent target with the same 4px dot drawn inside
+            it, which changes what you can press without changing what you
+            see.
+
+            Dark mode was separately broken: the ACTIVE dot was
+            `bg-forest-900`, which is the panel's own dark colour, so it
+            vanished. It is now cream (14.78 on white, 13.81 on the dark
+            panel, both measured with lib/accent-text.ts). The inactive dot
+            stays faint on purpose (1.48 light, 3.45 dark); it is decoration,
+            not information, because the header already reads "Step N of M"
+            and each button carries aria-current plus its own label. */}
+        <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-[var(--safe-bottom)]">
           {STEPS.map((_, i) => (
             <button
               key={i}
@@ -215,10 +230,18 @@ export function TourModal({ visible }: { visible: boolean }) {
                 setStep(i);
               }}
               aria-label={`Jump to step ${i + 1}`}
-              className={`h-1 rounded-full transition-all ${
-                i === step ? 'w-6 bg-forest-900' : 'w-1.5 bg-ink-300 hover:bg-ink-400'
-              }`}
-            />
+              aria-current={i === step ? 'step' : undefined}
+              className="grid h-8 w-6 place-items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 rounded"
+            >
+              <span
+                aria-hidden
+                className={`h-1 rounded-full transition-all ${
+                  i === step
+                    ? 'w-6 bg-forest-900 dark:bg-cream-100'
+                    : 'w-1.5 bg-ink-300 dark:bg-cream-100/40'
+                }`}
+              />
+            </button>
           ))}
         </div>
       </div>

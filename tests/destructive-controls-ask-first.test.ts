@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { stripComments } from './support/strip-comments';
 
 /*
  * A control that destroys something has to ask first.
@@ -27,12 +28,6 @@ import { join } from 'node:path';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-/** Strip comments so a call named in prose does not read as a call. */
-function stripComments(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|\s)\/\/[^\n]*/gm, '$1');
-}
 
 /**
  * Every `onClick={ ... }` attribute value in the source, brace-matched so a
