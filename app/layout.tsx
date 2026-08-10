@@ -18,6 +18,9 @@ import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
+import { SurfaceThemeSync } from '@/components/SurfaceThemeSync';
+import { getCounselTheme } from '@/lib/counsel-theme';
+import { shellOwnsHtmlTheme } from '@/lib/counsel-theme-values';
 import { ExternalLink } from '@/components/ExternalLink';
 import { CrashReporter } from '@/components/CrashReporter';
 import { IdleLogout } from '@/components/IdleLogout';
@@ -208,6 +211,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const isEmbedMode =
     pathname === '/embed' || pathname.startsWith('/embed/');
   const isShellMode = isCounselMode || isHqMode || isHubMode || isEmbedMode;
+
+  // Which way `<html>` is painted on THIS route. Counsel and the employee
+  // portal carry their own theme, and `.dark` on <html> is what every
+  // token, every per-class override and every `dark:` utility keys off,
+  // so on those routes it has to say what the shell is actually painting
+  // rather than what the reader chose for the consumer app. See
+  // shellOwnsHtmlTheme for the measurements this exists for. Resolved on
+  // the server so the first painted frame is already right; kept right
+  // across client-side navigation by SurfaceThemeSync below.
+  const surfaceTheme = shellOwnsHtmlTheme(pathname)
+    ? await getCounselTheme()
+    : undefined;
 
   // Consumer-surface i18n (audit #12). The counsel/HQ/portal shells run
   // their own dictionary-based <T> i18n, so runtime AutoTranslate is scoped
@@ -414,7 +429,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <head>
-        <ThemeBoot serverTheme={serverTheme} />
+        <ThemeBoot serverTheme={serverTheme} surfaceTheme={surfaceTheme} />
         {/* Tags <html> with is-native-app / is-ios-app before paint so
             cross-platform refs (e.g. Google Play badge) and non-IAP
             purchase paths can be CSS-hidden inside the apps - App Store
@@ -430,6 +445,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <BlankScreenWatchdog />
       </head>
       <body className="min-h-screen flex flex-col font-sans">
+        {/* Re-decides ThemeBoot's answer on every client-side navigation,
+            because the root layout stays mounted and that inline script
+            runs once per full page load. */}
+        <SurfaceThemeSync />
         {/* Site-wide structured data: Organization + WebSite (with
             sitelinks search box). Surfaces on every page so the
             knowledge panel + brand SERP carry consistent metadata. */}
