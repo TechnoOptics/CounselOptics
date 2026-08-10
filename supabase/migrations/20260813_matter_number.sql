@@ -1,8 +1,19 @@
 -- A human-quotable reference on every firm matter.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-09. APPLYING THIS AND REGENERATING
--- supabase/schema-fingerprint.sha256 IS THE OWNER'S STEP, in one change.
+-- ======================= APPLIED TO PRODUCTION 2026-08-09 =================
+-- Written and applied the same day, at commit 0e46e947, and verified against
+-- the live schema: 8 firm matters, 0 unnumbered, 0 consumer cases numbered,
+-- three firms each holding their own contiguous series from MAT-0000001.
+-- supabase/schema-fingerprint.sha256 was regenerated in that same commit.
+--
+-- The banner above previously said NOT APPLIED. It was written before the
+-- apply and never corrected, which made it the FOURTH header found today
+-- claiming an applied migration was pending. That keeps happening because
+-- the drift gate cannot contradict it: the CI step self-skips while
+-- SUPABASE_DB_URL is unset, so a header and a fingerprint can both be wrong
+-- and the job still passes. Until that secret exists, these banners are the
+-- only record of applied state, so they have to be corrected by whoever ran
+-- the migration rather than left for a reader to doubt.
 --
 -- Nothing will catch a missed regeneration on its own right now: the CI
 -- drift gate self-skips until the SUPABASE_DB_URL repo secret is set, so it
