@@ -18,6 +18,7 @@ import {
   type DetectedBlank,
 } from '@/lib/template-blank-detection';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
+import type { SignatureMethod } from '@/lib/signature-methods';
 import { resolveDocumentLayout, type DocumentLayout } from '@/lib/document-layout';
 import type { LetterheadAvailability } from '@/components/counsel/DocumentLayoutFields';
 import { T, useT } from '@/components/i18n/LocaleProvider';
@@ -47,6 +48,13 @@ export type TemplateDraft = {
   deliveryMode: DeliveryMode;
   documentLayout: Record<string, unknown> | null;
   acknowledgeUnmergedPlaceholders: boolean;
+  /**
+   * How a signature may be given on this template, or null for no
+   * restriction. Null and a list are deliberately different writes: a draft
+   * that omitted the field would otherwise lift a restriction the author
+   * never touched. See normalizeSignatureMethodSelection.
+   */
+  signatureMethods: SignatureMethod[] | null;
 };
 
 /**
@@ -105,6 +113,13 @@ export function TemplateEditor({
       'NON-DISCLOSURE AGREEMENT\n\nThis Agreement is made on {{date}} between {{company}} and {{recipient_name}} ("Recipient").\n\n1. ...',
   );
   const [requiresApproval, setRequiresApproval] = useState(initial?.requiresApproval ?? true);
+  // Null is "no restriction", which is what every template says today and what
+  // an unmigrated column reads back as. It is NOT the same value as a list, so
+  // an author who never opens the Signature tab cannot lift a restriction
+  // somebody else set.
+  const [signatureMethods, setSignatureMethods] = useState<SignatureMethod[] | null>(
+    initial?.signatureMethods ?? null,
+  );
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
     initial?.deliveryMode ?? 'share',
   );
@@ -357,6 +372,7 @@ export function TemplateEditor({
     documentLayout,
     deliveryMode,
     acknowledgeUnmergedPlaceholders: unmerged.length > 0,
+    signatureMethods,
   });
 
   return (
@@ -429,6 +445,8 @@ export function TemplateEditor({
             onDismiss={dismiss}
             requiresApproval={requiresApproval}
             setRequiresApproval={setRequiresApproval}
+            signatureMethods={signatureMethods}
+            setSignatureMethods={setSignatureMethods}
           />
         )}
         {tab === 'preview' && (

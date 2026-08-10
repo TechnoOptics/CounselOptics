@@ -2,6 +2,8 @@
 
 import type { DetectedBlank } from '@/lib/template-blank-detection';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
+import type { SignatureMethod } from '@/lib/signature-methods';
+import { SignatureMethodPicker } from '@/components/counsel/SignatureMethodPicker';
 import { T } from '@/components/i18n/LocaleProvider';
 import { INPUT_CLS, blankIdentity } from './template-editor-model';
 
@@ -27,6 +29,8 @@ export function SignatureTab({
   onDismiss,
   requiresApproval,
   setRequiresApproval,
+  signatureMethods,
+  setSignatureMethods,
 }: {
   busy: boolean;
   deliveryMode: DeliveryMode;
@@ -39,6 +43,9 @@ export function SignatureTab({
   onDismiss: (b: DetectedBlank) => void;
   requiresApproval: boolean;
   setRequiresApproval: (v: boolean) => void;
+  /** Null means every method is allowed, which is what a template says today. */
+  signatureMethods: SignatureMethod[] | null;
+  setSignatureMethods: (next: SignatureMethod[] | null) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -150,6 +157,19 @@ export function SignatureTab({
             </p>
           )}
         </div>
+      )}
+
+      {/* Directly under the detection, because the two are one thought: the
+          block above says the document asks for a signature, and this says
+          how that signature may be given. Shown only when this template
+          actually goes out to be signed, since a read-only link never
+          collects one and the control would be a decision with no effect. */}
+      {deliveryMode === 'signature' && (
+        <SignatureMethodPicker
+          value={signatureMethods}
+          onChange={setSignatureMethods}
+          disabled={busy}
+        />
       )}
 
       <label className="flex items-start gap-2 rounded-lg border border-ink-200 bg-cream-50/60 p-3 dark:border-forest-700/50 dark:bg-forest-900/60">
