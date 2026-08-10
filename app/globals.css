@@ -1440,6 +1440,7 @@ body > * {
 
    Only spellings that exist at a counsel or portal call site are listed,
    which is the same discipline the per-class block above records. */
+.counsel-shell:not(.dark) .text-gold-100,
 .counsel-shell:not(.dark) .text-gold-200,
 .counsel-shell:not(.dark) .text-gold-300,
 .counsel-shell:not(.dark) .text-gold-400,
@@ -1450,7 +1451,15 @@ body > * {
 .counsel-shell:not(.dark) .text-gold-700,
 .counsel-shell:not(.dark) .text-gold-800,
 .counsel-shell:not(.dark) .hover\:text-gold-200:hover,
-.counsel-shell:not(.dark) .hover\:text-gold-700:hover { color: #6a5521; }
+.counsel-shell:not(.dark) .hover\:text-gold-300:hover,
+.counsel-shell:not(.dark) .hover\:text-gold-600:hover,
+.counsel-shell:not(.dark) .hover\:text-gold-700:hover,
+/* A `group-hover:` utility sits on the CHILD and only paints while the
+   named parent is hovered, so the group's own `:hover` has to be in the
+   selector. Writing the class on its own would paint the label gold at
+   rest, which is the opposite of what the call site asked for. */
+.counsel-shell:not(.dark) .group:hover .group-hover\:text-gold-500,
+.counsel-shell:not(.dark) .group\/row:hover .group-hover\/row\:text-gold-700 { color: #6a5521; }
 
 /* The ink ramp, which this layer used to say needed no rule at all.
    That claim was wrong in both directions.
@@ -1484,6 +1493,24 @@ body > * {
 .counsel-shell:not(.dark) .text-ink-300,
 .counsel-shell:not(.dark) .text-ink-100,
 .counsel-shell:not(.dark) .placeholder\:text-ink-400::placeholder { color: #6b6b75; }
+
+/* The status stops that are tuned for a dark ground, pointed at the
+   tokens this file already proves for a light one.
+   `var()` rather than a hex, deliberately: the light values are declared
+   once at the top of this file and re-declared on this exact selector,
+   so there is no fifth spelling of #b91c1c to keep in step, and a change
+   to the token moves these with it.
+   Only the stops that MEASURE under the floor are listed. rose-700 is
+   5.43:1 here, amber-800 6.12:1 and emerald-700 4.74:1, and repainting
+   a colour that already reads would flatten a scale the call sites use
+   deliberately. The `/` opacity spellings are absent for the same
+   reason: none exists at a call site. */
+.counsel-shell:not(.dark) .text-rose-500,
+.counsel-shell:not(.dark) .text-rose-600,
+.counsel-shell:not(.dark) .text-red-600,
+.counsel-shell:not(.dark) .hover\:text-rose-600:hover { color: var(--danger-text); }
+.counsel-shell:not(.dark) .text-amber-600,
+.counsel-shell:not(.dark) .text-amber-700 { color: var(--warn-text); }
 
 /* TEXT */
 .counsel-shell:not(.dark) .text-forest-900 { color: #17171b; }

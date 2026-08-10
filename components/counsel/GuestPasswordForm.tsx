@@ -44,8 +44,12 @@ export function GuestPasswordForm({
           {error}
         </p>
       )}
+      {/* A tint that reads on either ground and a text colour declared for
+          both. The dark fill with near-white type this used to carry was
+          written when counsel had one theme, and measured 1.46:1 on the
+          light one. */}
       {done && !redirectTo && (
-        <p className="rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-4 py-3 text-[13px] text-emerald-200">
+        <p className="rounded-lg border border-emerald-900/50 bg-emerald-500/10 px-4 py-3 text-[13px] text-emerald-800 dark:text-emerald-200">
           Password updated.
         </p>
       )}
