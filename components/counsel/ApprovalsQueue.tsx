@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -62,10 +62,19 @@ export function ApprovalsQueue({
   rows,
   params,
   canApprove,
+  middle,
 }: {
   /** Every submission the firm has, narrowed to what a row shows. */
   rows: ApprovalRow[];
   params: ApprovalQueueParams;
+  /**
+   * The section that sits between the queue and the history, rendered
+   * verbatim. It is a prop rather than something this component builds
+   * because what goes there is a server-rendered card with the firm's own
+   * templates and people in it, and this component owns nothing but the
+   * queue's own state.
+   */
+  middle?: ReactNode;
   /**
    * Whether this reviewer's firm role may decide on a document. False hides
    * the checkboxes and the bulk bar; the server refuses every row for such a
@@ -206,6 +215,8 @@ export function ApprovalsQueue({
           )}
         </div>
       </section>
+
+      {middle}
 
       <section className="space-y-2 pt-3">
         <SectionLabel>

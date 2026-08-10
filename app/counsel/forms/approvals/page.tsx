@@ -1,9 +1,16 @@
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmTemplateSubmissionsAction } from '@/lib/template-submissions';
+import { listFirmTemplatesAction } from '@/lib/firm-templates';
+import {
+  canRequestTemplates,
+  listRequestableColleagues,
+} from '@/lib/template-requests';
 import { parseApprovalQueueParams, toApprovalRow } from '@/lib/approval-queue';
 import { PageHeader } from '@/components/counsel/ui';
+import { SectionLabel } from '@/components/counsel/patterns';
 import { ApprovalsQueue } from '@/components/counsel/ApprovalsQueue';
+import { AskColleagueCard } from '@/components/counsel/AskColleagueCard';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +70,27 @@ export default async function CounselFormApprovalsPage({
   const rows = (res.submissions ?? []).map(toApprovalRow);
   const params = parseApprovalQueueParams(searchParams);
 
+  /**
+   * The middle card's two lists, and whether this member may use it at all.
+   *
+   * Only what a colleague could actually fill in is offered: a published
+   * template, and a person who has signed in to this firm's workspace and has
+   * not been deactivated. askColleagueForTemplateAction checks both again
+   * against the caller's own session, so a stale option is refused rather than
+   * acted on; narrowing here is so nobody is offered a choice that can only
+   * fail. Both list helpers carry their own firm gate.
+   */
+  const canRequest = await canRequestTemplates(ctx.firm.id);
+  const [templateList, colleagues] = canRequest
+    ? await Promise.all([
+        listFirmTemplatesAction(ctx.firm.id),
+        listRequestableColleagues(ctx.firm.id),
+      ])
+    : [null, []];
+  const templates = (templateList?.templates ?? [])
+    .filter((t) => t.status === 'published')
+    .map((t) => ({ id: t.id, name: t.name }));
+
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
@@ -89,7 +117,25 @@ export default async function CounselFormApprovalsPage({
           the order a person clearing a queue wants is whatever has waited
           longest. matchesQuery covers the category, so "nda" still gathers
           them. */}
-      <ApprovalsQueue rows={rows} params={params} canApprove={Boolean(res.canApprove)} />
+      <ApprovalsQueue
+        rows={rows}
+        params={params}
+        canApprove={Boolean(res.canApprove)}
+        middle={
+          canRequest ? (
+            <section className="space-y-2 pt-3">
+              <SectionLabel>
+                <T>Ask a colleague for a form</T>
+              </SectionLabel>
+              <AskColleagueCard
+                firmId={ctx.firm.id}
+                templates={templates}
+                colleagues={colleagues}
+              />
+            </section>
+          ) : null
+        }
+      />
 
       {/* The explanation, kept and moved rather than deleted. Closed by
           default, so it costs a daily reviewer one line of the page and
