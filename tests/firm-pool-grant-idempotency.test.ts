@@ -8,8 +8,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 type State = {
-  /** null models "no firms row with that id", i.e. an UPDATE that matches nothing. */
-  firm: { token_pool_balance: number; token_pool_period_end: string | null } | null;
+  /**
+   * null models "no firms row with that id", i.e. an UPDATE that matches
+   * nothing. created_by rides along because token_ledger.user_id is NOT NULL
+   * and the pool grant attributes the row to the firm's creator, so a fixture
+   * without it cannot tell a correct ledger insert from a rejected one.
+   */
+  firm: {
+    token_pool_balance: number;
+    token_pool_period_end: string | null;
+    created_by: string | null;
+  } | null;
   grants: Set<string>; // enforces UNIQUE(firm_id, period_end)
   ledger: Array<Record<string, unknown>>;
   claimInserts: number;
@@ -102,7 +111,11 @@ const EXPECTED = PER_SEAT * SEATS;
 
 function freshState(overrides?: Partial<State>): State {
   return {
-    firm: { token_pool_balance: 0, token_pool_period_end: null },
+    firm: {
+      token_pool_balance: 0,
+      token_pool_period_end: null,
+      created_by: 'user_owner',
+    },
     grants: new Set<string>(),
     ledger: [],
     claimInserts: 0,
@@ -141,9 +154,41 @@ describe('grantFirmPoolTokens concurrency', () => {
     expect(s.firm?.token_pool_balance).toBe(EXPECTED);
   });
 
+  it('attributes the ledger row to the firm creator (user_id is NOT NULL)', async () => {
+    await grantFirmPoolTokens({ firmId: 'f1', tier: 'small_firm', seats: SEATS, periodEnd: PERIOD });
+    const s = h.ref.state as State;
+
+    // A pool grant has no acting user, but token_ledger.user_id is NOT NULL,
+    // so a row without one is rejected outright rather than merely being
+    // unattributed - the grant would land with no trail on the firm ledger
+    // that /counsel/billing/tokens renders.
+    expect(s.ledger[0]).toMatchObject({
+      user_id: 'user_owner',
+      firm_id: 'f1',
+      delta: EXPECTED,
+    });
+  });
+
+  it('skips the doomed ledger insert when the firm has no creator', async () => {
+    h.ref.state = freshState({
+      firm: { token_pool_balance: 0, token_pool_period_end: null, created_by: null },
+    });
+    const res = await grantFirmPoolTokens({ firmId: 'f1', tier: 'small_firm', seats: SEATS, periodEnd: PERIOD });
+    const s = h.ref.state as State;
+
+    // The pool is still credited; only the un-writable ledger row is skipped.
+    expect(res.granted).toBe(true);
+    expect(s.firm.token_pool_balance).toBe(EXPECTED);
+    expect(s.ledger).toHaveLength(0);
+  });
+
   it('legacy fast-path: already-granted period skips WITHOUT a claim insert', async () => {
     h.ref.state = freshState({
-      firm: { token_pool_balance: EXPECTED, token_pool_period_end: PERIOD },
+      firm: {
+        token_pool_balance: EXPECTED,
+        token_pool_period_end: PERIOD,
+        created_by: 'user_owner',
+      },
     });
     const res = await grantFirmPoolTokens({ firmId: 'f1', tier: 'small_firm', seats: SEATS, periodEnd: PERIOD });
     const s = h.ref.state as State;

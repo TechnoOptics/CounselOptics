@@ -14,6 +14,10 @@ import {
   type TokenLedgerReason,
 } from '@/lib/storage';
 import { grantTierMonthlyTokens } from '@/lib/token-economy';
+import {
+  grantFirmPoolForSubscriber,
+  seatsFromSubscription,
+} from '@/lib/firm-billing';
 import { applyMonthlyOverageDebit } from '@/lib/item-limits';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
@@ -363,12 +367,15 @@ export async function POST(req: NextRequest) {
           let status: SubscriptionStatus = 'active';
           let currentPeriodEnd: string | null = null;
           let cancelAtPeriodEnd = false;
+          // Firm tiers bill per seat, so the quantity is the pool's size.
+          let seats = 1;
           if (subscriptionId) {
             const sub = await stripe.subscriptions.retrieve(subscriptionId);
             priceId = sub.items.data[0]?.price.id ?? null;
             status = (sub.status as SubscriptionStatus) ?? 'active';
             currentPeriodEnd = periodEndFromSub(sub);
             cancelAtPeriodEnd = sub.cancel_at_period_end;
+            seats = seatsFromSubscription(sub);
           }
           await upsertSubscriptionFromStripe({
             userId,
@@ -400,6 +407,17 @@ export async function POST(req: NextRequest) {
             } else if (tierFromPriceId(priceId) === 'pro') {
               await grantProMonthlyTokens({ userId, periodEnd: currentPeriodEnd });
             }
+            // A multi-seat firm tier owes its pool from the first period,
+            // not just on renewal - the counsel pool page reads the period
+            // end this writes to show when the pool next renews, so without
+            // it a firm that just paid sees "No active subscription".
+            // No-op for every personal and Solo tier.
+            await grantFirmPoolForSubscriber({
+              userId,
+              tier: initialSlug,
+              seats,
+              periodEnd: currentPeriodEnd,
+            });
           }
           // Notify admin of the new subscription. Use the price's
           // unit amount when we have it, otherwise the session total
@@ -518,6 +536,17 @@ export async function POST(req: NextRequest) {
           // of the new STRIPE_PRICE_* env vars still get their grant.
           await grantProMonthlyTokens({ userId, periodEnd });
         }
+
+        // Step 3: credit the firm pool. Multi-seat tiers are sold on the
+        // promise of seats * FIRM_POOL_GRANT[tier] tokens per period, and
+        // this renewal is the only event that owes them. Idempotent per
+        // (firm, periodEnd), and a no-op on every tier without a pool.
+        await grantFirmPoolForSubscriber({
+          userId,
+          tier: tierSlug,
+          seats: seatsFromSubscription(sub),
+          periodEnd,
+        });
         break;
       }
       default:

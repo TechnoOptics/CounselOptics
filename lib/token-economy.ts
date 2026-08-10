@@ -241,14 +241,19 @@ export async function grantFirmPoolTokens(input: {
     return { granted: false, balance: 0 };
   }
 
+  // created_by comes along because token_ledger.user_id is NOT NULL and a
+  // pool grant has no acting user of its own. The firm's creator is the
+  // right attribution: their subscription is what funds the pool (see
+  // firmFundedBySubscriber in lib/firm-billing.ts).
   const { data: row } = await admin
     .from('firms')
-    .select('token_pool_balance, token_pool_period_end')
+    .select('token_pool_balance, token_pool_period_end, created_by')
     .eq('id', input.firmId)
     .maybeSingle();
   const existing = (row as {
     token_pool_balance?: number;
     token_pool_period_end?: string;
+    created_by?: string | null;
   } | null) ?? { token_pool_balance: 0 };
 
   // Fast path / migration guard (see grantTierMonthlyTokens). Skips a period
@@ -310,18 +315,31 @@ export async function grantFirmPoolTokens(input: {
     return { granted: false, balance: existing.token_pool_balance ?? 0 };
   }
 
-  await admin.from('token_ledger').insert({
-    firm_id: input.firmId,
-    delta: newGrant,
-    reason: 'pro_monthly_grant',
-    balance_after: newBalance,
-    metadata: {
-      tier: input.tier,
-      seats: input.seats,
-      per_seat_grant: perSeat,
-      period_end: input.periodEnd,
-    },
-  });
+  // token_ledger.user_id is NOT NULL, so a row without one is rejected by
+  // the database, not merely unattributed. Skipping the insert when the
+  // creator is gone keeps the failure honest: the alternative fires a write
+  // that can only ever 23502, which reads as a broken ledger rather than a
+  // firm with no owner to attribute the grant to.
+  if (existing.created_by) {
+    const { error: ledgerErr } = await admin.from('token_ledger').insert({
+      user_id: existing.created_by,
+      firm_id: input.firmId,
+      delta: newGrant,
+      reason: 'pro_monthly_grant',
+      balance_after: newBalance,
+      metadata: {
+        tier: input.tier,
+        seats: input.seats,
+        per_seat_grant: perSeat,
+        period_end: input.periodEnd,
+      },
+    });
+    reportWriteFailure('firm pool ledger row', ledgerErr);
+  } else {
+    reportWriteFailure('firm pool ledger row', {
+      message: `firm ${input.firmId} has no created_by to attribute the grant to`,
+    });
+  }
 
   return { granted: true, balance: newBalance };
 }
