@@ -137,6 +137,24 @@ describe('the form is wired to the gate', () => {
     expect(form()).toMatch(/reviewRequired:\s*!employeeMode/);
   });
 
+  /**
+   * Asking is not obeying. Deleting the whole `if (reviewGate.blocked)` block
+   * left both assertions above green while the gate stopped nothing, so the
+   * answer being ACTED ON is pinned separately: the blocked branch must set an
+   * error and leave the handler before anything is submitted.
+   */
+  it('stops the submit when the gate says blocked', () => {
+    const src = form();
+    const start = src.indexOf('if (reviewGate.blocked) {');
+    expect(
+      start,
+      'the submit handler no longer branches on reviewGate.blocked',
+    ).toBeGreaterThan(-1);
+    const branch = src.slice(start, start + 600);
+    expect(branch).toContain('setError(');
+    expect(branch).toMatch(/\breturn;/);
+  });
+
   it('no longer carries the old inline block', () => {
     const src = form();
     // The two early returns that used to stop the submit handler.

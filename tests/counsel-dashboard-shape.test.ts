@@ -120,11 +120,48 @@ describe('the counsel dashboard puts its action where its copy says it is', () =
       fields.length,
       'no total-shaped field found; the sweep has stopped matching',
     ).toBeGreaterThanOrEqual(3);
+    /**
+     * Truncation one hop away counts too. Reading only the field's own
+     * expression saw `casesTotal: myCases.slice(0, 5).length` but not the
+     * ordinary refactor that hoists it:
+     *
+     *     const shownCases = myCases.slice(0, 5);
+     *     cases: shownCases.map(...),
+     *     casesTotal: shownCases.length,
+     *
+     * which is the same defect written over two statements and left this
+     * green. So every identifier a total is built from is resolved back to
+     * its own `const` and that initializer is checked as well.
+     *
+     * The third spelling is a filter that reads the INDEX:
+     * `myCases.filter((_, i) => i < 5).length` is the same defect again, and
+     * a plain `.filter(` ban would be wrong because counting a subset is what
+     * a total is often made of. So only an index-taking callback counts.
+     *
+     * This catches truncation spelled as slice, splice, or an index filter,
+     * in the expression or one binding away. It is not a proof that no other
+     * spelling of "shorten this list" exists.
+     */
+    const TRUNCATES = /\.slice\(|\.splice\(|\.filter\(\s*\([^)]*,[^)]*\)\s*=>/;
+    const bindingOf = (id: string): string | null => {
+      const at = page.search(new RegExp(`\\bconst ${id}\\s*=\\s*`));
+      if (at === -1) return null;
+      const eq = page.indexOf('=', at) + 1;
+      return valueAt(page, eq);
+    };
     for (const [, name, expr] of fields) {
       expect(
-        expr.includes('.slice('),
+        TRUNCATES.test(expr),
         `${name} is computed from a truncated list: ${expr.trim()}`,
       ).toBe(false);
+      for (const id of new Set([...expr.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)].map((m) => m[1]))) {
+        const bound = bindingOf(id);
+        if (bound == null) continue;
+        expect(
+          TRUNCATES.test(bound),
+          `${name} is computed from ${id}, which is a truncated list: ${bound.trim()}`,
+        ).toBe(false);
+      }
     }
     // And the three that exist are the ones this is about.
     const names = fields.map((f) => f[1]);

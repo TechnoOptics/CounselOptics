@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from './support/strip-comments';
 
 import {
   AA_SMALL_TEXT,
@@ -843,7 +844,52 @@ describe('app/globals.css agrees with lib/accent-text.ts', () => {
      * derivation at all.
      */
     const root = fileURLToPath(new URL('..', import.meta.url));
-    const sites: { file: string; sets: number; marks: number }[] = [];
+
+    /**
+     * The opening JSX tag the given offset sits inside.
+     *
+     * This used to compare two COUNTS per file: how many elements set the
+     * accent, and how many times the marker was named anywhere in the same
+     * file. Moving the marker off the accent-setting div in
+     * app/portal/layout.tsx and onto its sibling rail kept both counts at one
+     * and kept the guard green, while the element carrying --firm-accent no
+     * longer wore the marker, which is exactly the gold fallback this exists
+     * to prevent. A count is not a binding.
+     *
+     * Returns null when the tag cannot be located, and the caller treats that
+     * as a failure rather than as a pass, so a shape this cannot parse is
+     * loud.
+     *
+     * Comments are removed before any of this runs. They are not decoration
+     * here: app/sign/[token]/page.tsx explains the marker in a comment INSIDE
+     * the opening tag, and the backticks in that prose left the quote scanner
+     * below permanently inside a template literal, so the tag never closed.
+     */
+    const openingTagAt = (src: string, at: number): string | null => {
+      let start = -1;
+      for (const m of src.slice(0, at).matchAll(/<[A-Za-z][\w.]*/g)) {
+        start = m.index ?? -1;
+      }
+      if (start === -1) return null;
+      let depth = 0;
+      let quote = '';
+      for (let i = start; i < src.length; i += 1) {
+        const c = src[i];
+        if (quote) {
+          if (c === quote) quote = '';
+          continue;
+        }
+        if (c === '"' || c === "'" || c === '`') quote = c;
+        else if (c === '{') depth += 1;
+        else if (c === '}') depth -= 1;
+        else if (c === '>' && depth === 0) {
+          return i >= at ? src.slice(start, i + 1) : null;
+        }
+      }
+      return null;
+    };
+
+    const sites: { file: string; at: number; marked: boolean }[] = [];
     const walk = (rel: string) => {
       let entries;
       try {
@@ -855,31 +901,31 @@ describe('app/globals.css agrees with lib/accent-text.ts', () => {
         const next = `${rel}/${e.name}`;
         if (e.isDirectory()) walk(next);
         else if (/\.tsx?$/.test(e.name)) {
-          const src = readFileSync(join(root, next), 'utf8');
-          const sets = src.match(/\[['"]--firm-accent['"] as string\]/g)?.length ?? 0;
-          if (sets === 0) continue;
-          sites.push({
-            file: next.replace(/^\//, ''),
-            sets,
-            marks: src.match(MARKER_IN_CLASS_LIST)?.length ?? 0,
-          });
+          const src = stripComments(readFileSync(join(root, next), 'utf8'));
+          for (const m of src.matchAll(/\[['"]--firm-accent['"] as string\]/g)) {
+            const tag = openingTagAt(src, m.index ?? 0);
+            sites.push({
+              file: next.replace(/^\//, ''),
+              at: m.index ?? 0,
+              marked: tag != null && MARKER_IN_CLASS_LIST.test(tag),
+            });
+            MARKER_IN_CLASS_LIST.lastIndex = 0;
+          }
         }
       }
     };
     for (const base of ['app', 'components']) walk(base);
 
     // Sites, not files: app/counsel/layout.tsx carries two of the four.
-    const total = sites.reduce((n, s) => n + s.sets, 0);
     expect(
-      total,
-      `only ${total} inline --firm-accent site(s) found across ${sites.length} file(s); the sweep has stopped matching and this guard is vacuous`,
+      sites.length,
+      `only ${sites.length} inline --firm-accent site(s) found; the sweep has stopped matching and this guard is vacuous`,
     ).toBeGreaterThanOrEqual(4);
-    for (const site of sites) {
-      expect(
-        site.marks,
-        `${site.file} sets --firm-accent on ${site.sets} element(s) but names \`${ACCENT_SCOPE.slice(1)}\` ${site.marks} time(s); an element that sets the accent and does not wear the marker derives its accent text somewhere above itself, which means the gold fallback`,
-      ).toBeGreaterThanOrEqual(site.sets);
-    }
+    const unmarked = sites.filter((s) => !s.marked).map((s) => `${s.file}@${s.at}`);
+    expect(
+      unmarked,
+      `these elements set --firm-accent without wearing \`${ACCENT_SCOPE.slice(1)}\` on the same tag; a derivation that does not land on the element carrying the accent resolves against the gold fallback and hands every firm somebody else's brand`,
+    ).toEqual([]);
   });
 
   it('guards the relative-colour form behind @supports', () => {
@@ -1806,7 +1852,7 @@ describe('every error and warning surface can be read on both of its grounds', (
     const seen = new Set<string>();
     for (const hit of src.matchAll(FG)) {
       const run = runAround(src, hit.index ?? 0);
-      const key = `${hit[1]} ${run}`;
+      const key = `${hit[1]}\u0000${run}`;
       if (seen.has(key)) continue;
       seen.add(key);
       {

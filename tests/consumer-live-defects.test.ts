@@ -187,7 +187,7 @@ describe('statically rendered guides do not tell a signed-in user to sign in', (
   it('hands the signed-out header to the client probe when prerendered', () => {
     const src = readFileSync(join(ROOT, 'components/UserMenu.tsx'), 'utf8');
     expect(src).toMatch(/isPrerenderedRender\(/);
-    expect(src).toMatch(/HeaderAuthProbe/);
+    expect(src).toMatch(/<HeaderAuthProbe\b/);
   });
 
   it('keeps the guide routes statically rendered', () => {

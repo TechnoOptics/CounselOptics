@@ -102,13 +102,48 @@ describe('no overlay goes back to locking the body on its own', () => {
     return out;
   }
 
+  const root = join(__dirname, '..');
+  const sources = ['app', 'components', 'lib']
+    .flatMap((d) => walk(join(root, d)))
+    .map((f) => ({ rel: f.slice(root.length + 1), src: readFileSync(f, 'utf8') }));
+
+  /**
+   * The floor. Both sweeps below iterate this list, and a walk that resolved
+   * to nothing would pass either of them without looking at a single file.
+   */
+  it('walks the app, not an empty list', () => {
+    expect(sources.length).toBeGreaterThan(300);
+  });
+
   it('routes every scroll lock through lib/scroll-lock.ts', () => {
-    const root = join(__dirname, '..');
-    const offenders = ['app', 'components', 'lib']
-      .flatMap((d) => walk(join(root, d)))
-      .filter((f) => f !== join(root, 'lib', 'scroll-lock.ts'))
-      .filter((f) => readFileSync(f, 'utf8').includes('body.style.overflow'))
-      .map((f) => f.slice(root.length + 1));
+    const offenders = sources
+      .filter((f) => f.rel !== join('lib', 'scroll-lock.ts'))
+      .filter((f) => f.src.includes('body.style.overflow'))
+      .map((f) => f.rel);
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * The sweep above is entirely NEGATIVE: a dialog that locks nothing at all
+   * passes it exactly as cleanly as one that locks correctly. Deleting
+   * `const unlockScroll = lockScroll();` from components/Dialog.tsx left this
+   * file green while every dialog in the product, ConfirmDialog included,
+   * scrolled the page underneath again.
+   *
+   * So the importers are held to using what they imported. The list is derived
+   * from the tree rather than written out, and Dialog is named because it is
+   * the module the others inherit the behaviour from.
+   */
+  it('makes every module that imports the lock actually call it', () => {
+    const importers = sources.filter((f) =>
+      /import\s*\{[^}]*\blockScroll\b[^}]*\}\s*from\s*['"][^'"]*scroll-lock['"]/.test(
+        f.src,
+      ),
+    );
+    expect(importers.map((f) => f.rel)).toContain(join('components', 'Dialog.tsx'));
+    const importedButUnused = importers
+      .filter((f) => !/\blockScroll\s*\(/.test(f.src))
+      .map((f) => f.rel);
+    expect(importedButUnused).toEqual([]);
   });
 });

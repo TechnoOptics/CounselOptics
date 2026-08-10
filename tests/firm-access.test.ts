@@ -1321,8 +1321,19 @@ describe('the enforcement wiring', () => {
   // feature is built to avoid. Neither layout may hold the word.
   it('never wraps the shell gate in a catch', () => {
     for (const src of [counselLayout, portalLayout]) {
-      const gate = src.slice(src.indexOf('firmTrialState('));
-      expect(gate.slice(0, 400)).not.toMatch(/catch/);
+      // The anchor first. Unchecked, a rename made indexOf return -1 and
+      // slice(-1) hand this the file's last character, which contains no
+      // `catch` and passes. The sibling checks at 1302 and 1307 assert the
+      // call exists, but this assertion has to hold on its own.
+      const at = src.indexOf('firmTrialState(');
+      expect(at, 'the shell gate is no longer firmTrialState(').toBeGreaterThan(-1);
+      // Forward, for a catch wrapped around the gate's own body...
+      expect(src.slice(at, at + 400)).not.toMatch(/catch/);
+      // ...and BACKWARD, for a `try {` opened above it, which is the same
+      // fail-open and which a forward-only window cannot see. The
+      // action-level equivalents below already scan backward for exactly
+      // this reason.
+      expect(src.slice(Math.max(0, at - 400), at)).not.toMatch(/\btry\s*\{/);
     }
   });
 
@@ -1744,24 +1755,47 @@ describe('the enforcement wiring', () => {
    * the test below pins.
    */
   it('dispatches every gated action through runGatedAction', () => {
+    /**
+     * WHY .ts AS WELL AS .tsx. The sweep used to pass `--include='*.tsx'`,
+     * so a dispatch living in a plain module was invisible to it, and one
+     * already did: setFirmCaseStatusAction has NO .tsx call site at all, only
+     * app/counsel/cases/set-status.ts. The emptiness check could not notice,
+     * because it compared a TOTAL (23 sites) against a count of names (22); a
+     * name with zero visible call sites disappears into that sum. The count
+     * is per name now, and the sweep reads both extensions.
+     *
+     * THE TWO HELPER MODULES. app/counsel/cases/set-status.ts and
+     * app/counsel/cases/assign-to.ts each wrap their action in a hand-written
+     * `catch { return { ok: false } }`. That is not runGatedAction and it is
+     * not equivalent: it turns the access-ended refusal into a failure with
+     * no message, which is the shape lib/gated-action.ts exists to replace.
+     * They are named here so the exception is visible and countable rather
+     * than hidden behind a file extension. They should move to
+     * runGatedAction; until they do, this test says so out loud.
+     */
     const EXEMPT = new Set(['bulkImportCaseEvidenceAction']);
+    const HAND_WRITTEN_CATCH = new Set([
+      'app/counsel/cases/set-status.ts',
+      'app/counsel/cases/assign-to.ts',
+    ]);
     const names = [...new Set(GATED.map((g) => g.fn))].filter(
       (n) => !EXEMPT.has(n),
     );
     const files = execSync(
-      `grep -rlE '(${names.join('|')})\\(' app components --include='*.tsx'`,
+      `grep -rlE '(${names.join('|')})\\(' app components --include='*.tsx' --include='*.ts'`,
       { cwd: ROOT, encoding: 'utf8' },
     )
       .split('\n')
       .filter(Boolean);
-    let seen = 0;
+    const seen = new Map<string, number>(names.map((n) => [n, 0]));
     for (const rel of files) {
       const src = readFileSync(join(ROOT, rel), 'utf8');
       for (const name of names) {
         // Calls only. An import lists the name with a comma after it, never
         // an open paren.
         for (const m of src.matchAll(new RegExp(`\\b${name}\\(`, 'g'))) {
-          seen += 1;
+          seen.set(name, (seen.get(name) ?? 0) + 1);
+          if (HAND_WRITTEN_CATCH.has(rel)) continue;
           const before = src.slice(Math.max(0, (m.index ?? 0) - 30), m.index ?? 0);
           expect(
             before,
@@ -1770,10 +1804,10 @@ describe('the enforcement wiring', () => {
         }
       }
     }
-    // A regex that matched nothing would pass this test while proving
-    // nothing. There are more call sites than gated actions, because two
-    // surfaces send firm messages.
-    expect(seen).toBeGreaterThanOrEqual(names.length);
+    // Per name, not in aggregate. A regex that matched nothing, or that
+    // matched everything except one action, would otherwise pass this test
+    // while proving nothing about that action.
+    expect([...seen].filter(([, n]) => n === 0).map(([name]) => name)).toEqual([]);
   });
 
   /**

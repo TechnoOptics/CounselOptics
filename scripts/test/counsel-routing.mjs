@@ -13,14 +13,17 @@
  * Exit code 0 = all green. Non-zero = a case is broken; the failing
  * assertion is printed with the expected vs actual values.
  *
- * Why the function bodies are duplicated here instead of imported:
- *   Node cannot natively import `.ts`. Adding a TS-aware runner
- *   (tsx / ts-node) just to test a 20-line function is overkill.
- *   Instead we MIRROR the canonical logic from lib/counsel-routing.ts
- *   below. The type-check (`npx tsc --noEmit`) guards the source; this
- *   script guards the behavior contract. If you change one, change
- *   both. There's a sanity assertion at the end that fails loudly if
- *   the source string in lib/counsel-routing.ts has drifted.
+ * The SHIPPED helpers are what run here. The function bodies used to be
+ * MIRRORED into this file and the mirror is what every assertion below
+ * exercised, backstopped by six substring checks on the source. Those checked
+ * that six lines were still present, not that they were the whole function:
+ * adding `if (href.startsWith('/counsel/settings')) return href;` at the top
+ * of tenantHref reinstated the exact CR-5 dead-click this file is named for,
+ * with all six needles still present and the script exiting 0.
+ *
+ * Node cannot import a .ts module directly, so it is compiled with the repo's
+ * own typescript, the way scripts/test/scroll-lock-wheel.mjs already loads the
+ * shipped lib/scroll-lock.ts. No runner is added and nothing is mirrored.
  *
  * History:
  *   - V3 audit (CR-28): added prefetch={false} on sidebar links.
@@ -36,24 +39,37 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 // ---------------------------------------------------------------------
-// Local copy of lib/counsel-routing.ts. See the doc block above.
+// The shipped lib/counsel-routing.ts, compiled. See the doc block above.
 // ---------------------------------------------------------------------
-function tenantHref(href, tenantMode) {
-  if (!tenantMode) return href;
-  if (href === '/counsel' || href === '/counsel/') return '/';
-  if (href.startsWith('/counsel/')) return href.slice('/counsel'.length);
-  return href;
-}
+const here = dirname(fileURLToPath(import.meta.url));
+const sourcePath = join(here, '..', '..', 'lib', 'counsel-routing.ts');
+const source = readFileSync(sourcePath, 'utf8');
 
-function isCounselItemActive(itemHref, pathname) {
-  if (itemHref === '/counsel') {
-    return pathname === '/counsel' || pathname === '/counsel/';
+const require = createRequire(import.meta.url);
+const ts = require('typescript');
+const compiled = ts.transpileModule(source, {
+  compilerOptions: {
+    target: ts.ScriptTarget.ES2020,
+    module: ts.ModuleKind.CommonJS,
+  },
+}).outputText;
+const shipped = { exports: {} };
+// eslint-disable-next-line no-new-func
+new Function('exports', 'module', compiled)(shipped.exports, shipped);
+const { tenantHref, isCounselItemActive } = shipped.exports;
+for (const [name, fn] of [
+  ['tenantHref', tenantHref],
+  ['isCounselItemActive', isCounselItemActive],
+]) {
+  if (typeof fn !== 'function') {
+    console.error(`FAIL: lib/counsel-routing.ts no longer exports ${name}.`);
+    process.exit(1);
   }
-  return pathname === itemHref || pathname.startsWith(itemHref + '/');
 }
 
 let failures = 0;
@@ -103,40 +119,6 @@ expect(isCounselItemActive('/counsel/settings', '/counsel/settings/webhooks'), t
 expect(isCounselItemActive('/counsel/cases', '/counsel/cases/abc-123'), true, 'cases active on case detail');
 expect(isCounselItemActive('/counsel/cases', '/counsel'), false, 'cases NOT active on dashboard');
 expect(isCounselItemActive('/counsel/cases', '/counsel/cases-archive'), false, 'no prefix-collision: /cases vs /cases-archive');
-
-// ---------------------------------------------------------------------
-// Drift guard: make sure the TS source still contains the same logic
-// strings we mirror above. Fails loudly when a future edit changes one
-// half without the other.
-// ---------------------------------------------------------------------
-const here = dirname(fileURLToPath(import.meta.url));
-const sourcePath = join(here, '..', '..', 'lib', 'counsel-routing.ts');
-let source = '';
-try {
-  source = readFileSync(sourcePath, 'utf8');
-} catch (err) {
-  console.error('  FAIL: cannot read', sourcePath, err.message);
-  failures++;
-}
-
-const driftChecks = [
-  [`if (!tenantMode) return href;`, 'tenantHref: apex passthrough'],
-  [`if (href === '/counsel' || href === '/counsel/') return '/';`, 'tenantHref: dashboard collapse'],
-  [`if (href.startsWith('/counsel/'))`, 'tenantHref: prefix strip guard'],
-  [`return href.slice('/counsel'.length);`, 'tenantHref: prefix strip'],
-  [`if (itemHref === '/counsel')`, 'isActive: dashboard branch'],
-  [`pathname === itemHref || pathname.startsWith(itemHref + '/')`, 'isActive: prefix or exact'],
-];
-console.log('\n[drift-guard] lib/counsel-routing.ts:');
-for (const [needle, label] of driftChecks) {
-  if (source.includes(needle)) {
-    passes++;
-  } else {
-    failures++;
-    console.error(`  FAIL: ${label}`);
-    console.error(`    missing string: ${JSON.stringify(needle)}`);
-  }
-}
 
 // ---------------------------------------------------------------------
 // Account-menu containment.

@@ -5,32 +5,42 @@
  * lib/bella-markdown.ts against the actual failing strings from the
  * V1 audit report.
  *
- * Same drift-guard pattern as scripts/test/counsel-routing.mjs: the
- * function body is mirrored here for Node-direct runs, and a final
- * grep against lib/bella-markdown.ts fails loudly if the source
- * loses any of the documented replace rules.
+ * The SHIPPED function is what runs here. This used to mirror the body
+ * into this file and exercise the copy, with three of the twelve replace
+ * rules grepped out of the source as a drift guard. Deleting the inline-code
+ * rule from lib/bella-markdown.ts, which puts literal backticks back in front
+ * of a distressed reader, left every assertion below green: they were all
+ * measuring the mirror. Node cannot import a .ts module directly, so it is
+ * compiled with the repo's own typescript, the same way
+ * scripts/test/scroll-lock-wheel.mjs loads the shipped lib/scroll-lock.ts.
  *
  * Run via `npm run test:bella-markdown` or `node scripts/test/bella-markdown.mjs`.
  */
 
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-function stripBellaMarkdown(s) {
-  return s
-    .replace(/\[([^\]]+)\]\(\s*#\s*\)/g, '$1')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/__([^_]+)__/g, '$1')
-    .replace(/(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/g, '$1')
-    .replace(/(?<!_)_(?!\s)([^_\n]+?)(?<!\s)_(?!_)/g, '$1')
-    .replace(/`([^`\n]+)`/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/^\s*\d+\.\s+/gm, '')
-    .replace(/^>\s*/gm, '')
-    .replace(/\*{1,2}$/g, '')
-    .replace(/_{1,2}$/g, '');
+const here = dirname(fileURLToPath(import.meta.url));
+const sourcePath = join(here, '..', '..', 'lib', 'bella-markdown.ts');
+const source = readFileSync(sourcePath, 'utf8');
+
+const require = createRequire(import.meta.url);
+const ts = require('typescript');
+const compiled = ts.transpileModule(source, {
+  compilerOptions: {
+    target: ts.ScriptTarget.ES2020,
+    module: ts.ModuleKind.CommonJS,
+  },
+}).outputText;
+const shipped = { exports: {} };
+// eslint-disable-next-line no-new-func
+new Function('exports', 'module', compiled)(shipped.exports, shipped);
+const { stripBellaMarkdown } = shipped.exports;
+if (typeof stripBellaMarkdown !== 'function') {
+  console.error('FAIL: lib/bella-markdown.ts no longer exports stripBellaMarkdown.');
+  process.exit(1);
 }
 
 let passes = 0;
@@ -118,30 +128,19 @@ expect(
   'trailing _ stripped',
 );
 
-// Drift guard: same pattern as scripts/test/counsel-routing.mjs.
-console.log('\n[drift-guard] lib/bella-markdown.ts:');
-const here = dirname(fileURLToPath(import.meta.url));
-const sourcePath = join(here, '..', '..', 'lib', 'bella-markdown.ts');
-let source = '';
-try {
-  source = readFileSync(sourcePath, 'utf8');
-} catch (err) {
+// Every replace rule in the shipped module is exercised above, not grepped.
+// This is the one thing behaviour cannot show: that the module still ships
+// twelve rules, so a rule added without a case here is noticed.
+console.log('\n[coverage] lib/bella-markdown.ts:');
+const ruleCount = (source.match(/\.replace\(/g) ?? []).length;
+if (ruleCount === 12) {
+  passes++;
+} else {
   failures++;
-  console.error('  FAIL: cannot read', sourcePath, err.message);
-}
-const driftChecks = [
-  [String.raw`\[([^\]]+)\]\(\s*#\s*\)`, 'empty-anchor regex'],
-  [String.raw`\*\*([^*]+)\*\*`, 'bold-strip regex'],
-  [String.raw`\*{1,2}$`, 'tail ** strip'],
-];
-for (const [needle, label] of driftChecks) {
-  if (source.includes(needle)) {
-    passes++;
-  } else {
-    failures++;
-    console.error(`  FAIL: ${label}`);
-    console.error(`    missing pattern: ${JSON.stringify(needle)}`);
-  }
+  console.error(
+    `  FAIL: lib/bella-markdown.ts now has ${ruleCount} replace rules, not 12.`,
+  );
+  console.error('    Add a case above for the new rule, then update this count.');
 }
 
 console.log('');

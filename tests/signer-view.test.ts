@@ -1796,8 +1796,12 @@ describe('call sites', () => {
     const src = read('app/sign/[token]/document-view.tsx');
     expect(src).toMatch(/<ExternalLink\b/);
     // A raw _blank anchor is the thing that no-ops in the native shell.
-    // The prose above the component names it, so this looks for the tag.
-    expect(src).not.toMatch(/<a\b[^>]*target="_blank"/s);
+    // `[^>]*` cannot cross the `>` in an arrow function, and JSX props are
+    // full of them: an anchor written with `onClick={(e) => ...}` before its
+    // target slipped straight past this. The scan is bounded by length
+    // instead, which is what tests/reachable-controls.test.ts already does
+    // for the same reason.
+    expect(src).not.toMatch(/<a\b[\s\S]{0,400}?target="_blank"/);
     // And the href it is given is relative, which is fine only because
     // ExternalLink resolves it before handing it to the native
     // browser. Without that the open rejects, the fallback assigns

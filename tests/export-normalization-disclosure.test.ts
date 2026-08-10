@@ -177,9 +177,16 @@ describe('the firm can see the map in the app', () => {
       readFileSync('app/counsel/cases/[id]/naming-conventions.tsx', 'utf8'),
     );
     // Machine translation must not rewrite the very strings being disclosed.
-    expect(src).toContain('data-no-translate');
+    // Asked file-wide, this was answered by the attribute sitting on any
+    // element at all: moving it off the <li> and onto the eyebrow left the
+    // disclosed from/to strings translatable and stayed green. It has to be
+    // on the element that renders them.
     expect(src).toMatch(/parsed\.map\(/);
-    expect(src).toMatch(/\{r\.from\}/);
-    expect(src).toMatch(/\{r\.to\}/);
+    const at = src.indexOf('parsed.map(');
+    expect(at, 'the panel no longer maps the parsed rules').toBeGreaterThan(-1);
+    const row = src.slice(at, at + 500);
+    expect(row).toContain('data-no-translate');
+    expect(row).toMatch(/\{r\.from\}/);
+    expect(row).toMatch(/\{r\.to\}/);
   });
 });

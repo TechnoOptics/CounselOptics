@@ -283,7 +283,14 @@ describe('the partner bridge asks the same question', () => {
         'utf8',
       ),
     );
-    expect(src).toContain('employeeEmailOptedOut(admin, row.firm_id, to)');
+    // The call ALONE is not the invariant: `const x = await
+    // employeeEmailOptedOut(...)` followed by nothing contains that substring
+    // and mails the employee anyway. Verified: with the call kept and its
+    // answer discarded, the old assertion stayed green. What has to be pinned
+    // is the early return the answer triggers.
+    expect(src).toMatch(
+      /if\s*\(await employeeEmailOptedOut\(admin, row\.firm_id, to\)\)\s*return;/,
+    );
   });
 });
 

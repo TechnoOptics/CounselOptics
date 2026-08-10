@@ -137,6 +137,12 @@ describe('the Security Center actually offers the control', () => {
   });
 
   it('sorts open events to the top so a backlog stays reachable', () => {
-    expect(src).toContain("nullsFirst: true");
+    // The page has four .order() calls. Asking only for `nullsFirst: true`
+    // anywhere in the file was satisfied by moving it onto any of the other
+    // three, which leaves the security events sorted acknowledged-first. It
+    // belongs to acknowledged_at, so it is read there.
+    expect(src).toContain(
+      "order('acknowledged_at', { ascending: true, nullsFirst: true })",
+    );
   });
 });

@@ -572,8 +572,23 @@ describe('POST /api/counsel/draft-template/pdf, an unsaved template draft', () =
     // The behavioural check above covers the route as it runs. This covers
     // what a future edit could add to the branch without any request showing
     // it: a PostgREST call of any kind, on any client.
-    const branch = ROUTE.slice(ROUTE.indexOf('async function renderTemplateDraft'));
-    expect(branch.length).toBeGreaterThan(0);
+    // The anchor first. renderTemplateDraft is the LAST function in the
+    // route, so a rename made indexOf return -1, slice(-1) return the file's
+    // final character, and all six assertions below pass against it. A length
+    // floor of zero did not help: one character is greater than zero. Every
+    // assertion after this point is negative, which is precisely the shape
+    // that cannot notice it is looking at nothing.
+    const at = ROUTE.indexOf('async function renderTemplateDraft');
+    expect(
+      at,
+      'renderTemplateDraft is no longer in this route; this guard was measuring the file\'s last character',
+    ).toBeGreaterThan(-1);
+    const branch = ROUTE.slice(at);
+    expect(branch.length).toBeGreaterThan(200);
+    // Two positives from opposite ends of the function, so the slice is
+    // known to hold the whole branch and not a fragment of one.
+    expect(branch).toContain('callerFirmRole(firmId)');
+    expect(branch).toContain('mergeTemplateDocument(');
     // Written without the opening parenthesis on purpose: `.from?.(` is the
     // same call and would slip past `.from(`. createAdminSupabase leads the
     // list because it is the door, and everything else is what comes through

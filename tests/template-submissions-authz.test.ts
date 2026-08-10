@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { stripComments } from './support/strip-comments';
 
 /**
  * Every export of a `'use server'` module is a public HTTP endpoint, callable
@@ -19,22 +20,41 @@ import { describe, expect, it } from 'vitest';
  * that the right one was used on the right firm. Read the action too.
  */
 
-const SOURCE = readFileSync(
-  fileURLToPath(new URL('../lib/template-submissions.ts', import.meta.url)),
-  'utf8',
+/**
+ * Comments are removed before anything is matched. Read raw, the authorization
+ * sweep below was satisfied by the WORD `callerFirmRole`: replacing the real
+ * call in getTemplateSubmissionAction with the comment "callerFirmRole is
+ * enforced by the page that calls this" left an unauthorized `'use server'`
+ * export returning a submission, and the guard green.
+ */
+const SOURCE = stripComments(
+  readFileSync(
+    fileURLToPath(new URL('../lib/template-submissions.ts', import.meta.url)),
+    'utf8',
+  ),
 );
 
-/** Each exported action with its body, up to the next top-level declaration. */
+/**
+ * Each exported action with its body.
+ *
+ * A body ends at the next top-level declaration of ANY kind, not at the next
+ * exported action. Ending it at the next export gave the last action a body
+ * that ran to end of file and swallowed the four private helpers below it, so
+ * an authorization helper named in any of those would have satisfied the sweep
+ * on behalf of whichever action happened to be last.
+ */
 function exportedActions(): { name: string; body: string }[] {
   const out: { name: string; body: string }[] = [];
-  const re = /^export async function (\w+)\(/gm;
+  const exportRe = /^export async function (\w+)\(/gm;
+  const topLevelRe = /^(?:export\s+)?(?:async\s+)?(?:function|const|let|var|class|type|interface)\b/gm;
   const starts: { name: string; at: number }[] = [];
-  for (const m of SOURCE.matchAll(re)) {
+  for (const m of SOURCE.matchAll(exportRe)) {
     starts.push({ name: m[1], at: m.index ?? 0 });
   }
-  for (let i = 0; i < starts.length; i += 1) {
-    const end = i + 1 < starts.length ? starts[i + 1].at : SOURCE.length;
-    out.push({ name: starts[i].name, body: SOURCE.slice(starts[i].at, end) });
+  const tops = [...SOURCE.matchAll(topLevelRe)].map((m) => m.index ?? 0);
+  for (const { name, at } of starts) {
+    const next = tops.find((i) => i > at) ?? SOURCE.length;
+    out.push({ name, body: SOURCE.slice(at, next) });
   }
   return out;
 }
@@ -102,8 +122,13 @@ describe('lib/template-submissions.ts', () => {
   });
 
   it('authorizes the caller against the firm in every exported action', () => {
-    const unguarded = exportedActions()
-      .filter((a) => !/authorizeFirmActor|callerFirmRole/.test(a.body))
+    const actions = exportedActions();
+    // The floor. If the export scan ever stops matching, `unguarded` is empty
+    // and this passes without having looked at a single action.
+    expect(actions.length).toBeGreaterThanOrEqual(6);
+    const unguarded = actions
+      // The CALL, not the name: a comment naming the helper is not a check.
+      .filter((a) => !/\b(?:authorizeFirmActor|callerFirmRole)\s*\(/.test(a.body))
       .map((a) => a.name);
     expect(unguarded).toEqual([]);
   });

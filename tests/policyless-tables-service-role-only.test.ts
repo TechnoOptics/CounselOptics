@@ -101,6 +101,13 @@ function hits(src: string): Hit[] {
     const needle = `.from('${table}')`;
     for (let i = stripped.indexOf(needle); i !== -1; i = stripped.indexOf(needle, i + 1)) {
       const before = stripped.slice(0, i).replace(/\s+$/, '');
+      // A receiver that does not end in a plain identifier is UNRESOLVED, not
+      // safe. `(await createServerSupabase()).from('firm_meetings')` ends in
+      // `)`, so this regex returned null, `nearest()` matched nothing, and the
+      // hit was recorded as service-role-scoped. The two are separated now and
+      // the unresolved ones are asserted separately below, because folding
+      // "I could not tell" into "it is fine" is how a scan reports a clean
+      // result on a call it never understood.
       const receiver =
         /([A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$/.exec(before)?.[1] ?? null;
       const nearest = (list: Array<{ ident: string; at: number }>) =>
@@ -193,5 +200,26 @@ describe('no policyless table is reached through the user-scoped client', () => 
       .filter((h) => h.userScoped)
       .map((h) => `${h.file}: ${h.table} via user-scoped '${h.receiver}'`);
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * The third state, kept out of the second on purpose.
+   *
+   * `(await createServerSupabase()).from('firm_meetings')` has no identifier
+   * receiver, so the resolver returns null. Folded into "not user-scoped",
+   * that reads as a pass: a DENY-ALL read written that way was reported clean.
+   * A null receiver means the scan did not understand the call, and the honest
+   * report of that is a separate, empty list.
+   *
+   * The parameter case (`admin: SupabaseClient`) is different and is disclosed
+   * in the header: the receiver IS an identifier, it is simply bound outside
+   * the file. Those are counted, not flagged, and the floor above is what
+   * stops that becoming an empty pass.
+   */
+  it('understood the receiver of every call it looked at', () => {
+    const unresolved = all
+      .filter((h) => h.receiver == null)
+      .map((h) => `${h.file}: ${h.table} on an expression this scan cannot read`);
+    expect(unresolved).toEqual([]);
   });
 });

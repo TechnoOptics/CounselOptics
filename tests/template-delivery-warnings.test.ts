@@ -104,9 +104,14 @@ describe('the template editor states both consequences', () => {
     const s = flat(src());
     expect(s).toContain('nobody will fill');
     // And names both ways out, because a consequence with no remedy is a
-    // complaint.
-    expect(s).toContain('Your colleague fills in');
-    expect(s).toContain('For signature');
+    // complaint. Scoped to the warning sentence: both remedy phrases are
+    // also <option> labels in the same file, so asked file-wide this was
+    // answered by the two controls and truncating the remedy off the
+    // warning stayed green.
+    const at = s.indexOf('nobody will fill');
+    const warning = s.slice(at, at + 400);
+    expect(warning).toContain('Your colleague fills in');
+    expect(warning).toContain('For signature');
   });
 
   it('says queued submissions keep the mode they were filed under', () => {
