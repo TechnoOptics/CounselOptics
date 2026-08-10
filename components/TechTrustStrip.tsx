@@ -44,7 +44,7 @@ const SECURITY = [
   },
   {
     label: 'Audit log',
-    value: 'Every read, edit, and signature is timestamped',
+    value: 'Every edit and signature is timestamped',
   },
   {
     label: 'Tenant isolation',

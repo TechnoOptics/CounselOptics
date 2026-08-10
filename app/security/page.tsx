@@ -50,7 +50,7 @@ export default function SecurityPage() {
         <Promise
           icon={<ShieldIcon />}
           title="You control access"
-          body="Owner, editor, and attorney roles. Revoke any collaborator at any time. Fine-grained sharing is the default, not the exception."
+          body="Viewer, editor, attorney, witness, and represented-client roles. Revoke any collaborator at any time. Fine-grained sharing is the default, not the exception."
         />
       </section>
 
@@ -101,12 +101,12 @@ export default function SecurityPage() {
               Supabase Auth. We never see or store your password.
             </li>
             <li>
-              Session cookies are HTTP-only, Secure, and SameSite=Lax. They are bound to
-              your browser and cannot be read by client-side JavaScript.
+              Session cookies are SameSite=Lax, so a browser will not send them along with
+              a cross-site request.
             </li>
             <li>
-              Sign-out invalidates the session immediately and clears auth cookies in the
-              browser.
+              Sign-out invalidates the session immediately, on every device where you are
+              signed in, and clears auth cookies in the browser.
             </li>
           </ul>
         </SubSection>
@@ -116,9 +116,8 @@ export default function SecurityPage() {
           settings. We do not, and will not, offer SMS-based 2FA: SIM-swap attacks make it
           materially weaker than TOTP.
         </SubSection>
-        <SubSection title="Suspicious activity">
-          Unusual sign-in attempts trigger an email notification. You can sign out of every
-          device from your profile page.
+        <SubSection title="Ending a session">
+          Signing out ends your session everywhere, not only on the device you are using.
         </SubSection>
       </Section>
 
@@ -130,11 +129,11 @@ export default function SecurityPage() {
         <ul className="grid gap-3 sm:grid-cols-2">
           <ControlTile
             label="Role-based sharing"
-            body="Invite collaborators as owner, editor, or attorney. Each role sees only what they need."
+            body="Invite collaborators as viewer, editor, attorney, witness, or represented client. Each role sees only what they need."
           />
           <ControlTile
             label="Per-case audit trail"
-            body="See who viewed, uploaded, exported, or shared a case. (In-app surface ships next.)"
+            body="Firm owners and admins can review collaborator activity on a matter. Logging of individual views is not in place yet."
           />
           <ControlTile
             label="Self-serve data export"
