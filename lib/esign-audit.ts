@@ -56,6 +56,16 @@ export type SignatureEventType =
   // chain is sold as evidence of what happened to an executed
   // instrument, and retrieval of it is part of that.
   | 'copy_downloaded'
+  // The recipient pulled the file itself BEFORE signing: a browser
+  // pointed at /api/firm/sign/document/[token] rather than the signing
+  // page's own render fetch, which is the request that ends in the
+  // browser's PDF viewer with Save and Print on it. Distinct from
+  // copy_downloaded, which is retrieval of an EXECUTED instrument after
+  // the fact. This one is evidence that the document reached the person
+  // in a form they kept, which is the strongest thing short of a
+  // signature that a firm can learn about a recipient's behaviour, and
+  // it is exactly what a silent request was hiding.
+  | 'document_downloaded'
   // A recorded anchor did not fit on its page, so the renderer moved
   // (or shrank) the signature box to keep the whole mark on the page.
   // Relocating beats the old behaviour of letting pdf-lib drop the

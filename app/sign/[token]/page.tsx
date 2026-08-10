@@ -5,6 +5,10 @@ import { getSignatureByToken } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
 import {
+  OPEN_ATTRIBUTION_KEY,
+  classifyOpenAttribution,
+} from '@/lib/signing-activity';
+import {
   INTERNAL_SIGNER_GATE_COPY,
   SIGNER_COPY_REFUSAL_COPY,
   maskSignerEmail,
@@ -85,6 +89,17 @@ export default async function SignPage({ params }: { params: { token: string } }
   // and skipped once the signature is already executed (so a
   // post-completion bookmark click doesn't pollute the chain). Hits
   // the service role client because this page is unauthenticated.
+  //
+  // The event now carries what the request itself said about who made
+  // it. This row is read back and reported to a firm and to the
+  // colleague who filed the document, and "the link was opened" is a
+  // claim about a real person's behaviour on a legal matter. A mail
+  // client that prefetches links and a corporate scanner that detonates
+  // every URL in an inbound message both land here and both used to be
+  // indistinguishable from the recipient clicking. classifyOpenAttribution
+  // separates the ones that positively identify themselves as machines,
+  // and the surfaces leave those out of the count. Nothing here upgrades
+  // an open into evidence that anyone read anything.
   if (!signature.signedAt && request.status !== 'canceled') {
     try {
       const admin = createAdminSupabase();
@@ -95,6 +110,15 @@ export default async function SignPage({ params }: { params: { token: string } }
           h.get('x-real-ip') ||
           null;
         const userAgent = h.get('user-agent') ?? null;
+        const attribution = classifyOpenAttribution({
+          secFetchUser: h.get('sec-fetch-user'),
+          secFetchMode: h.get('sec-fetch-mode'),
+          secPurpose: h.get('sec-purpose'),
+          purpose: h.get('purpose'),
+          xPurpose: h.get('x-purpose'),
+          xMoz: h.get('x-moz'),
+          userAgent,
+        });
         await appendSignatureEvent(admin, {
           signingRequestId: request.id,
           signatureId: signature.id,
@@ -104,6 +128,7 @@ export default async function SignPage({ params }: { params: { token: string } }
           userAgent,
           documentSha256:
             (request as { documentSha256?: string | null }).documentSha256 ?? null,
+          metadata: { [OPEN_ATTRIBUTION_KEY]: attribution },
         });
       }
     } catch {
