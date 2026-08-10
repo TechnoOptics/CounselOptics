@@ -460,9 +460,12 @@ const STEPS: Step[] = [
             <label className="label">Location</label>
             {/* Court / hearing location, biased to whichever
                 jurisdiction the user picked above (lat/lng of
-                their state or city). 75 km radius keeps suggestions
-                local without forcing strict bounds - they can still
-                pick a court a few counties over. */}
+                their state or city). A roughly 47-mile radius keeps
+                suggestions local without forcing strict bounds - they
+                can still pick a court a few counties over. The prop is
+                named ...RadiusM and passed in metres because that is
+                the unit the Google Places bias parameter takes; it is
+                never shown to anyone. */}
             <PlaceAutocomplete
               placeholder="Search for the court or courtroom"
               className="input"

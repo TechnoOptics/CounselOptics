@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { CounselTileId } from '@/lib/counsel-dashboard';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateWith } from '@/lib/format';
 
 /**
  * Read-only data envelope the dashboard page hydrates and passes to
@@ -804,7 +805,7 @@ function formatDate(iso: string): string {
     const opts: Intl.DateTimeFormatOptions = sameYear
       ? { month: 'short', day: 'numeric' }
       : { month: 'short', day: 'numeric', year: '2-digit' };
-    return d.toLocaleDateString(undefined, opts);
+    return formatDateWith(d, opts);
   } catch {
     return '';
   }

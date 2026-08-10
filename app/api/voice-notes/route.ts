@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyApiToken, tokenHasScope } from '@/lib/api-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { formatDateTimeShort } from '@/lib/format';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,12 +68,7 @@ export async function POST(req: NextRequest) {
   // Derive a short title from the first few words; user can rename later.
   const title =
     (body.title ?? '').toString().trim() ||
-    `Voice note ${new Date().toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })}`;
+    `Voice note ${formatDateTimeShort(Date.now())}`;
 
   const admin = createAdminSupabase();
   if (!admin) {

@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { GIFT_TIERS, formatDollars } from '@/lib/gift';
 import { ClaimButton } from './claim-button';
 import { isIosAppRequest } from '@/lib/ios-gate';
+import { formatDateLong } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -167,11 +168,7 @@ export default async function ClaimGiftPage({
         {gift.expires_at ? (
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-2">
             Subscription expires{' '}
-            {new Date(gift.expires_at).toLocaleDateString(undefined, {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {formatDateLong(gift.expires_at)}
             .
             {!isIos && (
               <span data-hide-on-ios>

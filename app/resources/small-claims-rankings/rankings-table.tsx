@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { StateSmallClaims } from '@/lib/state-small-claims';
 import { filingFeeFloor } from '@/lib/state-small-claims';
+import { formatNumber } from '@/lib/format';
 
 type SortKey = 'name' | 'monetaryLimit' | 'filingFee' | 'appealWindowDays';
 
@@ -111,7 +112,7 @@ export function RankingsTable({ states }: { states: StateSmallClaims[] }) {
                   {s.name}
                 </Link>
               </td>
-              <td className="px-4 py-2">${s.monetaryLimit.toLocaleString()}</td>
+              <td className="px-4 py-2">${formatNumber(s.monetaryLimit)}</td>
               <td className="px-4 py-2">{s.filingFee}</td>
               <td className="px-4 py-2">
                 {s.appealWindowDays === 0 ? 'No appeal' : `${s.appealWindowDays}d`}

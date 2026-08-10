@@ -9,6 +9,7 @@ import {
 import { EmptyState } from '@/components/counsel/ui';
 import { MonoRef, relativeTime, shortRef } from '@/components/counsel/patterns';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { formatNumber } from '@/lib/format';
 
 /**
  * The policy library, as the configuration-list pattern in
@@ -180,9 +181,9 @@ export function PoliciesManageClient({
                       </MonoRef>
                     </div>
                     <p className="mt-2 text-[12px] text-muted">
-                      {words.toLocaleString()} <T>words</T>
+                      {formatNumber(words)} <T>words</T>
                       {' · '}
-                      {p.content.length.toLocaleString()} <T>characters</T>
+                      {formatNumber(p.content.length)} <T>characters</T>
                       {' · '}
                       <T>added</T> {relativeTime(p.createdAt) ?? ''}
                     </p>

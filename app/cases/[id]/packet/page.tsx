@@ -3,6 +3,7 @@ import { getCase, listExhibits } from '@/lib/storage';
 import { storageUnavailable } from '@/lib/setup-status';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { CasePacket, type PacketData, type PacketExhibit } from '@/components/CasePacket';
+import { formatDate } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,11 +40,7 @@ export default async function PacketPage({
 
   const chronology: { date: string; text: string }[] = [];
   const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    formatDate(iso);
   if (c.createdAt)
     chronology.push({
       date: fmt(c.createdAt),

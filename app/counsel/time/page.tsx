@@ -14,6 +14,7 @@ import {
   relativeTime,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 // Audit W20 V3 CR-27: title template applies once at layout level.
@@ -235,7 +236,7 @@ export default async function CounselTimePage() {
                       </td>
                       <td
                         className="px-3 py-2.5 text-[12px] text-muted"
-                        title={new Date(e.started_at).toLocaleString()}
+                        title={formatDateTimeNumeric(e.started_at)}
                         suppressHydrationWarning
                       >
                         {relativeTime(e.started_at) ?? ''}

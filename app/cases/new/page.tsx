@@ -15,6 +15,7 @@ import {
   TIER_ITEM_LIMITS,
   ITEM_OVERAGE_TOKENS_PER_MONTH,
 } from '@/lib/token-packages';
+import { formatNumber } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -131,7 +132,7 @@ function ItemCapBanner({
           {itemLimit}-item plan.
         </strong>{' '}
         This case will add ~
-        {(monthlyOverageTokens + (ITEM_OVERAGE_TOKENS_PER_MONTH[tier] ?? 0)).toLocaleString()}{' '}
+        {formatNumber(monthlyOverageTokens + (ITEM_OVERAGE_TOKENS_PER_MONTH[tier] ?? 0))}{' '}
         tokens to next month&rsquo;s overage debit (it&rsquo;s small, but it
         adds up).{' '}
         <Link href="/pricing" data-hide-on-ios className="underline font-semibold">
@@ -148,7 +149,7 @@ function ItemCapBanner({
           {itemsUsed} of {itemLimit}
         </strong>{' '}
         items on your plan. Items past the cap start consuming Bella tokens at{' '}
-        {(ITEM_OVERAGE_TOKENS_PER_MONTH[tier] ?? 0).toLocaleString()} tokens /
+        {formatNumber(ITEM_OVERAGE_TOKENS_PER_MONTH[tier] ?? 0)} tokens /
         item / month.{' '}
         <Link
           href="/pricing"

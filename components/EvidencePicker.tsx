@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * EvidencePicker.
@@ -277,7 +278,7 @@ export function EvidencePicker({
                       <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1 leading-snug">
                         {it.kind ? `${it.kind} · ` : ''}
                         {it.size_label ? `${it.size_label} · ` : ''}
-                        {new Date(it.created_at).toLocaleDateString()}
+                        {formatDateNumeric(it.created_at)}
                       </p>
                     </button>
                   </li>

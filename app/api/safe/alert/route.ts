@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { verifyApiToken, tokenHasScope } from '@/lib/api-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
-import { formatDistanceFromMeters } from '@/lib/format';
+import { formatDateWith, formatDistanceFromMeters } from '@/lib/format';
 import { sendSms, isSmsConfigured } from '@/lib/sms';
 
 export const runtime = 'nodejs';
@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
 
   // Build + send the email. Plain HTML kept simple so it reads on a
   // phone preview without horizontal scroll.
-  const tsHuman = firedAt.toLocaleString(undefined, {
+  const tsHuman = formatDateWith(firedAt, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
   // Used to anchor the moving-target caveat: the longer it's been
   // since this timestamp, the wider the search radius the contact
   // should consider when responding.
-  const timeShort = firedAt.toLocaleString(undefined, {
+  const timeShort = formatDateWith(firedAt, {
     hour: 'numeric',
     minute: '2-digit',
     timeZoneName: 'short',

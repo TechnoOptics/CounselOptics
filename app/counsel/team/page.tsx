@@ -15,6 +15,7 @@ import { RolesManager } from './roles-manager';
 import { PageHeader } from '@/components/counsel/ui';
 import { PanelCard, relativeTime } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Team · Counsel' };
@@ -146,7 +147,7 @@ export default async function CounselTeamPage() {
                   &middot; <T>expires</T>{' '}
                   <span suppressHydrationWarning>
                     {relativeTime(inv.expiresAt) ??
-                      new Date(inv.expiresAt).toLocaleDateString()}
+                      formatDateNumeric(inv.expiresAt)}
                   </span>
                 </span>
               </li>

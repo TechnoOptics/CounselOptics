@@ -12,6 +12,7 @@
 
 import Link from 'next/link';
 import { PopupPortal } from './PopupPortal';
+import { formatDateLong } from '@/lib/format';
 
 export type PacketExhibit = {
   n: number;
@@ -45,19 +46,11 @@ function d(iso: string | null): string {
   const x = new Date(iso);
   return Number.isNaN(x.getTime())
     ? ''
-    : x.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
+    : formatDateLong(x);
 }
 
 export function CasePacket({ data }: { data: PacketData }) {
-  const today = new Date().toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const today = formatDateLong(Date.now());
 
   return (
     <PopupPortal dark={false}>

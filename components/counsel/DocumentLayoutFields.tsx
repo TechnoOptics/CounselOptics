@@ -28,6 +28,7 @@ import {
 } from '@/lib/letterhead-design';
 import { unencodableCharacters } from '@/lib/counterparty-fields';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * Where the letterhead, the watermark and the footer sit on a rendered page.
@@ -490,7 +491,7 @@ function Preview({
     layout,
     brandName,
     pageNo,
-    generatedOn: new Date().toLocaleDateString(),
+    generatedOn: formatDateNumeric(Date.now()),
   });
   const footerAt = resolveFooterPlacement({
     layout,

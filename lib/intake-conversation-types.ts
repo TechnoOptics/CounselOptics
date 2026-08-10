@@ -4,6 +4,8 @@
  * can import them without pulling server-only code into the bundle.
  */
 
+import { formatDate, formatDateWith } from './format';
+
 export type MessageVisibility = 'shared' | 'internal';
 export type MessageAuthorRole = 'employee' | 'legal' | 'system';
 
@@ -227,9 +229,9 @@ export function relativeTime(iso: string, now: number = Date.now()): string {
   const d = new Date(iso);
   const days = Math.floor(hrs / 24);
   if (days < 7) {
-    return d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+    return formatDateWith(d, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
   }
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatDate(d);
 }
 
 /** Group consecutive messages by the same author within 5 minutes. */

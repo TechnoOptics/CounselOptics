@@ -36,6 +36,7 @@ import {
   ITEM_OVERAGE_TOKENS_PER_MONTH,
   type TierSlug,
 } from './token-packages';
+import { formatNumber } from './format';
 
 export type ItemCount = {
   cases: number;
@@ -170,7 +171,7 @@ export async function softCheckCanCreate(input: {
   if (state.isOver) {
     return {
       allow: true,
-      warn: `You're ${state.overage} item${state.overage === 1 ? '' : 's'} over your ${state.itemLimit}-item plan. This adds about ${state.monthlyOverageTokens.toLocaleString()} tokens to your monthly debit. Consider upgrading or buying a Boost pack.`,
+      warn: `You're ${state.overage} item${state.overage === 1 ? '' : 's'} over your ${state.itemLimit}-item plan. This adds about ${formatNumber(state.monthlyOverageTokens)} tokens to your monthly debit. Consider upgrading or buying a Boost pack.`,
     };
   }
 

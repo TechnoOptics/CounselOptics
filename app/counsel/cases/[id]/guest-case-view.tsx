@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { GuestCaseSummary } from '@/lib/counsel-guest';
 import { T } from '@/components/i18n/LocaleProvider';
 import { PageHeader } from '@/components/counsel/ui';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft',
@@ -56,7 +57,7 @@ export function GuestCaseView({ kase }: { kase: GuestCaseSummary }) {
           <Field
             label="Hearing"
             value={
-              new Date(kase.hearingAt).toLocaleString() +
+              formatDateTimeNumeric(kase.hearingAt) +
               (kase.hearingLocation ? ` · ${kase.hearingLocation}` : '')
             }
           />

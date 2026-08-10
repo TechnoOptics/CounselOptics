@@ -12,6 +12,7 @@ import {
   relativeTime,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Co-counsel referrals · Counsel' };
@@ -223,7 +224,7 @@ function ReferralTable({
                   </td>
                   <td
                     className="px-3 py-2.5 text-[12px] text-muted"
-                    title={new Date(r.created_at).toLocaleString()}
+                    title={formatDateTimeNumeric(r.created_at)}
                     suppressHydrationWarning
                   >
                     {relativeTime(r.created_at) ?? ''}

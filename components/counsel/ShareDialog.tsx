@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Dialog } from '@/components/Dialog';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * Encrypt-and-send dialog for a court-packet export. Posts the export target to
@@ -91,7 +92,7 @@ export function ShareDialog({ caseId, target, onClose }: { caseId: string; targe
             <Field label="Secure link" value={result.link} copied={copied === 'link'} onCopy={() => copy(result.link, 'link')} />
             <Field label="Decryption key" value={result.key} mono copied={copied === 'key'} onCopy={() => copy(result.key, 'key')} />
             <p className="text-[11.5px] leading-relaxed text-forest-400 dark:text-cream-100/40">
-              For maximum security, consider relaying the key through a different channel (a call or text). Link expires {new Date(result.expiresAt).toLocaleDateString()}.
+              For maximum security, consider relaying the key through a different channel (a call or text). Link expires {formatDateNumeric(result.expiresAt)}.
             </p>
             <button type="button" onClick={onClose} className="w-full rounded-lg bg-forest-900 dark:bg-gold-metal px-4 py-2.5 text-[13px] font-semibold text-cream-50 dark:text-forest-950 hover:brightness-110">Done</button>
           </div>

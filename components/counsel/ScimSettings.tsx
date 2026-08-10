@@ -9,6 +9,7 @@ import {
 } from '@/lib/scim-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { formatDate } from '@/lib/format';
 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
@@ -44,7 +45,7 @@ function fmtDate(iso: string | null): string {
   if (!iso) return 'Not set';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'Not set';
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return formatDate(d);
 }
 
 type TokenState = 'active' | 'revoked' | 'expired';

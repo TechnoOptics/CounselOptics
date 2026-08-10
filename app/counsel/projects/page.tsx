@@ -15,6 +15,7 @@ import {
 } from '@/components/counsel/patterns';
 import type { Project } from '@/lib/project-types';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Projects · Counsel' };
@@ -215,9 +216,9 @@ function ProjectCard({ project: p }: { project: Project }) {
       )}
       <p
         className="mt-2 text-[11px] text-muted"
-        title={new Date(p.updatedAt).toLocaleString()}
+        title={formatDateTimeNumeric(p.updatedAt)}
       >
-        <T>Updated</T> {updated ?? new Date(p.updatedAt).toLocaleDateString()}
+        <T>Updated</T> {updated ?? formatDateNumeric(p.updatedAt)}
       </p>
     </Link>
   );

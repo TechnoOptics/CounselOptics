@@ -16,6 +16,7 @@ import {
   relativeTime,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Billing · Counsel' };
@@ -280,7 +281,7 @@ export default async function CounselBillingPage() {
                       </td>
                       <td
                         className="px-3 py-2.5 text-[12px] text-muted"
-                        title={new Date(i.created_at).toLocaleString()}
+                        title={formatDateTimeNumeric(i.created_at)}
                         suppressHydrationWarning
                       >
                         {relativeTime(i.created_at) ?? ''}

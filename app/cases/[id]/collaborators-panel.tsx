@@ -11,6 +11,7 @@ import {
   type CollaboratorRole,
 } from '@/lib/types';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { formatDateNumeric } from '@/lib/format';
 
 export function CollaboratorsPanel({
   caseId,
@@ -159,8 +160,8 @@ export function CollaboratorsPanel({
                   )}
                 </div>
                 <p className="text-xs text-ink-500 mt-1">
-                  Invited {new Date(c.invitedAt).toLocaleDateString()}
-                  {c.acceptedAt && ` · joined ${new Date(c.acceptedAt).toLocaleDateString()}`}
+                  Invited {formatDateNumeric(c.invitedAt)}
+                  {c.acceptedAt && ` · joined ${formatDateNumeric(c.acceptedAt)}`}
                 </p>
               </div>
               {isOwner && (

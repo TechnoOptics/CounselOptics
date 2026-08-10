@@ -12,6 +12,7 @@
 import { createAdminSupabase } from './supabase/admin';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { sendEmail } from './email';
+import { formatDateTimeLong } from './format';
 
 export type CaseEventType =
   | 'case_created'
@@ -90,14 +91,7 @@ export async function notifyCollaboratorsOfHearing(input: {
   const recipients = (collabs ?? []) as { email: string; role: string }[];
   if (recipients.length === 0) return;
 
-  const when = new Date(input.hearingAt).toLocaleString(undefined, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const when = formatDateTimeLong(input.hearingAt);
   const where = input.hearingLocation
     ? `<p style="margin:0 0 14px;font-size:14px;color:#3f3f46;"><strong>Where:</strong> ${input.hearingLocation
         .replace(/&/g, '&amp;')

@@ -6,6 +6,7 @@ import { createTrustReconciliationAction } from '@/lib/trust-accounting';
 import { parseAmountToCents } from '@/lib/trust-amount';
 import type { UnreconciledEntry } from '@/lib/trust-accounting-queries';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric } from '@/lib/format';
 
 const KIND_LABEL: Record<string, string> = {
   deposit: 'Deposit',
@@ -250,7 +251,7 @@ export function ReconcileForm({
                       <span className="block text-[11px] text-muted">
                         {KIND_LABEL[e.kind] ?? e.kind}
                         {e.description ? ` · ${e.description}` : ''} ·{' '}
-                        {new Date(e.createdAt).toLocaleDateString()}
+                        {formatDateNumeric(e.createdAt)}
                       </span>
                     </span>
                     <span

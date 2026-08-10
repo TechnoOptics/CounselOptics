@@ -4,6 +4,7 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { AcceptFirmButton } from './accept-firm-button';
 import { accentOn } from '@/lib/accent-text';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -121,7 +122,7 @@ export default async function ConsumerLeadResponsesPage({
           {lead.summary}
         </p>
         <p className="text-[11px] text-ink-500 dark:text-cream-100/70 font-mono pt-1">
-          Submitted {new Date(lead.created_at).toLocaleString()}
+          Submitted {formatDateTimeNumeric(lead.created_at)}
         </p>
       </section>
 

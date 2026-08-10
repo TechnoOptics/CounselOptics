@@ -3,6 +3,7 @@ import type { GuestTimelineBundle } from '@/lib/counsel-guest';
 import { T } from '@/components/i18n/LocaleProvider';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { PageHeader } from '@/components/counsel/ui';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * Read-only Evidence list for a case-scoped Counsel GUEST (co-counsel). Guests
@@ -66,7 +67,7 @@ export function GuestEvidenceView({
                 </p>
                 <span className="text-[11px] font-mono tabular-nums text-cream-100/55">
                   {e.occurredAt
-                    ? new Date(e.occurredAt).toLocaleDateString()
+                    ? formatDateNumeric(e.occurredAt)
                     : 'Undated'}
                 </span>
               </div>

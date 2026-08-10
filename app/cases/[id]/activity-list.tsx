@@ -1,5 +1,6 @@
 import type { AuditEvent, CaseEventType } from '@/lib/activity';
 import { ShowMore } from '@/components/ShowMore';
+import { formatDate, formatDateTime } from '@/lib/format';
 
 const EVENT_LABEL: Record<CaseEventType, string> = {
   case_created: 'created the case',
@@ -116,13 +117,7 @@ function summary(e: AuditEvent): React.ReactNode {
           <>
             <span className="text-cream-100/40 mx-1">·</span>
             <span className="text-cream-100/85">
-              {new Date(String(m.hearingAt)).toLocaleString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })}
+              {formatDateTime(String(m.hearingAt))}
             </span>
           </>
         );
@@ -243,9 +238,5 @@ function formatRelative(iso: string): string {
   if (hr < 36) return `${hr}h ago`;
   const day = Math.round(hr / 24);
   if (day < 14) return `${day}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatDate(iso);
 }

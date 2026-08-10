@@ -30,6 +30,7 @@ import {
   shortRef,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDate, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -176,11 +177,7 @@ export default async function FirmDocumentDetail({
               }`}
             >
               {isOverdue ? <T>Overdue since</T> : <T>Due</T>}{' '}
-              {new Date(doc.dueAt).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
+              {formatDate(doc.dueAt)}
             </p>
           ) : undefined
         }
@@ -278,7 +275,7 @@ export default async function FirmDocumentDetail({
                   <T>Uploaded</T>
                 </dt>
                 <dd className="font-mono tabular-nums text-foreground">
-                  {new Date(doc.uploadedAt).toLocaleString()}
+                  {formatDateTimeNumeric(doc.uploadedAt)}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
@@ -286,7 +283,7 @@ export default async function FirmDocumentDetail({
                   <T>Status moved</T>
                 </dt>
                 <dd className="font-mono tabular-nums text-foreground">
-                  {new Date(doc.statusUpdatedAt).toLocaleString()}
+                  {formatDateTimeNumeric(doc.statusUpdatedAt)}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">

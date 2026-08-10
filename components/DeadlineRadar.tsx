@@ -11,6 +11,7 @@
  */
 
 import Link from 'next/link';
+import { formatDateWith } from '@/lib/format';
 
 export type RadarItem = {
   caseId: string;
@@ -129,7 +130,7 @@ export function DeadlineRadar({ items }: { items: RadarItem[] }) {
                       {it.location ? ` · ${it.location}` : ''}
                     </span>
                     <span className="block text-[11px] text-ink-400 mt-0.5">
-                      {new Date(it.at).toLocaleString(undefined, {
+                      {formatDateWith(it.at, {
                         weekday: 'short',
                         month: 'short',
                         day: 'numeric',

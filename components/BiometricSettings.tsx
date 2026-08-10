@@ -32,6 +32,7 @@ import type { BiometryType } from '@aparajita/capacitor-biometric-auth';
 // This card now also renders on the counsel account page, which runs under a
 // LocaleProvider. A pure passthrough outside one.
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDate } from '@/lib/format';
 
 // Resolve to a PLAIN wrapper, never the Capacitor plugin proxy
 // itself - an async fn returning the proxy makes the Promise
@@ -196,7 +197,7 @@ export function BiometricSettings({
             </p>
             {state.enrolledAt && (
               <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-                Since {new Date(state.enrolledAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                Since {formatDate(state.enrolledAt)}
               </p>
             )}
           </div>

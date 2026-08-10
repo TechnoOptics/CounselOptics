@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { decideIntakeAction, reopenIntakeAction } from '@/lib/firm-actions';
 import { runGatedAction } from '@/lib/gated-action';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * The other end of the request lifecycle: not taking it on, or having
@@ -80,7 +81,7 @@ export function DecideRequest({
 
   if (decision) {
     const when = new Date(decision.at);
-    const shown = Number.isNaN(when.getTime()) ? '' : when.toLocaleDateString();
+    const shown = Number.isNaN(when.getTime()) ? '' : formatDateNumeric(when);
     return (
       <section className="card p-5 space-y-3">
         <p className="eyebrow"><T>Decision</T></p>

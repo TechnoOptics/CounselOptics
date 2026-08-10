@@ -21,6 +21,7 @@ import { TopUpButtons } from './topup-buttons';
 import { RestorePurchases } from '@/components/RestorePurchases';
 import { countItemsForUser, calculateOverage } from '@/lib/item-limits';
 import { type TierSlug } from '@/lib/token-packages';
+import { formatDate, formatDateTimeShort, formatNumber } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -251,11 +252,7 @@ export default async function BillingPage({
                 : sub.cancelAtPeriodEnd
                   ? 'Ends on'
                   : 'Renews on'}{' '}
-              {new Date(sub.currentPeriodEnd).toLocaleDateString(undefined, {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
+              {formatDate(sub.currentPeriodEnd)}
             </p>
           )}
         </div>
@@ -487,10 +484,10 @@ function ItemsGauge({
         <div>
           <p className="eyebrow">Items used</p>
           <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
-            {count.total.toLocaleString()}
+            {formatNumber(count.total)}
             {itemLimit !== null && (
               <span className="text-base text-ink-500 dark:text-cream-100/55 font-sans font-normal">
-                {' '}of {itemLimit.toLocaleString()}{' '}
+                {' '}of {formatNumber(itemLimit)}{' '}
                 items
               </span>
             )}
@@ -527,7 +524,7 @@ function ItemsGauge({
             You&rsquo;re <strong>{overage}</strong> item
             {overage === 1 ? '' : 's'} past your plan limit. The next billing
             cycle will deduct about{' '}
-            <strong>{monthlyOverageTokens.toLocaleString()}</strong> tokens
+            <strong>{formatNumber(monthlyOverageTokens)}</strong> tokens
             from your monthly grant.
           </p>
           {!isIos && (
@@ -578,11 +575,11 @@ function TokenGauge({ balance }: { balance: number }) {
         <div>
           <p className="eyebrow">Pro tokens</p>
           <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
-            {balance.toLocaleString()} <span className="text-base text-ink-500 dark:text-cream-100/55 font-sans font-normal">tokens left this period</span>
+            {formatNumber(balance)} <span className="text-base text-ink-500 dark:text-cream-100/55 font-sans font-normal">tokens left this period</span>
           </h2>
         </div>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
-          Monthly grant: {monthly.toLocaleString()}
+          Monthly grant: {formatNumber(monthly)}
         </p>
       </div>
       <div
@@ -629,12 +626,7 @@ function TokenLedgerCard({
                 {REASON_LABEL[r.reason] ?? r.reason}
               </p>
               <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-                {new Date(r.occurredAt).toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
+                {formatDateTimeShort(r.occurredAt)}
               </p>
             </div>
             <div className="text-right tabular-nums">
@@ -644,11 +636,11 @@ function TokenLedgerCard({
                 }`}
               >
                 {r.delta >= 0 ? '+' : ''}
-                {r.delta.toLocaleString()}
+                {formatNumber(r.delta)}
               </p>
               {r.balanceAfter !== null && (
                 <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-                  bal. {r.balanceAfter.toLocaleString()}
+                  bal. {formatNumber(r.balanceAfter)}
                 </p>
               )}
             </div>

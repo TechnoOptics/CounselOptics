@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { cleanLegalText } from '@/lib/legal-templates';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { PanelCard } from '@/components/counsel/patterns';
+import { formatNumber } from '@/lib/format';
 
 /**
  * Submit a contract/document and get a structured breakdown: what it
@@ -116,7 +117,7 @@ export function AnalyzeStudio({
         />
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] text-muted">
-            {text.length.toLocaleString()} <T>chars · stays on your firm workspace</T>
+            {formatNumber(text.length)} <T>chars · stays on your firm workspace</T>
           </span>
           <button
             type="button"

@@ -13,6 +13,7 @@ import {
 } from '@/lib/firm-types';
 import { pillSurface } from '@/components/counsel/StatusPill';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 function colorOf(s: FirmDocumentStatus) {
   return FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[s]] ?? FIRM_TONE_COLOR.gray;
@@ -115,7 +116,7 @@ export function DocumentStatusChanger({
               </p>
             )}
             <p className="px-2.5 py-1 text-[10px] text-muted border-t border-edge mt-1 pt-2 font-mono">
-              <T>Last moved</T> {new Date(statusUpdatedAt).toLocaleString()}
+              <T>Last moved</T> {formatDateTimeNumeric(statusUpdatedAt)}
             </p>
           </div>
       )}

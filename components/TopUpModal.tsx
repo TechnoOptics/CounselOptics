@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { TOKEN_PACKAGES, type TokenPackage } from '@/lib/token-packages';
 import { Dialog } from '@/components/Dialog';
+import { formatNumber } from '@/lib/format';
 
 /**
  * Compact Bella token top-up modal. Renders the four packs
@@ -94,7 +95,7 @@ export function TopUpModal({
                   {pricing}
                 </p>
                 <p className="text-[11.5px] font-mono tabular-nums text-ink-600 dark:text-cream-100/65">
-                  {p.tokens.toLocaleString()} tokens
+                  {formatNumber(p.tokens)} tokens
                 </p>
                 <p className="text-[12px] text-ink-600 dark:text-cream-100/70 leading-snug flex-1">
                   {p.blurb}

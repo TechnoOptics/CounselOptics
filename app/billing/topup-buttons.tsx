@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatNumber } from '@/lib/format';
 
 type Size = 'small' | 'medium' | 'large';
 
@@ -59,7 +60,7 @@ export function TopUpButtons() {
               ${o.usd}
             </p>
             <p className="text-[12px] text-ink-700 dark:text-cream-100/80 mt-1">
-              {(o.tokens / 1000).toLocaleString()}k tokens
+              {formatNumber(o.tokens / 1000)}k tokens
             </p>
             <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1">
               {pending === o.size ? 'Opening checkout…' : 'Top up now'}

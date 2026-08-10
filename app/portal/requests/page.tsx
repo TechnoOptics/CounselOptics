@@ -17,6 +17,7 @@ import {
 import { StatusPill } from '@/components/counsel/StatusPill';
 import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { ViewStrip, Toolbar, MonoRef } from '@/components/counsel/patterns';
+import { formatDateNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'My requests · Hub' };
@@ -259,7 +260,7 @@ export default async function PortalRequestsPage({
                       </span>
                       {priority && <span>· {priority} priority</span>}
                       {due && <span>· due {due}</span>}
-                      <span>· {new Date(r.created_at).toLocaleDateString()}</span>
+                      <span>· {formatDateNumeric(r.created_at)}</span>
                       {msgCount > 0 && (
                         <span>
                           · {msgCount} message{msgCount === 1 ? '' : 's'}

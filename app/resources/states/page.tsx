@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
 import { BreadcrumbJsonLd, ItemListJsonLd } from '@/components/seo/JsonLd';
+import { formatNumber } from '@/lib/format';
 
 export const metadata = {
   title: 'Small claims court by state - limits, fees, and process',
@@ -66,7 +67,7 @@ export default function StatesHubPage() {
                   {s.name}
                 </span>
                 <span className="text-[12px] font-mono text-ink-500 dark:text-cream-100/55 tabular-nums">
-                  ${s.monetaryLimit.toLocaleString()}
+                  ${formatNumber(s.monetaryLimit)}
                 </span>
               </Link>
             </li>

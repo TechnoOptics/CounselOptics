@@ -51,6 +51,7 @@ import { logCaseActivity, listCaseActivity } from '@/lib/case-activity-log';
 import { ensureMatterNumber } from '@/lib/matter-numbers';
 import { displayMatterNumber } from '@/lib/ticket-numbers';
 import { CaseActivityStream } from '@/components/counsel/CaseActivityStream';
+import { formatDate, formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 // This matter page composes many surfaces (facts, evidence, analysis, billing,
@@ -756,7 +757,7 @@ export default async function CounselCaseDetailPage({
                     {e.description ?? <T>Time entry</T>}
                   </p>
                   <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono tabular-nums mt-0.5">
-                    {new Date(e.started_at).toLocaleString()}
+                    {formatDateTimeNumeric(e.started_at)}
                     {e.invoice_id && <T> · invoiced</T>}
                     {!e.billable && <T> · non-billable</T>}
                   </p>
@@ -787,7 +788,7 @@ export default async function CounselCaseDetailPage({
                     {i.number}
                   </p>
                   <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 font-mono">
-                    {i.status} · {new Date(i.created_at).toLocaleDateString()}
+                    {i.status} · {formatDateNumeric(i.created_at)}
                   </p>
                 </div>
                 <p className="shrink-0 font-mono tabular-nums text-forest-900 dark:text-cream-100 font-semibold text-[13px]">
@@ -880,11 +881,7 @@ export default async function CounselCaseDetailPage({
                         </span>{' '}
                         ·{' '}
                         {overdue ? <T>past due</T> : <T>due</T>}{' '}
-                        {new Date(d.due_at).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                        {formatDate(d.due_at)}
                       </p>
                     </div>
                     {!d.completed_at && (

@@ -1,4 +1,5 @@
 import { createAdminSupabase } from './supabase/admin';
+import { formatDateNumeric, formatDateTimeNumeric } from './format';
 
 export type {
   ClaimType,
@@ -65,7 +66,7 @@ export async function sweepDeadlineAlerts(): Promise<{
     const { createNotification } = await import('./notifications');
     const targetUser = r.user_id;
     const title = `${bucket} day${bucket === '7' ? '' : 's'} until: ${r.title}`;
-    const body = `Deadline due ${new Date(r.due_at).toLocaleString()}.`;
+    const body = `Deadline due ${formatDateTimeNumeric(r.due_at)}.`;
 
     // Notify FIRST, flag only on success. Writing alerted_* before
     // notifying meant a transient createNotification failure (it returns
@@ -154,9 +155,7 @@ export async function sweepDeadlineAlerts(): Promise<{
         })
         .eq('id', it.id);
       const title = `Reminder: ${it.client_name}`;
-      const body = `This request/contract was flagged as due ${new Date(
-        at,
-      ).toLocaleDateString()}.`;
+      const body = `This request/contract was flagged as due ${formatDateNumeric(at)}.`;
       if (it.created_by) {
         await createNotification({
           userId: it.created_by,

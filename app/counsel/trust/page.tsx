@@ -21,6 +21,7 @@ import {
   type ViewOption,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 // Audit W20 V3 CR-27: title template applies once at layout level.
@@ -300,7 +301,7 @@ export default async function CounselTrustPage({
                     className="border-b border-edge last:border-0 transition-colors hover:bg-surface-2"
                   >
                     <td className="px-3 py-2.5 text-[13px] text-foreground">
-                      {new Date(r.statementDate).toLocaleDateString()}
+                      {formatDateNumeric(r.statementDate)}
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-[12.5px] tabular-nums text-foreground">
                       {fmtCents(r.bankBalanceCents)}
@@ -400,7 +401,7 @@ export default async function CounselTrustPage({
                       </td>
                       <td
                         className="px-3 py-2.5 text-[12px] text-muted"
-                        title={new Date(t.createdAt).toLocaleString()}
+                        title={formatDateTimeNumeric(t.createdAt)}
                         suppressHydrationWarning
                       >
                         {relativeTime(t.createdAt) ?? ''}

@@ -6,6 +6,7 @@ import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { ViewStrip, relativeTime, type ViewOption } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Clients · Counsel' };
@@ -165,7 +166,7 @@ export default async function CounselClientsPage({
                       </td>
                       <td
                         className="px-3 py-2.5 text-[12px] text-muted"
-                        title={new Date(c.joinedAt).toLocaleString()}
+                        title={formatDateTimeNumeric(c.joinedAt)}
                         suppressHydrationWarning
                       >
                         {relativeTime(c.joinedAt) ?? ''}

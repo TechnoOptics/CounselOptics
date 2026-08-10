@@ -7,6 +7,7 @@ import { RevokeTokenButton } from './revoke-token-button';
 // Rendered from the counsel route too, which runs under a LocaleProvider.
 // <T> is a client component, so a server component can render it.
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * The API tokens surface: the mint form plus the list of issued tokens.
@@ -94,7 +95,7 @@ export async function TokensPanel() {
                   >
                     {t.prefix}... · scopes {t.scopes.join(', ')} ·{' '}
                     {t.last_used_at
-                      ? `last used ${new Date(t.last_used_at).toLocaleDateString()}`
+                      ? `last used ${formatDateNumeric(t.last_used_at)}`
                       : 'never used'}
                     {t.firm_id && ' · firm-scoped'}
                   </p>

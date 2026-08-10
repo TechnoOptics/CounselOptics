@@ -5,6 +5,7 @@ import { getContractType } from '@/lib/contract-types';
 import { ShowMore } from '@/components/ShowMore';
 import { FolderBar } from '@/components/FolderBar';
 import { MoveToFolder } from '@/components/MoveToFolder';
+import { formatDateNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -174,9 +175,9 @@ export default async function ContractsListPage({
                   <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono">
                     {r.custom_type ?? type?.label ?? r.contract_type}
                     {r.signed_at &&
-                      ` · signed ${new Date(r.signed_at).toLocaleDateString()}`}
+                      ` · signed ${formatDateNumeric(r.signed_at)}`}
                     {r.expiry_at &&
-                      ` · expires ${new Date(r.expiry_at).toLocaleDateString()}`}
+                      ` · expires ${formatDateNumeric(r.expiry_at)}`}
                   </p>
                   {r.review_confidence !== null && (
                     <p

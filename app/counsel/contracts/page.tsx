@@ -23,6 +23,7 @@ import {
 } from '@/components/counsel/list-table';
 import { listHref, oneParam, sortRows, type SortDir } from '@/lib/counsel-list';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDate } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Contracts · Counsel' };
@@ -441,10 +442,7 @@ export default async function CounselContractsPage({
                                     : 'text-muted'
                                 }
                               >
-                                {new Date(r.expiry_at).toLocaleDateString(
-                                  undefined,
-                                  { month: 'short', day: 'numeric', year: 'numeric' },
-                                )}
+                                {formatDate(r.expiry_at)}
                               </span>
                             ) : (
                               <span className="text-muted">

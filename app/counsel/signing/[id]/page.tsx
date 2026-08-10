@@ -40,6 +40,7 @@ import {
   shortRef,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -330,7 +331,7 @@ export default async function SigningRequestDetail({
                   <div className="text-right">
                     {sig.signedAt ? (
                       <span className="font-mono text-[12px] tabular-nums text-emerald-700 dark:text-emerald-300">
-                        <T>Signed</T> {new Date(sig.signedAt).toLocaleString()}
+                        <T>Signed</T> {formatDateTimeNumeric(sig.signedAt)}
                       </span>
                     ) : sig.response ? (
                       <span
@@ -346,7 +347,7 @@ export default async function SigningRequestDetail({
                           <T>Requested changes</T>
                         )}
                         {sig.respondedAt
-                          ? ` · ${new Date(sig.respondedAt).toLocaleDateString()}`
+                          ? ` · ${formatDateNumeric(sig.respondedAt)}`
                           : ''}
                       </span>
                     ) : (
@@ -420,7 +421,7 @@ export default async function SigningRequestDetail({
                               <span data-no-translate>
                                 {' '}
                                 Last on{' '}
-                                {new Date(own.lastOpenedAt).toLocaleString()}.
+                                {formatDateTimeNumeric(own.lastOpenedAt)}.
                               </span>
                             )}
                           </p>

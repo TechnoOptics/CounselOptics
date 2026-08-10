@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { formatDate, formatDateTime, formatTimeWithSeconds } from '@/lib/format';
 
 /**
  * Renders a timestamp without producing a React hydration mismatch.
@@ -20,16 +21,22 @@ import { useEffect, useState } from 'react';
  *   on Month D, YYYY, h:mm" timestamp) - every render of those
  *   pages was producing a mismatch.
  *
- * Fix: render the deterministic ISO string on the first paint (so
- *   SSR and the first client render agree), then switch to the
- *   locale-aware formatting after mount. The flicker is a single
- *   tick on slow networks and invisible on warm ones.
+ * Fix, part one: render the deterministic ISO string on the first
+ *   paint (so SSR and the first client render agree), then switch to
+ *   the formatted value after mount. The flicker is a single tick on
+ *   slow networks and invisible on warm ones.
  *
  *   `suppressHydrationWarning` on the wrapper makes React tolerate
  *   the subsequent swap without logging a warning even if the
  *   strings differ across rerenders.
  *
- *   When `mode === 'time'` we render just HH:MM:SS (the pulse-
+ * Fix, part two: the formatting itself now goes through lib/format,
+ *   which pins en-US. That removes the LOCALE half of the drift
+ *   everywhere, not just here. What remains is the TIME ZONE half,
+ *   which this component still handles, because a timestamp should be
+ *   shown in the reader's own zone and the server cannot know it.
+ *
+ *   When `mode === 'time'` we render just h:mm:ss AM/PM (the pulse-
  *   dashboard "Last run" label); 'datetime' renders a full
  *   month/day/year + h:mm. Callers pick.
  */
@@ -71,20 +78,10 @@ export function LocaleTime({
   const date = new Date(iso);
   const formatted =
     mode === 'time'
-      ? date.toLocaleTimeString()
+      ? formatTimeWithSeconds(date)
       : mode === 'date'
-        ? date.toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          })
-        : date.toLocaleString(undefined, {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-          });
+        ? formatDate(date)
+        : formatDateTime(date);
   return (
     <span className={className} suppressHydrationWarning>
       {formatted}

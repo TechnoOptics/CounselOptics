@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { updateWitnessStatementAction } from '@/lib/actions';
+import { formatDateTimeShort, formatNumber } from '@/lib/format';
 
 /**
  * Witness self-edit panel. Renders inside the case detail when the
@@ -75,15 +76,10 @@ export function WitnessStatementEditor({
           {savedFlash
             ? 'Saved.'
             : updatedAt
-              ? `Last saved ${new Date(updatedAt).toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}`
+              ? `Last saved ${formatDateTimeShort(updatedAt)}`
               : 'Not saved yet.'}
           {' · '}
-          <span>{text.length.toLocaleString()} / 50,000</span>
+          <span>{formatNumber(text.length)} / 50,000</span>
         </p>
         <button
           type="button"

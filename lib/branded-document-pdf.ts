@@ -33,6 +33,7 @@ import {
   resolveMarkerBoxWidth,
   type FieldBox,
 } from './template-field-boxes';
+import { formatDateNumeric } from './format';
 
 /**
  * The firm-branded document PDF: letterhead (or a letterhead synthesized from
@@ -587,7 +588,7 @@ export async function buildBrandedDocumentPdf(
         layout,
         brandName: brand,
         pageNo,
-        generatedOn: new Date().toLocaleDateString(),
+        generatedOn: formatDateNumeric(Date.now()),
       }),
     );
     if (!line) return;

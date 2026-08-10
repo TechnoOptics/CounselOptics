@@ -17,6 +17,7 @@ import { exhibitLabel, fuzzyTitleMatch, type TimelineEvent } from '@/lib/timelin
 import { EvidencePreview } from '@/components/EvidencePreview';
 import { EvidenceViewer } from './evidence/evidence-viewer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { formatMonthYear } from '@/lib/format';
 
 /**
  * Case Theory Console: the firm "prove-the-case" approach board, styled as a
@@ -865,7 +866,7 @@ type ParsedWhen = {
  */
 function parseWhen(when: string | null | undefined): ParsedWhen {
   const raw = (when ?? '').trim();
-  const monthOf = (d: Date) => d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+  const monthOf = (d: Date) => formatMonthYear(d);
   const relative: ParsedWhen = { key: '~relative', monthLabel: '', day: null, sortMs: Number.POSITIVE_INFINITY, relative: true };
   if (!raw) return relative;
 
