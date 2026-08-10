@@ -1,8 +1,21 @@
 -- UPDATE policies for case_collaborators and exhibits.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-08. Applying this and regenerating
--- supabase/schema-fingerprint.sha256 is the OWNER'S step.
+-- ============================== APPLIED ==================================
+-- Written 2026-08-08. APPLIED to production. This header said NOT APPLIED
+-- until 2026-08-10 and was wrong on the day it was written.
+--
+-- WHAT SETTLED IT, from the repo alone: this file has exactly one commit,
+-- 026b5bab, "Let a witness statement and an exhibit edit actually save",
+-- which is an ancestor of main. That commit contains this file AND the
+-- regenerated supabase/schema-fingerprint.sha256, and its message says
+-- "Applied to production and the fingerprint regenerated in the same
+-- change, as the drift gate requires", along with "Verified after applying:
+-- exactly those two" about the narrowed column grant. The banner contradicts
+-- the commit that carries it, so nothing is owed and nothing is pending.
+--
+-- Nothing in CI could have caught the contradiction: the schema-drift gate
+-- self-skips while the SUPABASE_DB_URL secret is unset, so it has never
+-- executed a comparison. See scripts/schema/README.md, "Current status".
 -- =========================================================================
 --
 -- WHY THESE ARE MISSING. Both tables carry SELECT, INSERT and DELETE policies

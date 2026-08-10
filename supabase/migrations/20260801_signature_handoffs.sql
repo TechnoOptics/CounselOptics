@@ -1,12 +1,25 @@
 -- One-time handoffs that let a signer move from their laptop to their
 -- own phone to draw a signature, by scanning a QR code.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-06 on branch feat/qr-mobile-signing. The owner applies
--- this and regenerates supabase/schema-fingerprint.sha256 in the same
--- change. Nothing in CI will notice if they forget: the schema-drift
--- gate skips while the SUPABASE_DB_URL secret is unset. See
--- scripts/schema/README.md, "Current status".
+-- ============================== APPLIED ==================================
+-- Written 2026-08-06 on branch feat/qr-mobile-signing. APPLIED to
+-- production. This header said NOT APPLIED until 2026-08-10 and was wrong.
+--
+-- WHAT SETTLED IT, from the repo alone, so the next reader need not redo it:
+-- commit 352976e8, "Regenerate the schema fingerprint after applying seven
+-- migrations", is an ancestor of main. It states that all seven then-pending
+-- migrations were applied in filename order and names the objects it checked
+-- in the live database, firm_signature_handoffs among them. This file is the
+-- only place in supabase/migrations that creates that table, and it was one
+-- of exactly seven files carrying a pending banner in that commit's tree.
+-- The same commit regenerated supabase/schema-fingerprint.sha256, so no
+-- regeneration is owed for this file.
+--
+-- Nothing in CI could have contradicted the stale banner. The schema-drift
+-- gate self-skips while the SUPABASE_DB_URL secret is unset, so it has never
+-- executed a comparison and a wrong header passes green. See
+-- scripts/schema/README.md, "Current status". Until that secret exists these
+-- banners are the only record of applied state.
 -- =========================================================================
 --
 -- Why a separate token rather than reusing firm_signatures.token:

@@ -1,9 +1,22 @@
 -- The join between the employee approval flow and the counterparty
 -- signing flow.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-07. The owner applies this and regenerates
--- supabase/schema-fingerprint.sha256 in the same change.
+-- ============================== APPLIED ==================================
+-- Written 2026-08-07. APPLIED to production. This header said NOT APPLIED
+-- until 2026-08-10 and was wrong.
+--
+-- WHAT SETTLED IT, from the repo alone: commit 352976e8, "Regenerate the
+-- schema fingerprint after applying seven migrations", is an ancestor of
+-- main. It states the seven then-pending migrations were applied in
+-- filename order and lists the objects checked in the live database. Three
+-- of those items come from this file and from nowhere else in
+-- supabase/migrations: "firm_templates gains two", "firm_signatures gains
+-- two" and "firm_settings gains ticket_prefix". The same commit regenerated
+-- supabase/schema-fingerprint.sha256, so nothing is owed.
+--
+-- Nothing in CI could have contradicted a stale banner: the schema-drift
+-- gate self-skips while the SUPABASE_DB_URL secret is unset, so it has never
+-- executed a comparison. See scripts/schema/README.md, "Current status".
 -- =========================================================================
 --
 -- The pointers go on the submission, not on the signing request. The

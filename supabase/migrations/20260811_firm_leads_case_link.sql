@@ -1,11 +1,25 @@
 -- Link a marketplace lead to the matter a firm opened from it.
 --
--- APPLYING THIS IS THE OWNER'S STEP. It is not applied here, and
--- supabase/schema-fingerprint.sha256 must be regenerated after it is applied.
--- The schema-drift gate in CI will not enforce that today: it skips while the
--- SUPABASE_DB_URL secret is unset (scripts/schema/README.md, "Current
--- status"). The fingerprint now covers function
--- EXECUTE grants and table/column grants as well as structure.
+-- ============================== APPLIED ==================================
+-- APPLIED to production, and the fingerprint regenerated. This header said
+-- "It is not applied here" until 2026-08-10; that was true of the commit
+-- that introduced the file and stopped being true one commit later.
+--
+-- WHAT SETTLED IT, from the repo alone: commit 8f846660, "Apply the
+-- lead-to-matter link and regenerate the fingerprint", is an ancestor of
+-- main and a descendant of 3a54ca7c, the commit that added this file. It
+-- says "firm_leads.case_id is applied to production and verified: uuid,
+-- nullable, one index, on delete set null", and it regenerated
+-- supabase/schema-fingerprint.sha256 from the live schema (1241 to 1243
+-- lines, the two new lines being the foreign key and the partial index).
+-- Nothing is owed.
+--
+-- Nothing in CI could have contradicted the stale banner: the schema-drift
+-- gate self-skips while the SUPABASE_DB_URL secret is unset, so it has never
+-- executed a comparison (scripts/schema/README.md, "Current status"). The
+-- fingerprint now covers function EXECUTE grants and table/column grants as
+-- well as structure, but only a configured gate would ever read it.
+-- =========================================================================
 --
 -- WHY IT IS NEEDED. An accepted lead had no exit: the firm-side page offered a
 -- mailto: and a tel: link and nothing else, so a firm that won a lead re-keyed
