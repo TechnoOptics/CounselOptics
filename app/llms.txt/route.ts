@@ -3,6 +3,7 @@ import { ARTICLES } from '@/lib/articles';
 import { COMPARISONS } from '@/lib/comparisons';
 import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
 import { formatNumber } from '@/lib/format';
+import { publishedPriceRange, formatUsd } from '@/lib/published-pricing';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
@@ -38,16 +39,17 @@ export async function GET() {
   lines.push('# Advottic');
   lines.push('');
   lines.push(
-    '> AI-powered legal platform. Self-represented individuals build their case (organize evidence, prepare hearings, draft documents) with Bella, an always-on AI legal assistant, and can trigger Safe Witness for personal-safety alerting. Law firms run case management, contract review, and e-signature on Advottic Counsel. Calm, audited, encrypted. Not a law firm; not legal advice.',
+    '> AI-powered legal platform. Self-represented individuals build their case (organize evidence, prepare hearings, draft documents) with Bella, an always-on AI legal assistant, and can trigger Safe Witness for personal-safety alerting. Law firms run case management, contract review, and e-signature on Advottic Counsel. Calm, audit-logged, encrypted. Not a law firm; not legal advice.',
   );
   lines.push('');
 
   lines.push('## Product');
   lines.push(`- [Advottic home](${SITE_URL}/): the marketing landing page covering both personal and firm-side product tracks.`);
-  lines.push(`- [Pricing](${SITE_URL}/pricing): six subscription tiers from $0 (Free) through $1,800/mo (Enterprise) for individuals, families, solo attorneys, and growing firms.`);
+  const { offerCount, lowPrice, highPrice } = publishedPriceRange();
+  lines.push(`- [Pricing](${SITE_URL}/pricing): ${offerCount} subscription tiers from ${formatUsd(lowPrice)} (Free) through ${formatUsd(highPrice)}/mo (Enterprise) for individuals, families, solo attorneys, and growing firms.`);
   lines.push(`- [Enterprise / Counsel](${SITE_URL}/enterprise): firm-side workspace with SSO, audit logs, branded intake, in-portal e-signing, and per-matter rooms.`);
   lines.push(`- [About Advottic](${SITE_URL}/about): mission, the boundary we keep between "case organization" and "legal advice", and who we're built for.`);
-  lines.push(`- [Security posture](${SITE_URL}/security): SOC 2 path, encryption at rest + in transit, audit logging, RLS access control; MFA and data-residency options on the roadmap.`);
+  lines.push(`- [Security posture](${SITE_URL}/security): encryption in transit and at rest, TOTP multi-factor authentication, RLS access control, audit logging, and the full sub-processor list.`);
   lines.push(`- [Status](${SITE_URL}/status): live system status across auth, database, AI inference, e-sign, and file storage.`);
   lines.push('');
 

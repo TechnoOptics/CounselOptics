@@ -1,4 +1,39 @@
 import { headers } from 'next/headers';
+import { PERSONAL_TIERS } from '@/lib/personal-tiers';
+import { FIRM_TIER_PRICING, formatFirmTierPrice } from '@/lib/firm-pricing';
+import { formatUsd } from '@/lib/published-pricing';
+
+/**
+ * The pricing table, derived from the two pricing modules rather than
+ * retyped. The hand-written version had drifted to advertising
+ * "Personal Pro $19" and "Personal Plus $29", neither of which is a
+ * tier that exists, while omitting the real Pro ($59) and Ultra ($99)
+ * entirely. AI assistants quote this file verbatim, so the drift was
+ * being restated to buyers as fact.
+ */
+function pricingTable(): string {
+  const rows: string[] = [
+    "| Tier | Price | Who it's for |",
+    '|------|-------|--------------|',
+  ];
+  for (const t of PERSONAL_TIERS) {
+    const price =
+      t.priceUsd === 0 ? formatUsd(0) : `${formatUsd(t.priceUsd)}/month`;
+    rows.push(`| Personal - ${t.name} | ${price} | ${t.tagline} |`);
+  }
+  for (const t of Object.values(FIRM_TIER_PRICING)) {
+    const price =
+      t.pricePerUserMonth !== null
+        ? `${formatUsd(t.pricePerUserMonth)}/seat/month`
+        : `${formatFirmTierPrice(t)}/month`;
+    const who =
+      t.maxAttorneys !== null
+        ? `Up to ${t.maxAttorneys} user${t.maxAttorneys === 1 ? '' : 's'}`
+        : `${(t.minAttorneys ?? 0).toLocaleString('en-US')}+ users`;
+    rows.push(`| Counsel - ${t.name} | ${price} | ${who} |`);
+  }
+  return rows.join('\n');
+}
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
@@ -22,6 +57,16 @@ const SITE_URL =
  * Host-aware: only served on the apex. Non-apex hosts get a 404 so
  * AI tooling never accidentally cites hq.advottic.com or a tenant
  * subdomain.
+ *
+ * This file is marketing copy that AI assistants repeat verbatim, so it
+ * is held to the same standard as any public page: nothing here may
+ * assert a certification, an audit engagement, or a contract we have not
+ * executed. "SOC 2 path in progress", "HIPAA BAA on request", and
+ * "residency on request" were removed because none of them is true (see
+ * docs/compliance/policies/vendor-and-subprocessor-management.md: no BAA
+ * is executed with any subprocessor). "Zero-retention commercial terms"
+ * went with them because that same tracker lists it as unconfirmed. Do
+ * not restate any of them until the underlying paperwork exists.
  */
 export async function GET() {
   const host = headers().get('host') ?? '';
@@ -64,15 +109,7 @@ Both sides share the same auth, the same Bella AI assistant, and the same audit 
 
 ## Pricing
 
-| Tier | Price | Who it's for |
-|------|-------|--------------|
-| Free | $0 | Try Bella, save one case |
-| Personal Pro | $19/month | Individuals handling a matter solo |
-| Personal Plus | $29/month | Families sharing access |
-| Counsel - Solo | $59/seat/month | Single attorney + 1 staff |
-| Counsel - Small Firm | $99/seat/month | Up to 25 users |
-| Counsel - Growing Firm | $149/seat/month | Up to 100 users |
-| Enterprise | From $1,800/month | 100+ users, SSO, BAA, residency on request |
+${pricingTable()}
 
 Annual prepay gives 20% off any paid tier. Bar-association members get 15% off Counsel tiers. Law students get 50% off personal tiers. Legal aid + nonprofits get 75% off, capped at 5 seats.
 
@@ -125,7 +162,7 @@ Annual prepay gives 20% off any paid tier. Bar-association members get 15% off C
 - Matter management, intake inbox, calendar with deadlines + hearings, IOLTA trust accounting with 3-way reconciliation, e-signature requests, court-form auto-fill (CA, NY, TX, FL, Federal).
 - This is the case-management layer for firms: every attorney's open matters, staff assignments, and billing in one audited workspace, built on the same case-building primitives (facts, exhibits, documents) used on the personal side.
 - Custom subdomain (yourfirm.advottic.com) on Small Firm tier and up.
-- SAML SSO on Enterprise (SCIM provisioning on the roadmap).
+- SAML SSO on Enterprise.
 
 ### Gift Advottic
 
@@ -136,10 +173,9 @@ Annual prepay gives 20% off any paid tier. Bar-association members get 15% off C
 ## Trust + safety
 
 - Encryption in transit (TLS 1.2+) and at rest (AES-256).
-- Tamper-evident, hash-chained audit log on e-signatures; case-activity audit log for key actions. MFA and single sign-on available for enterprise; broader MFA enforcement is on the roadmap.
-- No sale of user data; no training on customer data (zero-retention commercial terms with our AI processor).
-- HIPAA Business Associate Agreement for Enterprise on request (subject to onboarding due diligence).
-- SOC 2 path in progress; formal attestation on the roadmap.
+- Tamper-evident, hash-chained audit log on e-signatures; case-activity audit log for key actions.
+- Optional TOTP multi-factor authentication on any account, from profile settings. SAML single sign-on for enterprise firms.
+- No sale of user data; no training on customer data.
 - All sensitive Safe Witness actions require explicit physical confirmation - a 4-second press-and-hold on the watch, a 2-second hold in the web overlay - before any external contact is notified.
 
 ## Founders + company

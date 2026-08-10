@@ -222,7 +222,7 @@ const FIRM_TIERS: Tier[] = [
       '100+ users, no per-seat ceiling',
       'Negotiated matter ceiling (typically uncapped)',
       '15M+ tokens / month per seat (firm pool)',
-      'SAML / OIDC SSO (SCIM provisioning on the roadmap)',
+      'SAML / OIDC SSO',
       '99.9% uptime SLA',
       'Dedicated infrastructure',
       'White-label tenant subdomain + full brand override',
@@ -247,7 +247,7 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Does the Wear OS app cost extra?',
-    a: 'No. The Advottic Wear OS app is included at no extra charge - install it on your Wear OS watch and pair it via a 6-digit code in the phone app or by signing in on the watch web flow. Showing your cases and next hearing on the watch face is still on the roadmap.',
+    a: 'No. The Advottic Wear OS app is included at no extra charge - install it on your Wear OS watch and pair it via a 6-digit code in the phone app or by signing in on the watch web flow.',
   },
   {
     q: 'What counts as an "item"?',

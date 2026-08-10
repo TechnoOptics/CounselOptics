@@ -442,7 +442,7 @@ function EsignMock() {
     <CapabilityFrame
       eyebrow="In-portal document signing"
       title="Sign engagement letters, retainers, and releases without leaving the vault."
-      blurb="Every signature event is hash-chained into a tamper-evident audit ledger. Documents never leave the encrypted portal, never sit in a third-party signing tool, and never expose privileged content to a vendor outside your DPA."
+      blurb="Every signature event is hash-chained into a tamper-evident audit ledger. Documents never leave the encrypted portal and never sit in a third-party signing tool."
       bullets={[
         'Drag-to-place signature, initials, and date fields',
         'Recipient routing (signer, approver, witness, CC)',
@@ -565,7 +565,6 @@ function MeetingsMock() {
         'OAuth via Microsoft Entra (Outlook + Teams via Graph) and Zoom Marketplace',
         'Tokens AES-GCM encrypted at rest; firm owners + admins are the only roles that can revoke',
         'Meeting links flow into the matter timeline alongside exhibits, notes, and signatures',
-        'Per-firm revocation: a leaving attorney loses meeting access the moment they leave the AD group',
       ]}
       tierHint="Counsel Small Firm and above"
       reversed
@@ -707,9 +706,9 @@ function BellaAgentMock() {
       blurb="Most legal-AI tools answer questions. Bella runs tools: she drafts the engagement letter, starts a time entry when she sees you working on a matter, runs a conflict check on a new intake, and pulls in CourtListener case law when the legal basis benefits from precedent. Every action is logged."
       bullets={[
         'Tools include create_matter_intake, run_conflict_check, draft_document, start_time_entry, send_engagement_letter, file_court_form',
-        'Zero-retention configured on Anthropic Claude - your firm data is never used to train any external model',
+        'We do not use your firm data to train anything of our own',
         'Per-user token budget so a heavy week never produces a surprise invoice',
-        'Every Bella action is timestamped in the audit log for Model Rule 1.6 compliance',
+        'Every Bella action is timestamped in the audit log',
       ]}
       tierHint="Bella included at every Counsel tier"
     >
@@ -1082,7 +1081,7 @@ function AuditChainMock() {
   return (
     <CapabilityCard
       eyebrow="Append-only audit log"
-      title="Every read, write, sign, export."
+      title="Every write, sign, export."
       blurb="A cryptographic chain over every event. Hand the JSON export to opposing counsel and the chain verifies in 30 seconds - or visibly breaks if a row was altered."
       tierHint="All Counsel tiers"
     >
@@ -1268,12 +1267,12 @@ function Compliance() {
     {
       eyebrow: 'Encryption',
       title: 'AES-256 at rest, TLS 1.3 in transit',
-      body: 'Every byte your client uploads is encrypted on disk. Every request between browser and server is protected. Storage runs on private VPCs in the United States.',
+      body: 'Every byte your client uploads is encrypted on disk. Every request between browser and server is protected. Storage runs in the United States.',
     },
     {
       eyebrow: 'Identity',
       title: 'SSO via Microsoft Entra + Google Workspace',
-      body: 'No new password to manage, no rogue accounts. Roles map to AD groups so onboarding a new associate is one click in your existing IdP.',
+      body: 'No new password to manage, no rogue accounts.',
     },
     {
       eyebrow: 'Signing',
@@ -1283,17 +1282,12 @@ function Compliance() {
     {
       eyebrow: 'Audit',
       title: 'Append-only event log',
-      body: 'Every read, write, share, sign, export, and login is logged with timestamp + actor. Exportable as JSON for your compliance team. Retention follows your firm policy.',
-    },
-    {
-      eyebrow: 'Posture',
-      title: 'Security controls built to the SOC 2 criteria',
-      body: 'Our controls are designed against the SOC 2 Trust Services Criteria, with formal Type II attestation on our roadmap. Vendor due diligence and our current security documentation are available under NDA.',
+      body: 'Writes, shares, signatures, exports, and logins are logged with timestamp + actor. The signature chain exports as JSON.',
     },
     {
       eyebrow: 'Privilege',
       title: 'Built for attorney-client privilege',
-      body: 'No advertising trackers. No third-party analytics on case content. Client data is never used to train any external model. Full DPA + BAA on request.',
+      body: 'No advertising trackers. No third-party analytics on case content. We do not use client data to train anything of our own.',
     },
   ];
 
@@ -1343,12 +1337,12 @@ function CompareTable() {
     { capability: 'Branded client intake (no Typeform / Tally)', us: true, them: false },
     { capability: 'AI-assisted issue spotting + gap analysis', us: true, them: false },
     { capability: 'In-portal document signing (vault never leaves)', us: true, them: false },
-    { capability: 'Encrypted exhibit vault with retention rules', us: true, them: 'Sometimes' },
-    { capability: 'Append-only audit log of every action', us: true, them: false },
+    { capability: 'Encrypted exhibit vault', us: true, them: 'Sometimes' },
+    { capability: 'Append-only audit log', us: true, them: false },
     { capability: 'Microsoft Entra + Google SSO out of the box', us: true, them: 'Add-on' },
     { capability: 'Mobile + desktop + biometric sign-in', us: true, them: false },
     { capability: 'Bulk PDF + JSON export at any time', us: true, them: false },
-    { capability: 'No third-party advertising / training on your data', us: true, them: '?' },
+    { capability: 'No third-party advertising on your data', us: true, them: '?' },
   ];
 
   return (
