@@ -1,4 +1,4 @@
-import { isReservedFirmKey } from './firm-template-placeholders';
+import { isReservedFirmKey, placeholderPattern } from './firm-template-placeholders';
 
 /**
  * What Bella proposes after reading an uploaded document, and every check that
@@ -98,8 +98,15 @@ const MAX_NOTE_CHARS = 300;
  *
  * Inner text is capped and newlines excluded so a stray brace pair in the
  * document cannot swallow a paragraph.
+ *
+ * THE PATTERN ITSELF NOW LIVES IN lib/firm-template-placeholders.ts, beside
+ * the merge it is a statement about, because the editor's save gate asks the
+ * same question of a hand-typed body that this asks of a model's. Two
+ * definitions of "looks like a placeholder" would let one surface rewrite a
+ * token the other never mentions. `placeholderPattern()` hands back a fresh
+ * RegExp, so the `lastIndex` this `/g` accumulates stays this module's own.
  */
-const LOOSE_PLACEHOLDER = /\{\{([^{}\n]{1,80})\}\}/g;
+const LOOSE_PLACEHOLDER = placeholderPattern();
 
 /**
  * The ONLY placeholder form that actually works.

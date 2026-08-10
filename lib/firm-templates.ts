@@ -11,7 +11,11 @@ import {
 } from './submission-dispatch';
 import { parseTemplateFieldParty } from './counterparty-fields';
 import { FIRM_TEMPLATE_AUTHOR_ROLES } from './firm-authz';
-import { TEMPLATE_BODY_MAX } from './firm-template-placeholders';
+import {
+  TEMPLATE_BODY_MAX,
+  unmergedPlaceholderMessage,
+  unmergedPlaceholders,
+} from './firm-template-placeholders';
 import { sanitizeDocumentLayoutOverride } from './document-layout';
 import {
   DOCUMENT_LAYOUT_UNSAVED_ERROR,
@@ -193,6 +197,39 @@ function sanitizeFields(fields: unknown): TemplateField[] {
   return out;
 }
 
+/**
+ * The save-time gate on a placeholder nothing will fill in.
+ *
+ * WHY THE SAVE AND NOT THE MERGE. The merge runs when a colleague has already
+ * filled the form in and is sending it; by then the only people who can see
+ * the stray token are the ones who cannot fix it, and stripping it there would
+ * quietly delete words from an instrument nobody asked to have edited. The
+ * author is the person who can correct it and the save is the first moment
+ * they can be asked, so it costs one correction here and a document later.
+ *
+ * WHAT IT CHECKS is the body and the fields AS THEY WILL BE STORED: truncated
+ * and sanitized, not as they were typed. A key the store narrows from
+ * `Client_Name` to `client_name` is a key the merge will look for as
+ * `client_name`, and checking the unsanitized version would clear a template
+ * whose stored form is broken.
+ *
+ * It returns a REASON rather than throwing, and the acknowledgement is a
+ * separate explicit argument rather than a default, so a caller that has never
+ * heard of this check refuses closed. Every export of this module is a public
+ * HTTP endpoint; the flag is only ever true because somebody read the list and
+ * said so.
+ */
+function unmergedPlaceholderRefusal(input: {
+  body: string;
+  fields: readonly TemplateField[];
+  acknowledged: boolean | undefined;
+}): { error: string; unmergedPlaceholders: string[] } | null {
+  if (input.acknowledged === true) return null;
+  const tokens = unmergedPlaceholders({ body: input.body, fields: input.fields });
+  if (tokens.length === 0) return null;
+  return { error: unmergedPlaceholderMessage(tokens), unmergedPlaceholders: tokens };
+}
+
 export async function createFirmTemplateAction(
   firmId: string,
   input: {
@@ -206,13 +243,33 @@ export async function createFirmTemplateAction(
     deliveryMode?: DeliveryMode;
     /** A partial page-layout override. Sanitized here, never trusted as sent. */
     documentLayout?: unknown;
+    /**
+     * The author has read the list of placeholders nothing will fill in and
+     * wants them saved as they are. Absent means they have not, which is the
+     * only safe reading: a caller that does not know about this check must not
+     * be able to pass it by saying nothing.
+     */
+    acknowledgeUnmergedPlaceholders?: boolean;
   },
-): Promise<{ ok: boolean; error?: string; template?: FirmTemplate }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  template?: FirmTemplate;
+  /** The exact tokens, when that is what the refusal was about. */
+  unmergedPlaceholders?: string[];
+}> {
   const gate = await requireAuthor(firmId);
   if ('error' in gate) return { ok: false, error: gate.error };
   const name = input.name.trim().slice(0, 120);
   const body = input.body.trim().slice(0, TEMPLATE_BODY_MAX);
   if (!name || !body) return { ok: false, error: 'Give the template a name and a body.' };
+  const fields = sanitizeFields(input.fields);
+  const refusal = unmergedPlaceholderRefusal({
+    body,
+    fields,
+    acknowledged: input.acknowledgeUnmergedPlaceholders,
+  });
+  if (refusal) return { ok: false, ...refusal };
   const deliveryMode = parseDeliveryMode(input.deliveryMode);
   const documentLayout = sanitizeDocumentLayoutOverride(input.documentLayout);
   const insert = {
@@ -221,7 +278,7 @@ export async function createFirmTemplateAction(
     description: input.description?.trim().slice(0, 500) || null,
     category: input.category?.trim().slice(0, 60) || null,
     body,
-    fields: sanitizeFields(input.fields),
+    fields,
     status: input.status === 'draft' ? 'draft' : 'published',
     requires_approval: input.requiresApproval !== false,
     created_by: gate.user.id,
@@ -282,8 +339,15 @@ export async function updateFirmTemplateAction(
      * other field on this patch does.
      */
     documentLayout: unknown;
+    /** See createFirmTemplateAction. Absent means not acknowledged. */
+    acknowledgeUnmergedPlaceholders: boolean;
   }>,
-): Promise<{ ok: boolean; error?: string; template?: FirmTemplate }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  template?: FirmTemplate;
+  unmergedPlaceholders?: string[];
+}> {
   const gate = await requireAuthor(firmId);
   if ('error' in gate) return { ok: false, error: gate.error };
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -294,6 +358,42 @@ export async function updateFirmTemplateAction(
   if (input.fields !== undefined) patch.fields = sanitizeFields(input.fields);
   if (input.status !== undefined) patch.status = input.status;
   if (input.requiresApproval !== undefined) patch.requires_approval = input.requiresApproval;
+
+  // THE CHECK NEEDS BOTH HALVES, and a patch may carry either one alone. A
+  // body arriving without fields, or a field rename arriving without a body,
+  // both orphan a token, so whichever half is not being written is read back
+  // off the stored row and the pair is checked together. A patch touching
+  // NEITHER is left alone entirely: Archive sends only a status, and a save
+  // gate that fired on it would leave a firm unable to put away the very
+  // template it was complaining about.
+  if (input.body !== undefined || input.fields !== undefined) {
+    let checkBody = patch.body as string | undefined;
+    let checkFields = patch.fields as TemplateField[] | undefined;
+    if (checkBody === undefined || checkFields === undefined) {
+      const { data: stored } = await gate.admin
+        .from('firm_templates')
+        .select('body, fields')
+        .eq('id', templateId)
+        .eq('firm_id', firmId)
+        .maybeSingle();
+      // No row means this id is not this firm's. The update below would match
+      // nothing and PostgREST would report no error for it, so the honest
+      // answer is here rather than a cheerful success later.
+      if (!stored) return { ok: false, error: 'That template is no longer available.' };
+      const row = stored as { body: string | null; fields: TemplateField[] | null };
+      if (checkBody === undefined) checkBody = String(row.body ?? '');
+      if (checkFields === undefined) {
+        checkFields = Array.isArray(row.fields) ? row.fields : [];
+      }
+    }
+    const refusal = unmergedPlaceholderRefusal({
+      body: checkBody,
+      fields: checkFields,
+      acknowledged: input.acknowledgeUnmergedPlaceholders,
+    });
+    if (refusal) return { ok: false, ...refusal };
+  }
+
   const deliveryMode =
     input.deliveryMode === undefined ? null : parseDeliveryMode(input.deliveryMode);
   // Undefined means "leave it alone" and null means "go back to the firm's
