@@ -157,6 +157,24 @@ export type ScanData = {
   isDemo?: boolean;
 };
 
+/**
+ * True when a scan really read the file.
+ *
+ * A demo scan is the placeholder `scanDocument` returns on a deployment with
+ * no API key; its summary literally says the document was not scanned. Feeding
+ * one back to a model lets it treat that sentence as a finding about the
+ * evidence, so every consumer of scan_data has to exclude it. Kept here, in one
+ * place, because the rule was about to exist in two: the review prompt builder
+ * and Bella's case-detail tool.
+ */
+export function isRealScan(
+  scan: { isDemo?: boolean; modelUsed?: string } | null | undefined,
+): boolean {
+  if (!scan) return false;
+  if (scan.isDemo) return false;
+  return scan.modelUsed !== 'demo' && scan.modelUsed !== 'unsupported';
+}
+
 export type Exhibit = {
   id: string;
   caseId: string;

@@ -63,6 +63,44 @@ const SIGNATURES: Array<{
 ];
 
 /**
+ * True when the buffer really is an audio recording.
+ *
+ * Extensions and declared MIME types are attacker- and browser-controlled, and
+ * an audio exhibit's bytes are sent whole to a third-party transcription API,
+ * so this reads the container signature instead. Kept separate from SIGNATURES
+ * because that table drives the Community allowlist, which accepts only
+ * pictures and PDFs and should not start accepting recordings.
+ */
+export function isAudioBuffer(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  const ascii = (start: number, end: number) => buf.toString('ascii', start, end);
+
+  // MP3: an ID3v2 tag, or a bare MPEG frame sync (11 set bits).
+  if (ascii(0, 3) === 'ID3') return true;
+  if (buf[0] === 0xff && (buf[1] & 0xe6) === 0xe2) return true;
+
+  // WAV: a RIFF container whose form type is WAVE. WebP is also RIFF, so the
+  // form type at byte 8 is the only thing separating them.
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WAVE') return true;
+
+  // Ogg / Opus, and FLAC.
+  if (ascii(0, 4) === 'OggS') return true;
+  if (ascii(0, 4) === 'fLaC') return true;
+
+  // Matroska / WebM (EBML header). Shared with video, which is fine: this
+  // gate only has to establish that the bytes are a media container.
+  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return true;
+
+  // ISO base media (m4a, and the mp4 audio brands iPhone voice memos use).
+  if (ascii(4, 8) === 'ftyp') {
+    const brand = ascii(8, 12).trim().toLowerCase();
+    if (/^(m4a|m4b|mp4|mp42|isom|iso2|dash|avc1|qt)$/.test(brand)) return true;
+  }
+
+  return false;
+}
+
+/**
  * Validate an uploaded file buffer for the public Community Case surface.
  * Rejects on size, on a magic-byte mismatch against the allowlist above
  * (so a renamed .exe or a mislabeled SVG is rejected regardless of what
@@ -189,6 +227,16 @@ export function screenAuthenticatedUpload(
       /heic|heif|mif1|hevc/i.test(buf.toString('ascii', 8, 12));
     if (!isImage && !isHeic) {
       return { ok: false, reason: 'This file is not a valid image.' };
+    }
+  }
+  // Audio is checked because its bytes leave the system: an audio exhibit is
+  // uploaded whole to a third-party transcription API. Video is deliberately
+  // not checked here - the consumer path does not transcribe it, and the
+  // container space is wide enough that a partial check would be a promise
+  // this function does not keep.
+  if (mime.startsWith('audio/')) {
+    if (!isAudioBuffer(buf)) {
+      return { ok: false, reason: 'This file is not a valid audio recording.' };
     }
   }
   if (mime === 'application/pdf') {

@@ -5,6 +5,7 @@ import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { AiUnavailableError, friendlyAiError } from './ai-errors';
 import { INTAKE_LANE_STATUSES, tallyIntakeLanes } from './intake-lanes';
+import { isRealScan } from './types';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -1396,7 +1397,13 @@ async function executeTool(
       caseScopeQ.maybeSingle(),
       supabase
         .from('exhibits')
-        .select('id, label, file_name, file_type, category, source, incident_date, description')
+        // scan_data carries what the app already read out of the file (a
+        // voicemail transcript, the parties and dates off a notice). Without
+        // it Bella could see that an audio exhibit existed but not a word of
+        // what was said in it.
+        .select(
+          'id, label, file_name, file_type, category, source, incident_date, description, scan_data',
+        )
         .eq('case_id', caseId)
         .order('uploaded_at', { ascending: true })
         .limit(50),
@@ -1452,15 +1459,28 @@ async function executeTool(
         source: string | null;
         incident_date: string | null;
         description: string | null;
-      }> | null) ?? []).map((e) => ({
-        label: e.label,
-        file_name: e.file_name,
-        file_type: e.file_type,
-        category: e.category,
-        source: e.source,
-        incident_date: e.incident_date,
-        description: e.description,
-      })),
+        scan_data: {
+          summary?: string;
+          transcript?: string;
+          isDemo?: boolean;
+          modelUsed?: string;
+        } | null;
+      }> | null) ?? []).map((e) => {
+        // isRealScan, shared with the review prompt builder, so the rule for
+        // "did this scan actually read the file" cannot drift between them.
+        const real = isRealScan(e.scan_data) ? e.scan_data : null;
+        return {
+          label: e.label,
+          file_name: e.file_name,
+          file_type: e.file_type,
+          category: e.category,
+          source: e.source,
+          incident_date: e.incident_date,
+          description: e.description,
+          scanned_summary: real?.summary ?? null,
+          transcript: real?.transcript ? real.transcript.slice(0, 1500) : null,
+        };
+      }),
       latest_review: reviewResp.data
         ? {
             summary: (reviewResp.data as { summary: string | null }).summary,

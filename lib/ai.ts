@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { CASE_TYPES, type CaseType } from './types';
+import { CASE_TYPES, isRealScan, type CaseType } from './types';
 import type { AIReview, Case, Exhibit, ScanData } from './types';
 import { AiUnavailableError, friendlyAiError } from './ai-errors';
 
@@ -206,15 +206,7 @@ export async function runReview(caseRecord: Case, exhibits: Exhibit[]): Promise<
     // never block a review because the gate read failed
   }
 
-  const exhibitsBlock =
-    exhibits.length === 0
-      ? '(none uploaded yet)'
-      : exhibits
-          .map(
-            (e) =>
-              `- ${e.label}: ${e.fileName}${e.description ? ` - ${e.description}` : ''} (${e.fileType})`,
-          )
-          .join('\n');
+  const exhibitsBlock = describeExhibitsForPrompt(exhibits);
 
   const userContent = `Jurisdiction: ${jurisdiction || '(not specified)'}
 Case type: ${caseRecord.caseType}
@@ -443,6 +435,52 @@ const SCAN_TOOL = {
     },
   },
 };
+
+/** Per-exhibit budget for extracted text in a review prompt. Enough for a
+ *  voicemail or a one-page notice; short enough that one long recording cannot
+ *  crowd the case description out of the model's attention. */
+const PROMPT_TRANSCRIPT_CHARS = 1500;
+
+function clip(s: string, n: number): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length <= n ? t : `${t.slice(0, n)} [...]`;
+}
+
+/**
+ * Describe the exhibits for the review prompt.
+ *
+ * Includes what the app has already read out of each file. Scans and
+ * transcripts were being written to exhibits.scan_data and then never shown to
+ * the model, so a transcribed voicemail was invisible to the analysis of the
+ * case it belonged to.
+ *
+ * A demo scan is deliberately excluded: it is a placeholder produced when no
+ * API key was configured, and feeding it back in would let the model treat
+ * "document was not actually scanned" as a finding about the evidence.
+ */
+export function describeExhibitsForPrompt(exhibits: Exhibit[]): string {
+  if (exhibits.length === 0) return '(none uploaded yet)';
+  return exhibits
+    .map((e) => {
+      const head = `- ${e.label}: ${e.fileName}${e.description ? ` - ${e.description}` : ''} (${e.fileType})`;
+      const scan = e.scanData;
+      if (!isRealScan(scan) || !scan) return head;
+      const detail: string[] = [];
+      if (scan.summary) detail.push(`  Scanned: ${clip(scan.summary, 400)}`);
+      if (scan.parties?.length) detail.push(`  Parties named: ${scan.parties.join('; ')}`);
+      if (scan.dates?.length) {
+        detail.push(
+          `  Dates: ${scan.dates.map((d) => [d.label, d.value].filter(Boolean).join(' ')).join('; ')}`,
+        );
+      }
+      if (scan.amounts?.length) detail.push(`  Amounts: ${scan.amounts.join('; ')}`);
+      if (scan.transcript) {
+        detail.push(`  Transcript: ${clip(scan.transcript, PROMPT_TRANSCRIPT_CHARS)}`);
+      }
+      return [head, ...detail].join('\n');
+    })
+    .join('\n');
+}
 
 /**
  * Send an image or PDF to Claude vision and extract structured metadata.
