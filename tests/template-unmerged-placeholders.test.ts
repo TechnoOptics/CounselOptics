@@ -222,7 +222,19 @@ describe('the template editor puts it in front of the author', () => {
   it('ties the acknowledgement to the exact tokens that were read', () => {
     // Editing a new stray token into the body clears it. What was agreed to
     // was those tokens, not the idea of tokens.
-    expect(src()).toContain('acknowledgedFor === unmergedSignature');
+    //
+    // ANCHORED ON THE WHOLE EXPRESSION, and that is a correction. This first
+    // asserted only `acknowledgedFor === unmergedSignature`, and weakening the
+    // gate to `acknowledgedFor !== null` left the suite green: the checkbox's
+    // own `checked=` reads the same comparison, so the substring was still in
+    // the file while the control that holds Save had stopped making it. An
+    // anchor has to name the expression it is about.
+    const s = flat(src());
+    expect(s).toContain(
+      'const placeholdersSettled = unmerged.length === 0 || acknowledgedFor === unmergedSignature;',
+    );
+    // And the box writes that same signature, rather than a bare true.
+    expect(s).toContain('setAcknowledgedFor(e.target.checked ? unmergedSignature : null)');
   });
 
   it('says what will happen and how to fix it', () => {
