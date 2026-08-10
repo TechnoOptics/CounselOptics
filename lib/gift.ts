@@ -11,6 +11,8 @@
  * generation, which needs node:crypto) live in lib/gift-server.ts.
  */
 
+import { formatUsdFromCents } from './format';
+
 export type GiftTierSlug =
   | 'pro'
   | 'pro_plus'
@@ -106,9 +108,14 @@ export function giftAmountCents(
   return duration === 12 ? Math.round(gross * 0.8) : gross;
 }
 
-/** Human-readable price in dollars with cents. */
+/**
+ * Human-readable price in dollars with cents.
+ *
+ * Was `` `$${(cents / 100).toFixed(2)}` ``, which renders a twelve-month
+ * gift as `$1200.00`. Intl places the grouping separator.
+ */
 export function formatDollars(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  return formatUsdFromCents(cents);
 }
 
 export function getGiftTier(slug: string): GiftTier | null {
