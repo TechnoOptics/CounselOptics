@@ -101,7 +101,11 @@ export function SendInvoiceButton({
           type="button"
           onClick={go}
           disabled={pending}
-          className="inline-flex items-center min-h-[36px] px-2.5 rounded-md text-[11px] font-semibold text-white bg-forest-800 hover:bg-forest-900 disabled:opacity-50"
+          // `text-cream-50` rather than `text-white`, because this fill does
+          // not stay dark in both themes: the light counsel layer repaints
+          // `bg-forest-800` to #eeeef1, and white on that is 1.16:1. Cream-50
+          // is repainted with it and stays legible on either ground.
+          className="inline-flex items-center min-h-[36px] px-2.5 rounded-md text-[11px] font-semibold text-cream-50 bg-forest-800 hover:bg-forest-900 disabled:opacity-50"
         >
           {pending ? <T>Sending...</T> : <T>Send</T>}
         </button>
