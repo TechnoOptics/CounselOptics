@@ -1862,11 +1862,36 @@ export async function removeCollaboratorAsFirm(input: {
   if (error) throw error;
 }
 
+/**
+ * Remove a collaborator from a case.
+ *
+ * Read the row back, exactly as updateWitnessStatement above does, and
+ * for the same reason plus a sharper one. The delete runs through the
+ * MEMBER client and this table's delete policy is owner-scoped, so a
+ * collaborator or firm member who is not the case owner matches zero
+ * rows - and PostgREST calls a zero-row DELETE error null, not an error.
+ *
+ * The caller is removeCollaboratorAction, which writes
+ * 'collaborator_removed' into the case audit chain the moment this
+ * resolves. Unread, that chain recorded removals that never happened
+ * while the person kept their access to the matter. Throwing is the
+ * contract this function already had, and it is what stops the audit
+ * entry being written.
+ */
 export async function removeCollaborator(collaboratorId: string): Promise<void> {
   if (!usingSupabase()) throw new Error('Collaborators require Supabase to be configured.');
   const supabase = createServerSupabase();
-  const { error } = await supabase.from('case_collaborators').delete().eq('id', collaboratorId);
+  const { data: rows, error } = await supabase
+    .from('case_collaborators')
+    .delete()
+    .eq('id', collaboratorId)
+    .select('id');
   if (error) throw error;
+  if (!rows || rows.length === 0) {
+    throw new Error(
+      'That person could not be removed, so nothing has changed. Only the case owner can remove someone from a case.',
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -390,14 +390,28 @@ export async function approveAccessRequestAction(
   ) {
     return { ok: false, error: 'Could not provision the account.' };
   }
-  await admin
+  // Claimed on the request still being pending, and read back. This row is
+  // the record of who reviewed the request and when, and the queue on
+  // /counsel/access is driven by its status. Unread it could stay pending
+  // with error null while this action reported the person approved and
+  // mailed them an invitation - so two admins could each "approve" the
+  // same request, and the trail would name neither.
+  const { data: approved, error: statusErr } = await admin
     .from('firm_signup_requests')
     .update({
       status: 'approved',
       reviewed_by: gate.userId,
       reviewed_at: new Date().toISOString(),
     })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('id');
+  if (statusErr || !approved || approved.length === 0) {
+    return {
+      ok: false,
+      error: 'This request was not approved. Reload the page and try again.',
+    };
+  }
 
   // Tell the requester they can now sign in.
   try {
@@ -441,14 +455,25 @@ export async function denyAccessRequestAction(
   }
   const gate = await callerCanReview(req.firm_id);
   if (!gate.ok) return { ok: false, error: gate.error };
-  await admin
+  // Same claim, same reason. A denial reported but not stored leaves the
+  // request pending, where the next admin can approve the person the first
+  // one turned away.
+  const { data: denied, error: denyErr } = await admin
     .from('firm_signup_requests')
     .update({
       status: 'denied',
       reviewed_by: gate.userId,
       reviewed_at: new Date().toISOString(),
     })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('id');
+  if (denyErr || !denied || denied.length === 0) {
+    return {
+      ok: false,
+      error: 'This request was not declined. Reload the page and try again.',
+    };
+  }
   revalidatePath('/counsel/access');
   return { ok: true };
 }
