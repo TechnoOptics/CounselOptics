@@ -1806,7 +1806,7 @@ describe('every error and warning surface can be read on both of its grounds', (
     const seen = new Set<string>();
     for (const hit of src.matchAll(FG)) {
       const run = runAround(src, hit.index ?? 0);
-      const key = `${hit[1]} ${run}`;
+      const key = `${hit[1]}\u0000${run}`;
       if (seen.has(key)) continue;
       seen.add(key);
       {

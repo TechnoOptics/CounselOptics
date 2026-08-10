@@ -675,7 +675,7 @@ function asText(value: unknown, max: number, fallback: string): string {
  *  without changing what the string contains. */
 const INVISIBLE = /[​-‏‪-‮⁠-⁤⁦-⁩﻿]/g;
 /** C0 and C1 controls, including newline, carriage return and tab. */
-const CONTROL = /[ --]/g;
+const CONTROL = /[\x00-\x1f\x7f-\x9f]/g;
 
 function asStates(value: unknown, fallback: DocumentState[]): DocumentState[] {
   if (!Array.isArray(value)) return [...fallback];
