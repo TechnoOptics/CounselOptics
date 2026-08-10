@@ -95,7 +95,6 @@ const CONSUMER_TIERS: Tier[] = [
       '8 cases',
       'Bella AI assistant: chat + document drafting from templates',
       '500K Bella tokens / month',
-      'Wear OS companion app',
     ],
     cta: { label: 'Start 7-day trial', href: '/billing' },
   },
@@ -218,14 +217,12 @@ const FIRM_TIERS: Tier[] = [
     price: formatFirmTierPrice(FIRM_TIER_PRICING.enterprise),
     cadence: '/ month',
     blurb:
-      '100+ users, SSO, data residency on request, HIPAA BAA, 99.9% SLA. Final price scales with seats, residency, support tier, and SLA.',
+      '100+ users, SSO, 99.9% SLA. Final price scales with seats, support tier, and SLA.',
     features: [
       '100+ users, no per-seat ceiling',
       'Negotiated matter ceiling (typically uncapped)',
       '15M+ tokens / month per seat (firm pool)',
       'SAML / OIDC SSO (SCIM provisioning on the roadmap)',
-      'Data residency on request (US, EU)',
-      'HIPAA BAA available on request',
       '99.9% uptime SLA',
       'Dedicated infrastructure',
       'White-label tenant subdomain + full brand override',
@@ -246,11 +243,11 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'What is Safe Witness and is it really free?',
-    a: 'Safe Witness is a personal-safety feature. Press and hold the button on your Wear OS watch (or trigger it from the web) and a one-time alert with your verification PIN, location, a 30-second audio recording, and a tap-to-call link goes to every trusted contact you have configured. Free tier includes 1 contact, web only, 3 alerts per month. Personal Pro and up include up to 5 contacts (15 on Personal Plus per family member), the Wear OS watch press, SMS delivery, the audio capture, and the live-tracker page contacts open to see your moving position. We gate the volume, not the safety - a single alert from Free has the same email + map quality as a single alert from Personal Plus.',
+    a: 'Safe Witness is a personal-safety feature, and yes, it is on the Free tier. Press and hold the button on your Wear OS watch (or trigger it from the web) and a one-time alert with your verification PIN, location, a 30-second audio recording, and a tap-to-call link goes to every trusted contact you have configured. Contacts can open a live-tracker page to follow your position until you stop sharing it. We do not hold personal safety behind a paywall.',
   },
   {
     q: 'Does the Wear OS app cost extra?',
-    a: 'No. The Advottic Wear OS app is included free with Personal Pro, Personal Plus, and every firm tier - install it on your Wear OS watch and pair it via a 6-digit code in the phone app or by signing in on the watch web flow. Free tier does not include the watch press for Safe Witness, but it does let the watch show cases + the next hearing once we hit that milestone in the roadmap.',
+    a: 'No. The Advottic Wear OS app is included at no extra charge - install it on your Wear OS watch and pair it via a 6-digit code in the phone app or by signing in on the watch web flow. Showing your cases and next hearing on the watch face is still on the roadmap.',
   },
   {
     q: 'What counts as an "item"?',
@@ -258,7 +255,7 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'What happens if I go over my item limit?',
-    a: 'Items past your tier cap silently consume Bella tokens from your monthly grant - 25K tokens per extra item per month on Personal Pro / Plus, 50K on Solo / Small Firm, 30K on Growing Firm. You see the line in your billing history, and if your balance runs low you can buy a Boost pack or upgrade tiers. There are no surprise card charges.',
+    a: 'Items past your tier cap silently consume Bella tokens from your monthly grant - 25K tokens per extra item per month on the personal tiers, 50K on Solo / Small Firm, 30K on Growing Firm. You see the line in your billing history, and if your balance runs low you can buy a Boost pack or upgrade tiers. There are no surprise card charges.',
   },
   {
     q: 'What is the difference between Bella tier 1 and tier 2?',
@@ -440,11 +437,11 @@ export default function PricingPage() {
         </h2>
         <div className="grid sm:grid-cols-2 gap-3 text-[13.5px]">
           <Card title="E-sign requests beyond bundle">
-            $2 / request (Solo / Personal Pro), $1 / request (Small Firm and
+            $2 / request (Solo / Pro), $1 / request (Small Firm and
             up)
           </Card>
           <Card title="Contract reviews beyond bundle">
-            $9.99 / contract for Personal Pro
+            $9.99 / contract for Pro
           </Card>
           <Card title="Discovery review">
             $0.05 / document beyond the bundle
@@ -453,18 +450,13 @@ export default function PricingPage() {
             $0.10 / GB / month beyond bundle
           </Card>
           <Card title="Safe Witness SMS beyond bundle">
-            $0.02 / SMS segment past 50 messages / mo. Free tier has 3 alerts
-            / mo, paid tiers are unlimited.
+            $0.02 / SMS segment past 50 messages / mo.
           </Card>
           <Card title="Wear OS companion app">
-            Included free with Personal Pro, Personal Plus, and every firm
-            tier. No add-on charge.
+            Included at no extra charge.
           </Card>
           <Card title="Marketplace lead">
             Free for first match per matter, then $50-$99 per accepted lead
-          </Card>
-          <Card title="Co-counsel referral fee split">
-            2% platform fee on the receiving firm's payout
           </Card>
         </div>
       </section>
@@ -479,11 +471,11 @@ export default function PricingPage() {
         />
         <Q
           q="What is Safe Witness and is it really free?"
-          a="Safe Witness is a personal-safety feature. Press and hold the button on your Wear OS watch (or trigger it from the web) and a one-time alert with your verification PIN, location, a 30-second audio recording, and a tap-to-call link goes to every trusted contact you have configured. Free tier includes 1 contact, web only, 3 alerts per month. Personal Pro and up include up to 5 contacts (15 on Personal Plus per family member), the Wear OS watch press, SMS delivery, the audio capture, and the live-tracker page contacts open to see your moving position. We gate the volume, not the safety."
+          a="Safe Witness is a personal-safety feature, and yes, it is on the Free tier. Press and hold the button on your Wear OS watch (or trigger it from the web) and a one-time alert with your verification PIN, location, a 30-second audio recording, and a tap-to-call link goes to every trusted contact you have configured. Contacts can open a live-tracker page to follow your position until you stop sharing it. We do not hold personal safety behind a paywall."
         />
         <Q
           q="Does the Wear OS app cost extra?"
-          a="No. The Advottic Wear OS app is included free with Personal Pro, Personal Plus, and every firm tier - install it on your Wear OS watch and pair it via a 6-digit code in the phone app."
+          a="No. The Advottic Wear OS app is included at no extra charge - install it on your Wear OS watch and pair it via a 6-digit code in the phone app."
         />
         <Q
           q="What is the difference between Bella tier 1 and tier 2?"

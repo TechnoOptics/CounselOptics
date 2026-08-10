@@ -8,9 +8,13 @@
  *   - Real partner integrations (Anthropic, Stripe, Supabase,
  *     Vercel) - signals "this isn't a weekend project"
  *   - Concrete security primitives (AES-256, TLS 1.3, audit log)
- *   - Compliance posture (SOC 2 in progress, UETA / E-SIGN, HIPAA
- *     BAA on request) - the SOC 2 row is honest: "in progress"
- *     not "certified", because the cert isn't issued yet
+ *   - Compliance posture (UETA / E-SIGN)
+ *
+ * Nothing here may assert a certification, an audit engagement, or a
+ * contract we have not executed. "SOC 2 Type II in progress" was
+ * removed because no CPA firm is engaged, and "HIPAA BAA on request"
+ * because docs/compliance forbids counter-signing a customer BAA
+ * until the upstream BAAs exist. None do.
  *
  * Mount on the home page just below the soft TrustBadges, and on
  * /pricing just above the firm tiers. Same component, same data,
@@ -23,7 +27,7 @@
 
 const PARTNERS = [
   { name: 'Anthropic Claude', sub: 'Bella runs on Claude, the leading reasoning model for legal tasks.' },
-  { name: 'Stripe Connect', sub: 'Subscriptions, IOLTA marketplace fee splits, and PCI-compliant checkout.' },
+  { name: 'Stripe', sub: 'Subscription billing and PCI-compliant checkout.' },
   { name: 'Supabase', sub: 'Postgres + RLS for tenant isolation, real-time sync, encrypted storage.' },
   // Audit V7 CR-58: previous sub-text "~99.99% historical availability"
   // sat next to the Enterprise tier's 99.9% SLA on /pricing, producing
@@ -40,7 +44,7 @@ const SECURITY = [
   },
   {
     label: 'Audit log',
-    value: 'Every read, edit, and signature is timestamped',
+    value: 'Every edit and signature is timestamped',
   },
   {
     label: 'Tenant isolation',
@@ -48,7 +52,7 @@ const SECURITY = [
   },
   {
     label: 'Compliance',
-    value: 'SOC 2 Type II in progress · HIPAA BAA on request',
+    value: 'Built to the SOC 2 criteria · not yet certified',
   },
   {
     label: 'E-signatures',
@@ -56,7 +60,7 @@ const SECURITY = [
   },
   {
     label: 'Data residency',
-    value: 'United States by default · custom regions for Enterprise',
+    value: 'United States',
   },
 ];
 
@@ -119,7 +123,7 @@ export function TechTrustStrip() {
         >
           security@advottic.com
         </a>{' '}
-        to request our latest pen-test report and SOC 2 progress letter.
+        with a security question.
       </p>
     </section>
   );

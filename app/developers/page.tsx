@@ -2,30 +2,34 @@ import Link from 'next/link';
 import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 
 export const metadata = {
-  title: { absolute: 'Developers · Advottic API and integrations' },
+  title: { absolute: 'Developers · Advottic API' },
   description:
-    'REST API, webhooks, and Capacitor SDK for building on top of Advottic. Read-only access to cases, contracts, and signing requests; write access for partners.',
+    'Read-only REST endpoints for cases, documents, and signing requests, plus outbound webhooks for partner intake tickets.',
   alternates: { canonical: '/developers' },
   openGraph: {
     title: 'Advottic for developers',
     description:
-      'REST API, webhooks, and Capacitor SDK for building on top of Advottic.',
+      'Read-only REST endpoints and outbound webhooks for building on top of Advottic.',
     type: 'website',
     url: '/developers',
   },
 };
 
 /**
- * Developers / API marketing page. The actual API surface lives at
- * /api/* (route handlers); this page is the marketing front door
- * that documents the public endpoints, points devs at the auth
- * model, and captures partnership leads.
+ * Developers / API page. This page documents the API that exists.
  *
- * Why we have a /developers page even though the API is partner-
- * only today: dev landing pages rank well for long-tail integration
- * keywords ("legal practice management API", "IOLTA accounting API"),
- * and signal to evaluators that we have a real platform behind the
- * UI. The actual API access stays gated behind a partnership flow.
+ * It previously advertised eight endpoints (only four are built, and
+ * all four are GET), an invite-only beta (tokens are self-serve),
+ * scopes that were never implemented, an api.advottic.com host that
+ * does not resolve, a webhook header name the sender does not send,
+ * a retry policy with no retry behind it, rate limiting that is not
+ * applied to /api/v1, and SDKs and an OpenAPI spec that do not
+ * exist. A partner following the old page could not have succeeded.
+ *
+ * Rule for editing this file: every endpoint, header, scope and
+ * behaviour named here must be traceable to a route handler or to
+ * lib/api-tokens.ts / lib/partner-notify.ts. If it is only planned,
+ * it does not go on the page.
  */
 
 const ENDPOINTS: Array<{
@@ -35,62 +39,43 @@ const ENDPOINTS: Array<{
 }> = [
   {
     method: 'GET',
-    path: '/api/v1/cases',
-    blurb: 'List cases the authenticated user has access to.',
-  },
-  {
-    method: 'POST',
-    path: '/api/v1/cases',
-    blurb: 'Create a new case from structured intake data.',
+    path: '/api/v1/me',
+    blurb: 'Return the account or firm the token belongs to.',
   },
   {
     method: 'GET',
-    path: '/api/v1/cases/:id/exhibits',
-    blurb: 'List exhibits attached to a case.',
-  },
-  {
-    method: 'POST',
-    path: '/api/v1/cases/:id/exhibits',
-    blurb: 'Upload an exhibit (multipart) and run optional OCR.',
-  },
-  {
-    method: 'POST',
-    path: '/api/v1/sign',
-    blurb: 'Create an e-signature request with one or more recipients.',
-  },
-  {
-    method: 'POST',
-    path: '/api/v1/contracts/review',
-    blurb: 'Submit a contract for AI review; returns a confidence rating + flagged clauses.',
+    path: '/api/v1/cases',
+    blurb:
+      "List cases scoped to the token. A user token returns that user's cases; a firm token returns the firm's matters. Paginated via limit and offset.",
   },
   {
     method: 'GET',
-    path: '/api/v1/firms/:id/usage',
-    blurb: 'Bella token usage by attorney, by case, by day.',
+    path: '/api/v1/documents',
+    blurb: 'List documents scoped to the token.',
   },
   {
-    method: 'POST',
-    path: '/api/v1/webhooks',
-    blurb: 'Register a webhook subscription for case + signing + billing events.',
+    method: 'GET',
+    path: '/api/v1/signing-requests',
+    blurb: 'List signing requests scoped to the token.',
   },
 ];
 
 const FAQ: Array<{ q: string; a: string }> = [
   {
     q: 'Is the Advottic API publicly available?',
-    a: 'The API is in invite-only beta. We are onboarding partner integrations one cohort at a time so we can keep latency and reliability tight. Email partnerships@advottic.com with a one-paragraph description of your use case.',
+    a: 'Yes. Mint a token yourself from API tokens in your profile settings. There is no waiting list and no application.',
   },
   {
     q: 'How is auth handled?',
-    a: 'API tokens are issued per-firm and scoped to specific actions (read:cases, write:exhibits, etc.). Tokens are passed via Bearer Authorization. OAuth 2.0 + PKCE is on the roadmap for partner apps that act on a per-user basis.',
+    a: 'Every request carries a Bearer token. Tokens carry one or more of three scopes: read, write, and admin. The endpoints published today all require read. Tokens can be given an expiry and can be revoked at any time from the same settings panel.',
   },
   {
     q: 'What about webhooks?',
-    a: 'Webhooks fire for case state changes, signing-request status, billing events, and firm-pool token thresholds. Payloads are signed with HMAC-SHA256 using a per-subscription secret; we retry with exponential backoff for up to 24 hours.',
+    a: 'Webhooks are for partner intake tickets, and they are configured per firm rather than through the API. Five events are sent: ticket.created, ticket.employee_replied, ticket.legal_replied, ticket.status_changed, and ticket.reminder. Delivery is a single attempt with a 10-second timeout and is not retried, so treat it as a hint to refresh rather than a guaranteed feed, and poll if you need certainty.',
   },
   {
     q: 'Are there SDKs?',
-    a: 'A TypeScript SDK is published on npm (@advottic/sdk), and a Capacitor SDK ships our iOS / Android shells. Python and Ruby SDKs are auto-generated from the OpenAPI spec on request.',
+    a: 'No. There is no published SDK and no OpenAPI document. The endpoints are plain REST over HTTPS returning JSON, so any HTTP client will do.',
   },
 ];
 
@@ -110,16 +95,17 @@ export default function DevelopersPage() {
           Build on the Advottic API.
         </h1>
         <p className="text-base text-ink-600 dark:text-cream-100/70 leading-relaxed">
-          REST + webhooks for cases, contracts, and signing. SDKs for
-          TypeScript, Capacitor, and OpenAPI. Currently invite-only;
-          email{' '}
+          Read-only REST endpoints for cases, documents, and signing
+          requests, plus outbound webhooks for partner intake tickets.
+          Mint a token from your profile settings and start; there is no
+          waiting list. Questions go to{' '}
           <a
             href="mailto:partnerships@advottic.com"
             className="underline underline-offset-2"
           >
             partnerships@advottic.com
-          </a>{' '}
-          to request access.
+          </a>
+          .
         </p>
       </header>
 
@@ -148,10 +134,8 @@ export default function DevelopersPage() {
           </ul>
         </div>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
-          A complete OpenAPI 3.1 spec is shared with onboarded
-          partners. Versioning policy: breaking changes are released
-          as a new major (/api/v2/) with a 12-month deprecation
-          window for the prior version.
+          That is the whole published surface today. Everything is
+          read-only; there is no endpoint that creates or changes data.
         </p>
       </section>
 
@@ -160,16 +144,17 @@ export default function DevelopersPage() {
           Authentication
         </h2>
         <p className="text-[14.5px] text-ink-700 dark:text-cream-100/80 leading-[1.7]">
-          Every request carries a Bearer token tied to a firm and
-          scoped to the actions you registered for. Sample request:
+          Every request carries a Bearer token. Tokens begin{' '}
+          <code className="text-[12.5px] font-mono">adv_</code> and are
+          tied to your account or your firm. Sample request:
         </p>
-        <pre className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-forest-950 text-cream-100 text-[12.5px] font-mono p-4 overflow-x-auto leading-relaxed">{`curl https://api.advottic.com/v1/cases \\
-  -H "Authorization: Bearer adv_live_..." \\
+        <pre className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-forest-950 text-cream-100 text-[12.5px] font-mono p-4 overflow-x-auto leading-relaxed">{`curl https://advottic.com/api/v1/cases \\
+  -H "Authorization: Bearer adv_..." \\
   -H "Accept: application/json"`}</pre>
         <p className="text-[13px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
-          Tokens are revocable per-environment from the Counsel
-          settings panel. We rate-limit at 60 requests / second per
-          token with a 1,000-request burst.
+          A token missing the scope an endpoint needs is refused with
+          403. Tokens are revocable at any time from the same settings
+          panel that issued them.
         </p>
       </section>
 
@@ -178,22 +163,28 @@ export default function DevelopersPage() {
           Webhooks
         </h2>
         <p className="text-[14.5px] text-ink-700 dark:text-cream-100/80 leading-[1.7]">
-          Subscribe to events to get notified about state changes
-          without polling. Payloads are signed with{' '}
+          Partner intake tickets emit webhooks, configured per firm.
+          Payloads are signed with{' '}
           <code className="text-[12.5px] font-mono">HMAC-SHA256</code>{' '}
-          using your subscription secret; verify the{' '}
+          using your webhook secret; verify the{' '}
           <code className="text-[12.5px] font-mono">
-            Advottic-Signature
+            X-Advottic-Signature
           </code>{' '}
-          header before processing.
+          header before processing. The event name arrives in{' '}
+          <code className="text-[12.5px] font-mono">X-Advottic-Event</code>.
         </p>
         <ul className="space-y-1.5 text-[14px] text-ink-600 dark:text-cream-100/70 leading-relaxed list-disc list-inside">
-          <li>case.created, case.updated, case.closed</li>
-          <li>signing.sent, signing.signed, signing.declined, signing.expired</li>
-          <li>contract.review.completed</li>
-          <li>billing.subscription.updated, billing.invoice.paid</li>
-          <li>firm.tokens.threshold (when the firm pool hits a configured low-water mark)</li>
+          <li>ticket.created</li>
+          <li>ticket.employee_replied</li>
+          <li>ticket.legal_replied</li>
+          <li>ticket.status_changed</li>
+          <li>ticket.reminder</li>
         </ul>
+        <p className="text-[13px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
+          Delivery is a single attempt with a 10-second timeout and is
+          not retried. Treat a webhook as a prompt to refresh, and poll
+          if you need certainty.
+        </p>
       </section>
 
       <section className="max-w-3xl mx-auto px-4 sm:px-6 space-y-5">
@@ -229,19 +220,23 @@ export default function DevelopersPage() {
 
       <section className="max-w-3xl mx-auto px-4 sm:px-6 text-center space-y-3">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
-          Want API access?
+          Ready to build?
         </h2>
         <p className="text-[14.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
-          Tell us what you&rsquo;re building. We onboard partners
-          weekly.
+          Mint a token from your profile settings. If you need something
+          the endpoints above do not cover, write to{' '}
+          <a
+            href="mailto:partnerships@advottic.com"
+            className="underline underline-offset-2"
+          >
+            partnerships@advottic.com
+          </a>{' '}
+          and tell us what you&rsquo;re building.
         </p>
         <div className="pt-3 flex justify-center gap-3 flex-wrap">
-          <a
-            href="mailto:partnerships@advottic.com?subject=API%20access%20request"
-            className="btn-primary"
-          >
-            Request access
-          </a>
+          <Link href="/profile/api-tokens" className="btn-primary">
+            Create a token
+          </Link>
           <Link href="/security" className="btn-secondary">
             Read security overview
           </Link>
