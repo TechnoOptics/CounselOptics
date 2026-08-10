@@ -11,7 +11,6 @@ import {
   TIME_BILLING_HREFS,
 } from '@/lib/menu-config';
 import { T } from '@/components/i18n/LocaleProvider';
-import { CounselScopePanel } from '@/components/counsel/CounselScopePanel';
 import {
   BillingIcon,
   CalIcon,
@@ -102,7 +101,6 @@ export function CounselSidebar({
   pathname,
   tenantMode = false,
   hideTimeBilling = false,
-  ticketPrefix = null,
 }: {
   firm: Firm;
   membership: FirmMember;
@@ -130,12 +128,6 @@ export function CounselSidebar({
    * from the rail.
    */
   hideTimeBilling?: boolean;
-  /**
-   * firm_settings.ticket_prefix, resolved by the layout. Null when the
-   * firm has not set one, in which case the scope panel shows no
-   * prefix rather than a made-up one.
-   */
-  ticketPrefix?: string | null;
 }) {
   // The pathname prop is forwarded from the server layout for the
   // initial SSR pass (so the right item is highlighted on first
@@ -171,10 +163,13 @@ export function CounselSidebar({
       >
         {firm.name}
       </p>
-      <CounselScopePanel
-        practiceAreas={firm.practiceAreas}
-        ticketPrefix={ticketPrefix}
-      />
+      {/* The firm name and the first section label are the same 10px
+          uppercase eyebrow, so with nothing between them they read as two
+          peers rather than "whose workspace this is" followed by "what is
+          in it". The scope panel used to supply that separation; this is
+          the rail's own existing hairline, the one already used above
+          Firm settings, doing the same job in one line. */}
+      <div className="mb-1 border-t border-edge" />
       {sections.map((sec) => (
         <div key={sec.section}>
           <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-muted px-2 pt-2 pb-0.5">

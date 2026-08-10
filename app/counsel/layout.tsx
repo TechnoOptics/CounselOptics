@@ -9,7 +9,6 @@ import { firmTrialState, readTrialSnapshot } from '@/lib/firm-trials';
 import { FIRM_ADMIN_ROLES } from '@/lib/firm-authz';
 import {
   getFirmSurfaceSettings,
-  getFirmTicketPrefix,
   DEFAULT_FIRM_SURFACE_SETTINGS,
 } from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
@@ -356,21 +355,6 @@ export default async function CounselLayout({
     ? await getFirmSurfaceSettings(active.firm.id)
     : DEFAULT_FIRM_SURFACE_SETTINGS;
 
-  // The letters in front of this firm's request references, for the scope
-  // readout at the top of the rail. Its own read rather than part of
-  // getFirmSurfaceSettings, for the reason that helper's comment gives:
-  // `ticket_prefix` arrives with a migration that may not be applied, and
-  // naming it in that select would take the surface toggles down with it.
-  //
-  // It is never empty, and the readout is truthful anyway: a firm that has
-  // set nothing, whose column is missing, or that typed something unusable
-  // all land on the allocator's default, which is literally the prefix its
-  // references carry. So this shows what the firm's references say, not a
-  // guess at what they might say.
-  const ticketPrefix = active
-    ? await getFirmTicketPrefix(active.firm.id)
-    : null;
-
   // If we resolved a context, expose it to children via the wrapper.
   // The "dark" class forces dark Tailwind variants throughout the
   // counsel side regardless of the user's consumer-side theme - the
@@ -438,7 +422,6 @@ export default async function CounselLayout({
                 pathname={pathname}
                 tenantMode={isTenantSubdomain}
                 hideTimeBilling={surface.hideTimeBilling}
-                ticketPrefix={ticketPrefix}
               />
             </CounselSidebarShell>
           ) : null}
