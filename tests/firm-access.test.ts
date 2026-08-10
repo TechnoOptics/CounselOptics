@@ -1789,12 +1789,29 @@ describe('the enforcement wiring', () => {
       .split('\n')
       .filter(Boolean);
     const seen = new Map<string, number>(names.map((n) => [n, 0]));
+    // Compiled ONCE per name rather than once per name per file. This loop is
+    // names x files, so building the expression inside it recompiled the same
+    // pattern hundreds of times and was enough, under a loaded machine, to
+    // push the whole test past its timeout while it still passed in
+    // isolation. The pattern is identical; only where it is built moved.
+    const callPatterns = names.map(
+      (name) => [name, new RegExp(`\\b${name}\\(`, 'g')] as const,
+    );
     for (const rel of files) {
       const src = readFileSync(join(ROOT, rel), 'utf8');
-      for (const name of names) {
+      for (const [name, pattern] of callPatterns) {
         // Calls only. An import lists the name with a comma after it, never
         // an open paren.
-        for (const m of src.matchAll(new RegExp(`\\b${name}\\(`, 'g'))) {
+        //
+        // matchAll does NOT advance this regex: it iterates a clone. But it
+        // SEEDS that clone from lastIndex, so a non-zero value here would
+        // start the scan partway into the file and silently miss earlier
+        // calls. Nothing sets it today, which is precisely why the line is
+        // worth keeping: switching this loop to .exec(), which does advance
+        // the original, would otherwise make every file after the first scan
+        // from the wrong offset and quietly weaken the guard.
+        pattern.lastIndex = 0;
+        for (const m of src.matchAll(pattern)) {
           seen.set(name, (seen.get(name) ?? 0) + 1);
           if (HAND_WRITTEN_CATCH.has(rel)) continue;
           const before = src.slice(Math.max(0, (m.index ?? 0) - 30), m.index ?? 0);
@@ -1809,7 +1826,21 @@ describe('the enforcement wiring', () => {
     // matched everything except one action, would otherwise pass this test
     // while proving nothing about that action.
     expect([...seen].filter(([, n]) => n === 0).map(([name]) => name)).toEqual([]);
-  });
+    // An explicit budget, because this test is not compute bound and the
+    // default is calibrated for tests that are. It spawns grep over two
+    // directory trees and then reads every file that matched, so its wall
+    // clock tracks how busy the machine is rather than how much work the
+    // assertion does. It passed alone and failed inside the full suite,
+    // which is the signature of that and not of a real regression.
+    //
+    // Raising a timeout is usually a way of hiding a problem, so: the risk
+    // accepted here is that a genuine slowdown in the sweep now has more
+    // room to go unnoticed. That is the right trade only because the
+    // failure it replaces was a false one, and a suite that cries wolf gets
+    // ignored, which costs more than a slow test does. This suite runs in
+    // CI on every push as of today, so a load-dependent failure here would
+    // turn every unrelated pull request red.
+  }, 30_000);
 
   /**
    * A refusal is not a transient failure, and the flagship bulk intake was
