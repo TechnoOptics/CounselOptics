@@ -66,4 +66,33 @@ describe('Safe Witness reports distance in US customary units', () => {
     );
     expect(tracker).toContain('formatDistanceFromMeters');
   });
+
+  /**
+   * /safe/alert is a consumer route, so its text passes through the runtime
+   * AutoTranslate layer. That layer skips text that is purely digits and
+   * symbols, but "0.50 mi" carries letters, so it would be handed to the
+   * machine translator - which is free to return a comma decimal separator
+   * or a reordered string. The measurement itself must not move.
+   */
+  it('marks the distance readouts so the translator leaves them alone', () => {
+    const tracker = readFileSync(
+      join(ROOT, 'app/safe/alert/[id]/live-tracker.tsx'),
+      'utf8',
+    );
+    // The two places a measurement reaches the screen: the big "You are
+    // about N" figure, and the accuracy inside the approximate-location
+    // banner. Both are read off the element that encloses the value.
+    const rendered = [
+      /<p([^>]*)>\s*\{distanceLabel\}/,
+      /<span([^>]*)>\s*\{formatDistanceFromMeters\(accuracyM\)\}/,
+    ];
+    for (const re of rendered) {
+      const m = tracker.match(re);
+      expect(m, `no element found for ${re}`).not.toBeNull();
+      expect(
+        m![1],
+        'a distance readout is not marked data-no-translate',
+      ).toContain('data-no-translate');
+    }
+  });
 });
