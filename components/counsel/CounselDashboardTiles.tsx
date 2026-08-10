@@ -16,7 +16,6 @@ import { T } from '@/components/i18n/LocaleProvider';
 export type DashboardTileData = {
   firmId: string;
   firmName: string;
-  accent: string;
   userId: string;
   userDisplayName: string;
   isAdmin: boolean;
@@ -46,17 +45,27 @@ export type DashboardTileData = {
       isInternal: boolean;
     }>;
   };
+  /**
+   * The lists here are the few rows the tile DRAWS; the totals beside
+   * them are how many there are. They used to be one thing: the page
+   * sliced each list to ten and the tile printed that slice's length as
+   * the count, so an attorney with 24 matters read "10" and a title of
+   * "20 things in your name" that could never say anything else.
+   */
   assigned: {
     cases: Array<{ id: string; title: string; status: string }>;
+    casesTotal: number;
     clients: Array<{ id: string; displayName: string; status: string }>;
+    clientsTotal: number;
   };
   signing: {
-    /** Signature requests created by the current user, still pending. */
-    mineAwaiting: Array<{
-      id: string;
-      documentTitle: string | null;
-      createdAt: string;
-    }>;
+    /**
+     * How many signature requests the current user created are still
+     * out. A count, not a list: nothing renders the rows, and when this
+     * was an array sliced to ten the action center headed the card with
+     * that ten and added it into "N things need a human".
+     */
+    mineAwaitingCount: number;
   };
   meetings: Array<{
     id: string;
@@ -105,7 +114,6 @@ export function DashboardTileRenderer({
         headline={<>{data.counts.casesOpen} <T>open</T></>}
         metric={<>{data.counts.casesTotal} <T>total</T></>}
         body="Cases shared with the firm. Open + active matters at the top."
-        accent={data.accent}
       />;
     case 'clients-overview':
       return <SimpleCountTile
@@ -114,7 +122,6 @@ export function DashboardTileRenderer({
         headline={String(data.counts.clients)}
         metric={<>{data.counts.clientsActive} <T>active</T></>}
         body="Invite a client and they stay linked to your firm."
-        accent={data.accent}
       />;
     case 'team-overview':
       return <SimpleCountTile
@@ -134,7 +141,6 @@ export function DashboardTileRenderer({
           )
         }
         body="Admins, attorneys, paralegals, staff."
-        accent={data.accent}
       />;
     case 'documents-overview':
       return <SimpleCountTile
@@ -148,7 +154,6 @@ export function DashboardTileRenderer({
         // dashboard already uses for the same number.
         metric={<T>held for this firm</T>}
         body="Contracts, motions, evidence packets."
-        accent={data.accent}
       />;
     case 'signing-overview':
       return <SimpleCountTile
@@ -157,7 +162,6 @@ export function DashboardTileRenderer({
         headline={String(data.counts.signingPending)}
         metric={<T>awaiting signature</T>}
         body="UETA-aligned, tamper-evident audit chain."
-        accent={data.accent}
       />;
     case 'recent-activity':
       return <RecentActivityTile data={data} />;
@@ -170,7 +174,6 @@ export function DashboardTileRenderer({
         headline={<T>Channels + DMs</T>}
         metric={<T>Realtime</T>}
         body="Channels for firm-wide topics, group DMs per matter, 1:1s."
-        accent={data.accent}
       />;
     case 'firm-settings':
       if (!data.isAdmin) return null;
@@ -180,7 +183,6 @@ export function DashboardTileRenderer({
         headline={<T>Brand + scope</T>}
         metric={<T>Owner / admin</T>}
         body="Logo, accent color, jurisdictions, practice areas."
-        accent={data.accent}
       />;
     default:
       return null;
@@ -189,19 +191,34 @@ export function DashboardTileRenderer({
 
 /* ----- atomic tile presentational components ----- */
 
+/**
+ * Every tile eyebrow on this page.
+ *
+ * It used to be `style={{ color: firm.accentColor }}`: the customer's own
+ * hex, painted as TEXT on a card. That is the one thing lib/accent-text.ts
+ * exists to stop. A colour chosen to work as a button FILL is usually
+ * unreadable as words - Advottic's own default gold measures 1.87:1 on a
+ * white card - and because the value arrived as an inline style rather
+ * than as a class, no contrast guard could see it and none of the
+ * arithmetic in that file ever ran on it. `--accent-text` is the same
+ * firm's accent with its lightness pinned and its chroma capped, proved
+ * against every surface either theme paints, for every hex a customer can
+ * type. Fills keep the exact brand colour; only words move.
+ */
+const TILE_EYEBROW =
+  'text-[10px] uppercase tracking-[0.22em] font-semibold text-accent-text';
+
 function TileFrame({
   eyebrow,
   title,
   href,
   span,
-  accent,
   children,
 }: {
   eyebrow: string;
   title: React.ReactNode;
   href?: string;
   span?: 1 | 2 | 4;
-  accent: string;
   children: React.ReactNode;
 }) {
   const colSpan =
@@ -213,10 +230,7 @@ function TileFrame({
   const inner = (
     <div className="card p-5 h-full hover:shadow-card-hover hover:-translate-y-0.5 transition-all">
       <div className="flex items-center justify-between mb-1">
-        <p
-          className="text-[10px] uppercase tracking-[0.22em] font-semibold"
-          style={{ color: accent }}
-        >
+        <p className={TILE_EYEBROW}>
           <T>{eyebrow}</T>
         </p>
         {href ? (
@@ -245,24 +259,19 @@ function SimpleCountTile({
   headline,
   metric,
   body,
-  accent,
 }: {
   href: string;
   eyebrow: string;
   headline: React.ReactNode;
   metric: React.ReactNode;
   body: string;
-  accent: string;
 }) {
   return (
     <Link
       href={href}
       className="card p-5 hover:shadow-card-hover hover:-translate-y-0.5 transition-all group block h-full"
     >
-      <p
-        className="text-[10px] uppercase tracking-[0.22em] font-semibold"
-        style={{ color: accent }}
-      >
+      <p className={TILE_EYEBROW}>
         <T>{eyebrow}</T>
       </p>
       <p className="text-2xl font-medium tracking-[-0.01em] text-foreground mt-1">
@@ -280,31 +289,48 @@ function SimpleCountTile({
 
 /* ----- Action center: only-renders-when-there's-something tile ----- */
 
-function ActionCenterTile({ data }: { data: DashboardTileData }) {
-  // Each row carries the number of work items behind it, and the title is
-  // their sum. The title used to count ROWS, so a tile headed "1 thing needs
-  // a human" sat directly above a row reading "5 requests need attention".
-  // The rows are kept disjoint for that sum to be honest. "New in the last
-  // 24 hours" counts arrivals in every lane, so it is NOT a work-item row of
-  // its own (it would double-count); it rides along as a clause that names
-  // itself as the separate measure it is.
-  const items: Array<{
-    label: string;
-    href: string;
-    detail: string;
-    tone: 'warn' | 'ok';
-    workItems: number;
-  }> = [];
+export type ActionCenterItem = {
+  label: string;
+  href: string;
+  detail: string;
+  tone: 'warn' | 'ok';
+  workItems: number;
+};
+
+/**
+ * The rows of the action center, as data.
+ *
+ * Exported and pure so the arithmetic and the wording can be exercised
+ * directly. Two things here are only wrong at particular counts, and both
+ * shipped: the title once counted ROWS, so a tile headed "1 thing needs a
+ * human" sat directly above a row reading "5 requests need attention"; and
+ * the labels pluralised the noun but not the verb, so at exactly one item
+ * a firm read "1 request need attention" and "1 signing request you sent
+ * are still out". A small firm sits on a count of one most days, so that
+ * was the state most users saw and the one no test covered.
+ *
+ * The rows are disjoint, which is what makes their sum honest. "New in the
+ * last 24 hours" counts arrivals in EVERY lane, so it is not a row of its
+ * own when there is anything needing attention - it would double-count -
+ * and rides along as a clause that names itself as the separate measure it
+ * is.
+ */
+export function actionCenterItems(data: DashboardTileData): ActionCenterItem[] {
+  const items: ActionCenterItem[] = [];
+  const plural = (n: number, one: string, many: string) =>
+    n === 1 ? one : many;
   if (data.intake.needsAttention > 0) {
+    const n = data.intake.needsAttention;
+    const today = data.intake.newToday;
     items.push({
-      label: `${data.intake.needsAttention} request${data.intake.needsAttention === 1 ? '' : 's'} need attention`,
+      label: `${n} ${plural(n, 'request needs', 'requests need')} attention`,
       href: '/counsel/inbox',
       detail:
-        data.intake.newToday > 0
-          ? `Untriaged or flagged, waiting on legal. Separately, ${data.intake.newToday} request${data.intake.newToday === 1 ? '' : 's'} arrived in the last 24 hours, in any lane.`
+        today > 0
+          ? `Untriaged or flagged, waiting on legal. Separately, ${today} ${plural(today, 'request', 'requests')} arrived in the last 24 hours, in any lane.`
           : 'Untriaged or flagged, waiting on legal.',
       tone: 'warn',
-      workItems: data.intake.needsAttention,
+      workItems: n,
     });
   } else if (data.intake.newToday > 0) {
     items.push({
@@ -315,25 +341,37 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
       workItems: data.intake.newToday,
     });
   }
-  if (data.signing.mineAwaiting.length > 0) {
+  const outstanding = data.signing.mineAwaitingCount;
+  if (outstanding > 0) {
     items.push({
-      label: `${data.signing.mineAwaiting.length} signing request${data.signing.mineAwaiting.length === 1 ? '' : 's'} you sent are still out`,
+      label: `${outstanding} signing ${plural(outstanding, 'request you sent is', 'requests you sent are')} still out`,
       href: '/counsel/signing',
       detail: 'Send a reminder or escalate if the deadline is close.',
       tone: 'warn',
-      workItems: data.signing.mineAwaiting.length,
+      workItems: outstanding,
     });
   }
   if (data.counts.invitations > 0 && data.isAdmin) {
+    const n = data.counts.invitations;
     items.push({
-      label: `${data.counts.invitations} pending team invitation${data.counts.invitations === 1 ? '' : 's'}`,
+      label: `${n} pending team ${plural(n, 'invitation', 'invitations')}`,
       href: '/counsel/team',
       detail: 'Members invited but not yet accepted.',
       tone: 'warn',
-      workItems: data.counts.invitations,
+      workItems: n,
     });
   }
-  const workItems = items.reduce((sum, i) => sum + i.workItems, 0);
+  return items;
+}
+
+/** The tile's headline: the work behind every row, added up. */
+export function actionCenterWorkItems(items: ActionCenterItem[]): number {
+  return items.reduce((sum, i) => sum + i.workItems, 0);
+}
+
+function ActionCenterTile({ data }: { data: DashboardTileData }) {
+  const items = actionCenterItems(data);
+  const workItems = actionCenterWorkItems(items);
 
   return (
     <TileFrame
@@ -352,7 +390,6 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
           </>
         )
       }
-      accent={data.accent}
       span={4}
     >
       {items.length === 0 ? (
@@ -394,8 +431,9 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
 /* ----- Assigned to me ----- */
 
 function AssignedToMeTile({ data }: { data: DashboardTileData }) {
-  const clientCount = data.assigned.clients.length;
-  const caseCount = data.assigned.cases.length;
+  // The totals, not the length of the rows drawn below them.
+  const clientCount = data.assigned.clientsTotal;
+  const caseCount = data.assigned.casesTotal;
   const total = clientCount + caseCount;
   return (
     <TileFrame
@@ -412,7 +450,6 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
           </>
         )
       }
-      accent={data.accent}
       span={4}
     >
       {total === 0 ? (
@@ -511,7 +548,6 @@ function QuickActionsTile({ data }: { data: DashboardTileData }) {
     <TileFrame
       eyebrow="Quick actions"
       title={<T>Start something</T>}
-      accent={data.accent}
       span={2}
     >
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -543,7 +579,6 @@ function MeetingsTile({ data }: { data: DashboardTileData }) {
         )
       }
       href="/counsel/calendar"
-      accent={data.accent}
       span={2}
     >
       {data.meetings.length === 0 ? (
@@ -591,7 +626,6 @@ function DeadlinesTile({ data }: { data: DashboardTileData }) {
         )
       }
       href="/counsel/calendar"
-      accent={data.accent}
       span={2}
     >
       {data.deadlines.length === 0 ? (
@@ -639,7 +673,6 @@ function IntakePipelineTile({ data }: { data: DashboardTileData }) {
       eyebrow="Intake pipeline"
       title={<T>Request inbox</T>}
       href="/counsel/inbox"
-      accent={data.accent}
       span={2}
     >
       <div className="mt-3 grid grid-cols-4 gap-2">
@@ -690,7 +723,6 @@ function RecentActivityTile({ data }: { data: DashboardTileData }) {
       title={
         top.length === 0 ? <T>Nothing recently</T> : <T>Across the firm</T>
       }
-      accent={data.accent}
       span={2}
     >
       {top.length === 0 ? (
@@ -734,7 +766,6 @@ function RecentUploadsTile({ data }: { data: DashboardTileData }) {
         )
       }
       href="/counsel/documents"
-      accent={data.accent}
       span={2}
     >
       {data.recentUploads.length === 0 ? (

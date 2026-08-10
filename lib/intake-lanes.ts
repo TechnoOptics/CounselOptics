@@ -165,6 +165,41 @@ export function reopenedIntakeStatus(
   return p;
 }
 
+/**
+ * The predicate that selects one lane in the DATABASE, for the surfaces
+ * that COUNT a lane rather than tally rows they have already read.
+ *
+ * A count over a page of rows is a floor, not a count, so a surface that
+ * wants a lane total asks the database for one. That surface still has to
+ * express the lane, and expressing it by hand is how the four counting
+ * surfaces above came to disagree in the first place, so the expression
+ * lives here with the rest of the definition.
+ *
+ * `attention` is spelled as the COMPLEMENT of the other three rather than
+ * as its own list, because that is precisely what `intakeLaneOf` does: a
+ * status no lane claims - including one this code has never heard of, and
+ * a null one - has to reach a person. An `.in()` over the attention list
+ * would instead drop such a status out of all four lanes, which is the
+ * silent-disappearance failure this file exists to prevent.
+ */
+export type IntakeLaneFilter =
+  | { op: 'in'; statuses: string[] }
+  | { op: 'notIn'; statuses: string[] };
+
+export function intakeLaneFilter(lane: IntakeLane): IntakeLaneFilter {
+  if (lane !== 'attention') {
+    return { op: 'in', statuses: [...INTAKE_LANE_STATUSES[lane]] };
+  }
+  return {
+    op: 'notIn',
+    statuses: [
+      ...INTAKE_LANE_STATUSES.review,
+      ...INTAKE_LANE_STATUSES.accepted,
+      ...INTAKE_LANE_STATUSES.closed,
+    ],
+  };
+}
+
 export type IntakeLaneTally = Record<IntakeLane, number>;
 
 export function tallyIntakeLanes(

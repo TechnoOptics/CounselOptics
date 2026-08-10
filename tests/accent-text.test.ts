@@ -2000,9 +2000,23 @@ describe('every error and warning surface can be read on both of its grounds', (
  * Both arms are resolved below rather than guessed.
  */
 describe('the shared counsel primitives paint no neutral under AA on a counsel ground', () => {
+  /**
+   * The two shared primitive files, plus the counsel dashboard's tiles.
+   *
+   * The tiles are here because they were the counterexample to the whole
+   * mechanism: every eyebrow on that page painted the firm's raw
+   * `accent_color` through an inline `style`, so there was no class for
+   * this sweep to find, no repaint rule behind it, and no measurement of
+   * any kind on the one colour a customer chooses. They now paint
+   * `text-accent-text`, which the derivation blocks above prove for every
+   * hex a customer can type, and the file's remaining neutrals are held
+   * to the same floor as the primitives'. It is the dashboard: it is the
+   * first counsel screen anybody sees, in either theme.
+   */
   const FILES = [
     'components/counsel/ui.tsx',
     'components/counsel/patterns.tsx',
+    'components/counsel/CounselDashboardTiles.tsx',
   ];
 
   /** The raw Tailwind values of the neutral ramps, from tailwind.config.ts. */
@@ -2074,9 +2088,23 @@ describe('the shared counsel primitives paint no neutral under AA on a counsel g
     };
   }
 
-  /** The last `color:` any rule declares for `<scope> .<class>`. */
+  /**
+   * The last `color:` any rule declares for `<scope> .<class>`.
+   *
+   * A VARIANT class is escaped twice over, and both escapes have to be
+   * reproduced or the lookup silently misses. Tailwind compiles
+   * `hover:text-cream-100` to the class `.hover\:text-cream-100`, and the
+   * repaint rule then hangs `:hover` off it, so the selector reads
+   * `.hover\:text-cream-100:hover`. Escaping only `/` matched the
+   * unprefixed spelling and nothing else, which made every `hover:`
+   * palette class resolve to its RAW value in both themes - cream-100 on
+   * near-white, 1.007:1 - and the guard reported a defect the stylesheet
+   * had already fixed. A miss in this direction is the harmless one; the
+   * same blindness pointed at a class the layer does NOT repaint would
+   * have been the other kind.
+   */
   function repaint(scope: string, cls: string): Paint | null {
-    const escaped = cls.replace(/\//g, '\\/');
+    const escaped = cls.replace(/([:/])/g, '\\$1');
     const prefix = `${scope} .${escaped}`;
     let found: Paint | null = null;
     for (const [, selectors, body] of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -2228,6 +2256,9 @@ describe('the shared counsel primitives paint no neutral under AA on a counsel g
     // what the light half of every resolution depends on.
     expect(repaint(LIGHT_COUNSEL, 'text-forest-900')?.hex).toBe('#17171b');
     expect(repaint('.dark', 'text-ink-500')?.alpha).toBeCloseTo(0.55, 2);
+    // The variant arm, which is escaped differently from the bare one and
+    // was silently unreachable until a `hover:` call site reached it.
+    expect(repaint(LIGHT_COUNSEL, 'hover:text-cream-100')?.hex).toBe('#17171b');
   });
 
   it('knows the paint behind every text colour it swept', () => {

@@ -19,7 +19,24 @@ import type { StatusCount, MonthPoint } from './counsel-analytics';
  *     broad read. If the service role is not configured the evidence
  *     block degrades to zeros rather than throwing.
  *
- * All money is integer cents. All reads are bounded.
+ * All money is integer cents.
+ *
+ * WHAT IS BOUNDED AND WHAT IS NOT, because the header used to claim
+ * "all reads are bounded" while the page presented what those reads
+ * returned as firm totals. A capped read is a floor, and a floor under
+ * a label like "Unbilled time" is a wrong number, not a cautious one.
+ * So the two reads whose output is stated as a total - the matters and
+ * the time entries - are unbounded, and narrow enough to be: three or
+ * four small columns each, filtered to one firm. That is the same call
+ * app/counsel/billing already made for Outstanding, and the same one
+ * the matter page made for its "Draft for $X" button.
+ *
+ * ONE bound remains, on case_timeline_events, and it is not honest yet:
+ * 20000 events per 500-matter chunk. `evidence.total` and the relevance
+ * split are therefore floors for a firm past that, and the Impact page
+ * states them plainly as counts. Closing it needs either an unbounded
+ * read of a table that grows fastest of any here, or a Postgres
+ * aggregate, and that is a migration. Recorded rather than papered over.
  */
 
 export type Bucket = { key: string; label: string; count: number };
@@ -131,18 +148,37 @@ export async function getFirmImpact(firmId: string): Promise<FirmImpact> {
   const in30Days = nowMs + 30 * 86_400_000;
 
   const [casesRes, timeRes] = await Promise.all([
+    // Unbounded: `matters.total` is stated as a total and is the
+    // denominator of every percentage on the Impact page, so a cap here
+    // would quietly shrink the whole page rather than one figure.
     supabase
       .from('cases')
       .select(
         'id, title, status, case_type, posture, hearing_at, hearing_location, created_at',
       )
-      .eq('firm_id', firmId)
-      .limit(5000),
+      .eq('firm_id', firmId),
+    // The canonical shape of a time entry that counts, copied from
+    // buildDraftInvoiceAction rather than restated: billable-or-not is
+    // decided below, but "logged" means ENDED with a positive duration.
+    //
+    // The `ended_at` filter is what makes this block's "Unbilled" the
+    // same measure as the one on /counsel/billing, on the matter page,
+    // and in the invoice the button actually drafts. It was missing, so
+    // an open timer with a duration already written could be counted as
+    // money ready to invoice on this page and nowhere else. Three
+    // surfaces said "Unbilled" and this was the one that meant something
+    // different by it.
+    //
+    // Unbounded, and ordered by id for the same reason invoicing.ts is:
+    // if PostgREST's own max-rows cap ever truncates the set, it has to
+    // truncate to the same rows every other surface summed.
     supabase
       .from('firm_time_entries')
       .select('duration_seconds, billable, rate_cents, invoice_id')
       .eq('firm_id', firmId)
-      .limit(20000),
+      .not('ended_at', 'is', null)
+      .gt('duration_seconds', 0)
+      .order('id', { ascending: true }),
   ]);
 
   const cases = (casesRes.data ?? []) as CaseRow[];

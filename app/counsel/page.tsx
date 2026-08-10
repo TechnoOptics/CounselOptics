@@ -20,7 +20,7 @@ import {
   type DashboardTileData,
 } from '@/components/counsel/CounselDashboardTiles';
 import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
-import { tallyIntakeLanes } from '@/lib/intake-lanes';
+import { intakeLaneFilter, type IntakeLane } from '@/lib/intake-lanes';
 import { PageHeader, EmptyState, StatCard } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -38,16 +38,20 @@ export const metadata: Metadata = {
 /**
  * /counsel - firm-side dashboard.
  *
+ * The dashboard shape from docs/PARITY-PAGE-RULES.md: a strip of metric
+ * cards across the top, then a grid of cards, with nothing competing
+ * with the strip.
+ *
  * Layout (top to bottom):
- *   1. Welcome banner ("Welcome to {firmName}") - always shown.
+ *   1. Welcome header ("Welcome to {firmName}"), carrying the
+ *      "Customize dashboard" button as its top-right action.
  *   2. The metric strip - four headline counts, always shown. See the
  *      comment on it for which query produces each one.
  *   3. Ask Advottic search bar - always shown.
  *   4. User-selected tiles - default is Action center + Assigned to
- *      me. The "Customize" button in the header lets the user pick
- *      any combination of tiles from the catalog in
- *      lib/counsel-dashboard.ts. Preferences persist in
- *      profiles.dashboard_preferences.
+ *      me. The "Customize" button lets the user pick any combination
+ *      of tiles from the catalog in lib/counsel-dashboard.ts.
+ *      Preferences persist in profiles.dashboard_preferences.
  *
  * If the signed-in user has no firms yet, redirect to the onboarding
  * wizard. The layout already handles the not-signed-in case.
@@ -109,36 +113,70 @@ export default async function CounselDashboard() {
   // hand-roll the map and tested for a status named `in_review` that the
   // schema has never allowed, so every conflict-cleared request landed in
   // "needs attention" and the dashboard reported 5 where the inbox showed 4.
-  const sinceMs = Date.now() - 24 * 60 * 60 * 1000;
-  const { data: intakeRows } = await supabase
-    .from('firm_matter_intakes')
-    .select(
-      'id, client_name, matter_type, status, created_at, intake_answers',
-    )
-    .eq('firm_id', ctx.firm.id)
-    .order('created_at', { ascending: false })
-    .limit(200);
-  type IntakeRow = {
+  //
+  // Every lane figure below is a COUNT, so every one of them is its own
+  // `count: 'exact'` query. They used to be tallied in JS over a read
+  // capped at 200 rows, which turned each lane into a floor the moment a
+  // firm passed its 200th request, and the action center then added those
+  // floors together and called the result "N things need a human". The
+  // shape here is the one app/counsel/billing already uses for
+  // Outstanding: the rows you draw and the total you state are two
+  // different queries, because only one of them can be bounded.
+  //
+  // The lane split is still lib/intake-lanes.ts and nothing else. See
+  // intakeLaneFilter for why "needs attention" is the complement of the
+  // other three rather than a list of its own.
+  const intakeCount = (lane: IntakeLane) => {
+    const filter = intakeLaneFilter(lane);
+    const q = supabase
+      .from('firm_matter_intakes')
+      .select('id', { count: 'exact', head: true })
+      .eq('firm_id', ctx.firm.id);
+    return filter.op === 'in'
+      ? q.in('status', filter.statuses)
+      : q.or(`status.is.null,status.not.in.(${filter.statuses.join(',')})`);
+  };
+  const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const [
+    attentionRes,
+    reviewRes,
+    acceptedRes,
+    closedRes,
+    newTodayRes,
+    recentRes,
+  ] = await Promise.all([
+    intakeCount('attention'),
+    intakeCount('review'),
+    intakeCount('accepted'),
+    intakeCount('closed'),
+    supabase
+      .from('firm_matter_intakes')
+      .select('id', { count: 'exact', head: true })
+      .eq('firm_id', ctx.firm.id)
+      .gte('created_at', sinceIso),
+    // The one intake read that is meant to be bounded, because it is a
+    // list of the five most recent and not a total of anything.
+    supabase
+      .from('firm_matter_intakes')
+      .select('id, client_name, matter_type, created_at, intake_answers')
+      .eq('firm_id', ctx.firm.id)
+      .order('created_at', { ascending: false })
+      .limit(5),
+  ]);
+  const lanes = {
+    needsAttention: attentionRes.count ?? 0,
+    inReview: reviewRes.count ?? 0,
+    accepted: acceptedRes.count ?? 0,
+    closed: closedRes.count ?? 0,
+  };
+  const newToday = newTodayRes.count ?? 0;
+  const recentNew = ((recentRes.data ?? []) as Array<{
     id: string;
     client_name: string | null;
     matter_type: string | null;
-    status: string;
     created_at: string;
     intake_answers: Record<string, unknown> | null;
-  };
-  const intakes = (intakeRows ?? []) as IntakeRow[];
-  const tally = tallyIntakeLanes(intakes.map((i) => i.status));
-  const lanes = {
-    needsAttention: tally.attention,
-    inReview: tally.review,
-    accepted: tally.accepted,
-    closed: tally.closed,
-  };
-  let newToday = 0;
-  for (const i of intakes) {
-    if (new Date(i.created_at).getTime() >= sinceMs) newToday += 1;
-  }
-  const recentNew = intakes.slice(0, 5).map((i) => ({
+  }>).map((i) => ({
     id: i.id,
     clientName: i.client_name ?? 'Unnamed matter',
     matterType: i.matter_type,
@@ -172,17 +210,17 @@ export default async function CounselDashboard() {
   const myCases = (assignedCaseRows ?? []) as CaseRowMin[];
 
   // Signing requests the current user created that are still out.
-  const mySigningOpen = signing.filter(
+  //
+  // A count, over the whole set. listFirmSigningRequests is unbounded, so
+  // this is the real number. It used to be handed down as an array sliced
+  // to ten whose rows nothing rendered, and the action center read that
+  // array's LENGTH: an attorney with fifteen chase-ups was told about ten
+  // of them, and ten is what went into "N things need a human".
+  const mineAwaitingCount = signing.filter(
     (s) =>
       s.requestedBy === user.id &&
       (s.status === 'sent' || s.status === 'partial'),
-  );
-  const docById = new Map(documents.map((d) => [d.id, d.name] as const));
-  const mineAwaiting = mySigningOpen.slice(0, 10).map((s) => ({
-    id: s.id,
-    documentTitle: docById.get(s.documentId) ?? null,
-    createdAt: s.createdAt,
-  }));
+  ).length;
 
   // Upcoming meetings (next 14 days, top 5).
   //
@@ -267,7 +305,6 @@ export default async function CounselDashboard() {
   const data: DashboardTileData = {
     firmId: ctx.firm.id,
     firmName: ctx.firm.name,
-    accent: ctx.firm.accentColor,
     userId: user.id,
     userDisplayName:
       ctx.membership.displayName ?? ctx.membership.email ?? 'there',
@@ -290,19 +327,25 @@ export default async function CounselDashboard() {
       newToday,
       recentNew,
     },
+    // The tile draws five of each and says how many more there are, so
+    // it gets five of each and the totals. It used to get ten of each
+    // and count them, which made both the "(N)" beside each column and
+    // the "N things in your name" headline stop at ten and twenty.
     assigned: {
-      cases: myCases.slice(0, 10).map((c) => ({
+      cases: myCases.slice(0, 5).map((c) => ({
         id: c.id,
         title: c.title,
         status: c.status,
       })),
-      clients: myClients.slice(0, 10).map((c) => ({
+      casesTotal: myCases.length,
+      clients: myClients.slice(0, 5).map((c) => ({
         id: c.id,
         displayName: c.displayName ?? c.email ?? 'Unnamed client',
         status: c.status,
       })),
+      clientsTotal: myClients.length,
     },
-    signing: { mineAwaiting },
+    signing: { mineAwaitingCount },
     meetings,
     deadlines,
     recentUploads,
@@ -325,6 +368,16 @@ export default async function CounselDashboard() {
             <T>Pick the tiles that matter to you - hide the rest.</T>
           </>
         }
+        // Top right, which is where every other counsel page puts its
+        // actions and where this one's own copy has always said this
+        // button was. It used to sit in a right-aligned row of its own
+        // between the Ask bar and the tiles, so the dashboard pattern's
+        // "a strip of metric cards, then a grid of cards" was
+        // interrupted twice, and the empty state told the reader to
+        // click something "up top" that was directly above it.
+        action={
+          <DashboardCustomizer initialEnabled={enabled} isAdmin={isAdmin} />
+        }
       />
 
       {/*
@@ -337,11 +390,13 @@ export default async function CounselDashboard() {
           Active clients    listFirmClients, status active
           Documents         listFirmDocuments
 
-        The intake lane counts are deliberately NOT here, though the
-        action-center tile below shows them: they are tallied from a
-        firm_matter_intakes read capped at 200 rows, so on a busy firm
-        the number would be a floor rather than a count. A headline
-        metric has to be the whole set.
+        The intake lane counts are exact now, so the cap that used to
+        keep them off this strip is gone. They still stay off it, for a
+        different and smaller reason: the action center card below is a
+        row of open work items headed by their sum, and "N requests need
+        attention" is its first row. A fifth metric here would be the
+        same number twice on one screen, and the dashboard pattern asks
+        that nothing compete with the strip.
       */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
@@ -387,13 +442,6 @@ export default async function CounselDashboard() {
 
       {/* Ask Advottic - below the strip. */}
       <AskAdvottic />
-
-      {/* Customize button - sits between the Ask bar (with its
-          suggestion chips) and the tile grid, so the user reads
-          welcome -> ask -> suggestions -> "what's on my board" -> tiles. */}
-      <div className="flex justify-end">
-        <DashboardCustomizer initialEnabled={enabled} isAdmin={isAdmin} />
-      </div>
 
       {/* User-selected tiles. Empty state gives a hint about the
           customizer when the user has hidden everything. */}
