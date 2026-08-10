@@ -118,24 +118,41 @@ describe('nothing is minted from the disclosure step', () => {
   });
 });
 
+/**
+ * The two checks below used to read one file. The card, its phase machine and
+ * its poll now live in components/signing/PhoneHandoffCard.tsx, shared with
+ * the employee's form, and only the consent binding stayed in HANDOFF. That
+ * split is exactly the shape in which a guard keeps passing while the thing it
+ * guards has moved out from under it, so the assertions follow the code into
+ * both files rather than being relaxed to whatever still matches.
+ */
+const CARD = 'components/signing/PhoneHandoffCard.tsx';
+
 describe('the button in front of the mint', () => {
   it('never calls the server action without a consent to carry', () => {
-    const src = read(HANDOFF);
-    const guard = src.indexOf('if (!handoffCodeAvailable(consentRef.current)) return;');
-    const call = src.indexOf('await mintSigningHandoffAction(');
+    const handoff = read(HANDOFF);
+    const card = read(CARD);
 
+    // The signer's binding computes availability from the mint's own consent
+    // check, and it is the only thing that can call the action.
+    expect(handoff).toContain('available={handoffCodeAvailable(consent)}');
+    expect(handoff.match(/mintSigningHandoffAction\(/g)).toHaveLength(1);
+
+    // The card refuses ahead of the only call to whatever it was given.
+    const guard = card.indexOf('if (!availableRef.current) return;');
+    const call = card.indexOf('await mintRef.current()');
     expect(guard).toBeGreaterThan(-1);
     expect(call).toBeGreaterThan(-1);
-    // The refusal is ahead of the only call to the action, so no
-    // ordering of clicks reaches it before consent exists.
+    // The refusal is ahead of the only call, so no ordering of clicks reaches
+    // it before consent exists.
     expect(guard).toBeLessThan(call);
-    // And it is the only call site, so the guard is not standing in
-    // front of one of two doors.
-    expect(src.match(/mintSigningHandoffAction\(/g)).toHaveLength(1);
+    // And it is the only call site, so the guard is not standing in front of
+    // one of two doors.
+    expect(card.match(/mintRef\.current\(\)/g)).toHaveLength(1);
   });
 
   it('is disabled until a code could actually be minted', () => {
-    expect(read(HANDOFF)).toContain(
+    expect(read(CARD)).toContain(
       "disabled={phase.kind === 'minting' || !available}",
     );
     expect(read(HANDOFF)).toContain('handoffCodeAvailable(consent)');
