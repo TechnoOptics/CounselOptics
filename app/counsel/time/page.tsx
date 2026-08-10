@@ -50,14 +50,38 @@ export default async function CounselTimePage() {
     title: c.title,
   }));
 
-  const { data: entriesRaw } = await supabase
-    .from('firm_time_entries')
-    .select(
-      'id, user_id, case_id, description, started_at, ended_at, duration_seconds, billable, rate_cents, source, invoice_id',
-    )
-    .eq('firm_id', ctx.firm.id)
-    .order('started_at', { ascending: false })
-    .limit(200);
+  // TWO READS, because a list and a total are different things.
+  //
+  // The first is the 200 most recent entries, which is what the table below
+  // shows. The second is every unbilled billable entry, however old, which is
+  // what the Unbilled figure is. Deriving that figure from the capped list
+  // UNDER-REPORTED the firm's own unbilled work the moment it passed its
+  // 200th entry, and it did so silently and in the direction that costs the
+  // firm money.
+  //
+  // /counsel/billing already reads unbilled time this way, and its comment
+  // says why in the same terms: "summed over EVERY invoice, not over the 100
+  // most recent shown below". So the two pages now compute one number rather
+  // than two, and the filter here is deliberately the same predicate that
+  // one uses: billable, no invoice, ended, and a positive duration.
+  const [{ data: entriesRaw }, { data: unbilledRaw }] = await Promise.all([
+    supabase
+      .from('firm_time_entries')
+      .select(
+        'id, user_id, case_id, description, started_at, ended_at, duration_seconds, billable, rate_cents, source, invoice_id',
+      )
+      .eq('firm_id', ctx.firm.id)
+      .order('started_at', { ascending: false })
+      .limit(200),
+    supabase
+      .from('firm_time_entries')
+      .select('id, duration_seconds, rate_cents')
+      .eq('firm_id', ctx.firm.id)
+      .eq('billable', true)
+      .is('invoice_id', null)
+      .not('ended_at', 'is', null)
+      .gt('duration_seconds', 0),
+  ]);
 
   const entries = (entriesRaw ?? []) as Array<{
     id: string;
@@ -83,13 +107,25 @@ export default async function CounselTimePage() {
   const month = entries.filter(
     (e) => Date.parse(e.started_at) >= monthAgo && e.duration_seconds,
   );
-  const unbilled = entries.filter(
-    (e) => e.billable && !e.invoice_id && (e.duration_seconds ?? 0) > 0,
-  );
+  // From its OWN read, not from `entries`. The predicate is applied in the
+  // query rather than here, so nothing about this figure depends on how many
+  // rows the table above happens to be showing.
+  const unbilled = (unbilledRaw ?? []) as Array<{
+    duration_seconds: number | null;
+    rate_cents: number | null;
+  }>;
 
-  const sumSec = (arr: typeof entries) =>
+  // Week and month still derive from the capped list, and that is correct:
+  // 200 entries ordered newest first cannot omit anything inside the last
+  // 30 days until a firm logs more than 200 entries in a month, at which
+  // point the table itself is the wrong shape and the fix is pagination.
+  // Unbilled has no such bound, because an unbilled entry stays unbilled
+  // for as long as nobody invoices it.
+  const sumSec = (arr: Array<{ duration_seconds: number | null }>) =>
     arr.reduce((s, e) => s + (e.duration_seconds ?? 0), 0);
-  const sumCents = (arr: typeof entries) =>
+  const sumCents = (
+    arr: Array<{ duration_seconds: number | null; rate_cents: number | null }>,
+  ) =>
     arr.reduce(
       (s, e) =>
         s + Math.round((e.rate_cents ?? 0) * ((e.duration_seconds ?? 0) / 3600)),
