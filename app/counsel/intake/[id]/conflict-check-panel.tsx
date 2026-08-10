@@ -69,7 +69,7 @@ export function ConflictCheckPanel({
   const passed = status === 'conflict_check_passed' || status === 'engaged';
 
   return (
-    <section className="card p-5 sm:p-6 space-y-4">
+    <section className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="eyebrow"><T>Conflict check</T></p>

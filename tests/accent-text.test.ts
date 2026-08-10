@@ -1657,6 +1657,13 @@ describe('every error and warning surface can be read on both of its grounds', (
     'app/counsel/documents/[id]/page.tsx': 'counsel',
     'app/counsel/documents/page.tsx': 'counsel',
     'app/counsel/forms/forms-manage-client.tsx': 'counsel',
+    // The request detail and the two controls in its action bar. The
+    // breached-deadline reading and both controls' failure messages moved
+    // off the rose palette onto --danger-text when the bar was gathered,
+    // so they are measured on the counsel card the bar paints on.
+    'app/counsel/intake/[id]/page.tsx': 'counsel',
+    'app/counsel/intake/[id]/convert-to-matter.tsx': 'counsel',
+    'app/counsel/intake/[id]/intake-owner-select.tsx': 'counsel',
     'app/counsel/letters/letters-studio.tsx': 'counsel',
     'app/counsel/policies/policies-manage-client.tsx': 'counsel',
     'app/counsel/signing/[id]/page.tsx': 'counsel',

@@ -1,0 +1,127 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { intakeChannel, intakeDeadline } from '../lib/intake-detail';
+
+/**
+ * The counsel request detail, rebuilt to the DETAIL pattern in
+ * docs/PARITY-PAGE-RULES.md.
+ *
+ * Two things are pinned here and they are pinned for different reasons.
+ *
+ * The pure helpers behind the meta row and the action bar's deadline are
+ * pinned because they are the only place the page decides what a request's
+ * provenance and its deadline ARE, and both are read off a schema-less
+ * answers blob where a missing key and an unparseable value look the same.
+ *
+ * The containment guard is pinned because the whole structural point of the
+ * screen is that the controls which CHANGE the record sit in one strip.
+ * They were scattered down the page before, and nothing but a guard stops
+ * the next person putting one back where it was: a reviewer reading the
+ * diff sees a control moved five lines, not a pattern broken.
+ */
+
+const page = readFileSync(
+  fileURLToPath(new URL('../app/counsel/intake/[id]/page.tsx', import.meta.url)),
+  'utf8',
+);
+
+describe('intakeChannel', () => {
+  it('reads a partner-app ticket from its partner block', () => {
+    expect(intakeChannel({ partner: { source: 'acme', externalId: 'X-1' } })).toBe(
+      'partner',
+    );
+  });
+
+  it('reads an employee-filed request from submitted_by', () => {
+    expect(intakeChannel({ submitted_by: 'A. Person' })).toBe('portal');
+  });
+
+  it('treats a request with neither marker as opened in the firm workspace', () => {
+    expect(intakeChannel({})).toBe('firm');
+    expect(intakeChannel(null)).toBe('firm');
+  });
+
+  it('does not call a blank submitted_by a portal request', () => {
+    expect(intakeChannel({ submitted_by: '   ' })).toBe('firm');
+  });
+
+});
+
+describe('intakeDeadline', () => {
+  const now = Date.parse('2026-08-10T12:00:00Z');
+
+  it('is null when the request carries no date at all', () => {
+    expect(intakeDeadline({}, now)).toBeNull();
+    expect(intakeDeadline(null, now)).toBeNull();
+  });
+
+  it('is null when the date is there but unparseable', () => {
+    expect(intakeDeadline({ due_by: 'whenever' }, now)).toBeNull();
+  });
+
+  it('reads due_by, and is not breached while it is still ahead', () => {
+    const d = intakeDeadline({ due_by: '2026-08-20T09:00:00Z' }, now);
+    expect(d).not.toBeNull();
+    expect(d!.kind).toBe('due');
+    expect(d!.breached).toBe(false);
+  });
+
+  it('is breached once due_by is behind us', () => {
+    const d = intakeDeadline({ due_by: '2026-08-01T09:00:00Z' }, now);
+    expect(d!.breached).toBe(true);
+  });
+
+  it('falls back to the reminder when there is no due date', () => {
+    const d = intakeDeadline({ reminder_at: '2026-08-20T09:00:00Z' }, now);
+    expect(d!.kind).toBe('reminder');
+    expect(d!.breached).toBe(false);
+  });
+
+  it('prefers the due date over the reminder when both are set', () => {
+    const d = intakeDeadline(
+      { due_by: '2026-08-01T09:00:00Z', reminder_at: '2026-08-20T09:00:00Z' },
+      now,
+    );
+    expect(d!.kind).toBe('due');
+    expect(d!.breached).toBe(true);
+  });
+});
+
+describe('the request detail gathers its record controls into one strip', () => {
+  /** Everything between the opening ActionBar tag and its close. */
+  function actionBarSource(): string {
+    const open = page.indexOf('<ActionBar');
+    const close = page.indexOf('</ActionBar>');
+    expect(open).toBeGreaterThan(-1);
+    expect(close).toBeGreaterThan(open);
+    return page.slice(open, close);
+  }
+
+  it.each([
+    ['the owner select', '<IntakeOwnerSelect'],
+    ['the folder select', '<FolderPicker'],
+    ['the primary action that takes the matter on', '<ConvertToMatter'],
+    ['the way in to declining or closing it', '<DecideJump'],
+  ])('holds %s', (_label, tag) => {
+    expect(actionBarSource()).toContain(tag);
+  });
+
+  it('renders the deadline in the bar rather than leaving it to a card', () => {
+    expect(actionBarSource()).toContain('deadline');
+  });
+});
+
+describe('the request detail keeps to the DETAIL pattern', () => {
+  it('puts the people and the matter in an aside, not in the record column', () => {
+    expect(page).toContain('<aside');
+    // The two-column body the pattern asks for, at the pattern's own ratio.
+    expect(page).toMatch(/lg:grid-cols-\[minmax\(0,1fr\)_340px\]/);
+  });
+
+  it('does not link out to a client record the product does not have', () => {
+    // PARITY-PAGE-RULES: no affordance without the thing behind it. There
+    // is no /counsel/clients/[id] route, so the client card carries no arrow.
+    expect(page).not.toMatch(/counsel\/clients\/\$\{/);
+  });
+});

@@ -5,9 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
 import { IntakeConversation } from '@/components/intake/IntakeConversation';
 import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
-import { WorkspaceShell } from '@/components/intake/WorkspaceShell';
 import { RecordSection } from '@/components/intake/RecordSection';
-import { SectionJump } from '@/components/intake/SectionJump';
 import { ticketRef } from '@/lib/intake-conversation-types';
 import { loadIntakeConversationAction } from '@/lib/intake-conversation';
 import type { ThreadMessage } from '@/lib/intake-thread';
@@ -16,15 +14,20 @@ import {
   readIntakeFolder,
 } from '@/lib/request-folders';
 import { FolderPicker } from './folder-picker';
+import { IntakeOwnerSelect } from './intake-owner-select';
+import { ConvertToMatter } from './convert-to-matter';
+import { DecideJump } from './decide-jump';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
 import { DecideRequest } from './decide-request';
 import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
 import { StatusPill, PILL_COLORS, PILL_DEFAULT } from '@/components/counsel/StatusPill';
-import { Chip } from '@/components/counsel/patterns';
+import { ActionBar, Chip, MonoRef, PanelCard, relativeTime } from '@/components/counsel/patterns';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 import { T } from '@/components/i18n/LocaleProvider';
+import { intakeChannel, intakeDeadline } from '@/lib/intake-detail';
+import { formatDate } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -172,330 +175,419 @@ export default async function IntakeDetailPage({
     (intake.matter_type ?? '').trim() ||
     intake.client_name;
   const requester = intake.client_name;
-  const dueBy = String(ans.due_by ?? '').trim();
-
-  // The rail is the conversation and nothing else, so the thread gets the
-  // entire column height. Documents live at the foot of the record instead.
-  const rail = conv.ok ? (
-    <IntakeConversation
-      fill
-      intakeId={intake.id}
-      viewerRole="legal"
-      viewerUserId={conv.userId}
-      canPost={conv.canPost}
-      canUseInternal={conv.canUseInternal}
-      initialMessages={conv.messages}
-      mentionables={conv.mentionables}
-      emptyHint="No messages yet. Reply here and the requester is notified straight away."
-    />
-  ) : null;
+  const caseId = (intake as { case_id?: string | null }).case_id ?? null;
+  const channel = intakeChannel(ans);
+  const deadline = intakeDeadline(ans, Date.now());
+  const opened = relativeTime(intake.created_at);
+  const decision = readDecision(ans);
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 animate-fade-up">
-      {/* Compact identity bar. Everything below scrolls; this does not. */}
-      {/* The title and the controls are two groups, not one flat row. Flat, the
-          title was the only shrinkable item and so absorbed every pixel the
-          buttons wanted, so it truncated to nothing on a narrow window while the
-          buttons stayed full width. Below `lg` the title group claims a whole
-          line and the controls wrap beneath it. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div className="flex min-w-0 flex-1 basis-full items-center gap-x-3 lg:basis-auto">
-          <Link
-            href="/counsel/inbox"
-            className="shrink-0 text-[12.5px] text-muted hover:text-foreground"
-          >
-            <T>&larr; Requests</T>
-          </Link>
-          <span className="shrink-0 font-mono text-[12px] font-semibold text-gold-700 dark:text-gold-300">
-            {ref}
-          </span>
-          <h1 className="min-w-0 truncate text-xl font-medium tracking-[-0.01em] text-foreground">
-            {ticketTitle}
-          </h1>
+    <div className="space-y-6 animate-fade-up">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex flex-wrap items-center gap-2 text-[12.5px]"
+      >
+        <Link
+          href="/counsel/inbox"
+          className="text-muted transition-colors hover:text-foreground"
+        >
+          <T>Requests</T>
+        </Link>
+        <span aria-hidden className="text-muted">
+          /
+        </span>
+        <MonoRef title={intake.id}>{ref}</MonoRef>
+      </nav>
+
+      <header className="min-w-0">
+        <h1
+          className="break-words text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-3xl"
+          data-no-translate
+        >
+          {ticketTitle}
+        </h1>
+        {/* Meta row: the live state as a pill, the fixed facts as quiet
+            chips, then the provenance as a plain sentence on the SAME line.
+            On its own line it read as a caption on the title; beside the
+            pills it reads as what it is, the last and quietest fact in a
+            row that gets quieter left to right. */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <StatusPill dot color={statusColor}>
+            {intake.status.replace(/_/g, ' ')}
+          </StatusPill>
+          {priority && (
+            <Chip>
+              <span data-no-translate>{priority}</span>
+            </Chip>
+          )}
           {isEmployeeReq && (
-            // The shared accent chip, not a fourth hand-rolled copy of
-            // the same tint-plus-ring. It also derives from the firm's
-            // own accent rather than pinning gold, which is what the
-            // rest of counsel now does.
             <Chip tone="accent">
               <T>In-house</T> · <span data-no-translate>{submittedBy}</span>
             </Chip>
           )}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <SectionJump target="meeting">
-            <CalendarIcon />
-            <T>Schedule meeting</T>
-          </SectionJump>
-          <SectionJump target="documents">
-            <DocumentIcon />
-            <T>Documents</T>
-            {conv.ok && conv.documents.length > 0 && (
-              <span className="rounded-full bg-surface-2 px-1.5 text-[10.5px] font-semibold text-muted">
-                {conv.documents.length}
-              </span>
+          {/* Age and channel, as a sentence rather than as two more chips:
+              neither is a state anyone acts on, and a row of five badges
+              stops reading as a hierarchy. */}
+          <span className="text-[12px] text-muted">
+            <T>opened</T>{' '}
+            {opened ? <span data-no-translate>{opened}</span> : <T>recently</T>}{' '}
+            <T>via</T>{' '}
+            {channel === 'partner' ? (
+              <T>the partner app</T>
+            ) : channel === 'portal' ? (
+              <T>the employee portal</T>
+            ) : (
+              <T>the firm workspace</T>
             )}
-          </SectionJump>
-          <StatusPill color={statusColor}>
-            {intake.status.replace(/_/g, ' ')}
-          </StatusPill>
+          </span>
         </div>
-      </div>
+      </header>
 
-      <WorkspaceShell side={rail}>
-        {/* Highlights: the few facts you need on every scroll position. */}
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-edge bg-white/95 px-5 py-3 backdrop-blur dark:bg-forest-900/90">
-          <Highlight label="Requester" value={requester} />
-          <Highlight label="Type" value={intake.matter_type ?? <T>Not set</T>} />
-          {priority && <Highlight label="Priority" value={priority} />}
-          {dueBy && <Highlight label="Due" value={dueBy} />}
-          <Highlight
-            label="Owner"
-            value={conv.ok && conv.assignee ? conv.assignee.name : 'Unassigned'}
-          />
-          <div className="ml-auto">
-            <FolderPicker
+      {/* THE ACTION BAR. Every control that changes this record, in one
+          bordered strip: the inline selects, then the deadline, then the
+          secondary and the primary.
+
+          Where these were before, because it is the point of the change:
+          the owner select was three sections down inside People, the folder
+          select was in a sticky highlights row above the record, taking the
+          matter on was the first card of "Matter & next steps", and
+          declining it was the second. Four places, none of them next to
+          each other, for the four things this screen exists to do. */}
+      <ActionBar
+        trailing={
+          <>
+            {deadline && (
+              <p
+                className={`text-[12.5px] ${
+                  deadline.breached
+                    ? 'font-semibold text-danger-text'
+                    : 'text-muted'
+                }`}
+              >
+                {deadline.kind === 'due' ? (
+                  deadline.breached ? (
+                    <T>Due date passed</T>
+                  ) : (
+                    <T>Due</T>
+                  )
+                ) : deadline.breached ? (
+                  <T>Reminder passed</T>
+                ) : (
+                  <T>Reminder</T>
+                )}{' '}
+                <span data-no-translate>{formatDate(new Date(deadline.at))}</span>
+              </p>
+            )}
+            <DecideJump decided={decision != null} />
+            <ConvertToMatter
               firmId={ctx.firm.id}
               intakeId={intake.id}
-              current={currentFolder}
-              folders={requestFolders}
+              caseId={caseId}
             />
-          </div>
-        </div>
+          </>
+        }
+      >
+        {conv.ok && (
+          <IntakeOwnerSelect
+            intakeId={intake.id}
+            assignee={conv.assignee}
+            people={conv.mentionables}
+          />
+        )}
+        <FolderPicker
+          firmId={ctx.firm.id}
+          intakeId={intake.id}
+          current={currentFolder}
+          folders={requestFolders}
+        />
+      </ActionBar>
 
-        {/* Lead with the matter itself: what was actually asked for, before
-            any of the metadata about it. */}
-        <RecordSection id="matter" title="The matter">
-          {intake.matter_summary ? (
-            <p className="max-w-[70ch] whitespace-pre-wrap text-[14.5px] leading-relaxed text-foreground">
-              {intake.matter_summary}
-            </p>
-          ) : (
-            <p className="text-[13px] text-muted">
-              <T>No summary was provided with this request.</T>
-            </p>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <div className="min-w-0 space-y-6">
+          {/* The record, as one card of collapsible sections. The sections
+              keep their per-reader collapsed state; the card is what stops
+              nine of them reading as nine separate documents. */}
+          <div className="card overflow-hidden">
+            {/* Lead with the matter itself: what was actually asked for,
+                before any of the metadata about it. */}
+            <RecordSection id="matter" title="The matter">
+              {intake.matter_summary ? (
+                <p
+                  data-no-translate
+                  className="max-w-[70ch] whitespace-pre-wrap text-[14.5px] leading-relaxed text-foreground"
+                >
+                  {intake.matter_summary}
+                </p>
+              ) : (
+                <p className="text-[13px] text-muted">
+                  <T>No summary was provided with this request.</T>
+                </p>
+              )}
+            </RecordSection>
+
+            {questionAnswers.length > 0 && (
+              <RecordSection
+                id="questions"
+                title="Intake questions"
+                count={questionAnswers.length}
+              >
+                <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                  {questionAnswers.map((q) => (
+                    <div key={q.id}>
+                      <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                        {q.label}
+                      </dt>
+                      <dd className="text-[13.5px] text-foreground">{q.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </RecordSection>
+            )}
+
+            <RecordSection id="conflict" title="Conflict check">
+              <ConflictCheckPanel
+                firmId={ctx.firm.id}
+                intakeId={intake.id}
+                status={intake.status}
+                results={intake.conflict_results}
+                notes={intake.conflict_check_notes}
+              />
+            </RecordSection>
+
+            {/* The other end of the fork the action bar's primary starts.
+                The bar's secondary opens this, because declining writes a
+                reason the requester reads and the reason is required. */}
+            <RecordSection id="decide" title="Decline or close">
+              <DecideRequest
+                firmId={ctx.firm.id}
+                intakeId={intake.id}
+                decision={decision}
+              />
+            </RecordSection>
+
+            {conv.ok && (
+              <RecordSection
+                id="documents"
+                title="Documents"
+                count={conv.documents.length}
+              >
+                <IntakeWorkPanel
+                  intakeId={intake.id}
+                  canManage
+                  embedded
+                  sections={['documents', 'requests']}
+                  assignee={conv.assignee}
+                  participants={conv.participants}
+                  people={conv.mentionables}
+                  documents={conv.documents}
+                  uploadRequests={conv.uploadRequests}
+                />
+              </RecordSection>
+            )}
+
+            <RecordSection
+              id="next"
+              title="Reminders and signatures"
+              defaultOpen={false}
+            >
+              <RequestActions
+                firmId={ctx.firm.id}
+                intakeId={intake.id}
+                currentReminder={String(ans.reminder_at ?? '')}
+              />
+            </RecordSection>
+
+            <RecordSection
+              id="meeting"
+              title="Schedule a meeting"
+              defaultOpen={false}
+            >
+              <ScheduleMeetingPanel
+                firmId={ctx.firm.id}
+                intakeId={intake.id}
+                defaultTitle={`Advottic: ${ticketTitle}`}
+              />
+            </RecordSection>
+
+            {ans.review != null &&
+              typeof ans.review === 'object' &&
+              'grade' in (ans.review as object) && (
+                <RecordSection
+                  id="review"
+                  title="Advottic Review"
+                  defaultOpen={false}
+                >
+                  <ReviewScorecard
+                    data={ans.review as DocScorecard}
+                    audience="legal"
+                  />
+                </RecordSection>
+              )}
+
+            <RecordSection id="analyze" title="Analyze" defaultOpen={false}>
+              <p className="mb-2 text-[12px] text-muted">
+                <T>Run an AI breakdown of what the submitted document means, how the law
+                applies, its bias, and the risky clauses.</T>
+              </p>
+              <AnalyzeStudio
+                embedded
+                initialText={String(intake.matter_summary ?? '')}
+              />
+            </RecordSection>
+          </div>
+
+          {conv.ok && (
+            <IntakeConversation
+              intakeId={intake.id}
+              viewerRole="legal"
+              viewerUserId={conv.userId}
+              canPost={conv.canPost}
+              canUseInternal={conv.canUseInternal}
+              initialMessages={conv.messages}
+              mentionables={conv.mentionables}
+              emptyHint="No messages yet. Reply here and the requester is notified straight away."
+            />
           )}
-        </RecordSection>
+        </div>
 
-        {meta.length > 0 && (
-          <RecordSection id="details" title="Request details">
-            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
-              {meta.map((m) => (
-                <div key={m.label}>
-                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                    <T>{m.label}</T>
-                  </dt>
-                  <dd className="text-[13.5px] text-foreground">{m.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </RecordSection>
-        )}
-
-        {questionAnswers.length > 0 && (
-          <RecordSection id="questions" title="Intake questions" count={questionAnswers.length}>
-            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              {questionAnswers.map((q) => (
-                <div key={q.id}>
-                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                    {q.label}
-                  </dt>
-                  <dd className="text-[13.5px] text-foreground">{q.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </RecordSection>
-        )}
-
-
-        <RecordSection id="contact" title="Contact" defaultOpen={false}>
-          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-            <div>
-              <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                <T>Email</T>
-              </dt>
-              <dd className="break-words text-[13.5px] text-foreground">
-                {intake.client_email ?? <T>Not provided</T>}
-              </dd>
-            </div>
-            <div>
-              <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                <T>Phone</T>
-              </dt>
-              <dd className="text-[13.5px] text-foreground">
-                {intake.client_phone ?? <T>Not provided</T>}
-              </dd>
-            </div>
-          </dl>
-        </RecordSection>
-
-        {(intake.opposing_parties?.length > 0 || intake.related_parties?.length > 0) && (
-          <RecordSection id="parties" title="Parties" defaultOpen={false}>
-            <div className="grid gap-6 sm:grid-cols-2">
+        {/* The aside is the people and the matter. The reference product
+            puts a device and its installed software here; counsel does not
+            track either, and a column of borrowed telemetry would be worse
+            than a shorter column. */}
+        <aside className="space-y-4">
+          <PanelCard title={<T>Client</T>}>
+            <p
+              data-no-translate
+              className="text-[14px] font-semibold text-foreground"
+            >
+              {requester}
+            </p>
+            <dl className="mt-3 space-y-2">
               <div>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                  <T>Other parties</T>
-                </p>
-                <p className="text-[13.5px] text-foreground">
-                  {intake.opposing_parties?.length ? intake.opposing_parties.join(', ') : <T>None</T>}
-                </p>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                  <T>Email</T>
+                </dt>
+                <dd
+                  data-no-translate
+                  className="break-words text-[13px] text-foreground"
+                >
+                  {intake.client_email ?? '—'}
+                </dd>
               </div>
               <div>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                  <T>Related parties</T>
-                </p>
-                <p className="text-[13.5px] text-foreground">
-                  {intake.related_parties?.length ? intake.related_parties.join(', ') : <T>None</T>}
-                </p>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                  <T>Phone</T>
+                </dt>
+                <dd data-no-translate className="text-[13px] text-foreground">
+                  {intake.client_phone ?? '—'}
+                </dd>
               </div>
-            </div>
-          </RecordSection>
-        )}
+            </dl>
+          </PanelCard>
 
-        {conv.ok && (
-          <RecordSection id="people" title="People" count={conv.participants.length}>
-            <IntakeWorkPanel
-              intakeId={intake.id}
-              canManage
-              embedded
-              sections={['people']}
-              assignee={conv.assignee}
-              participants={conv.participants}
-              people={conv.mentionables}
-              documents={conv.documents}
-              uploadRequests={conv.uploadRequests}
-            />
-          </RecordSection>
-        )}
-
-        <RecordSection id="conflict" title="Conflict check">
-          <ConflictCheckPanel
-            firmId={ctx.firm.id}
-            intakeId={intake.id}
-            status={intake.status}
-            results={intake.conflict_results}
-            notes={intake.conflict_check_notes}
-          />
-        </RecordSection>
-
-        <RecordSection id="actions" title="Matter &amp; next steps">
-          <div className="space-y-4">
-            <RequestActions
-              firmId={ctx.firm.id}
-              intakeId={intake.id}
-              currentReminder={String(ans.reminder_at ?? '')}
-              caseId={(intake as { case_id?: string | null }).case_id ?? null}
-            />
-            {/* The two ends of the same fork sit together on purpose: taking
-                the matter on and declining it are one decision, and putting
-                the decline somewhere else is how it stayed unbuilt. */}
-            <DecideRequest
-              firmId={ctx.firm.id}
-              intakeId={intake.id}
-              decision={readDecision(ans)}
-            />
-          </div>
-        </RecordSection>
-
-        {ans.review != null && typeof ans.review === 'object' && 'grade' in (ans.review as object) && (
-          <RecordSection id="review" title="Advottic Review" defaultOpen={false}>
-            <ReviewScorecard data={ans.review as DocScorecard} audience="legal" />
-          </RecordSection>
-        )}
-
-        {conv.ok && (
-          <RecordSection
-            id="documents"
-            title="Documents"
-            count={conv.documents.length}
+          {/* The arrow appears only once there is a record to open. There
+              is no client route to point the card above at, so it has no
+              arrow at all rather than a decorative one. */}
+          <PanelCard
+            title={<T>Matter</T>}
+            action={
+              caseId ? (
+                <Link
+                  href={`/counsel/cases/${caseId}`}
+                  className="text-[12px] text-accent-text hover:underline"
+                >
+                  <T>Open the matter &rarr;</T>
+                </Link>
+              ) : undefined
+            }
           >
-            <IntakeWorkPanel
-              intakeId={intake.id}
-              canManage
-              embedded
-              sections={['documents', 'requests']}
-              assignee={conv.assignee}
-              participants={conv.participants}
-              people={conv.mentionables}
-              documents={conv.documents}
-              uploadRequests={conv.uploadRequests}
-            />
-          </RecordSection>
-        )}
+            <dl className="space-y-2">
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                  <T>Type</T>
+                </dt>
+                <dd className="text-[13px] text-foreground">
+                  {intake.matter_type ? (
+                    <span data-no-translate>{intake.matter_type}</span>
+                  ) : (
+                    <T>Not set</T>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                  <T>Jurisdiction</T>
+                </dt>
+                <dd className="text-[13px] text-foreground">
+                  {intake.jurisdiction_state ? (
+                    <span data-no-translate>{intake.jurisdiction_state}</span>
+                  ) : (
+                    <T>Not set</T>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </PanelCard>
 
-        <RecordSection id="meeting" title="Schedule a meeting" defaultOpen={false}>
-          <ScheduleMeetingPanel
-            firmId={ctx.firm.id}
-            intakeId={intake.id}
-            defaultTitle={`Advottic: ${ticketTitle}`}
-          />
-        </RecordSection>
+          {conv.ok && (
+            <PanelCard title={<T>People</T>}>
+              <IntakeWorkPanel
+                intakeId={intake.id}
+                canManage
+                embedded
+                showOwner={false}
+                sections={['people']}
+                assignee={conv.assignee}
+                participants={conv.participants}
+                people={conv.mentionables}
+                documents={conv.documents}
+                uploadRequests={conv.uploadRequests}
+              />
+            </PanelCard>
+          )}
 
-        <RecordSection id="analyze" title="Analyze" defaultOpen={false}>
-          <p className="mb-2 text-[12px] text-muted">
-            <T>Run an AI breakdown of what the submitted document means, how the law
-            applies, its bias, and the risky clauses.</T>
-          </p>
-          <AnalyzeStudio embedded initialText={String(intake.matter_summary ?? '')} />
-        </RecordSection>
+          {(intake.opposing_parties?.length > 0 ||
+            intake.related_parties?.length > 0) && (
+            <PanelCard title={<T>Parties</T>}>
+              <dl className="space-y-2">
+                <div>
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                    <T>Other parties</T>
+                  </dt>
+                  <dd data-no-translate className="text-[13px] text-foreground">
+                    {intake.opposing_parties?.join(', ') || '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                    <T>Related parties</T>
+                  </dt>
+                  <dd data-no-translate className="text-[13px] text-foreground">
+                    {intake.related_parties?.join(', ') || '—'}
+                  </dd>
+                </div>
+              </dl>
+            </PanelCard>
+          )}
 
-      </WorkspaceShell>
-    </div>
-  );
-}
-
-/**
- * Header-button glyphs. Drawn rather than emoji: emoji render at a different
- * weight and colour on every platform, and a picture-book calendar next to a
- * matter reference reads wrong for legal work.
- */
-function CalendarIcon() {
-  return (
-    <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0">
-      <rect
-        x="3"
-        y="5"
-        width="18"
-        height="16"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-      <path
-        d="M3 10h18M8 3v4M16 3v4"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function DocumentIcon() {
-  return (
-    <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0">
-      <path
-        d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinejoin="round"
-      />
-      <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** One fact in the sticky highlights strip. */
-function Highlight({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-muted">
-        <T>{label}</T>
-      </p>
-      <p className="truncate text-[13px] font-medium text-foreground">
-        {value}
-      </p>
+          {meta.length > 0 && (
+            <PanelCard title={<T>Request details</T>}>
+              <dl className="space-y-2">
+                {meta.map((m) => (
+                  <div key={m.label}>
+                    <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                      <T>{m.label}</T>
+                    </dt>
+                    <dd data-no-translate className="text-[13px] text-foreground">
+                      {m.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </PanelCard>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }

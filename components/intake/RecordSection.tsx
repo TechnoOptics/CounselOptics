@@ -95,10 +95,15 @@ export function RecordSection({
               open ? 'rotate-90' : ''
             }`}
           >
+            {/* 2.78 on a 24 grid in an 11px box renders at 1.27px, which is
+                the rail's rendered stroke (1.7 in an 18px box). The set is
+                one WEIGHT, not one number: the same number in a smaller box
+                draws a lighter line, and at 2.5 this chevron was the
+                lightest glyph on the page by 10 percent. */}
             <path
               d="M9 6l6 6-6 6"
               stroke="currentColor"
-              strokeWidth="2.5"
+              strokeWidth="2.78"
               strokeLinecap="round"
               strokeLinejoin="round"
             />

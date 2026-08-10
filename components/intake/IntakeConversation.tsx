@@ -692,7 +692,12 @@ function highlightMentions(text: string, people: IntakePerson[]): React.ReactNod
  * is the usual way a rule half-lands. This composer is shared by the employee
  * Hub and the counsel matter view, so anything drawn here ships to firm users
  * as well, rendered in whatever face the reader's OS happens to supply.
- * Matches the icon set drawn in app/counsel/intake/[id]/page.tsx.
+ *
+ * Weight, not number: 2.35 on a 24 grid in a 13px box renders at 1.27px,
+ * the same rendered stroke as the rail set in components/counsel/icons.tsx
+ * (1.7 in an 18px box). At 1.9 it drew a 1.03px line, a fifth lighter than
+ * everything around it. The page it used to say it matched no longer draws
+ * glyphs of its own, so that claim is gone rather than left to rot.
  */
 function PaperclipIcon() {
   return (
@@ -700,7 +705,7 @@ function PaperclipIcon() {
       <path
         d="M20.5 11.5 12 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.35"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

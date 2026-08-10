@@ -83,7 +83,7 @@ export function DecideRequest({
     const when = new Date(decision.at);
     const shown = Number.isNaN(when.getTime()) ? '' : formatDateNumeric(when);
     return (
-      <section className="card p-5 space-y-3">
+      <section className="space-y-3">
         <p className="eyebrow"><T>Decision</T></p>
         <p className="text-[13px] text-foreground leading-relaxed">
           {decision.outcome === 'declined' ? (
@@ -130,7 +130,7 @@ export function DecideRequest({
   }
 
   return (
-    <section className="card p-5 space-y-3">
+    <section className="space-y-3">
       <p className="eyebrow"><T>Close this request</T></p>
       <p className="max-w-xl text-[13px] leading-relaxed text-foreground">
         <T>Use this when the team is not taking the matter on, or when there is

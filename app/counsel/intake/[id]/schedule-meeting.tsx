@@ -53,7 +53,7 @@ export function ScheduleMeetingPanel({
   }
 
   return (
-    <section className="card p-5 space-y-3">
+    <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="eyebrow"><T>Meeting</T></p>
