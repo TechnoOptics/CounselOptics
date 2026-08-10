@@ -95,8 +95,6 @@ export const COMPARISONS: Comparison[] = [
       { label: 'Co-counsel referral with fee-split tracking', advottic: 'Included', competitor: 'Not offered' },
       { label: 'Court-form auto-fill (CA / NY / TX / FL / Federal)', advottic: 'Included', competitor: 'Not offered' },
       { label: 'Mobile apps', advottic: 'iOS + Android', competitor: 'iOS + Android' },
-      { label: 'SOC 2 Type II', advottic: 'In progress', competitor: 'Yes' },
-      { label: 'HIPAA BAA', advottic: 'On request', competitor: 'Available' },
     ],
     advotticWins: [
       {
@@ -121,10 +119,6 @@ export const COMPARISONS: Comparison[] = [
         heading: 'You have an existing Clio investment',
         body: "Migration is real work. If you have 500+ matters and 5 years of time entries in Clio, the right call is sometimes 'stay'. We migrate on request - Counsel Small Firm and above include a white-glove migration - but the rational decision depends on switching cost vs. ongoing savings.",
       },
-      {
-        heading: 'You need SOC 2 Type II in hand today',
-        body: "Clio has Type II in hand. We are mid-audit; we expect issuance in 2026. If your firm's information security policy requires an active SOC 2 attestation report, that is a real constraint and we will not pretend otherwise.",
-      },
     ],
     pricing: {
       advottic: '$59 (Solo) / $99 (Small Firm) / $149 (Growing) per user / month',
@@ -147,7 +141,7 @@ export const COMPARISONS: Comparison[] = [
       },
       {
         q: 'Is Advottic safe for client confidentiality?',
-        a: 'Bella runs on Anthropic Claude with zero-retention configured, which means Anthropic does not retain or train on your firm\'s inputs. Postgres row-level security isolates every firm; encrypted at rest with AES-256; TLS 1.3 in transit. Every Bella action is timestamped in the audit log for Model Rule 1.6 compliance.',
+        a: 'Bella runs on Anthropic Claude. We do not use your firm\'s inputs to train anything of our own. Postgres row-level security isolates every firm; encrypted at rest with AES-256; TLS 1.3 in transit. Every Bella action is timestamped in the audit log.',
       },
     ],
   },
@@ -225,7 +219,7 @@ export const COMPARISONS: Comparison[] = [
       },
       {
         q: 'Will Bella train on our contract data?',
-        a: 'No. Bella runs on Anthropic Claude with zero-retention configured. Your contracts are never used to train any model. Same posture as Spellbook on this question - both are zero-retention by default.',
+        a: 'No. Bella runs on Anthropic Claude, and we do not use your contracts to train anything of our own.',
       },
     ],
   },
