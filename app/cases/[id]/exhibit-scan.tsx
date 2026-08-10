@@ -29,13 +29,18 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
   const isScannable = ct.startsWith('image/') || ct === 'application/pdf';
   const scan = exhibit.scanData;
 
+  // The actions RETURN their refusal. A thrown message is replaced by React
+  // with "An error occurred in the Server Components render..." in a
+  // production build, which is what this row used to display. The catch stays
+  // for a genuine transport failure, where there is no value to read.
   function rescan() {
     setError(null);
     startTransition(async () => {
       try {
-        await rescanExhibitAction(exhibit.id);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Scan failed.');
+        const res = await rescanExhibitAction(exhibit.id);
+        if (!res?.ok) setError(res?.error || 'Scan failed.');
+      } catch {
+        setError('Scan failed. Check your connection and try again.');
       }
     });
   }
@@ -43,9 +48,10 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
     setError(null);
     startTransition(async () => {
       try {
-        await transcribeExhibitAction(exhibit.id);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Transcription failed.');
+        const res = await transcribeExhibitAction(exhibit.id);
+        if (!res?.ok) setError(res?.error || 'Transcription failed.');
+      } catch {
+        setError('Transcription failed. Check your connection and try again.');
       }
     });
   }

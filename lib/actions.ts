@@ -33,6 +33,7 @@ import {
   type FeedbackStatus,
 } from './storage';
 import { classifyCaseType, runReview, scanDocument, transcribeMedia } from './ai';
+import { AI_UNAVAILABLE_MESSAGE, calmAiMessage } from './ai-errors';
 import { createServerSupabase, getCurrentUser, isCurrentUserAdmin, isSupabaseConfigured } from './supabase/server';
 import { logCaseEvent } from './activity';
 import { caseLimit, hasFeature, isFullAccessTrial } from './tier';
@@ -626,42 +627,57 @@ export async function uploadExhibitAction(caseId: string, formData: FormData) {
   revalidatePath('/cases');
 }
 
-export async function rescanExhibitAction(exhibitId: string) {
+/**
+ * Scan one exhibit.
+ *
+ * Returns its refusal rather than throwing it. A thrown message does not
+ * survive the Server Action boundary in a production build: React replaces it
+ * with a digest, and the caller reads back "An error occurred in the Server
+ * Components render...". Every reason below was written to be read by a
+ * person, so it has to travel as a value. Same shape, and same reason, as
+ * inviteCollaboratorAction.
+ */
+export async function rescanExhibitAction(
+  exhibitId: string,
+): Promise<{ ok: boolean; error?: string }> {
   await assertAuthIfSupabase();
   const exhibit = await getExhibitById(exhibitId);
-  if (!exhibit) throw new Error('Exhibit not found.');
+  if (!exhibit) return { ok: false, error: 'Exhibit not found.' };
   // Three early failure modes that were silently swallowed before:
   //   (1) ANTHROPIC_API_KEY missing on the server -> scanDocument
   //       returns isDemo=true with a "demo response" placeholder,
   //       which renders fine but does nothing useful for the user.
   //   (2) getExhibitFileBuffer fails (RLS, stale path, deleted
-  //       object) and returns null -> threw a generic "could not
-  //       read" with no diagnostic.
+  //       object) and returns null -> a generic "could not read"
+  //       with no diagnostic.
   //   (3) MIME type missing / octet-stream -> scanDocument bails
   //       early with an unhelpful "cannot be auto-scanned" line.
-  // All three now surface informative errors the UI shows verbatim.
   const apiKeyPresent =
     Boolean(process.env.ANTHROPIC_API_KEY?.trim()) ||
     Boolean(process.env.CLAUDE_API_KEY?.trim());
   if (!apiKeyPresent) {
-    throw new Error(
-      "AI scanning isn't configured on this deployment. Operator: set ANTHROPIC_API_KEY in Vercel env.",
-    );
+    // An operator instruction is not something to put in front of a person
+    // who is trying to read their own evidence, so they get the calm line and
+    // the server log keeps the detail.
+    console.error('[rescanExhibitAction] ANTHROPIC_API_KEY is not set on this deployment');
+    return { ok: false, error: AI_UNAVAILABLE_MESSAGE };
   }
   const buf = await getExhibitFileBuffer(exhibit);
   if (!buf || buf.byteLength === 0) {
-    throw new Error(
-      `Could not read the file (${exhibit.fileName}). It may have been deleted from storage, or your session has expired - try refreshing.`,
-    );
+    return {
+      ok: false,
+      error: `Could not read the file (${exhibit.fileName}). It may have been deleted from storage, or your session has expired - try refreshing.`,
+    };
   }
   const lowerName = exhibit.fileName.toLowerCase();
   const isPdf = exhibit.fileType === 'application/pdf' || lowerName.endsWith('.pdf');
   const isImage = (exhibit.fileType || '').toLowerCase().startsWith('image/') ||
     /\.(png|jpe?g|webp|gif)$/.test(lowerName);
   if (!isPdf && !isImage) {
-    throw new Error(
-      `Scan only supports images and PDFs. Got "${exhibit.fileType || 'unknown type'}" - for audio/video use Transcribe.`,
-    );
+    return {
+      ok: false,
+      error: `Scan only supports images and PDFs. Got "${exhibit.fileType || 'unknown type'}" - for audio/video use Transcribe.`,
+    };
   }
   // Normalize the MIME so files uploaded without an explicit
   // content-type (some browsers send octet-stream) still reach the
@@ -680,42 +696,62 @@ export async function rescanExhibitAction(exhibitId: string) {
   } else {
     mediaType = exhibit.fileType || 'image/png';
   }
-  const scan = await scanDocument({
-    fileBuffer: buf,
-    mediaType,
-    fileName: exhibit.fileName,
-  });
+  let scan;
+  try {
+    scan = await scanDocument({
+      fileBuffer: buf,
+      mediaType,
+      fileName: exhibit.fileName,
+    });
+  } catch (err) {
+    // calmAiMessage, not err.message: only an error that promises a
+    // user-safe sentence gets to supply one. Anything else (a bug, a
+    // provider dump) falls back to the calm line.
+    return { ok: false, error: calmAiMessage(err, AI_UNAVAILABLE_MESSAGE) };
+  }
   // If the scan came back as a demo (no real key during runtime) or
   // unsupported, surface that clearly rather than saving a "Demo
   // response" string the user has to figure out.
   if (scan.isDemo || scan.modelUsed === 'unsupported' || scan.modelUsed === 'demo') {
-    throw new Error(
-      scan.summary?.includes('not actually scanned')
-        ? 'Scan unavailable right now: the AI provider returned a demo response. Try again in a moment.'
+    return {
+      ok: false,
+      error: scan.summary?.includes('not actually scanned')
+        ? AI_UNAVAILABLE_MESSAGE
         : scan.summary || 'Scan unavailable for this file.',
-    );
+    };
   }
   await saveExhibitScan(exhibitId, scan);
   revalidatePath(`/cases/${exhibit.caseId}`);
+  return { ok: true };
 }
 
-export async function transcribeExhibitAction(exhibitId: string) {
+/** Transcribe one audio or video exhibit. Returns its refusal for the same
+ *  reason rescanExhibitAction does: a thrown message dies at the boundary. */
+export async function transcribeExhibitAction(
+  exhibitId: string,
+): Promise<{ ok: boolean; error?: string }> {
   await assertAuthIfSupabase();
   const exhibit = await getExhibitById(exhibitId);
-  if (!exhibit) throw new Error('Exhibit not found.');
+  if (!exhibit) return { ok: false, error: 'Exhibit not found.' };
   const ct = (exhibit.fileType || '').toLowerCase();
   if (!ct.startsWith('audio/') && !ct.startsWith('video/')) {
-    throw new Error('Only audio or video files can be transcribed.');
+    return { ok: false, error: 'Only audio or video files can be transcribed.' };
   }
   const buf = await getExhibitFileBuffer(exhibit);
-  if (!buf) throw new Error('Could not read the underlying file.');
-  const scan = await transcribeMedia({
-    fileBuffer: buf,
-    mediaType: ct,
-    fileName: exhibit.fileName,
-  });
+  if (!buf) return { ok: false, error: 'Could not read the underlying file.' };
+  let scan;
+  try {
+    scan = await transcribeMedia({
+      fileBuffer: buf,
+      mediaType: ct,
+      fileName: exhibit.fileName,
+    });
+  } catch (err) {
+    return { ok: false, error: calmAiMessage(err, AI_UNAVAILABLE_MESSAGE) };
+  }
   await saveExhibitScan(exhibitId, scan);
   revalidatePath(`/cases/${exhibit.caseId}`);
+  return { ok: true };
 }
 
 /**

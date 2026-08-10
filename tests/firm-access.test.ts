@@ -1704,6 +1704,7 @@ describe('the enforcement wiring', () => {
       'app/global-error.tsx',
       'app/counsel/error.tsx',
       'app/counsel/cases/[id]/error.tsx',
+      'app/cases/[id]/error.tsx',
     ];
     for (const rel of boundaries) {
       const src = readFileSync(join(ROOT, rel), 'utf8');
