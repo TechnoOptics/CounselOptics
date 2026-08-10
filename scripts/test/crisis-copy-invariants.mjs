@@ -71,8 +71,16 @@ for (const { file, label } of CRISIS_PANELS) {
         `readable in light mode.`,
     );
   }
+  // Whole class tokens, not substrings. `bg-rose-50` is a PREFIX of
+  // `bg-rose-500`, so `panel.includes('bg-rose-50')` was answered by the
+  // dark-mode class `dark:bg-rose-500/10` alone: deleting the light-mode
+  // surface left a dark-only crisis panel, which renders 911 as near-white
+  // text on a near-white light background, and this check printed ok.
+  const classes = new Set(
+    [...panel.matchAll(/class(?:Name)?="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/)),
+  );
   for (const need of ['bg-rose-50', 'dark:bg-rose-500/10']) {
-    if (!panel.includes(need)) {
+    if (!classes.has(need)) {
       failures.push(`${label} (${file}): panel surface is missing "${need}".`);
     }
   }

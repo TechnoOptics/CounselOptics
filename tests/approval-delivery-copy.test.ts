@@ -59,7 +59,13 @@ describe('the approval page names the delivery it will perform', () => {
     // code, and a request to sign, because they describe one delivery.
     const [, signature] = branches(read(REVIEW_ACTIONS));
     const employee = flatten(read(EMPLOYEE_FORM));
-    for (const phrase of ['a link and a separate access code', 'sign']) {
+    // NOT the bare word 'sign'. The signature slice begins with the anchor
+    // `deliveryMode === 'signature'`, so `toContain('sign')` could never
+    // fail, and the employee file is full of signing vocabulary. Rewording
+    // the reviewer's panel from "asks them to sign the document" to "asks
+    // them to return the document" left this green. The phrase is what both
+    // surfaces have to share.
+    for (const phrase of ['a link and a separate access code', 'to sign']) {
       expect(signature).toContain(phrase);
       expect(employee).toContain(phrase);
     }
@@ -147,7 +153,15 @@ describe('the employee is told what was actually sent', () => {
 
   it('says it in the past tense, because this screen reports what happened', () => {
     const s = flatten(withoutComments(src()));
-    expect(s).toMatch(/We emailed|was emailed|went to them/);
+    // Scoped to the signature branch. Read over the whole file, the only
+    // match was `went to them` in the SHARE branch, so the signature
+    // branch's tense was never measured and rewriting it to "the recipient
+    // gets a link ... and is asked to sign it" stayed green.
+    const at = s.indexOf("deliveryMode === 'signature'");
+    expect(at, 'the status page no longer branches on the delivery mode').toBeGreaterThan(-1);
+    const signature = s.slice(at, at + 400);
+    expect(signature).toMatch(/We emailed|we emailed|was emailed|went to them/);
+    expect(signature).not.toMatch(/we will email|gets a link|is asked to/);
     expect(s).not.toContain('we will email');
   });
 });
