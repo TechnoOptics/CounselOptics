@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Dialog } from './Dialog';
+import { PdfViewer } from './PdfViewer';
 import { T } from './i18n/LocaleProvider';
 
 /**
@@ -11,12 +12,24 @@ import { T } from './i18n/LocaleProvider';
  * not the plain-text approximation next to the form.
  *
  * Flow: caller passes buildPdf (the same function its Download button uses);
- * we build once, show it in an <iframe>, and offer Print / Download /
+ * we build once, draw it with PdfViewer, and offer Print / Download /
  * "make changes" (close). The blob URL is revoked on unmount.
  *
- * WebView caveat: some mobile WebViews won't render PDFs inline. The
- * iframe's onLoad still fires there, so we also always show an
- * "Open in a new tab" escape hatch above the viewer.
+ * THE BLOB AND THE VIEWER SHOW THE SAME BYTES BY CONSTRUCTION. The
+ * viewer is handed the Blob itself rather than the object URL, and the
+ * object URL exists only for Print, Download and the new-tab link. So
+ * there is one build, and the document somebody approves is the file
+ * that leaves.
+ *
+ * This used to be an `<iframe src={blobUrl}>`, and what the reader got
+ * was the browser's own PDF plugin: Chrome titled their letter with the
+ * blob's UUID and put a second Download and a second Print next to
+ * ours, saving under a name that was not the document's; some mobile
+ * WebViews rendered nothing at all and the iframe's onLoad still fired,
+ * so there was no way to notice. PdfViewer draws the page itself, with
+ * page navigation, zoom, and a failure state that says what happened.
+ * The "Open in a new tab" link stays, because a reader who wants the
+ * text rather than the picture of it should have the real file.
  */
 export function PdfPreviewDialog({
   title,
@@ -46,6 +59,7 @@ export function PdfPreviewDialog({
   note?: React.ReactNode;
 }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const urlRef = useRef<string | null>(null);
 
@@ -53,10 +67,11 @@ export function PdfPreviewDialog({
     let cancelled = false;
     (async () => {
       try {
-        const blob = await buildPdf();
+        const built = await buildPdf();
         if (cancelled) return;
-        const u = URL.createObjectURL(blob);
+        const u = URL.createObjectURL(built);
         urlRef.current = u;
+        setBlob(built);
         setUrl(u);
       } catch (e) {
         if (!cancelled) {
@@ -94,7 +109,12 @@ export function PdfPreviewDialog({
       <div className="flex flex-col gap-3">
         <header className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-400 dark:text-cream-100/40">
+            {/* text-muted, not text-ink-400. The light counsel layer in
+                app/globals.css repaints the cream classes and not the
+                ink ones, so an ink step is measured in dark and falls
+                through to a raw value in light. A token has one
+                declaration per theme and cannot go unrepainted. */}
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">
               <T>Preview before you print or send</T>
             </p>
             <h2 className="truncate font-display text-lg font-medium text-forest-900 dark:text-cream-100">
@@ -106,7 +126,7 @@ export function PdfPreviewDialog({
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="text-[12.5px] text-ink-500 underline hover:text-forest-900 dark:text-cream-100/55 dark:hover:text-cream-100"
+              className="text-[12.5px] text-muted underline hover:text-foreground"
             >
               <T>Open in a new tab</T>
             </a>
@@ -123,14 +143,20 @@ export function PdfPreviewDialog({
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-800 dark:border-rose-700/40 dark:bg-rose-950/40 dark:text-rose-200">
             {error}
           </p>
-        ) : url ? (
-          <iframe
-            src={url}
-            title={title}
-            className="h-[65dvh] w-full rounded-lg border border-ink-200 bg-white dark:border-forest-700/50"
-          />
+        ) : blob ? (
+          // Rounded and clipped here rather than inside the viewer: the
+          // viewer is also mounted flush inside a card, where corners
+          // would be wrong.
+          <div className="overflow-hidden rounded-lg border border-edge">
+            <PdfViewer
+              source={{ kind: 'blob', blob }}
+              title={title}
+              className="h-[58dvh] w-full"
+              fallbackHref={url ?? undefined}
+            />
+          </div>
         ) : (
-          <div className="flex h-[65dvh] items-center justify-center rounded-lg border border-dashed border-ink-200 text-[13.5px] text-ink-500 dark:border-forest-700/40 dark:text-cream-100/55">
+          <div className="flex h-[58dvh] items-center justify-center rounded-lg border border-dashed border-edge text-[13.5px] text-muted">
             <T>Preparing the document…</T>
           </div>
         )}
