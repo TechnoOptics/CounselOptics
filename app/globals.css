@@ -581,6 +581,51 @@ html.dark body::before {
     radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.10), transparent 60%),
     radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%);
 }
+
+/* ------------------------------ The canvas ------------------------------
+   The area the browser paints OUTSIDE the document: the strip revealed
+   when a page is dragged past its end, and the space under a document
+   shorter than the viewport.
+
+   It comes from the ROOT element's background, and every shell in this
+   product paints its colour on a `div`. So the two rules above were the
+   only answer the canvas ever got, and on a shell page they were the
+   wrong one. Captured past the end of the document at 900x700: /join
+   ends in near-black with a strip of pure #ffffff below it, and a dark
+   counsel page under a dark consumer theme gets the consumer forest
+   #0a1f19 against a #0a0a0b workspace. That white strip is the report
+   this block answers.
+
+   `min-h-screen` on the shell cannot fix it. It sizes the div to the
+   viewport, and the canvas is by definition what is painted beyond the
+   viewport, so the shell never reaches it.
+
+   Theme still comes from `.dark`, deliberately: a canvas hardcoded for
+   the dark shell is the same defect pointing the other way, and light
+   counsel is a real theme now. The compound selectors outrank the
+   `html.dark` pair above on specificity rather than on source order.
+
+   `overscroll-behavior` is left exactly as it is. `html, body` already
+   set it to `none` further up, which is what suppresses the bounce in
+   the browser; the iOS shell points at the remote URL and lets WKWebView
+   bounce natively, where matching the colour is the whole fix and where
+   tightening CSS further would buy nothing and cost pull-to-refresh.
+
+   `lib/counsel-theme-values.ts` decides which class `<html>` wears. Add
+   a family there and here together, or the canvas silently falls back to
+   the consumer answer. */
+html.surface-counsel,
+html.surface-counsel body {
+  background-color: #f6f6f7;
+}
+html.surface-counsel.dark,
+html.surface-counsel.dark body {
+  background-color: #0a0a0b;
+}
+html.surface-hq,
+html.surface-hq body {
+  background-color: #0a1714;
+}
 /* ================= THE PER-CLASS THEME OVERRIDE BLOCK ==================
    Everything from here to the ring rule at the end of this section
    reassigns what a Tailwind PALETTE class means, per theme. It is the

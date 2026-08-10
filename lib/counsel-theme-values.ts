@@ -48,17 +48,69 @@ export function counselShellClass(theme: CounselTheme, rest: string): string {
  * being painted. `.dark` then means one thing again, and the reader's
  * consumer preference is untouched and still governs every other route.
  *
- * Only the two surfaces that READ the counsel cookie are listed.
- * `/join` and `/guest-login` hard-code a dark shell and are left to the
- * reader's own theme, because a dark wrapper under a light `<html>` is
- * a combination app/globals.css already rescues by hand and that a
- * light-theme reader sees on those pages today either way.
+ * `/join` and `/guest-login` are here too even though they never read
+ * the cookie: they hard-code a dark shell, so shellForcesDark below
+ * answers for them and `<html>` matches what they paint.
  */
 export function shellOwnsHtmlTheme(pathname: string): boolean {
   return (
     pathname === '/counsel' ||
     pathname.startsWith('/counsel/') ||
     pathname === '/portal' ||
-    pathname.startsWith('/portal/')
+    pathname.startsWith('/portal/') ||
+    pathname === '/join' ||
+    pathname.startsWith('/join/') ||
+    pathname === '/guest-login'
   );
+}
+
+/**
+ * The counsel-family paths that paint dark whatever the cookie says.
+ *
+ * These are the public and pre-auth shells. Each renders its own
+ * `dark counsel-shell` in the page rather than going through
+ * counselShellClass, so the cookie is not what decides their theme and
+ * asking it would put `<html>` a shade away from the page on the two
+ * screens an outside firm sees first.
+ */
+export function shellForcesDark(pathname: string): boolean {
+  return (
+    pathname === '/counsel/request' ||
+    pathname === '/counsel/welcome' ||
+    pathname === '/counsel/access-ended' ||
+    pathname === '/counsel/guest/access-ended' ||
+    pathname === '/join' ||
+    pathname.startsWith('/join/') ||
+    pathname === '/guest-login'
+  );
+}
+
+/**
+ * The class that tells `<html>` which surface's CANVAS to paint.
+ *
+ * WHAT THE CANVAS IS, and why a `min-h-screen` shell is not enough. A
+ * browser propagates the ROOT element's background to the canvas: the
+ * area it paints outside the document, which is what shows when a page
+ * is dragged past its end or when the document is shorter than the
+ * viewport. Every dark surface here paints its colour on a `div`, so
+ * the canvas kept coming from `html`, which is #ffffff in light and the
+ * CONSUMER forest #0a1f19 in dark. Captured past the end of the
+ * document: /join ends in near-black and the strip below it is pure
+ * white; a dark counsel page under a dark consumer theme gets forest
+ * green against a #0a0a0b workspace.
+ *
+ * So the shell's own colour is named on `html` as well, per family, and
+ * app/globals.css keys off this class. Theme still comes from `.dark`,
+ * which is what stops a value hardcoded for one theme flashing in the
+ * other.
+ *
+ * `/enterprise` is deliberately absent. Its dark band is a section
+ * INSIDE a consumer marketing page with the ordinary header and footer
+ * above and below it, so the white canvas there is the right answer.
+ */
+export function htmlSurfaceClass(pathname: string): string | null {
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    return 'surface-hq';
+  }
+  return shellOwnsHtmlTheme(pathname) ? 'surface-counsel' : null;
 }

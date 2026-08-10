@@ -4,8 +4,13 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   COUNSEL_THEME_COOKIE,
+  htmlSurfaceClass,
+  shellForcesDark,
   shellOwnsHtmlTheme,
 } from '@/lib/counsel-theme-values';
+
+/** Every class this component owns, so it can take off the one it left. */
+const SURFACE_CLASSES = ['surface-counsel', 'surface-hq'];
 
 /**
  * Keeps `<html>`'s theme class pointing at the surface being painted,
@@ -35,13 +40,26 @@ export function SurfaceThemeSync() {
 
   useEffect(() => {
     const html = document.documentElement;
-    if (shellOwnsHtmlTheme(pathname ?? '')) {
+    const path = pathname ?? '';
+
+    // The canvas class, which decides what is painted outside the
+    // document. Removed as well as added: a stale `surface-counsel` on a
+    // consumer page paints the workspace's ground behind the marketing
+    // site, which is the same defect one navigation later.
+    const surface = htmlSurfaceClass(path);
+    for (const name of SURFACE_CLASSES) {
+      html.classList.toggle(name, name === surface);
+    }
+
+    if (shellOwnsHtmlTheme(path)) {
       const cookie = document.cookie
         .split('; ')
         .find((part) => part.startsWith(`${COUNSEL_THEME_COOKIE}=`));
       // Dark unless this reader has opted into light, which is the same
       // default getCounselTheme applies on the server.
-      const light = cookie?.slice(COUNSEL_THEME_COOKIE.length + 1) === 'light';
+      const light =
+        !shellForcesDark(path) &&
+        cookie?.slice(COUNSEL_THEME_COOKIE.length + 1) === 'light';
       html.classList.toggle('dark', !light);
       return;
     }

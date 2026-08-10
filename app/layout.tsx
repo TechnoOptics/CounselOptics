@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Suspense } from 'react';
@@ -14,13 +14,18 @@ import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
 import { AutoTranslate } from '@/components/i18n/AutoTranslate';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { getLocaleCookie } from '@/lib/i18n/locale';
+import type { CounselTheme } from '@/lib/counsel-theme-values';
 import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { SurfaceThemeSync } from '@/components/SurfaceThemeSync';
 import { getCounselTheme } from '@/lib/counsel-theme';
-import { shellOwnsHtmlTheme } from '@/lib/counsel-theme-values';
+import {
+  htmlSurfaceClass,
+  shellForcesDark,
+  shellOwnsHtmlTheme,
+} from '@/lib/counsel-theme-values';
 import { ExternalLink } from '@/components/ExternalLink';
 import { CrashReporter } from '@/components/CrashReporter';
 import { IdleLogout } from '@/components/IdleLogout';
@@ -175,14 +180,49 @@ function buildVerification() {
   return v;
 }
 
-export const viewport = {
-  themeColor: '#0f2d24',
-  // viewport-fit=cover lets the layout render under iOS notches / home
-  // indicator; we use env(safe-area-inset-*) in CSS to add padding back.
-  viewportFit: 'cover' as const,
-  width: 'device-width',
-  initialScale: 1,
-};
+/**
+ * theme-color is what the browser paints around the page: the iOS status
+ * bar, the Android chrome, the macOS Safari toolbar tint. It was one
+ * forest green for the whole product, which is a colour only the
+ * consumer surface actually paints. A near-black counsel workspace got a
+ * green bar above it, and so did a near-white one.
+ *
+ * So it follows the same decision as the canvas, from the same helpers,
+ * and the values are the ones app/globals.css paints on `<html>` for each
+ * family. Resolved per request rather than per media query, because this
+ * product's theme is a class the reader sets and not the OS preference:
+ * a `(prefers-color-scheme)` pair would be right only by coincidence.
+ */
+export async function generateViewport(): Promise<Viewport> {
+  const pathname = headers().get('x-pathname') ?? '';
+  return {
+    themeColor: await surfaceThemeColor(pathname),
+    // viewport-fit=cover lets the layout render under iOS notches / home
+    // indicator; we use env(safe-area-inset-*) in CSS to add padding back.
+    viewportFit: 'cover' as const,
+    width: 'device-width',
+    initialScale: 1,
+  };
+}
+
+/** The canvas colour of the surface this path paints. */
+async function surfaceThemeColor(pathname: string): Promise<string> {
+  const surface = htmlSurfaceClass(pathname);
+  if (surface === 'surface-hq') return '#0a1714';
+  if (surface === 'surface-counsel') {
+    return (await htmlThemeFor(pathname)) === 'dark' ? '#0a0a0b' : '#f6f6f7';
+  }
+  return '#0f2d24';
+}
+
+/**
+ * Which way `<html>` is painted on this route, or undefined when the
+ * reader's own consumer preference still decides.
+ */
+async function htmlThemeFor(pathname: string): Promise<CounselTheme | undefined> {
+  if (!shellOwnsHtmlTheme(pathname)) return undefined;
+  return shellForcesDark(pathname) ? 'dark' : getCounselTheme();
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Detect /counsel/* and /admin/* so we can swap the consumer
@@ -220,9 +260,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // shellOwnsHtmlTheme for the measurements this exists for. Resolved on
   // the server so the first painted frame is already right; kept right
   // across client-side navigation by SurfaceThemeSync below.
-  const surfaceTheme = shellOwnsHtmlTheme(pathname)
-    ? await getCounselTheme()
-    : undefined;
+  const surfaceTheme = await htmlThemeFor(pathname);
+  // ...and which surface's CANVAS it paints outside the document. See
+  // htmlSurfaceClass: a `min-h-screen` shell on a div never reaches the
+  // area a drag past the end of the page reveals.
+  const surfaceClass = htmlSurfaceClass(pathname);
 
   // Consumer-surface i18n (audit #12). The counsel/HQ/portal shells run
   // their own dictionary-based <T> i18n, so runtime AutoTranslate is scoped
@@ -425,7 +467,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang={serverLanguage ?? 'en'}
-      className={`${sans.variable} ${wordmark.variable} ${display.variable} ${nativeClass}`.trim()}
+      className={`${sans.variable} ${wordmark.variable} ${display.variable} ${nativeClass} ${surfaceClass ?? ''}`.trim()}
       suppressHydrationWarning
     >
       <head>
