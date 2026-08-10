@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { PDFDocument } from 'pdf-lib';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -13,18 +14,38 @@ import type { NextRequest } from 'next/server';
  * comes out.
  *
  * WHY THE BYTES ARE COMPARABLE AT ALL. buildBrandedDocumentPdf is not
- * deterministic: PDFDocument.create() stamps a fresh CreationDate and ModDate
- * on every call, and formatSignedOn(new Date()) puts today's date into the
- * page. The clock is FROZEN across the comparisons instead, so both renders
- * see the same instant. Every other difference, a margin, a band, a line of
- * text, a watermark, survives into the comparison.
+ * deterministic, in two separate ways, and each one has its own answer here.
  *
- * The regex strip below is kept, but it is not what makes this work and it
- * never was: pdf-lib writes the Info dictionary into a COMPRESSED object
- * stream, so `/CreationDate (D:...)` does not appear as plain text in the
- * output and the replace matched nothing. That is why this comparison went
- * red at random, roughly whenever a second ticked between the two renders. It
- * was reproduced deliberately by putting a 1.1 second wait between them.
+ *   1. PDFDocument.create() stamps a fresh CreationDate and ModDate into the
+ *      Info dictionary on every call. normalizeRenderTimestamps() below
+ *      rewrites both to a fixed instant, which is what the name of the first
+ *      test has always claimed and what this file did not do until now.
+ *
+ *      A REGEX OVER THE RAW BYTES CANNOT DO THIS, and the one that used to sit
+ *      here never did: pdf-lib writes the Info dictionary into a COMPRESSED
+ *      object stream, so `/CreationDate (D:...)` is not plain text in the
+ *      output and the replace matched nothing. Inflating the pair of documents
+ *      and diffing them shows the two dates as the ONLY differing fields, plus
+ *      the cross-reference stream, whose bytes are offsets that shift when the
+ *      compressed length of the dates changes. Reloading and re-saving through
+ *      pdf-lib restamps the dates and rebuilds those offsets together, so both
+ *      go away for the one reason. `updateMetadata: false` is required: the
+ *      default rewrites Producer, which carries the firm's name and is a
+ *      difference this comparison is supposed to see.
+ *
+ *   2. formatSignedOn(new Date()) puts today's date into the PAGE, and the
+ *      footer draws toLocaleDateString(). No normalization of the container
+ *      reaches those, because they are drawn text. The clock is FROZEN for the
+ *      whole file instead, so both renders see the same instant.
+ *
+ * Frozen for the whole file, not for one describe: the unsigned-watermark
+ * check at the bottom asserts a DIFFERENCE, and under a live clock a tick
+ * between its two renders satisfies that on its own. It passed without reading
+ * the watermark at all whenever a second happened to pass, which is the same
+ * defect as a green comparison that proves nothing, pointed the other way.
+ *
+ * Every other difference, a margin, a band, a line of text, a watermark,
+ * survives both mechanisms and into the comparison.
  *
  * WHAT IS DELIBERATELY NOT EQUAL is pinned at the bottom of this file rather
  * than smoothed over: a template preview is unsigned, so a firm that stamps
@@ -82,12 +103,27 @@ const TEMPLATE = {
 const post = (body: Record<string, unknown>) =>
   POST({ json: async () => body } as unknown as NextRequest);
 
-/** The two fields pdf-lib re-stamps on every render, and nothing else. */
-const stripRenderTimestamps = (bytes: Uint8Array): string =>
-  Buffer.from(bytes)
-    .toString('latin1')
-    .replace(/\/CreationDate \(D:[^)]*\)/g, '/CreationDate ()')
-    .replace(/\/ModDate \(D:[^)]*\)/g, '/ModDate ()');
+/** The instant both renders are stamped with. Any fixed one would do. */
+const RENDER_EPOCH = new Date('2000-01-01T00:00:00Z');
+
+/**
+ * The two fields pdf-lib re-stamps on every render, pinned to one instant, and
+ * nothing else touched.
+ *
+ * Reloaded and re-saved rather than edited in place because both dates live
+ * inside a compressed object stream; see the head of this file. Anything the
+ * two documents do not agree on, a word, a margin, a colour, the firm name in
+ * Producer, survives this and reaches the assertion. Verified by mutation: the
+ * first test goes red on a one-word change to the preview's title, and the
+ * watermark test at the bottom goes red the moment the watermark is switched
+ * off, which it did not do reliably before.
+ */
+async function normalizeRenderTimestamps(bytes: Uint8Array): Promise<string> {
+  const doc = await PDFDocument.load(bytes, { updateMetadata: false });
+  doc.setCreationDate(RENDER_EPOCH);
+  doc.setModificationDate(RENDER_EPOCH);
+  return Buffer.from(await doc.save()).toString('latin1');
+}
 
 /**
  * The filed instrument, rendered the way lib/submission-document.ts renders
@@ -137,21 +173,24 @@ async function previewBytes(override: unknown = null) {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-describe('the template preview and the document that gets filed', () => {
-  // Date only. Timers stay real so the awaits below still resolve.
-  beforeAll(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date('2026-03-04T10:00:00Z'));
-  });
-  afterAll(() => {
-    vi.useRealTimers();
-  });
+// Date only, and for the whole file. Timers stay real so the awaits below
+// still resolve, and so does pdf-lib's own yield between batches of objects.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-03-04T10:00:00Z'));
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
+describe('the template preview and the document that gets filed', () => {
   it('are the same PDF, to the byte, once the render timestamps are removed', async () => {
     firmRecord = { name: 'Hartley and Vance LLP', accentColor: '#0f2d24' };
     const preview = await previewBytes();
     const filed = await renderAsFiled(mergedText(), null);
-    expect(stripRenderTimestamps(preview)).toBe(stripRenderTimestamps(filed));
+    expect(await normalizeRenderTimestamps(preview)).toBe(
+      await normalizeRenderTimestamps(filed),
+    );
     // Not vacuously equal: both are real documents with real words in them.
     expect(preview.byteLength).toBeGreaterThan(1000);
   });
@@ -168,11 +207,15 @@ describe('the template preview and the document that gets filed', () => {
     const override = { footer: { show: false }, margins: { leftPt: 108 } };
     const preview = await previewBytes(override);
     const filed = await renderAsFiled(mergedText(), override);
-    expect(stripRenderTimestamps(preview)).toBe(stripRenderTimestamps(filed));
+    expect(await normalizeRenderTimestamps(preview)).toBe(
+      await normalizeRenderTimestamps(filed),
+    );
     // And the override actually moved the page, so the equality above is not
     // two identical default renders agreeing with each other.
     const plain = await renderAsFiled(mergedText(), null);
-    expect(stripRenderTimestamps(filed)).not.toBe(stripRenderTimestamps(plain));
+    expect(await normalizeRenderTimestamps(filed)).not.toBe(
+      await normalizeRenderTimestamps(plain),
+    );
   });
 
   it('stay the same PDF for a template that goes out for signature', async () => {
@@ -186,7 +229,9 @@ describe('the template preview and the document that gets filed', () => {
     expect(res.status).toBe(200);
     const preview = new Uint8Array(await res.arrayBuffer());
     const filed = await renderAsFiled(mergedText('signature'), null);
-    expect(stripRenderTimestamps(preview)).toBe(stripRenderTimestamps(filed));
+    expect(await normalizeRenderTimestamps(preview)).toBe(
+      await normalizeRenderTimestamps(filed),
+    );
   });
 });
 
@@ -208,6 +253,14 @@ describe('the one difference the editor states on screen', () => {
     // If this ever becomes equal, either the preview stopped showing the firm
     // its own unsigned mark or the mark started reaching signed instruments,
     // and both need reading before this assertion is changed.
-    expect(stripRenderTimestamps(preview)).not.toBe(stripRenderTimestamps(filed));
+    //
+    // Normalized and frozen exactly as the equalities above are, and for a
+    // sharper reason: an assertion that two documents DIFFER is satisfied by
+    // any difference at all, so a live clock or an unstripped CreationDate
+    // answers it without the watermark being read. It only says what it means
+    // when the two are identical in every respect but the mark.
+    expect(await normalizeRenderTimestamps(preview)).not.toBe(
+      await normalizeRenderTimestamps(filed),
+    );
   });
 });
