@@ -37,6 +37,7 @@ export function IntakeWorkPanel({
   uploadRequests,
   sections = ['people', 'documents', 'requests'],
   embedded = false,
+  showOwner = true,
 }: {
   intakeId: string;
   canManage: boolean;
@@ -49,6 +50,12 @@ export function IntakeWorkPanel({
   sections?: Array<'people' | 'documents' | 'requests'>;
   /** Inside a RecordSection: drop our own card chrome and headings. */
   embedded?: boolean;
+  /**
+   * Whether the People block states the owner. The counsel request detail
+   * turns this off because its action bar carries the owner select, and the
+   * same field in two places is two places to disagree.
+   */
+  showOwner?: boolean;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +112,7 @@ export function IntakeWorkPanel({
       <section className={card}>
         {!embedded && <h2 className={heading}>People</h2>}
 
+        {showOwner && (
         <div className="mb-3">
           <p className="mb-1.5 text-[11px] uppercase tracking-wider text-ink-400 dark:text-cream-100/40">
             Owner
@@ -129,6 +137,7 @@ export function IntakeWorkPanel({
             </p>
           )}
         </div>
+        )}
 
         <ul className="space-y-1.5">
           {participants.map((p) => (

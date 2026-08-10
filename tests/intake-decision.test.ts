@@ -463,9 +463,17 @@ describe('the decision control calls the writer', () => {
 
   it('is mounted on the request page with the stored decision', () => {
     const page = stripComments(read('../app/counsel/intake/[id]/page.tsx'));
+    // The action bar's secondary needs to know whether a decision exists,
+    // so the page hoists the read into a const and both use it. Either
+    // spelling is fine; what is NOT fine is mounting the panel with null,
+    // which is what this has always been here to catch, so the name form
+    // is only accepted when that name is bound to the reader.
     expect(page).toMatch(
-      /<DecideRequest[\s\S]{0,240}?decision=\{readDecision\(ans\)\}[\s\S]{0,80}?\/>/,
+      /<DecideRequest[\s\S]{0,240}?decision=\{(?:readDecision\(ans\)|decision)\}[\s\S]{0,80}?\/>/,
     );
+    if (/decision=\{decision\}/.test(page)) {
+      expect(page).toMatch(/const decision = readDecision\(ans\);/);
+    }
   });
 
   it("shows the employee the reason on their own copy of the request", () => {
