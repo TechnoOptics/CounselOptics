@@ -26,6 +26,8 @@ import { DocumentWithMark } from '@/components/DocumentWithMark';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 import { employeeFieldsOf } from '@/lib/counterparty-fields';
+import { padModesFor } from '@/lib/signature-methods';
+import { PhoneMarkHandoff } from './phone-mark-handoff';
 
 /**
  * Employee fill-and-sign for a firm template. Fields render as inputs, the
@@ -82,6 +84,35 @@ export function FormFillClient({
     typedName: null,
   });
   const [intentAffirmed, setIntentAffirmed] = useState(false);
+  // A mark drawn on the employee's own phone, and the handoff it came back
+  // through. The id travels with the submission so the SERVER can establish
+  // that this was signed on a phone; a page saying so would be a page's word
+  // for it, and 'phone' is the one method that does not have to be taken on
+  // anyone's word.
+  const [phoneMark, setPhoneMark] = useState<{
+    dataUrl: string;
+    handoffId: string;
+  } | null>(null);
+
+  // What this template may be signed with, and therefore what the pad may
+  // offer. An empty list is a real answer and not a missing one: it is what a
+  // template restricted to the phone produces, and the pad says so rather than
+  // widening back to all three. The QR below is the route that case leaves
+  // open, which is why it is rendered whenever the phone is permitted and not
+  // only when the pad has nothing.
+  const padModes = padModesFor(template.signatureMethods);
+  const phonePermitted =
+    template.signatureMethods === null ||
+    template.signatureMethods.includes('phone');
+  // A restriction that leaves this employee nothing at all. Unreachable
+  // through the picker, the save path and the CHECK constraint, all three of
+  // which refuse an empty selection, but lib/signature-methods.ts reads a
+  // stored [] as "refuse everything" rather than quietly widening it, and this
+  // is the surface honouring that. A template nobody can sign is a visible
+  // problem the firm can fix; a restriction silently lifted is not visible at
+  // all, so this says so plainly instead of finding the employee a route the
+  // firm did not grant.
+  const noMethodAvailable = padModes.length === 0 && !phonePermitted;
 
   const needsApproval = template.requiresApproval;
   const forSignature = template.deliveryMode === 'signature';
@@ -92,11 +123,24 @@ export function FormFillClient({
   const recipientFields = template.fields.filter((f) => f.party === 'counterparty');
   const missing = ownFields.filter((f) => f.required && !(values[f.key] ?? '').trim());
   const recipientOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim());
+
+  // The mark that will be sent, and it is the PHONE'S OWN BYTES when there is
+  // one rather than the pad's redraw of them. The pad scales an external image
+  // to fit its canvas, so re-exporting it would produce a different picture
+  // from the one the bound phone drew, and the server checks the bytes it is
+  // given against the fingerprint that phone left. Sending the redraw would
+  // fail that check and silently demote a phone signature to an ordinary one.
+  const markSrc = phoneMark?.dataUrl ?? mark.dataUrl;
+  // A phone mark counts as ink. On a template restricted to the phone the pad
+  // renders no canvas at all, so it never reports any, and reading only its
+  // answer would leave the send button disabled forever with no way to enable
+  // it. That was the dead end this whole change is about.
+  const hasMark = phoneMark !== null || mark.hasInk;
   const ready =
     !busy &&
     missing.length === 0 &&
     signature.trim().length > 0 &&
-    mark.hasInk &&
+    hasMark &&
     intentAffirmed;
 
   const merged = useMemo(
@@ -146,7 +190,7 @@ export function FormFillClient({
         templateId: template.id,
         values,
         signatureName: signature,
-        signatureDataUrl: mark.dataUrl,
+        signatureDataUrl: markSrc,
       }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -162,8 +206,13 @@ export function FormFillClient({
       recipientNote: recipientNote.trim(),
       values,
       signatureName: signature.trim(),
-      signatureDataUrl: mark.dataUrl ?? undefined,
-      signatureMode: mark.mode,
+      signatureDataUrl: markSrc ?? undefined,
+      // A mark made on a phone is a drawn mark, which is what the column
+      // stores. Whether it was made on a PHONE is a separate question, and one
+      // this page is not trusted to answer: the handoff id below is what lets
+      // the server establish it for itself.
+      signatureMode: phoneMark ? 'drawn' : mark.mode,
+      signatureHandoffId: phoneMark?.handoffId,
       signatureIntentAt: new Date().toISOString(),
     };
     const res = submission
@@ -308,17 +357,61 @@ export function FormFillClient({
 
           <section className="space-y-3 rounded-xl border border-edge bg-surface p-4">
             <SectionTitle>Your signature</SectionTitle>
-            <SignaturePad
-              defaultTypedName={signature}
-              onChange={setMark}
-              onError={setError}
-            />
-            <p className="text-[12.5px] text-muted">
-              <T>
-                Draw it, type it, or upload an image of your signature. A typed name is a valid
-                signature; drawing one is simply closer to signing on paper.
-              </T>
-            </p>
+            {padModes.length > 0 && (
+              <SignaturePad
+                defaultTypedName={signature}
+                allowedModes={padModes}
+                externalMark={phoneMark?.dataUrl ?? null}
+                onChange={setMark}
+                onError={setError}
+              />
+            )}
+            {/* Only when all three are on the table. The firm can narrow this
+                to one, and a sentence naming three ways of signing beside a
+                single Type tab describes a page that is not on screen. */}
+            {padModes.length === 3 && (
+              <p className="text-[12.5px] text-muted">
+                <T>
+                  Draw it, type it, or upload an image of your signature. A typed name is a valid
+                  signature; drawing one is simply closer to signing on paper.
+                </T>
+              </p>
+            )}
+
+            {noMethodAvailable && (
+              <p className="rounded-lg border border-edge bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-foreground">
+                <T>
+                  Your legal team has not left a way to sign this form. Ask
+                  them to enable a signature method on it, then open this page
+                  again.
+                </T>
+              </p>
+            )}
+
+            {/* The fourth way, and on a phone-only template the only way. It
+                is here rather than tucked below the buttons because an option
+                nobody can find is an option nobody has: this is exactly what
+                was reported missing. Absent when the firm has not allowed a
+                phone, because an offer that would be refused on scanning is
+                worse than no offer, and lib/mark-handoff.ts refuses to mint
+                one regardless. */}
+            {phonePermitted &&
+              (phoneMark ? (
+                <p className="rounded-lg border border-edge bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-foreground">
+                  <T>
+                    Your signature came back from your phone and is on the
+                    document. Tick the box below and send the form from here.
+                  </T>
+                </p>
+              ) : (
+                <PhoneMarkHandoff
+                  templateId={template.id}
+                  onlyRoute={padModes.length === 0}
+                  onMark={(dataUrl, handoffId) =>
+                    setPhoneMark({ dataUrl, handoffId })
+                  }
+                />
+              ))}
             {/* The intent affirmation. This is the definitional element of an
                 electronic signature under 15 USC 7006(5) and UETA 2(8), and it
                 is the part of the outside signer's ceremony that genuinely
@@ -327,6 +420,10 @@ export function FormFillClient({
                 signing their employer's own paper is not a consumer under
                 15 USC 7006(1), so the paper-copy right and the withdrawal
                 notice are addressed to a situation that is not this one. */}
+            {/* Not asked when there is no way to make a mark. Affirming intent
+                that "the mark above" be a signature, above an apology and no
+                pad, asks somebody to attest to something that cannot exist. */}
+            {!noMethodAvailable && (
             <label className="flex items-start gap-3 text-[13px] text-foreground">
               <input
                 type="checkbox"
@@ -350,6 +447,7 @@ export function FormFillClient({
                 {signingIntentSuffix(template.name)}
               </span>
             </label>
+            )}
           </section>
 
           {needsApproval && (
@@ -487,7 +585,7 @@ export function FormFillClient({
             className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-foreground"
             data-no-translate
           >
-            <DocumentWithMark text={merged} markLine={markLine} markSrc={mark.dataUrl} />
+            <DocumentWithMark text={merged} markLine={markLine} markSrc={markSrc} />
           </div>
         </section>
       </div>
