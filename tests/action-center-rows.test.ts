@@ -49,21 +49,15 @@ const BASE: DashboardTileData = {
     newToday: 0,
     recentNew: [],
   },
-  assigned: { cases: [], clients: [] },
-  signing: { mineAwaiting: [] },
+  assigned: { cases: [], casesTotal: 0, clients: [], clientsTotal: 0 },
+  signing: { mineAwaitingCount: 0 },
   meetings: [],
   deadlines: [],
   recentUploads: [],
 };
 
 function withSigning(n: number): DashboardTileData['signing'] {
-  return {
-    mineAwaiting: Array.from({ length: n }, (_, i) => ({
-      id: `s${i}`,
-      documentTitle: null,
-      createdAt: '2026-08-09T00:00:00.000Z',
-    })),
-  };
+  return { mineAwaitingCount: n };
 }
 
 describe('the action center title is the work, not the row count', () => {

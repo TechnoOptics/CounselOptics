@@ -210,17 +210,17 @@ export default async function CounselDashboard() {
   const myCases = (assignedCaseRows ?? []) as CaseRowMin[];
 
   // Signing requests the current user created that are still out.
-  const mySigningOpen = signing.filter(
+  //
+  // A count, over the whole set. listFirmSigningRequests is unbounded, so
+  // this is the real number. It used to be handed down as an array sliced
+  // to ten whose rows nothing rendered, and the action center read that
+  // array's LENGTH: an attorney with fifteen chase-ups was told about ten
+  // of them, and ten is what went into "N things need a human".
+  const mineAwaitingCount = signing.filter(
     (s) =>
       s.requestedBy === user.id &&
       (s.status === 'sent' || s.status === 'partial'),
-  );
-  const docById = new Map(documents.map((d) => [d.id, d.name] as const));
-  const mineAwaiting = mySigningOpen.slice(0, 10).map((s) => ({
-    id: s.id,
-    documentTitle: docById.get(s.documentId) ?? null,
-    createdAt: s.createdAt,
-  }));
+  ).length;
 
   // Upcoming meetings (next 14 days, top 5).
   //
@@ -327,19 +327,25 @@ export default async function CounselDashboard() {
       newToday,
       recentNew,
     },
+    // The tile draws five of each and says how many more there are, so
+    // it gets five of each and the totals. It used to get ten of each
+    // and count them, which made both the "(N)" beside each column and
+    // the "N things in your name" headline stop at ten and twenty.
     assigned: {
-      cases: myCases.slice(0, 10).map((c) => ({
+      cases: myCases.slice(0, 5).map((c) => ({
         id: c.id,
         title: c.title,
         status: c.status,
       })),
-      clients: myClients.slice(0, 10).map((c) => ({
+      casesTotal: myCases.length,
+      clients: myClients.slice(0, 5).map((c) => ({
         id: c.id,
         displayName: c.displayName ?? c.email ?? 'Unnamed client',
         status: c.status,
       })),
+      clientsTotal: myClients.length,
     },
-    signing: { mineAwaiting },
+    signing: { mineAwaitingCount },
     meetings,
     deadlines,
     recentUploads,

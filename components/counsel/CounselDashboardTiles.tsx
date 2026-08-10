@@ -45,17 +45,27 @@ export type DashboardTileData = {
       isInternal: boolean;
     }>;
   };
+  /**
+   * The lists here are the few rows the tile DRAWS; the totals beside
+   * them are how many there are. They used to be one thing: the page
+   * sliced each list to ten and the tile printed that slice's length as
+   * the count, so an attorney with 24 matters read "10" and a title of
+   * "20 things in your name" that could never say anything else.
+   */
   assigned: {
     cases: Array<{ id: string; title: string; status: string }>;
+    casesTotal: number;
     clients: Array<{ id: string; displayName: string; status: string }>;
+    clientsTotal: number;
   };
   signing: {
-    /** Signature requests created by the current user, still pending. */
-    mineAwaiting: Array<{
-      id: string;
-      documentTitle: string | null;
-      createdAt: string;
-    }>;
+    /**
+     * How many signature requests the current user created are still
+     * out. A count, not a list: nothing renders the rows, and when this
+     * was an array sliced to ten the action center headed the card with
+     * that ten and added it into "N things need a human".
+     */
+    mineAwaitingCount: number;
   };
   meetings: Array<{
     id: string;
@@ -331,7 +341,7 @@ export function actionCenterItems(data: DashboardTileData): ActionCenterItem[] {
       workItems: data.intake.newToday,
     });
   }
-  const outstanding = data.signing.mineAwaiting.length;
+  const outstanding = data.signing.mineAwaitingCount;
   if (outstanding > 0) {
     items.push({
       label: `${outstanding} signing ${plural(outstanding, 'request you sent is', 'requests you sent are')} still out`,
@@ -421,8 +431,9 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
 /* ----- Assigned to me ----- */
 
 function AssignedToMeTile({ data }: { data: DashboardTileData }) {
-  const clientCount = data.assigned.clients.length;
-  const caseCount = data.assigned.cases.length;
+  // The totals, not the length of the rows drawn below them.
+  const clientCount = data.assigned.clientsTotal;
+  const caseCount = data.assigned.casesTotal;
   const total = clientCount + caseCount;
   return (
     <TileFrame

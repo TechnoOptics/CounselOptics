@@ -26,6 +26,27 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const page = readFileSync(`${root}app/counsel/page.tsx`, 'utf8');
 
+/**
+ * The expression assigned at `start`, up to the `,` or `;` that ends it
+ * at bracket depth zero. Reading to the end of the line instead would
+ * stop inside a multi-line call, and reading a fixed window would run
+ * into the next field and blame this one for what that one does.
+ */
+function valueAt(src: string, start: number): string {
+  let depth = 0;
+  for (let i = start; i < src.length; i += 1) {
+    const c = src[i];
+    if ('([{'.includes(c)) depth += 1;
+    else if (')]}'.includes(c)) {
+      if (depth === 0) return src.slice(start, i);
+      depth -= 1;
+    } else if (depth === 0 && (c === ',' || c === ';')) {
+      return src.slice(start, i);
+    }
+  }
+  return src.slice(start);
+}
+
 /** The span of the `<PageHeader ... />` element, by bracket depth. */
 function pageHeaderSpan(src: string): [number, number] {
   const start = src.indexOf('<PageHeader');
@@ -80,6 +101,55 @@ describe('the counsel dashboard puts its action where its copy says it is', () =
         'the empty state says the customize control is "up top", so it has to be in the page header',
       ).toBe(true);
     }
+  });
+
+  it('never derives a count from a list it truncated for display', () => {
+    // The defect this replaced, twice over. The page handed the tiles a
+    // list sliced to ten and the tiles printed that list's LENGTH as the
+    // count, so an attorney with 24 matters read "10", the card was
+    // headed "20 things in your name" and could never say anything else,
+    // and the action center added a capped ten into "N things need a
+    // human". A list you truncated and a total are two different values
+    // and the page has to compute them separately.
+    const fields = [...page.matchAll(/(?:const\s+)?(\w*(?:Total|Count))\s*[:=]\s*/g)]
+      .map((m) => [m[0], m[1], valueAt(page, (m.index ?? 0) + m[0].length)] as const)
+      // A shorthand reference (`signing: { mineAwaitingCount }`) has no
+      // value of its own; the `const` above it is the one that counts.
+      .filter(([, , expr]) => expr.trim().length > 0);
+    expect(
+      fields.length,
+      'no total-shaped field found; the sweep has stopped matching',
+    ).toBeGreaterThanOrEqual(3);
+    for (const [, name, expr] of fields) {
+      expect(
+        expr.includes('.slice('),
+        `${name} is computed from a truncated list: ${expr.trim()}`,
+      ).toBe(false);
+    }
+    // And the three that exist are the ones this is about.
+    const names = fields.map((f) => f[1]);
+    expect(names).toContain('casesTotal');
+    expect(names).toContain('clientsTotal');
+    expect(names).toContain('mineAwaitingCount');
+
+    // The other half of the same defect: the tile reading the length of
+    // the rows it was given rather than the total beside them. Both
+    // halves have to hold, because either one alone puts the wrong
+    // number on the card.
+    const tiles = readFileSync(
+      `${root}components/counsel/CounselDashboardTiles.tsx`,
+      'utf8',
+    );
+    for (const wrong of [
+      'assigned.cases.length',
+      'assigned.clients.length',
+      'mineAwaiting.length',
+    ]) {
+      expect(tiles, `the tile counts ${wrong}`).not.toContain(wrong);
+    }
+    expect(tiles).toContain('assigned.casesTotal');
+    expect(tiles).toContain('assigned.clientsTotal');
+    expect(tiles).toContain('signing.mineAwaitingCount');
   });
 
   it('leads with the metric strip, before anything else on the page', () => {
