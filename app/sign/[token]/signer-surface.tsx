@@ -14,6 +14,7 @@ import {
 import type { FieldBox } from '@/lib/template-field-boxes';
 import { SignerDocumentView } from './document-view';
 import { SignatureCapture } from './signature-capture';
+import type { SignatureMethod } from '@/lib/signature-methods';
 import { CounterpartyFields, CounterpartyFieldsSummary } from './counterparty-fields';
 
 /**
@@ -51,6 +52,7 @@ export function SignerSurface({
   positionX,
   positionY,
   copyPermitted,
+  signatureMethods,
   copyHref,
   counterpartyFields,
   fieldBoxes,
@@ -66,6 +68,8 @@ export function SignerSurface({
   positionX: number | null;
   positionY: number | null;
   copyPermitted: boolean;
+  /** Which methods the firm allows on this request. Null means all four. */
+  signatureMethods: SignatureMethod[] | null;
   copyHref: string;
   /** The parts of the document this signer supplies. Empty for every
    *  document with no counterparty fields, which is every document this
@@ -189,6 +193,7 @@ export function SignerSurface({
           firmName={firmName}
           documentPresented={isDocumentPresented(renderStatus)}
           placement={placement}
+          signatureMethods={signatureMethods}
           copyPermitted={copyPermitted}
           copyHref={copyHref}
           onMarkChange={handleMark}

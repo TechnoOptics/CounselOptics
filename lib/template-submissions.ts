@@ -1414,15 +1414,40 @@ async function dispatchForSignature(
     // correctly gets no access code; what stands in for it is the session
     // check in lib/signature-write.ts, which refuses a signature made in their
     // name by anyone holding the link.
+    // The template's signature methods, read HERE and frozen onto the request
+    // below, because this is the moment the document is dispatched.
+    //
+    // Read live rather than copied onto the submission when it was filed, and
+    // that is a deliberate difference from category and delivery_mode beside
+    // it. Those two describe the document_text, which was merged at submit
+    // time and cannot be reconsidered. This describes the ceremony, which has
+    // not started yet: a firm that tightens what it will accept while a
+    // submission sits in the approval queue means the tightening to apply to
+    // what goes out of it. Once the link is sent, the frozen copy on the
+    // request is what governs and no later edit reaches it.
+    //
+    // A template that has since been archived or deleted reads as null, which
+    // is no restriction: the same answer as before this column existed, and
+    // the alternative would be refusing to send an approved document because
+    // its template was tidied away.
+    const signatureMethods = row.template_id
+      ? (await loadPublishedTemplate(admin, row.firm_id, row.template_id))
+          ?.signatureMethods ?? null
+      : null;
+
     const created = await createSigningRequestAction(
       row.firm_id,
       filed.documentId,
       counterSignatureParty(row),
       row.recipient_note,
-      // The counterparty keeps a copy of what they signed. 15 USC 7001(d) is
-      // about the signer being able to retain the record, and this is a
-      // document they are a party to rather than one the firm is withholding.
-      { signerCanDownload: true },
+      {
+        // The counterparty keeps a copy of what they signed. 15 USC 7001(d) is
+        // about the signer being able to retain the record, and this is a
+        // document they are a party to rather than one the firm is
+        // withholding.
+        signerCanDownload: true,
+        signatureMethods,
+      },
     );
     if (!created.ok || !created.requestId) {
       return await unclaim(

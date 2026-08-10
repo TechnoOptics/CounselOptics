@@ -13,6 +13,11 @@ import {
 } from '@/lib/signing-intent';
 import { SignatureLinePreview } from './signature-line-preview';
 import { MobileHandoff } from './mobile-handoff';
+import {
+  padModesFor,
+  signatureMethodFromPadMode,
+  type SignatureMethod,
+} from '@/lib/signature-methods';
 
 type Step = 'disclosure' | 'capture' | 'done';
 
@@ -60,6 +65,7 @@ export function SignatureCapture({
   firmName,
   documentPresented,
   placement,
+  signatureMethods,
   copyPermitted,
   copyHref,
   onMarkChange,
@@ -73,6 +79,17 @@ export function SignatureCapture({
   /** Whether the document actually rendered on the page above this. */
   documentPresented: boolean;
   placement: SignatureLinePlacement;
+  /**
+   * Which of the four methods the firm allows on this document. Null means all
+   * four, which is what every request meant before the setting existed.
+   *
+   * Used here only to decide what to offer. The server refuses a forbidden
+   * method whatever this component renders: see lib/signature-write.ts. A
+   * signer should not draw their name and then be told, which is why the tabs
+   * respect it, and an attacker posting straight at /api/firm/sign is why the
+   * tabs are not the control.
+   */
+  signatureMethods: SignatureMethod[] | null;
   /** Whether the firm allows this signer to download a copy. */
   copyPermitted: boolean;
   copyHref: string;
@@ -124,6 +141,11 @@ export function SignatureCapture({
     hasInk: false,
     typedName: null,
   });
+  // What the pad may offer, and whether the phone route is on the table. Both
+  // derive from one prop so the tabs and the QR card cannot disagree about
+  // what this template allows.
+  const padModes = padModesFor(signatureMethods);
+  const phonePermitted = signatureMethods === null || signatureMethods.includes('phone');
   const [intentAffirmed, setIntentAffirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -191,6 +213,11 @@ export function SignatureCapture({
         body: JSON.stringify({
           token,
           signatureDataUrl: dataUrl,
+          // How the mark was made, translated from the pad's own vocabulary
+          // in lib/signature-methods.ts rather than by a literal here. The
+          // server checks it against what this request allows; it is not
+          // believed.
+          method: signatureMethodFromPadMode(mark.mode),
           typedName: mark.typedName,
           consent: {
             electronicRecordsConsentedAt: erdConsentedAt,
@@ -403,7 +430,7 @@ export function SignatureCapture({
             same reason the notice above stops the ceremony: when the
             document never opened there is nothing to sign on any
             device. */}
-        {documentPresented && mobileHandoff}
+        {documentPresented && phonePermitted && mobileHandoff}
 
         {error && (
           <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
@@ -442,13 +469,17 @@ export function SignatureCapture({
       <SignaturePad
         heading={<p className="eyebrow">Your signature</p>}
         defaultTypedName={signerName ?? ''}
+        allowedModes={padModes}
         onChange={handleMark}
         onError={setError}
       />
 
       {/* The same element the disclosure step showed, now holding a
-          consent and therefore able to mint. */}
-      {mobileHandoff}
+          consent and therefore able to mint. Absent entirely when the firm
+          has not allowed signing on a phone: an offer that would be refused
+          on scanning is worse than no offer. lib/signing-handoff-mint.ts
+          refuses to mint one regardless, because this is a browser. */}
+      {phonePermitted && mobileHandoff}
 
       <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
         <input

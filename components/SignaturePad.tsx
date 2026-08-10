@@ -44,6 +44,7 @@ export function SignaturePad({
   onChange,
   onError,
   externalMark,
+  allowedModes,
 }: {
   /** Sits to the left of the mode tabs, so a caller keeps its own section
    *  label on the same row rather than stacking a second one above. */
@@ -60,9 +61,30 @@ export function SignaturePad({
    * here so that work does not have to reopen this file.
    */
   externalMark?: string | null;
+  /**
+   * Which of the three modes to offer, or omitted for all three.
+   *
+   * The firm chooses this per template and the server enforces it; hiding a
+   * tab here is a courtesy to the signer, not a control. See
+   * lib/signature-write.ts, which refuses a forbidden method whatever this
+   * component rendered, because /api/firm/sign reads a token out of a request
+   * body and never sees this page at all.
+   *
+   * An empty or unusable list falls back to all three rather than leaving the
+   * signer with no way to make a mark. That is the right direction HERE and
+   * only here: the server still refuses whatever the firm forbade, so the
+   * worst case is a signer offered a tab that will be declined, and the
+   * alternative is a pad with nothing on it and no explanation.
+   */
+  allowedModes?: readonly SignatureMode[];
 }) {
+  const ALL_MODES: readonly SignatureMode[] = ['drawn', 'typed', 'uploaded'];
+  const offered =
+    allowedModes && allowedModes.length > 0 ? allowedModes : ALL_MODES;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [mode, setMode] = useState<SignatureMode>('drawn');
+  // Opens on the first mode the firm actually allows, so a template that
+  // forbids drawing does not greet the signer with a pad they may not use.
+  const [mode, setMode] = useState<SignatureMode>(offered[0]);
   const [typed, setTyped] = useState(defaultTypedName ?? '');
   const [drawing, setDrawing] = useState(false);
   const [hasInk, setHasInk] = useState(false);
@@ -254,9 +276,9 @@ export function SignaturePad({
       <div className="flex items-center justify-between gap-3">
         {heading ?? <span />}
         <div className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]">
-          {tab('drawn', 'Draw')}
-          {tab('typed', 'Type')}
-          {tab('uploaded', 'Upload')}
+          {offered.includes('drawn') && tab('drawn', 'Draw')}
+          {offered.includes('typed') && tab('typed', 'Type')}
+          {offered.includes('uploaded') && tab('uploaded', 'Upload')}
         </div>
       </div>
 

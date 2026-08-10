@@ -36,7 +36,11 @@ const createSigningRequestAction = vi.hoisted(() =>
   vi.fn(async (): Promise<Result> => ({ ok: true, requestId: 'req-1' })),
 );
 const loadPublishedTemplate = vi.hoisted(() =>
-  vi.fn(async (): Promise<{ deliveryMode: string } | null> => ({ deliveryMode: 'share' })),
+  vi.fn(
+    async (): Promise<
+      { deliveryMode: string; signatureMethods?: string[] | null } | null
+    > => ({ deliveryMode: 'share' }),
+  ),
 );
 
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
@@ -273,7 +277,10 @@ describe('the signature mode', () => {
         { email: 'priya@firm.test', name: 'Priya Raman', order: 2 },
       ],
       'For your review.',
-      { signerCanDownload: true },
+      // signatureMethods is null here because this template restricts nothing,
+      // which is what every template means today. The restricted case is the
+      // test below.
+      { signerCanDownload: true, signatureMethods: null },
     );
     expect(db.row.signing_request_id).toBe('req-1');
     expect(db.row.status).toBe('sent');
@@ -292,7 +299,30 @@ describe('the signature mode', () => {
         'doc-1',
         [{ email: 'buyer@wren.test', name: 'Wren Supply Co.', order: 1 }],
         'For your review.',
-        { signerCanDownload: true },
+        { signerCanDownload: true, signatureMethods: null },
+      );
+    });
+  });
+
+  /**
+   * The template's restriction has to REACH the request, or the gate in
+   * lib/signature-write.ts has nothing to enforce and the firm's choice is
+   * decoration. Frozen here and not joined at signing time: a counterparty may
+   * hold the link for weeks, and a template edited while they held it must not
+   * change the ceremony they were invited to.
+   */
+  it('freezes the template signature methods onto the request', () => {
+    loadPublishedTemplate.mockResolvedValue({
+      deliveryMode: 'signature',
+      signatureMethods: ['draw', 'phone'],
+    });
+    return retryTemplateReleaseAction(SUBMISSION_ID).then(() => {
+      expect(createSigningRequestAction).toHaveBeenCalledWith(
+        'firm-1',
+        'doc-1',
+        expect.anything(),
+        'For your review.',
+        { signerCanDownload: true, signatureMethods: ['draw', 'phone'] },
       );
     });
   });

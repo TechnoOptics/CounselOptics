@@ -7,6 +7,8 @@ import {
   parseDeliveryMode,
   resolveDeliveryModeColumnFallback,
   DELIVERY_MODE_UNSAVED_ERROR,
+  resolveSignatureMethodsColumnFallback,
+  SIGNATURE_METHODS_UNSAVED_ERROR,
   type DeliveryMode,
 } from './submission-dispatch';
 import { parseTemplateFieldParty } from './counterparty-fields';
@@ -21,6 +23,11 @@ import {
   DOCUMENT_LAYOUT_UNSAVED_ERROR,
   resolveDocumentLayoutColumnFallback,
 } from './template-document-layout';
+import {
+  normalizeSignatureMethodSelection,
+  parseAllowedSignatureMethods,
+  type SignatureMethod,
+} from './signature-methods';
 import { extractFileText } from './doc-review';
 import { checkRateLimit } from './rate-limit';
 import { AiUnavailableError } from './ai-errors';
@@ -93,6 +100,16 @@ export type FirmTemplate = {
    * that turns this into a layout.
    */
   documentLayout: Record<string, unknown> | null;
+  /**
+   * Which of the four signature methods output from this template may be
+   * signed with, or null when it is not restricted and all four are offered.
+   *
+   * Null is what every template means today and what an absent column reads
+   * as, so nothing changes until a firm chooses otherwise. The choice is
+   * frozen onto the signing request at dispatch and enforced by
+   * lib/signature-write.ts; this field is the firm's editable copy of it.
+   */
+  signatureMethods: SignatureMethod[] | null;
   createdAt: string;
   updatedAt: string | null;
 };
@@ -111,6 +128,8 @@ type Row = {
   delivery_mode?: string | null;
   /** Absent until the owner applies 20260809_template_document_layout.sql. */
   document_layout?: unknown;
+  /** Absent until the owner applies 20260814_signature_methods.sql. */
+  signature_methods?: unknown;
   created_at: string;
   updated_at: string | null;
 };
@@ -134,6 +153,9 @@ function toTemplate(r: Row): FirmTemplate {
     // the firm's own layout. Sanitized rather than trusted: this column is
     // read back by a client component that will show the author what it says.
     documentLayout: sanitizeDocumentLayoutOverride(r.document_layout),
+    // Absent, null and a non-array all read as "not restricted", which is
+    // today's behaviour and what a database without the migration reports.
+    signatureMethods: parseAllowedSignatureMethods(r.signature_methods),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -241,6 +263,12 @@ export async function createFirmTemplateAction(
     status?: 'draft' | 'published';
     requiresApproval?: boolean;
     deliveryMode?: DeliveryMode;
+    /**
+     * Which signature methods this template may be signed with. Omitted or
+     * null means all four, which is what every template did before this
+     * existed. An empty selection is refused: see the save below.
+     */
+    signatureMethods?: unknown;
     /** A partial page-layout override. Sanitized here, never trusted as sent. */
     documentLayout?: unknown;
     /**
@@ -271,6 +299,17 @@ export async function createFirmTemplateAction(
   });
   if (refusal) return { ok: false, ...refusal };
   const deliveryMode = parseDeliveryMode(input.deliveryMode);
+  // AT LEAST ONE METHOD, refused here as well as by the CHECK constraint in
+  // 20260814_signature_methods.sql. This action is a `'use server'` export and
+  // therefore a public HTTP endpoint, so a caller can post whatever it likes;
+  // and the constraint would refuse it with a database error nobody can read
+  // rather than with a sentence. Both exist on purpose. Neither is the picker,
+  // which runs in a browser.
+  const methodSelection = normalizeSignatureMethodSelection(input.signatureMethods);
+  if (!methodSelection.ok) return { ok: false, error: methodSelection.error };
+  // undefined and null both mean "no restriction" on an INSERT, because there
+  // is no stored value to leave alone. They only differ on the update below.
+  const signatureMethods = methodSelection.methods ?? null;
   const documentLayout = sanitizeDocumentLayoutOverride(input.documentLayout);
   const insert = {
     firm_id: firmId,
@@ -286,9 +325,16 @@ export async function createFirmTemplateAction(
   // The layout column is named only when there is something to put in it, so a
   // template that overrides nothing never touches a column that may not exist.
   const withLayout = documentLayout ? { ...insert, document_layout: documentLayout } : insert;
+  // Named only when there is a restriction to record, for the same reason the
+  // layout column is: a template that restricts nothing never touches a column
+  // that may not exist, so the common case cannot be broken by the pending
+  // migration at all.
+  const withMethods = signatureMethods
+    ? { ...withLayout, signature_methods: signatureMethods }
+    : withLayout;
   let { data, error } = await gate.admin
     .from('firm_templates')
-    .insert({ ...withLayout, delivery_mode: deliveryMode })
+    .insert({ ...withMethods, delivery_mode: deliveryMode })
     .select('*')
     .single();
   // Both columns arrive with migrations the owner applies, and there is a
@@ -305,6 +351,12 @@ export async function createFirmTemplateAction(
     ) {
       return { ok: false, error: DOCUMENT_LAYOUT_UNSAVED_ERROR };
     }
+    if (
+      resolveSignatureMethodsColumnFallback({ methods: signatureMethods, error }) ===
+      'abort-restriction-unsaved'
+    ) {
+      return { ok: false, error: SIGNATURE_METHODS_UNSAVED_ERROR };
+    }
     const fallback = resolveDeliveryModeColumnFallback({ deliveryMode, error });
     if (fallback === 'abort-mode-unsaved') {
       return { ok: false, error: DELIVERY_MODE_UNSAVED_ERROR };
@@ -312,7 +364,7 @@ export async function createFirmTemplateAction(
     if (fallback === 'retry-without-column') {
       ({ data, error } = await gate.admin
         .from('firm_templates')
-        .insert(withLayout)
+        .insert(withMethods)
         .select('*')
         .single());
     }
@@ -333,6 +385,12 @@ export async function updateFirmTemplateAction(
     status: 'draft' | 'published' | 'archived';
     requiresApproval: boolean;
     deliveryMode: DeliveryMode;
+    /**
+     * Which signature methods this template may be signed with. Undefined
+     * leaves whatever is stored alone; null goes back to allowing all four; a
+     * list is that restriction. An empty list is refused.
+     */
+    signatureMethods: unknown;
     /**
      * A partial page-layout override, or null to go back to the firm's own
      * layout. Undefined leaves whatever is stored alone, the same way every
@@ -396,6 +454,14 @@ export async function updateFirmTemplateAction(
 
   const deliveryMode =
     input.deliveryMode === undefined ? null : parseDeliveryMode(input.deliveryMode);
+  // Undefined, null and a list are three different writes and stay three,
+  // exactly as documentLayout does below. Collapsing undefined and null would
+  // make every patch that does not mention methods silently lift a
+  // restriction the firm had set.
+  const methodSelection = normalizeSignatureMethodSelection(input.signatureMethods);
+  if (!methodSelection.ok) return { ok: false, error: methodSelection.error };
+  const methodsTouched = methodSelection.methods !== undefined;
+  const signatureMethods = methodsTouched ? (methodSelection.methods ?? null) : null;
   // Undefined means "leave it alone" and null means "go back to the firm's
   // layout", which are different writes, so the two are kept apart here rather
   // than collapsed into a falsy check.
@@ -412,9 +478,28 @@ export async function updateFirmTemplateAction(
       .eq('firm_id', firmId)
       .select('*')
       .single();
-  let { data, error } = await write(
-    deliveryMode === null ? {} : { delivery_mode: deliveryMode },
-  );
+  const modeExtra = () => (deliveryMode === null ? {} : { delivery_mode: deliveryMode });
+  const methodExtra = () =>
+    methodsTouched ? { signature_methods: signatureMethods } : {};
+  let { data, error } = await write({ ...modeExtra(), ...methodExtra() });
+  // Aborting beats retrying whenever a RESTRICTION is what could not be
+  // written. Clearing one is survivable: a column that does not exist holds no
+  // restriction to clear, so the retry lands on exactly what the firm asked
+  // for. Setting one is not, and it is checked before the other two fallbacks
+  // because it is the only one of the three that can silently widen who may
+  // sign an instrument.
+  if (error && methodsTouched) {
+    const fallback = resolveSignatureMethodsColumnFallback({
+      methods: signatureMethods,
+      error,
+    });
+    if (fallback === 'abort-restriction-unsaved') {
+      return { ok: false, error: SIGNATURE_METHODS_UNSAVED_ERROR };
+    }
+    if (fallback === 'retry-without-column') {
+      ({ data, error } = await write(modeExtra()));
+    }
+  }
   // Same recovery as the insert above, and for the same reason. Setting a
   // layout the column cannot hold aborts; CLEARING one is survivable, because
   // a column that does not exist holds no override to clear, so the retry
@@ -429,9 +514,7 @@ export async function updateFirmTemplateAction(
     }
     if (fallback === 'retry-without-column') {
       delete patch.document_layout;
-      ({ data, error } = await write(
-        deliveryMode === null ? {} : { delivery_mode: deliveryMode },
-      ));
+      ({ data, error } = await write({ ...modeExtra(), ...methodExtra() }));
     }
   }
   if (error && deliveryMode !== null) {

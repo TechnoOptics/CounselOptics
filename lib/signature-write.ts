@@ -19,6 +19,12 @@ import {
   type SignerOrderRecord,
 } from '@/lib/signer-order';
 import { getRealCurrentUser } from '@/lib/supabase/server';
+import {
+  decideSignatureMethod,
+  parseAllowedSignatureMethods,
+  type SignatureMethod,
+} from '@/lib/signature-methods';
+import { decodeSignaturePng, signerMarkPath } from '@/lib/template-signature';
 
 /**
  * The one function that records a signature.
@@ -131,6 +137,18 @@ export type RecordSignatureInput = {
   locator: SignatureLocator;
   /** PNG data URL from a canvas. */
   signatureDataUrl: string;
+  /**
+   * How the caller says the mark was made: 'draw', 'type' or 'upload'.
+   *
+   * Untrusted, and checked against what the request allows rather than
+   * believed. It is IGNORED entirely on the mobile_handoff path, where the
+   * server knows better than the caller does: see the derivation below.
+   *
+   * Optional because every signing link already in the wild belongs to a page
+   * that predates this field. An unrestricted request still signs without it;
+   * a restricted one does not.
+   */
+  method?: unknown;
   typedName?: string | null;
   /** The UETA disclosure capture, when the submitting device holds it. */
   consent?: SignerConsentPayload | null;
@@ -152,10 +170,28 @@ export type RecordSignatureResult =
 export async function recordSignature(
   input: RecordSignatureInput,
 ): Promise<RecordSignatureResult> {
-  const dataUrl = input.signatureDataUrl;
-  if (!dataUrl.startsWith('data:image/png;base64,')) {
-    return { ok: false, status: 400, error: 'Missing or invalid fields.' };
+  // Decode the mark, and let the BYTES decide whether it is one.
+  //
+  // This was a startsWith on 'data:image/png;base64,' with no size limit at
+  // all. Both halves of a data URL are written by whoever posts it, so that
+  // check established only that the caller could spell a media type: an SVG,
+  // an HTML document or half a gigabyte of 'A' all passed it, went into the
+  // firm-signatures bucket, and came back out through a signed URL into a
+  // reviewer's <img> and into a PDF renderer.
+  //
+  // decodeSignaturePng is the repo's existing answer, already used by the
+  // employee template path, and it checks the eight PNG magic bytes and a
+  // 512KB cap. It is reused rather than copied so the two paths cannot drift
+  // into disagreeing about what an acceptable signature image is.
+  //
+  // The refusal sentences are its own. They say the image could not be read,
+  // which is the truth and is what a signer whose phone produced something odd
+  // needs to hear; nothing here tells a caller which of the checks caught them.
+  const decoded = decodeSignaturePng(input.signatureDataUrl);
+  if (!decoded.ok) {
+    return { ok: false, status: 400, error: decoded.error };
   }
+  const buffer = decoded.bytes;
   const admin = createAdminSupabase();
   if (!admin) {
     return {
@@ -275,6 +311,15 @@ export async function recordSignature(
     document_id: string;
     status: 'draft' | 'sent' | 'partial' | 'completed' | 'canceled';
     document_sha256: string | null;
+    /**
+     * The dispatching template's allowed methods, frozen when this request was
+     * created. Absent on every request created before
+     * 20260814_signature_methods.sql, and absent from the whole select on a
+     * database that has not run it, which both read as "no restriction" and so
+     * keep today's behaviour. The select above is a select('*'), so this
+     * arrives for free the moment the column exists.
+     */
+    signature_methods?: unknown;
   };
   if (request.status === 'canceled') {
     return { ok: false, status: 410, error: 'Signing request was canceled.' };
@@ -343,6 +388,51 @@ export async function recordSignature(
     };
   }
 
+  // Was this a way of signing the firm agreed to accept?
+  //
+  // The firm chooses per template, the choice is frozen onto the request at
+  // dispatch, and it is enforced HERE because the signer's page is not what a
+  // leaked link posts to. Hiding a tab in a browser stops nobody: /api/firm/
+  // sign reads a token out of a request body, so an attacker who wants to
+  // upload a scan of somebody else's signature onto an instrument that forbids
+  // uploads simply posts one. This is the refusal they get.
+  //
+  // THE PHONE IS DECIDED BY THE SERVER, IN BOTH DIRECTIONS, and the second
+  // direction is the one that matters. A handoff produces a drawn mark, so a
+  // phone that claimed 'draw' would walk straight through a firm that had
+  // forbidden the handoff; input.method is therefore ignored on that path.
+  // But 'phone' arriving from a BROWSER is worse, and an earlier draft of this
+  // took it at face value: a template restricted to ['phone'] could then be
+  // satisfied by a POST to /api/firm/sign carrying method 'phone' and no
+  // handoff at all, which is the whole restriction defeated by one string.
+  //
+  // 'phone' is the only one of the four the server can genuinely establish,
+  // and it is the only one a firm gains anything checkable by requiring: the
+  // handoff burns a one-time token, binds a cookie to the scanning device and
+  // records that device's address and user agent on its own row. So it is
+  // written here and read nowhere else. A browser claiming it is treated as
+  // having said nothing, which a restricted request refuses and an
+  // unrestricted one records as null rather than as a fact no row backs.
+  //
+  // Placed after the identity gate on purpose: somebody who is not this signer
+  // learns nothing here about what the firm will accept.
+  const fromHandoff = input.source === 'mobile_handoff';
+  const claimedMethod: unknown = fromHandoff
+    ? 'phone'
+    : input.method === 'phone'
+      ? null
+      : input.method;
+  const methodDecision = decideSignatureMethod({
+    allowed: parseAllowedSignatureMethods(request.signature_methods),
+    claimed: claimedMethod,
+  });
+  if (!methodDecision.ok) {
+    // 403 and not 400: the request is well formed and the caller is who they
+    // say they are. What is missing is permission for this way of signing.
+    return { ok: false, status: 403, error: methodDecision.error };
+  }
+  const signatureMethod: SignatureMethod | null = methodDecision.method;
+
   // Whose turn it is.
   //
   // Read once, here, and carried into the claim below rather than acted
@@ -365,15 +455,30 @@ export async function recordSignature(
     return { ok: false, status: 409, error: SIGNER_NOT_YET_YOUR_TURN };
   }
 
-  // Decode the PNG. The upload happens AFTER the claim below, not
-  // before it, and the order is the point: the storage path is keyed on
+  // Where the mark will go. The upload itself happens AFTER the claim below,
+  // not before it, and the order is the point: the storage path is keyed on
   // the signature id and the upload is upsert, so a request that is
   // about to lose the claim would otherwise overwrite the winner's mark
   // with its own, and the executed copy would be stamped with an image
   // the audit chain does not describe.
-  const base64 = dataUrl.split(',')[1] ?? '';
-  const buffer = Buffer.from(base64, 'base64');
-  const path = `${request.firm_id}/${request.id}/${sig.id}.png`;
+  //
+  // The path is built by lib/template-signature.ts rather than interpolated
+  // here, so the bucket has one module that knows how to address it. That
+  // function refuses a segment carrying anything but [A-Za-z0-9._-], which is
+  // what keeps a mark inside its own firm's prefix. Every segment below is a
+  // database uuid, so the throw is not currently reachable; it is caught
+  // rather than left to escape because an unhandled throw at this point would
+  // reach the signer as a 500 with no sentence they can act on.
+  let path: string;
+  try {
+    path = signerMarkPath(request.firm_id, request.id, sig.id);
+  } catch {
+    return {
+      ok: false,
+      status: 500,
+      error: 'This signature could not be recorded just now. Please try again shortly.',
+    };
+  }
 
   const ip = input.ip;
   const userAgent = input.userAgent;
@@ -516,6 +621,38 @@ export async function recordSignature(
       image_bytes: buffer.length,
       consent: projectSignerConsentMetadata(input.consent),
       capture_source: input.source,
+      // NOTE ON WHAT THIS CHAIN CANNOT DO, kept beside the facts it carries:
+      // it is tamper-evident, not gap-evident. It can show that this event was
+      // not altered and was not removed from the middle of the sequence. It
+      // cannot show that an event was written at all, so a signature recorded
+      // by some future path that forgot this call leaves nothing here to find.
+      // See verifySignatureChain in lib/esign-audit.ts, which says the same
+      // thing about its own return value.
+      // HOW the mark was made, as decided above rather than as claimed.
+      //
+      // A signature's method is evidence: "drawn on a phone" and "an image
+      // file the signer attached" support very different inferences about who
+      // was present, and a reader of this chain should not have to guess
+      // which happened. Written on every path, including the unrestricted
+      // one, so its absence never has to be interpreted.
+      //
+      // Explicitly null when nothing said. A guess here would be a fact this
+      // record cannot support, and null is a shorter claim than 'draw'.
+      signature_method: signatureMethod,
+      // HOW MUCH THE LINE ABOVE IS WORTH, in the record itself.
+      //
+      // Draw, type and upload all arrive as one PNG data URL and the server
+      // cannot tell them apart: for those three the value is the signer's own
+      // account of what they did, and a determined signer can relabel a scan
+      // as a drawing. The handoff is different, because the server put 'phone'
+      // there itself against a row it can point at.
+      //
+      // A reader of an evidentiary record must not have to know which of those
+      // two happened, so it is written down rather than left to be inferred
+      // from capture_source by somebody who has read this file. Naming it
+      // honestly is the fix; pretending the claim is verified would be worse
+      // than not recording it.
+      signature_method_attested_by: fromHandoff ? 'server' : 'signer',
       ...(input.handoffId ? { handoff_id: input.handoffId } : {}),
     },
   });

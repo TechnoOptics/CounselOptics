@@ -5,6 +5,7 @@ import {
   type DesktopDisclosureConsent,
   type DesktopDisclosureConsentInput,
 } from './signing-handoff';
+import type { SignatureMethod } from './signature-methods';
 
 /**
  * Everything that decides whether a QR may be minted.
@@ -29,6 +30,12 @@ export type MintSignatureRow = {
   accessCodeVerifiedAt: string | null;
   /** Set when the signer already declined or asked for changes. */
   response: 'rejected' | 'changes_requested' | null;
+  /**
+   * The parent request's frozen signature_methods. Null means no restriction,
+   * which is what every request created before 20260814_signature_methods.sql
+   * means and what a database without that migration reports.
+   */
+  signatureMethods?: SignatureMethod[] | null;
 };
 
 export type MintHandoffDeps = {
@@ -78,6 +85,9 @@ export const MINT_REFUSAL_ON_HOLD =
 export const MINT_REFUSAL_ACCESS_CODE =
   'Enter the access code from your email first.';
 
+export const MINT_REFUSAL_PHONE_NOT_ALLOWED =
+  'This document cannot be signed on a phone. Please sign on this page instead.';
+
 export const MINT_REFUSAL_DISCLOSURE =
   'Please complete the disclosure step on this page first.';
 
@@ -100,6 +110,21 @@ export async function mintSigningHandoff(
   // this page, this caller has shown only that they hold the link.
   if (sig.accessCodeHash && !sig.accessCodeVerifiedAt) {
     return { ok: false, error: MINT_REFUSAL_ACCESS_CODE };
+  }
+
+  // Did the firm allow signing on a phone at all?
+  //
+  // Defence in depth, and it says so. lib/signature-write.ts refuses a
+  // mobile_handoff signature on a request that forbids the phone whatever
+  // happens here, and that refusal is the one protecting the instrument. This
+  // one exists because a signer who scans a code, walks to another device,
+  // draws their name and is only then told is being wasted twice.
+  //
+  // Undefined reads as unrestricted, deliberately: an adapter that has not
+  // been taught to load the column yet must not thereby refuse every handoff.
+  const allowed = sig.signatureMethods ?? null;
+  if (allowed !== null && !allowed.includes('phone')) {
+    return { ok: false, error: MINT_REFUSAL_PHONE_NOT_ALLOWED };
   }
 
   // The ordering that makes this feature safe, enforced rather than

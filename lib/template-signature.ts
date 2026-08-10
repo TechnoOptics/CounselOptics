@@ -213,15 +213,57 @@ export function submissionMarkPath(
   submissionId: string,
   revision: number,
 ): string {
-  for (const part of [firmId, submissionId]) {
-    if (typeof part !== 'string' || part === '' || !/^[A-Za-z0-9._-]+$/.test(part) || part.includes('..')) {
-      throw new Error('Invalid storage path segment.');
-    }
-  }
+  assertPathSegments([firmId, submissionId]);
   if (!Number.isInteger(revision) || revision < 0) {
     throw new Error('Invalid revision.');
   }
   return `templates/${firmId}/${submissionId}/${revision}.png`;
+}
+
+/**
+ * Every segment that goes into a path in this bucket, checked in one place.
+ *
+ * The allowlist is what does the work, not the `..` test beside it: a segment
+ * matching `[A-Za-z0-9._-]+` cannot contain a slash, so it cannot climb out of
+ * its prefix or reach into another firm's, whatever it says. The explicit `..`
+ * rejection is kept because `..` alone passes that pattern and is worth
+ * refusing by name.
+ *
+ * Callers pass database uuids today, so nothing currently reaches the throw.
+ * That is a property of the callers, not of the path, and the prefix is the
+ * only thing separating one firm's signature images from another's.
+ */
+function assertPathSegments(parts: unknown[]): void {
+  for (const part of parts) {
+    if (
+      typeof part !== 'string' ||
+      part === '' ||
+      !/^[A-Za-z0-9._-]+$/.test(part) ||
+      part.includes('..')
+    ) {
+      throw new Error('Invalid storage path segment.');
+    }
+  }
+}
+
+/**
+ * Where an outside signer's mark lives.
+ *
+ * The literal this replaces was built inline in lib/signature-write.ts, and it
+ * is moved here so the bucket has ONE module that knows how to address it
+ * rather than two that agree by inspection. lib/signature-geometry.ts exists
+ * because three hand-written copies of the box arithmetic drifted twice in
+ * opposite directions; a storage prefix is smaller but the failure is worse,
+ * because a path that drifts writes one firm's signature into another firm's
+ * folder.
+ */
+export function signerMarkPath(
+  firmId: string,
+  signingRequestId: string,
+  signatureId: string,
+): string {
+  assertPathSegments([firmId, signingRequestId, signatureId]);
+  return `${firmId}/${signingRequestId}/${signatureId}.png`;
 }
 
 /**

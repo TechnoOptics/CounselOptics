@@ -39,7 +39,19 @@ vi.mock('@/lib/supabase/admin', () => ({
 
 const { recordSignature } = await import('../lib/signature-write');
 
-const PNG = 'data:image/png;base64,aGVsbG8=';
+/**
+ * A real 1x1 PNG.
+ *
+ * This fixture used to be `data:image/png;base64,aGVsbG8=`, which is the five
+ * bytes of the word "hello" under a PNG label, and recordSignature accepted it
+ * and put it in the bucket. The check it passed was a startsWith on the label,
+ * and both halves of a data URL are written by whoever posts it. The write now
+ * decodes through decodeSignaturePng and checks the eight magic bytes, so the
+ * fixture has to be an actual image. The gates this file exercises are
+ * unchanged; only the mark they are exercised with is now a real one.
+ */
+const PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 type SigRow = {
   id: string;

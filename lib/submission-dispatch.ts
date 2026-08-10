@@ -161,6 +161,46 @@ export function resolveDeliveryModeColumnFallback(input: {
   return input.deliveryMode === 'signature' ? 'abort-mode-unsaved' : 'retry-without-column';
 }
 
+export type SignatureMethodsColumnFallback =
+  /** Write again without the column. Nothing the firm chose is lost. */
+  | 'retry-without-column'
+  /** Do not save. The firm restricted something and it cannot be recorded. */
+  | 'abort-restriction-unsaved'
+  /** Not a missing column. The caller surfaces the original error. */
+  | 'surface-error';
+
+/** The wording for the abort, kept beside the decision that causes it. */
+export const SIGNATURE_METHODS_UNSAVED_ERROR =
+  'This template was not saved. Restricting how it may be signed needs a ' +
+  'database update that has not been applied yet, so saving now would leave ' +
+  'the template accepting every signature method. Ask your administrator to ' +
+  'apply the pending update, or leave all four methods enabled for now.';
+
+/**
+ * What to do when a write carrying `signature_methods` fails.
+ *
+ * 20260814_signature_methods.sql is written and NOT applied, and there is a
+ * further window after it runs while PostgREST still holds a stale schema
+ * cache. Same shape as resolveDeliveryModeColumnFallback above, same reason,
+ * and the same asymmetry.
+ *
+ * Null is "all four", which is exactly what an absent column reads as, so the
+ * retry lands on the behaviour the firm chose and nothing is lost.
+ *
+ * A restriction is not. Dropping it would store a template the firm believes
+ * forbids a method and which in fact accepts it, and they would learn that
+ * from an executed instrument carrying the very mark they refused. That is not
+ * recoverable after the fact, so this refuses and says why.
+ */
+export function resolveSignatureMethodsColumnFallback(input: {
+  /** The selection on its way to the column. Null means no restriction. */
+  methods: string[] | null;
+  error: { code?: string | null; message?: string | null } | null | undefined;
+}): SignatureMethodsColumnFallback {
+  if (!isUnknownColumnError(input.error, 'signature_methods')) return 'surface-error';
+  return input.methods === null ? 'retry-without-column' : 'abort-restriction-unsaved';
+}
+
 /**
  * One signer on the signature request an approved submission dispatches.
  * Structural, so this module keeps its promise of importing nothing that

@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
  *     token: string,                  // from /sign/[token]
  *     signatureDataUrl: string,       // PNG data URL from canvas
  *     typedName?: string | null,
+ *     method?: 'draw' | 'type' | 'upload',  // how the mark was made
  *     consent?: {                     // UETA disclosure capture
  *       electronicRecordsConsentedAt?: string,
  *       hardwareSoftwareConfirmedAt?: string,
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest) {
     token?: string;
     signatureDataUrl?: string;
     typedName?: string | null;
+    /**
+     * How the signer made their mark. Passed straight through UNPARSED: this
+     * route is not the gate, and a route that sanitised it would be a second
+     * opinion on the one question lib/signature-write.ts must answer alone.
+     * That module checks it against what the request allows and refuses it
+     * there, where the phone route's signatures are checked too.
+     */
+    method?: unknown;
     consent?: SignerConsentPayload;
   };
   try {
@@ -58,6 +67,7 @@ export async function POST(req: NextRequest) {
     locator: { kind: 'token', token },
     signatureDataUrl: dataUrl,
     typedName: payload.typedName ?? null,
+    method: payload.method,
     consent: payload.consent,
     ip,
     userAgent: req.headers.get('user-agent') ?? null,

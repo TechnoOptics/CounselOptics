@@ -9,6 +9,7 @@ import {
   type MintSignatureRow,
 } from '@/lib/signing-handoff-mint';
 import type { DesktopDisclosureConsentInput } from '@/lib/signing-handoff';
+import { parseAllowedSignatureMethods } from '@/lib/signature-methods';
 
 /**
  * The two things the laptop asks the server for while it is offering a
@@ -50,23 +51,47 @@ export async function mintSigningHandoffAction(
       if (!admin) return null;
       const { data } = await admin
         .from('firm_signatures')
-        .select('id, signed_at, access_code_hash, access_code_verified_at, response')
+        .select(
+          'id, signing_request_id, signed_at, access_code_hash, access_code_verified_at, response',
+        )
         .eq('token', token)
         .maybeSingle();
       if (!data) return null;
       const row = data as {
         id: string;
+        signing_request_id: string;
         signed_at: string | null;
         access_code_hash: string | null;
         access_code_verified_at: string | null;
         response: 'rejected' | 'changes_requested' | null;
       };
+      // A second read rather than an embedded join, and a select('*') rather
+      // than a column list. 20260814_signature_methods.sql is unapplied, and
+      // PostgREST refuses an entire statement that names a column the table
+      // does not have: asking for signature_methods by name would fail this
+      // lookup outright and stop every handoff on every request. A select('*')
+      // simply does not return it, which reads as no restriction, which is
+      // today's behaviour.
+      //
+      // A failed read also reads as no restriction here, and that is the right
+      // direction for THIS gate only. It is a convenience, not the control:
+      // lib/signature-write.ts still refuses the signature itself, so the
+      // worst case is a code that mints and a phone that is turned away, not
+      // a signature taken by a forbidden method.
+      const { data: reqRow } = await admin
+        .from('firm_signing_requests')
+        .select('*')
+        .eq('id', row.signing_request_id)
+        .maybeSingle();
       return {
         id: row.id,
         signedAt: row.signed_at,
         accessCodeHash: row.access_code_hash,
         accessCodeVerifiedAt: row.access_code_verified_at,
         response: row.response,
+        signatureMethods: parseAllowedSignatureMethods(
+          (reqRow as { signature_methods?: unknown } | null)?.signature_methods,
+        ),
       };
     },
 
