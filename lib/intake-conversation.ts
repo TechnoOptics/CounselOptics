@@ -581,11 +581,27 @@ export async function removeIntakeParticipantAction(
   const access = await resolveAccess(intakeId);
   if (!access.ok) return { ok: false, error: access.error };
   if (access.role !== 'legal') return { ok: false, error: 'Only the legal team can do that.' };
-  await access.admin
+  // Read the write back, and fail closed on a zero-row match. This row is
+  // what resolveAccess consults to let someone read a privileged intake
+  // thread, so the cost of reporting a removal that did not happen is a
+  // colleague still reading it while the panel says they cannot. A delete
+  // that matched nothing is reported by PostgREST as error null, and the
+  // panel only ever offers this for someone it just listed as a
+  // participant, so nothing matching means the write did not do what was
+  // asked. The one benign reading, a colleague removing them a moment
+  // earlier, costs a reload and shows them already gone.
+  const { data: removed, error } = await access.admin
     .from('firm_intake_participants')
     .delete()
     .eq('intake_id', intakeId)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .select('user_id');
+  if (error || !removed || removed.length === 0) {
+    return {
+      ok: false,
+      error: 'They were not removed and may still see this request. Reload the page and try again.',
+    };
+  }
   revalidateIntake(intakeId);
   return { ok: true };
 }

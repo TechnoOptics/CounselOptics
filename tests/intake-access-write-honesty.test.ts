@@ -10,17 +10,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * file. The link is already in an outside client's inbox, and the dialog
  * says "The link stops working for whoever it was sent to."
  *
- * It wrote and returned `{ ok: true }` without looking. PostgREST reports
- * an UPDATE that matched no rows as `error: null`, so a write that moved
- * nothing was indistinguishable from one that worked, and the firm was told
- * the link was closed while it was open. The fake below models that
+ * removeIntakeParticipantAction deletes the row resolveAccess consults to
+ * let a colleague read a privileged intake thread. The dialog says they
+ * "lose sight of the conversation and everything filed with it".
+ *
+ * Both wrote and returned `{ ok: true }` without looking. PostgREST reports
+ * an UPDATE or DELETE that matched no rows as `error: null`, so a write that
+ * moved nothing was indistinguishable from one that worked, and the firm was
+ * told an access was closed while it was open. The fake below models that
  * exactly and never invents an error for a zero-row match, because a fake
  * that did could not detect this defect class at all.
  *
  * Mutations these are meant to catch:
- *   - drop `.select('id')` and return `{ ok: true }`: the zero-row tests
- *     go red.
- *   - stop binding `{ error }`: the transport-failure test goes red.
+ *   - drop `.select(...)` on either write and return `{ ok: true }`: the
+ *     zero-row tests go red.
+ *   - stop binding `{ error }`: the transport-failure tests go red.
  *   - keep the checks but report `{ ok: true }` anyway: every negative test
  *     goes red.
  */
@@ -59,6 +63,9 @@ const world = vi.hoisted(() => ({
           label: 'the signed NDA',
           revoked_at: null,
         },
+      ],
+      firm_intake_participants: [
+        { id: 'p-1', intake_id: 'intake-1', user_id: 'colleague-1', role: 'watcher' },
       ],
     };
     this.writeMatchesNothing = new Set<string>();
@@ -154,9 +161,8 @@ vi.mock('../lib/rate-limit', () => ({ checkRateLimit: async () => true }));
 vi.mock('../lib/partner-notify', () => ({ partnerTicketEvent: async () => {} }));
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 
-const { revokeIntakeUploadRequestAction } = await import(
-  '../lib/intake-conversation'
-);
+const { removeIntakeParticipantAction, revokeIntakeUploadRequestAction } =
+  await import('../lib/intake-conversation');
 
 beforeEach(() => {
   world.reset();
@@ -210,5 +216,52 @@ describe('revoking a public upload link', () => {
     expect(world.tables.firm_intake_upload_requests[0].revoked_at).toEqual(
       expect.any(String),
     );
+  });
+});
+
+describe('removing someone from an intake conversation', () => {
+  it('does not report a removal when the delete matched nothing', async () => {
+    world.writeMatchesNothing.add('firm_intake_participants');
+
+    const res = await removeIntakeParticipantAction('intake-1', 'colleague-1');
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/not removed/i);
+    // Still on the request is the whole problem: resolveAccess reads this
+    // row, so they are still reading a privileged thread.
+    expect(world.tables.firm_intake_participants).toHaveLength(1);
+  });
+
+  it('does not report a removal the database refused', async () => {
+    world.writeFails.add('firm_intake_participants');
+
+    const res = await removeIntakeParticipantAction('intake-1', 'colleague-1');
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/not removed/i);
+    expect(world.tables.firm_intake_participants).toHaveLength(1);
+  });
+
+  it('removes the row, and says so, when the caller really can', async () => {
+    const res = await removeIntakeParticipantAction('intake-1', 'colleague-1');
+
+    expect(res).toEqual({ ok: true });
+    expect(world.tables.firm_intake_participants).toHaveLength(0);
+  });
+
+  it('still lets only the legal team end either access', async () => {
+    actor.role = 'employee';
+    // Made the requester, so resolveAccess admits them to the conversation
+    // and the role check is the only thing left that can refuse the two
+    // destructive actions.
+    world.tables.firm_matter_intakes[0].created_by = 'attorney-1';
+
+    const removed = await removeIntakeParticipantAction('intake-1', 'colleague-1');
+    const revoked = await revokeIntakeUploadRequestAction('intake-1', 'req-1');
+
+    expect(removed.ok).toBe(false);
+    expect(revoked.ok).toBe(false);
+    expect(world.tables.firm_intake_participants).toHaveLength(1);
+    expect(world.tables.firm_intake_upload_requests[0].revoked_at).toBeNull();
   });
 });
