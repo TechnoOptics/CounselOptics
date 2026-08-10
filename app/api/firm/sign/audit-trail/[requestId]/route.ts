@@ -23,6 +23,15 @@ export const dynamic = 'force-dynamic';
  * to the previous one, and breaks are surfaced with the offending
  * event id.
  *
+ * `chain` carries its own limits with it and they belong in front of
+ * anyone relying on this. The walk establishes that the events on
+ * record are unmodified and in the order recorded. It does not
+ * establish that they are all the events, because an event that was
+ * never written leaves nothing behind for a hash chain to catch.
+ * `chain.establishes` says this in words, `chain.gaps` lists any event
+ * a separately written row attests to that the chain does not hold,
+ * and `chain.completeness` is never 'proven' because it cannot be.
+ *
  * Caller must be a member of the firm that owns the request. RLS on
  * firm_signature_events enforces the same gate at the row level for
  * SELECTs, but the chain verification needs the service role to read

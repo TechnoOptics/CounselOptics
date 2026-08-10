@@ -280,21 +280,42 @@ const checkSignatureChainIntegrity: CheckDefinition = {
         message: 'No signing requests yet; chain integrity vacuously holds.',
       };
     }
+    // Two different findings, kept apart on purpose. A BREAK means a
+    // recorded event was altered or removed and the walk caught it. A GAP
+    // means nothing here was tampered with, but a row written elsewhere
+    // attests to an event the chain does not hold, so the event was
+    // dropped when it should have been written. See verifySignatureChain:
+    // the chain is tamper-evident, not gap-evident, so a clean walk is
+    // never reported as proof that every event is present.
     const broken: string[] = [];
+    const gapped: string[] = [];
     for (const r of requests) {
       const v = await verifySignatureChain(admin, r.id);
-      if (!v.ok && v.events > 0) broken.push(`${r.id} (${v.reason})`);
+      if (!v.ok) {
+        if (v.events > 0) broken.push(`${r.id} (${v.reason})`);
+        continue;
+      }
+      if (v.completeness === 'gap_found') {
+        gapped.push(`${r.id} (${v.gaps.map((g) => g.missing).join(', ')})`);
+      }
     }
-    if (broken.length === 0) {
+    if (broken.length > 0) {
       return {
-        status: 'healthy',
-        message: `Verified ${requests.length} recent signing request chains.`,
+        status: 'critical',
+        message: `${broken.length} broken signing chain(s) found.`,
+        detail: broken.join(' | '),
+      };
+    }
+    if (gapped.length > 0) {
+      return {
+        status: 'warning',
+        message: `${gapped.length} signing chain(s) are intact but missing an event another record attests to.`,
+        detail: gapped.join(' | '),
       };
     }
     return {
-      status: 'critical',
-      message: `${broken.length} broken signing chain(s) found.`,
-      detail: broken.join(' | '),
+      status: 'healthy',
+      message: `${requests.length} recent signing request chains are unmodified and in recorded order, with no dropped event that another record could attest to. The chain cannot establish that no further event is missing.`,
     };
   },
 };
