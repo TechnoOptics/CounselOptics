@@ -27,10 +27,30 @@ export function MobilePad({
   handoffToken,
   signerLabel,
   documentName,
+  submitPath = '/api/firm/sign/mobile',
+  doneMessage = 'Your signature has been recorded. You can put your phone down and go back to your computer.',
 }: {
   handoffToken: string;
   signerLabel: string;
   documentName: string;
+  /**
+   * Where the mark goes. Two ceremonies end on this pad and they do not end in
+   * the same place: an outside signer's phone COMPLETES a signature, and an
+   * employee's phone hands a picture back to the desk that is still the only
+   * thing able to file anything. A prop rather than a second copy of this
+   * component, because the two have to draw the same mark and ask for intent
+   * in the same words, and a copy is how that stops being true.
+   */
+  submitPath?: string;
+  /**
+   * What the phone says when it is finished. It travels with submitPath and
+   * for the same reason: "recorded" is true of a signature that has just been
+   * written to firm_signatures and is NOT true of a picture handed back to a
+   * desk that has not filed anything yet. A pad that told the employee their
+   * signature was recorded would be describing something that has not
+   * happened.
+   */
+  doneMessage?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [drawing, setDrawing] = useState(false);
@@ -139,7 +159,7 @@ export function MobilePad({
     if (!canvas) return;
     setSubmitting(true);
     try {
-      const res = await fetch('/api/firm/sign/mobile', {
+      const res = await fetch(submitPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,8 +194,7 @@ export function MobilePad({
           Thank you, <span data-no-translate>{signerLabel}</span>.
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-3 leading-relaxed">
-          Your signature has been recorded. You can put your phone down and
-          go back to your computer.
+          {doneMessage}
         </p>
       </Shell>
     );
