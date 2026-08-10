@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -196,15 +196,28 @@ describe('the standard templates a firm can install', () => {
   });
 });
 
-const MANAGE = 'app/counsel/forms/forms-manage-client.tsx';
+const MANAGE = 'app/counsel/forms';
 const flat = (s: string) => s.replace(/\s+/g, ' ');
+
+/**
+ * THE WHOLE SURFACE, not one file of it. The editor was split into a
+ * section per tab, so an anchor pinned to `forms-manage-client.tsx` would
+ * have gone on passing only until the expression it names moved next door,
+ * and then failed for a reason that has nothing to do with the gate. Read
+ * as one text, every anchor below still names the expression it is about.
+ */
+const manageSource = () =>
+  readdirSync(join(__dirname, '..', MANAGE), { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith('.tsx'))
+    .map((e) => readFileSync(join(__dirname, '..', MANAGE, e.name), 'utf8'))
+    .join('\n');
 
 describe('the template editor puts it in front of the author', () => {
   // Anchored on the source. These are expressions inside a client component,
   // which no test in this repo can render, and this codebase has already been
   // bitten by a client-side control that could be forced false with the whole
   // suite staying green.
-  const src = () => readFileSync(join(__dirname, '..', MANAGE), 'utf8');
+  const src = manageSource;
 
   it('asks the question of the body and the fields the body produced', () => {
     // The ARGUMENTS, not just the name. A call spelled with constants would

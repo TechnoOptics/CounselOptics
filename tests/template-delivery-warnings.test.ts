@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -83,11 +83,21 @@ describe('deliveryModeFlipped', () => {
 });
 
 const root = join(__dirname, '..');
-const MANAGE = 'app/counsel/forms/forms-manage-client.tsx';
+const MANAGE = 'app/counsel/forms';
 const flat = (s: string) => s.replace(/\s+/g, ' ');
 
 describe('the template editor states both consequences', () => {
-  const src = () => readFileSync(join(root, MANAGE), 'utf8');
+  /**
+   * THE WHOLE SURFACE, not one file of it. The editor was split into a
+   * section per tab: the delivery control and the field list no longer sit
+   * in the same file, and an anchor pinned to one of them would fail for a
+   * reason that has nothing to do with either warning.
+   */
+  const src = () =>
+    readdirSync(join(root, MANAGE), { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.tsx'))
+      .map((e) => readFileSync(join(root, MANAGE, e.name), 'utf8'))
+      .join('\n');
 
   it('asks both questions of the editor’s own state', () => {
     // The ARGUMENTS, not just the call. A call spelled with constants would
