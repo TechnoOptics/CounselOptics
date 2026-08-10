@@ -1081,7 +1081,7 @@ function AuditChainMock() {
   return (
     <CapabilityCard
       eyebrow="Append-only audit log"
-      title="Every read, write, sign, export."
+      title="Every write, sign, export."
       blurb="A cryptographic chain over every event. Hand the JSON export to opposing counsel and the chain verifies in 30 seconds - or visibly breaks if a row was altered."
       tierHint="All Counsel tiers"
     >
