@@ -27,7 +27,7 @@
 
 const PARTNERS = [
   { name: 'Anthropic Claude', sub: 'Bella runs on Claude, the leading reasoning model for legal tasks.' },
-  { name: 'Stripe Connect', sub: 'Subscriptions, IOLTA marketplace fee splits, and PCI-compliant checkout.' },
+  { name: 'Stripe', sub: 'Subscription billing and PCI-compliant checkout.' },
   { name: 'Supabase', sub: 'Postgres + RLS for tenant isolation, real-time sync, encrypted storage.' },
   // Audit V7 CR-58: previous sub-text "~99.99% historical availability"
   // sat next to the Enterprise tier's 99.9% SLA on /pricing, producing
