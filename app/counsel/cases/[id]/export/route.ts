@@ -4,6 +4,8 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { firmSuspended } from '@/lib/firm-trials';
+import { readMatterNumber } from '@/lib/matter-numbers';
+import { displayMatterNumber } from '@/lib/ticket-numbers';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
 import { toNormRules } from '@/lib/text-normalize';
 import {
@@ -116,6 +118,16 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     .maybeSingle();
   const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null; text_normalizations: unknown } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // The reference this exhibit is filed under, printed on the cover. Its own
+  // request and NOT a sixth column on the select above, for the reason
+  // lib/matter-numbers.ts states: PostgREST fails the WHOLE request when a
+  // column is absent, so on any database that has not run
+  // 20260813_matter_number.sql (a preview branch, a local copy) naming the
+  // column there would not print a worse reference, it would 404 the export.
+  // Read-only: a matter with no number yet falls back to the same fragment the
+  // matter page shows rather than allocating one from inside an export.
+  const matterNumber = await readMatterNumber(admin, firmId, params.id);
 
   // Include off-timeline evidence: the court packet reflects the whole matter,
   // so evidence that lives in the intake but was never pinned to the timeline
@@ -331,7 +343,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const data: TimelineExhibitData = {
     caseTitle: c.title,
-    caseRef: c.id.slice(0, 8).toUpperCase(),
+    caseRef: displayMatterNumber({ matterNumber, id: c.id }),
     caseMap,
     subjectName: c.subject_name,
     preparedBy:

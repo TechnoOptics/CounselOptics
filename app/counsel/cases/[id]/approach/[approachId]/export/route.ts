@@ -4,6 +4,8 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { firmSuspended } from '@/lib/firm-trials';
+import { readMatterNumber } from '@/lib/matter-numbers';
+import { displayMatterNumber } from '@/lib/ticket-numbers';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
 import {
   generateTimelineExhibitPdf,
@@ -120,6 +122,11 @@ export async function GET(
     .maybeSingle();
   const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null; text_normalizations: unknown } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // The reference this packet is filed under. Its own request rather than a
+  // sixth column on the select above; the matter export route states why at
+  // length, and lib/matter-numbers.ts states it at more.
+  const matterNumber = await readMatterNumber(admin, firmId, params.id);
 
   // Load the approach, scoped to this matter + firm.
   const { data: appRow } = await admin
@@ -292,7 +299,7 @@ export async function GET(
 
   const data: TimelineExhibitData = {
     caseTitle: c.title,
-    caseRef: c.id.slice(0, 8).toUpperCase(),
+    caseRef: displayMatterNumber({ matterNumber, id: c.id }),
     caseMap: null,
     subjectName: c.subject_name,
     preparedBy:

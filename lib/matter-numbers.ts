@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { callerIsFirmMember } from './firm-authz';
@@ -20,16 +21,22 @@ import { allocateMatterNumber, readMatterPrefix } from './ticket-allocator';
  *
  * EVERY READ HERE DEGRADES TO "NO NUMBER" RATHER THAN THROWING.
  * `cases.matter_number` and `firm_settings.matter_prefix` arrive with
- * supabase/migrations/20260813_matter_number.sql, which is not applied.
- * PostgREST reports an absent column as an error on the request, so an
- * unmigrated database has to read as "this matter has no number yet" and let
- * the caller show the fallback (displayMatterNumber). The alternative is a
- * matter page that 500s until somebody runs a migration.
+ * supabase/migrations/20260813_matter_number.sql, which is applied to
+ * production (commit 0e46e947) and is NOT applied everywhere: a preview
+ * branch, a colleague's local database and a restored copy each run whatever
+ * schema they were built from. PostgREST reports an absent column as an error
+ * on the whole request, so a database without the column has to read as "this
+ * matter has no number yet" and let the caller show the fallback
+ * (displayMatterNumber). The alternative is a matter page that 500s until
+ * somebody runs a migration.
  *
  * SEPARATE QUERIES, NOT COLUMNS ADDED TO EXISTING READS, for the reason
  * lib/firm-settings.ts gives at getFirmTicketPrefix: the matter page selects a
  * fixed column list, and naming an unapplied column in it would fail that
- * request and take the whole page down with it.
+ * request and take the whole page down with it. The same argument is why the
+ * two counsel export routes call readMatterNumber instead of widening their
+ * own fixed select: there the request that fails is the one that fetches the
+ * matter, so the export would not print a worse reference, it would 500.
  */
 
 /** The letters in front of this firm's matter numbers, for the settings page. */
@@ -92,7 +99,7 @@ export async function ensureMatterNumber(
   firmId: string,
   caseId: string,
 ): Promise<string | null> {
-  const stored = await readStoredMatterNumber(firmId, caseId);
+  const stored = await readMatterNumber(createServerSupabase(), firmId, caseId);
   if (stored) return stored;
 
   // Only past this point does anything get written, so the membership check
@@ -106,13 +113,31 @@ export async function ensureMatterNumber(
   return res.ok ? res.ticketNumber : null;
 }
 
-/** The number already on this matter, or null (including "not migrated"). */
-async function readStoredMatterNumber(
+/**
+ * The number already on this matter, or null (including "not migrated").
+ *
+ * IT TAKES ITS CLIENT rather than making one, because the two kinds of caller
+ * are already holding different ones and neither can use the other's. A matter
+ * page reads as the signed-in attorney, so RLS stays the gate on which matters
+ * they can see. The two counsel export routes have already authorized the
+ * caller themselves, as EITHER a firm member OR a case-scoped co-counsel
+ * guest, and read the matter through the service role for exactly that reason:
+ * the firm RLS on `cases` does not admit a guest, so a user-scoped read here
+ * would hand an outside co-counsel the uuid fallback on an exhibit while the
+ * matter page they were looking at showed the reference.
+ *
+ * `firmId` is not decoration. The service role bypasses RLS, so the firm
+ * filter is what stops a caller authorized for one organization from reading
+ * another organization's reference by id, and it is applied here rather than
+ * left to each call site to remember.
+ */
+export async function readMatterNumber(
+  client: SupabaseClient,
   firmId: string,
   caseId: string,
 ): Promise<string | null> {
   try {
-    const { data, error } = await createServerSupabase()
+    const { data, error } = await client
       .from('cases')
       .select('matter_number')
       .eq('id', caseId)
