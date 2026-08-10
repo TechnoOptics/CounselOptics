@@ -22,6 +22,7 @@
  */
 
 import { STORE_URLS } from '@/lib/app-links';
+import { publishedOffers, publishedPriceRange, formatUsd } from '@/lib/published-pricing';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
@@ -159,7 +160,7 @@ export function SiteJsonLd() {
           'AI-assisted case organization, evidence management, hearing preparation, and document review for self-represented individuals and law firms.',
         url: SITE_URL,
         image: `${SITE_URL}/opengraph-image`,
-        priceRange: '$0 - $1,800 / month',
+        priceRange: `${formatUsd(publishedPriceRange().lowPrice)} - ${formatUsd(publishedPriceRange().highPrice)} / month`,
         areaServed: { '@type': 'Country', name: 'United States' },
         provider: { '@id': `${SITE_URL}#organization` },
       })}
@@ -195,60 +196,19 @@ export function AppJsonLd({
     // appended automatically once the iOS version is live.
     downloadUrl: STORE_URLS,
     installUrl: STORE_URLS,
-    offers: [
-      {
-        '@type': 'Offer',
-        name: 'Personal Pro',
-        price: '19',
+    offers: publishedOffers().map((offer) => ({
+      '@type': 'Offer',
+      name: offer.name,
+      price: String(offer.priceUsd),
+      priceCurrency: 'USD',
+      priceSpecification: {
+        '@type': 'UnitPriceSpecification',
+        price: String(offer.priceUsd),
         priceCurrency: 'USD',
-        priceSpecification: {
-          '@type': 'UnitPriceSpecification',
-          price: '19',
-          priceCurrency: 'USD',
-          unitText: 'MONTH',
-        },
-        url: `${SITE_URL}/pricing`,
+        unitText: 'MONTH',
       },
-      {
-        '@type': 'Offer',
-        name: 'Personal Plus',
-        price: '29',
-        priceCurrency: 'USD',
-        priceSpecification: {
-          '@type': 'UnitPriceSpecification',
-          price: '29',
-          priceCurrency: 'USD',
-          unitText: 'MONTH',
-        },
-        url: `${SITE_URL}/pricing`,
-      },
-      {
-        '@type': 'Offer',
-        name: 'Counsel Solo',
-        price: '59',
-        priceCurrency: 'USD',
-        priceSpecification: {
-          '@type': 'UnitPriceSpecification',
-          price: '59',
-          priceCurrency: 'USD',
-          unitText: 'MONTH',
-        },
-        url: `${SITE_URL}/pricing`,
-      },
-      {
-        '@type': 'Offer',
-        name: 'Counsel Small Firm',
-        price: '99',
-        priceCurrency: 'USD',
-        priceSpecification: {
-          '@type': 'UnitPriceSpecification',
-          price: '99',
-          priceCurrency: 'USD',
-          unitText: 'MONTH',
-        },
-        url: `${SITE_URL}/pricing`,
-      },
-    ],
+      url: `${SITE_URL}/pricing`,
+    })),
     ...(ratingValue && ratingCount
       ? {
           aggregateRating: {
@@ -415,21 +375,23 @@ export function PricingProductJsonLd({
   ratingValue?: string;
   ratingCount?: number;
 } = {}) {
+  const { offerCount, lowPrice, highPrice } = publishedPriceRange();
   return emit({
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: 'Advottic',
     description:
-      'AI-powered case organization and contract review for individuals and law firms. Six tiers from $19/month personal to $1,800/month enterprise.',
+      'AI-powered case organization and contract review for individuals and law firms. ' +
+      `${offerCount} tiers from ${formatUsd(lowPrice)}/month to ${formatUsd(highPrice)}/month.`,
     brand: { '@type': 'Brand', name: 'Advottic' },
     category: 'Legal Software',
     image: `${SITE_URL}/opengraph-image`,
     url: `${SITE_URL}/pricing`,
     offers: {
       '@type': 'AggregateOffer',
-      offerCount: 6,
-      lowPrice: '0',
-      highPrice: '1800',
+      offerCount,
+      lowPrice: String(lowPrice),
+      highPrice: String(highPrice),
       priceCurrency: 'USD',
       url: `${SITE_URL}/pricing`,
     },

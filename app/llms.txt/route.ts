@@ -3,6 +3,7 @@ import { ARTICLES } from '@/lib/articles';
 import { COMPARISONS } from '@/lib/comparisons';
 import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
 import { formatNumber } from '@/lib/format';
+import { publishedPriceRange, formatUsd } from '@/lib/published-pricing';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
@@ -44,7 +45,8 @@ export async function GET() {
 
   lines.push('## Product');
   lines.push(`- [Advottic home](${SITE_URL}/): the marketing landing page covering both personal and firm-side product tracks.`);
-  lines.push(`- [Pricing](${SITE_URL}/pricing): six subscription tiers from $0 (Free) through $1,800/mo (Enterprise) for individuals, families, solo attorneys, and growing firms.`);
+  const { offerCount, lowPrice, highPrice } = publishedPriceRange();
+  lines.push(`- [Pricing](${SITE_URL}/pricing): ${offerCount} subscription tiers from ${formatUsd(lowPrice)} (Free) through ${formatUsd(highPrice)}/mo (Enterprise) for individuals, families, solo attorneys, and growing firms.`);
   lines.push(`- [Enterprise / Counsel](${SITE_URL}/enterprise): firm-side workspace with SSO, audit logs, branded intake, in-portal e-signing, and per-matter rooms.`);
   lines.push(`- [About Advottic](${SITE_URL}/about): mission, the boundary we keep between "case organization" and "legal advice", and who we're built for.`);
   lines.push(`- [Security posture](${SITE_URL}/security): encryption in transit and at rest, TOTP multi-factor authentication, RLS access control, audit logging, and the full sub-processor list.`);

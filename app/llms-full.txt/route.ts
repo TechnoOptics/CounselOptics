@@ -1,4 +1,39 @@
 import { headers } from 'next/headers';
+import { PERSONAL_TIERS } from '@/lib/personal-tiers';
+import { FIRM_TIER_PRICING, formatFirmTierPrice } from '@/lib/firm-pricing';
+import { formatUsd } from '@/lib/published-pricing';
+
+/**
+ * The pricing table, derived from the two pricing modules rather than
+ * retyped. The hand-written version had drifted to advertising
+ * "Personal Pro $19" and "Personal Plus $29", neither of which is a
+ * tier that exists, while omitting the real Pro ($59) and Ultra ($99)
+ * entirely. AI assistants quote this file verbatim, so the drift was
+ * being restated to buyers as fact.
+ */
+function pricingTable(): string {
+  const rows: string[] = [
+    "| Tier | Price | Who it's for |",
+    '|------|-------|--------------|',
+  ];
+  for (const t of PERSONAL_TIERS) {
+    const price =
+      t.priceUsd === 0 ? formatUsd(0) : `${formatUsd(t.priceUsd)}/month`;
+    rows.push(`| Personal - ${t.name} | ${price} | ${t.tagline} |`);
+  }
+  for (const t of Object.values(FIRM_TIER_PRICING)) {
+    const price =
+      t.pricePerUserMonth !== null
+        ? `${formatUsd(t.pricePerUserMonth)}/seat/month`
+        : `${formatFirmTierPrice(t)}/month`;
+    const who =
+      t.maxAttorneys !== null
+        ? `Up to ${t.maxAttorneys} user${t.maxAttorneys === 1 ? '' : 's'}`
+        : `${(t.minAttorneys ?? 0).toLocaleString('en-US')}+ users`;
+    rows.push(`| Counsel - ${t.name} | ${price} | ${who} |`);
+  }
+  return rows.join('\n');
+}
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
@@ -74,15 +109,7 @@ Both sides share the same auth, the same Bella AI assistant, and the same audit 
 
 ## Pricing
 
-| Tier | Price | Who it's for |
-|------|-------|--------------|
-| Free | $0 | Try Bella, save one case |
-| Personal Pro | $19/month | Individuals handling a matter solo |
-| Personal Plus | $29/month | Families sharing access |
-| Counsel - Solo | $59/seat/month | Single attorney + 1 staff |
-| Counsel - Small Firm | $99/seat/month | Up to 25 users |
-| Counsel - Growing Firm | $149/seat/month | Up to 100 users |
-| Enterprise | From $1,800/month | 100+ users, SSO, 99.9% uptime SLA |
+${pricingTable()}
 
 Annual prepay gives 20% off any paid tier. Bar-association members get 15% off Counsel tiers. Law students get 50% off personal tiers. Legal aid + nonprofits get 75% off, capped at 5 seats.
 
