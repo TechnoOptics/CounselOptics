@@ -8,6 +8,11 @@ import { siteUrl } from './intake-notify';
 import { displayTicket } from './ticket-numbers';
 import { normalizeCategory } from './document-category';
 import { selectSigningArtifact } from './signing-artifact';
+import {
+  NO_ACTIVITY,
+  loadSigningActivity,
+  projectActivityForSubmitter,
+} from './signing-activity';
 import type { SubmissionSigning } from './template-submission-types';
 
 /**
@@ -200,26 +205,49 @@ export async function loadSubmissionSigning(
 
   const { data, error } = await admin
     .from('firm_signing_requests')
-    .select('id, status, signed_file_path')
+    .select('id, status, signed_file_path, sent_at')
     .eq('id', signingRequestId)
     .maybeSingle();
   if (error || !data) return null;
-  const request = data as { status: string | null; signed_file_path?: string | null };
+  const request = data as {
+    status: string | null;
+    signed_file_path?: string | null;
+    sent_at?: string | null;
+  };
 
   const { data: sigData } = await admin
     .from('firm_signatures')
-    .select('signer_name, signer_email, signed_at, token')
+    .select('signer_name, signer_email, signed_at, token, response')
     .eq('signing_request_id', signingRequestId);
   const rows = (sigData ?? []) as unknown as {
     signer_name: string | null;
     signer_email: string;
     signed_at: string | null;
     token: string | null;
+    response: string | null;
   }[];
+
+  // What the recipient did with the link, in the form the employee may see.
+  //
+  // The projection is applied HERE rather than left to the page, because this
+  // loader feeds the portal and the portal reader is a colleague, not a firm
+  // member. A template that has to remember to narrow is a template that will
+  // one day forget.
+  //
+  // Null when the events could not be read at all, which is not the same fact
+  // as no opens and must not be rendered as one.
+  const openActivity = await loadSigningActivity(admin, signingRequestId);
   const signers = rows.map((s) => ({
     name: s.signer_name,
     email: s.signer_email,
     signedAt: s.signed_at,
+    response: s.response ?? null,
+    activity: openActivity
+      ? projectActivityForSubmitter(
+          openActivity.get((s.signer_email ?? '').trim().toLowerCase()) ??
+            NO_ACTIVITY,
+        )
+      : null,
   }));
 
   // The reader's own link, and nobody else's.
@@ -263,6 +291,7 @@ export async function loadSubmissionSigning(
     signers,
     executedUrl,
     yourSignToken,
+    sentAt: request.sent_at ?? null,
   };
 }
 

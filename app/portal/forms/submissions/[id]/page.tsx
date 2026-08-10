@@ -6,6 +6,11 @@ import { getTemplateSubmissionAction } from '@/lib/template-submissions';
 import { isEditableBySubmitter } from '@/lib/template-approval';
 import { displayTicket } from '@/lib/ticket-numbers';
 import { resolveSubmissionSigningState } from '@/lib/template-submission-types';
+import {
+  opensSentence,
+  resolveActivityVerdict,
+  submitterActivitySentence,
+} from '@/lib/signing-activity';
 import { ExternalLink } from '@/components/ExternalLink';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
@@ -170,23 +175,51 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
           </p>
 
           {signing && signing.signers.length > 0 && (
-            <ul className="mt-3 space-y-1">
-              {signing.signers.map((s) => (
-                <li
-                  key={s.email}
-                  className="text-[12.5px] text-muted"
-                >
-                  <span data-no-translate>{s.name?.trim() || s.email}</span>
-                  {' · '}
-                  {s.signedAt ? (
-                    <span data-no-translate>
-                      {new Date(s.signedAt).toLocaleDateString()}
-                    </span>
-                  ) : (
-                    <T>not signed yet</T>
-                  )}
-                </li>
-              ))}
+            <ul className="mt-3 space-y-2">
+              {signing.signers.map((s) => {
+                // What happened to this person's link, in the words the
+                // person who filed the document is owed.
+                //
+                // They have been told their document went out and then heard
+                // nothing until a signature landed, which for a document that
+                // is never signed is nothing, ever. This is the answer to
+                // that: it was opened, or it was not, and how long it has
+                // been. It is not an answer about the recipient. There is no
+                // address and no device here, and there is no field on this
+                // object that could carry one (see SubmitterOpenActivity).
+                //
+                // An absent `activity` means the events could not be read,
+                // which is not the same fact as no opens, so nothing is said.
+                const verdict = s.activity
+                  ? resolveActivityVerdict({
+                      signedAt: s.signedAt,
+                      response: s.response,
+                      sentAt: signing.sentAt,
+                      activity: s.activity,
+                      now: new Date(),
+                    })
+                  : null;
+                const opens = s.activity ? opensSentence(s.activity) : null;
+                return (
+                  <li key={s.email} className="text-[12.5px] text-muted">
+                    <span data-no-translate>{s.name?.trim() || s.email}</span>
+                    {' · '}
+                    {s.signedAt ? (
+                      <span data-no-translate>
+                        {new Date(s.signedAt).toLocaleDateString()}
+                      </span>
+                    ) : (
+                      <T>not signed yet</T>
+                    )}
+                    {verdict && verdict.kind !== 'signed' && (
+                      <span className="block text-foreground">
+                        {submitterActivitySentence(verdict)}
+                        {opens ? ` ${opens}` : ''}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
 

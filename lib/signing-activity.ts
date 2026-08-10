@@ -493,19 +493,23 @@ function plural(n: number, noun: string): string {
  * are entitled to before they get here, and the employee's caller passes the
  * result through projectActivityForSubmitter.
  *
- * An unreadable table returns an empty map, not a throw. Neither surface may
- * fail to render because the activity panel could not be filled in.
+ * An unreadable table returns NULL, not an empty map, and never a throw.
+ * Neither surface may fail to render because the activity could not be read,
+ * and neither may report "not opened" when what actually happened is that the
+ * question could not be asked. Those are different facts, and this whole
+ * module exists because a product that conflates them tells people things
+ * that are not true.
  */
 export async function loadSigningActivity(
   admin: SupabaseClient,
   signingRequestId: string,
-): Promise<Map<string, SignerOpenActivity>> {
+): Promise<Map<string, SignerOpenActivity> | null> {
   const { data, error } = await admin
     .from('firm_signature_events')
     .select('event_type, signer_email, metadata, created_at')
     .eq('signing_request_id', signingRequestId)
     .in('event_type', ['link_viewed', 'document_downloaded'])
     .order('created_at', { ascending: true });
-  if (error || !data) return new Map();
+  if (error || !data) return null;
   return summarizeSignerActivity(data as unknown as ActivityEvent[]);
 }
