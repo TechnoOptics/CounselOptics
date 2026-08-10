@@ -34,9 +34,13 @@ export function CollaboratorsPanel({
     startTransition(async () => {
       try {
         const result = await inviteCollaboratorAction(caseId, formData);
+        if (!result.ok) {
+          setError(result.error ?? 'Invite failed.');
+          return;
+        }
         setShowForm(false);
         setInfo(
-          result?.emailed
+          result.emailed
             ? `Invite sent to ${email}. They'll get an email with a sign-in link.`
             : `${email} added to the case. Email delivery is unconfigured, so let them know directly.`,
         );
