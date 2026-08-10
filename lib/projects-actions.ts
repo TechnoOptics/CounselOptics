@@ -16,17 +16,34 @@ import type { Project, ProjectFolder, ProjectItem } from './project-types';
  * RLS-scoped client, so firm-membership on those is enforced by the
  * firm_projects* member policies.
  *
- * The STORAGE side does not work that way. Uploading, opening and deleting a
- * project document all go through the service-role client, which bypasses RLS
- * on the object itself.
+ * The STORAGE side does not work that way. Uploading, opening, copying and
+ * deleting a project document all go through the service-role client, which
+ * bypasses RLS on the object itself.
  *
- * The three paths are NOT gated alike, so do not read one and assume the
- * others. getProjectDocumentUrlAction and deleteProjectItemAction call
- * callerIsFirmMember (lib/firm-authz.ts) and isFirmProjectPath, and on those
- * two the in-action checks are the only authorization there is.
- * uploadProjectDocumentAction calls neither: its only gate is the RLS-scoped
- * `firm_projects` lookup at the top, so the firm_projects_member policy is
- * what protects it. Removing that lookup would leave the upload unguarded.
+ * There are 6 service-role storage calls in this file. Count them rather than
+ * believe this sentence: `grep -cE 'admin\.storage' lib/projects-actions.ts`
+ * (the pattern is escaped, so this line is not one of its own hits, and the
+ * call form spans two lines in one place, so match on the receiver).
+ * The number is written down because the last three times this file was
+ * hardened, the fix reached every site somebody had listed and missed the one
+ * nobody had. tests/project-storage-path-authorization.test.ts enumerates the
+ * sites from the source, fails when the count above disagrees with it, and
+ * fails when a new call appears without a gate, so neither the count nor the
+ * list below can quietly go stale.
+ *
+ * They are NOT gated alike, so do not read one and assume the others.
+ *
+ *   - uploadProjectDocumentAction holds 2 of them, the upload and the remove
+ *     that rolls it back. Both name a path this function just built from
+ *     firmProjectPrefix, so there is nothing stored to validate; its only gate
+ *     is the RLS-scoped `firm_projects` lookup at the top, and the
+ *     firm_projects_member policy is what protects it. Removing that lookup
+ *     would leave the upload unguarded.
+ *   - deleteFolderAction, deleteProjectItemAction, getProjectDocumentUrlAction
+ *     and pullProjectFilesIntoCaseAction hold the other 4, and every one of
+ *     those hands a STORED path to the service role. Each calls
+ *     callerIsFirmMember (lib/firm-authz.ts) and isFirmProjectPath, and on
+ *     those four the in-action checks are the only authorization there is.
  */
 
 // 50 MB / file, matching the firm document upload limit (firm-actions.ts) so
@@ -65,7 +82,10 @@ function firmProjectPrefix(firmId: string): string {
  * this module or somebody reaching for another firm's document, and silently
  * repointing it at something safe would hide both.
  */
-function isFirmProjectPath(firmId: string, path: string | null | undefined): boolean {
+function isFirmProjectPath(
+  firmId: string,
+  path: string | null | undefined,
+): path is string {
   if (!firmId || !path) return false;
   // A traversal segment would let a matching prefix still resolve elsewhere.
   if (path.includes('..')) return false;
@@ -440,7 +460,7 @@ export async function deleteProjectItemAction(
   const path = (deleted as Array<{ storage_path: string | null }>)[0].storage_path;
   if (isFirmProjectPath(firmId, path)) {
     const admin = createAdminSupabase();
-    if (admin) await admin.storage.from('firm-documents').remove([path as string]);
+    if (admin) await admin.storage.from('firm-documents').remove([path]);
   }
   revalidatePath(`/counsel/projects/${projectId}`);
   return { ok: true };
@@ -660,14 +680,25 @@ export async function pullProjectFilesIntoCaseAction(
   // Cap the batch so one action stays within server time limits; the button
   // can be pressed again for the remainder.
   for (const doc of docs.slice(0, 25)) {
+    const name = doc.file_name || doc.title || 'document';
+    // `storage_path` is a plain column on a row policed only on firm_id, so a
+    // member of this firm can plant a row naming a file under another firm's
+    // prefix. Refuse it BEFORE the download, not after: this path does not
+    // hand back a link, it copies the bytes into a matter as a durable
+    // exhibit, and a check that runs after the fetch has already lost.
+    if (!isFirmProjectPath(firmId, doc.storage_path)) {
+      failed++;
+      errors.push(`${name}: that file is not in this firm.`);
+      continue;
+    }
+    const storagePath = doc.storage_path;
     try {
-      const dl = await admin.storage.from('firm-documents').download(doc.storage_path!);
+      const dl = await admin.storage.from('firm-documents').download(storagePath);
       if (!dl.data) {
         failed++;
         continue;
       }
       const buffer = Buffer.from(await dl.data.arrayBuffer());
-      const name = doc.file_name || doc.title || 'document';
       const res = await importFileAsCaseEvidence({
         admin,
         caseId,
