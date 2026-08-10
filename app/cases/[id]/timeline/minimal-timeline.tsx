@@ -432,8 +432,12 @@ function InviteFirm({ caseId }: { caseId: string }) {
               fd.append('role', 'attorney');
               try {
                 const res = await inviteCollaboratorAction(caseId, fd);
+                if (!res.ok) {
+                  setMsg({ ok: false, text: res.error ?? 'Invite failed.' });
+                  return;
+                }
                 setOpen(false); setEmail('');
-                setMsg({ ok: true, text: res?.emailed ? `Invite sent to ${email.trim()}. Once they join, they can build your timeline.` : `${email.trim()} added. Email delivery is unconfigured, so let them know directly.` });
+                setMsg({ ok: true, text: res.emailed ? `Invite sent to ${email.trim()}. Once they join, they can build your timeline.` : `${email.trim()} added. Email delivery is unconfigured, so let them know directly.` });
               } catch (err) {
                 setMsg({ ok: false, text: err instanceof Error ? err.message : 'Invite failed.' });
               }

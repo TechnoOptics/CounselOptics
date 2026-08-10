@@ -718,30 +718,48 @@ export async function transcribeExhibitAction(exhibitId: string) {
   revalidatePath(`/cases/${exhibit.caseId}`);
 }
 
-export async function inviteCollaboratorAction(caseId: string, formData: FormData) {
+/**
+ * Invite someone to a case.
+ *
+ * Returns its refusals rather than throwing them. React strips the message
+ * off an error that crosses the Server Action boundary and sends a digest
+ * instead, so in a production build a thrown reason reaches the browser as
+ * "An error occurred in the Server Components render. The specific message is
+ * omitted in production builds to avoid leaking sensitive details." Both call
+ * sites render err.message, so every refusal here (including the upgrade
+ * prompt, which is the whole point of the tier gate) read as an unexplained
+ * server fault. A returned value survives the boundary intact. This is the
+ * shape lib/firm-actions.ts inviteMatterCollaboratorAction already uses.
+ */
+export async function inviteCollaboratorAction(
+  caseId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; emailed?: boolean }> {
   await assertAuthIfSupabase();
   // Collaborator sharing is Pro-only (TIER_FEATURES.collaborators) -
   // previously only case ownership was checked here (and in the
   // client-side collaborators panel), so any signed-in owner on any
   // tier could invite collaborators regardless of the feature flag.
   // Trial users get full access, matching every other feature gate.
+  let tierRefusal: string | null = null;
   try {
     const state = await getEffectiveTrialState();
     if (!isFullAccessTrial(state)) {
       const sub = await getCurrentSubscription();
       const trial = await currentUserTrialGrant().catch(() => undefined);
       if (!hasFeature(sub, 'collaborators', trial)) {
-        throw new Error('Inviting collaborators requires the Pro plan. Upgrade from /billing.');
+        tierRefusal = 'Inviting collaborators requires the Pro plan. Upgrade from /billing.';
       }
     }
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith('Inviting collaborators')) throw err;
+  } catch {
     // never block on a state/subscription lookup failure
   }
+  if (tierRefusal) return { ok: false, error: tierRefusal };
+
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const roleRaw = String(formData.get('role') ?? 'viewer');
   if (!email || !email.includes('@')) {
-    throw new Error('Enter a valid email address.');
+    return { ok: false, error: 'Enter a valid email address.' };
   }
   const validRoles: CollaboratorRole[] = [
     'viewer',
@@ -753,7 +771,20 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
   const role: CollaboratorRole = validRoles.includes(roleRaw as CollaboratorRole)
     ? (roleRaw as CollaboratorRole)
     : 'viewer';
-  const result = await inviteCollaborator({ caseId, email, role });
+
+  let result: { emailed: boolean };
+  try {
+    result = await inviteCollaborator({ caseId, email, role });
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error && err.message
+          ? err.message
+          : 'That invite could not be sent, so nothing has changed. Please try again.',
+    };
+  }
+
   await logCaseEvent({
     caseId,
     eventType: 'collaborator_invited',
@@ -792,7 +823,7 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
     /* notification miss is non-blocking */
   }
   revalidatePath(`/cases/${caseId}`);
-  return { emailed: result.emailed };
+  return { ok: true, emailed: result.emailed };
 }
 
 /**
