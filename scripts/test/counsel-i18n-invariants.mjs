@@ -166,6 +166,13 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   // `blurb: string` on the four matter tiles (SectionPanel, the two NavTiles,
   // ExportPacketTile). Every call site of all four passes a literal.
   'blurb',
+  // `state: string` on the dashboard metric board's MetricCell - the word
+  // that carries a metric's urgency so the tone is never colour alone
+  // ("Needs a decision", "Awaiting signers", "Queue clear"). Every value
+  // comes from the `activeState` / `clearState` literals in
+  // lib/counsel-metrics.ts; nothing on that board is firm data, and the
+  // figures themselves are rendered outside <T>.
+  'state',
   // static-array .map() params
   'l',
   's',

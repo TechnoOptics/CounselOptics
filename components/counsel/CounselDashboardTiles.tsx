@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { CounselTileId } from '@/lib/counsel-dashboard';
+import type { CounselMetric, MetricBand } from '@/lib/counsel-metrics';
 import { T } from '@/components/i18n/LocaleProvider';
 import { formatDateWith } from '@/lib/format';
 
@@ -158,7 +159,11 @@ export function DashboardTileRenderer({
       />;
     case 'signing-overview':
       return <SimpleCountTile
-        href="/counsel/signing"
+        // The count is sent-or-partial, so the link carries the view that
+        // shows exactly those. Unfiltered, the tile said "7 awaiting
+        // signature" and opened a page listing every request the firm has
+        // ever sent, including the completed ones.
+        href="/counsel/signing?view=out"
         eyebrow="Signing"
         headline={String(data.counts.signingPending)}
         metric={<T>awaiting signature</T>}
@@ -188,6 +193,162 @@ export function DashboardTileRenderer({
     default:
       return null;
   }
+}
+
+/* ----- the metric board ----- */
+
+/**
+ * The board under the headline strip: every operational figure a partner
+ * asks for on a Monday, each one opening the list that holds its rows.
+ *
+ * THE BANDS SAY WHOSE MOVE IT IS. That is a real property of each figure
+ * and the question somebody scanning this is actually asking, so it earns
+ * the structure. "Awaiting approval" and "Out for signature" are both
+ * documents in flight and they sit in different bands, because only one of
+ * them is waiting on this firm.
+ *
+ * STATE IS ENCODED THREE TIMES: in the thickness of the left rail, in the
+ * colour of the figure, and in a word under it. Thickness carries it in
+ * greyscale and under forced colours; the word carries it for a reader who
+ * cannot separate amber from red. Nothing here reads as colour alone.
+ *
+ * THE STATE COLOURS ARE NOT THE FIRM ACCENT. `--warn-text` and
+ * `--danger-text` are fixed in app/globals.css for both themes precisely
+ * because status is not branding, and they arrive as CLASSES so the
+ * contrast guards in tests/accent-text.test.ts can see them. A firm's own
+ * `accent_color` painted as words is the failure lib/accent-text.ts exists
+ * to prevent.
+ */
+/**
+ * The rail is a PAINTED ELEMENT, not a left border, and that is not a
+ * stylistic preference. `.counsel-shell .card` sets border-color in
+ * app/globals.css, which outranks a single `border-l-*` colour utility,
+ * so a bordered rail rendered at the right thickness in the card's own
+ * hairline gold and carried no state at all. Rendering it as a child that
+ * paints its own background puts it out of that rule's reach.
+ */
+const METRIC_RAIL: Record<CounselMetric['tone'], string> = {
+  clear: 'w-0.5 bg-edge',
+  waiting: 'w-1 bg-warn-text',
+  urgent: 'w-1.5 bg-danger-text',
+};
+
+const METRIC_VALUE: Record<CounselMetric['tone'], string> = {
+  // A token, not the forest/cream palette pair a card heading reaches for
+  // by habit. Those two steps take their colour from the .dark override
+  // block in app/globals.css, and tests/accent-text.test.ts refuses them
+  // here: a token has one declaration per theme and so cannot go
+  // unrepainted, which is how the light counsel layer used to leave half
+  // this surface measured and the other half at whatever it inherited.
+  clear: 'text-foreground',
+  waiting: 'text-warn-text',
+  urgent: 'text-danger-text',
+};
+
+const METRIC_STATE: Record<CounselMetric['tone'], string> = {
+  clear: 'text-muted',
+  waiting: 'text-warn-text',
+  urgent: 'text-danger-text',
+};
+
+/**
+ * Props are destructured to their own names rather than passed as a metric
+ * object so the copy reaches <T> as `label` / `state` / `hint`, which is
+ * what scripts/test/counsel-i18n-invariants.mjs allows: every one of them
+ * comes from the static tables in lib/counsel-metrics.ts, never from firm
+ * data.
+ */
+function MetricCell({
+  label,
+  value,
+  state,
+  hint,
+  tone,
+  href,
+}: {
+  label: string;
+  value: string;
+  state: string;
+  hint: string;
+  tone: CounselMetric['tone'];
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group block h-full rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+    >
+      <div className="card relative h-full overflow-hidden p-4 pl-5 transition-all hover:-translate-y-0.5 hover:shadow-card-hover">
+        <span
+          aria-hidden
+          className={`absolute inset-y-0 left-0 ${METRIC_RAIL[tone]}`}
+        />
+        <p className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-muted">
+          <T>{label}</T>
+        </p>
+        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span
+            className={`text-[26px] font-semibold leading-none tabular-nums tracking-[-0.02em] ${METRIC_VALUE[tone]}`}
+          >
+            {value}
+          </span>
+          <span
+            className={`text-[11px] font-medium uppercase tracking-[0.1em] ${METRIC_STATE[tone]}`}
+          >
+            <T>{state}</T>
+          </span>
+        </p>
+        <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
+          <T>{hint}</T>
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function MetricBandHeader({
+  label,
+  blurb,
+}: {
+  label: string;
+  blurb: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-text">
+        <T>{label}</T>
+      </h3>
+      <p className="text-[12px] text-muted">
+        <T>{blurb}</T>
+      </p>
+    </div>
+  );
+}
+
+export function CounselMetricBoard({ bands }: { bands: MetricBand[] }) {
+  if (bands.length === 0) return null;
+  return (
+    <section className="space-y-5" aria-label="Firm metrics">
+      {bands.map((band) => (
+        <div key={band.id} className="space-y-2.5">
+          <MetricBandHeader label={band.label} blurb={band.blurb} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {band.metrics.map((m) => (
+              <MetricCell
+                key={m.id}
+                label={m.label}
+                value={m.value}
+                state={m.state}
+                hint={m.hint}
+                tone={m.tone}
+                href={m.href}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
 }
 
 /* ----- atomic tile presentational components ----- */
