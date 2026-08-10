@@ -301,7 +301,6 @@ export default async function CounselDashboard() {
   const data: DashboardTileData = {
     firmId: ctx.firm.id,
     firmName: ctx.firm.name,
-    accent: ctx.firm.accentColor,
     userId: user.id,
     userDisplayName:
       ctx.membership.displayName ?? ctx.membership.email ?? 'there',

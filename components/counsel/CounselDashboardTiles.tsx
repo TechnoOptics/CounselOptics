@@ -16,7 +16,6 @@ import { T } from '@/components/i18n/LocaleProvider';
 export type DashboardTileData = {
   firmId: string;
   firmName: string;
-  accent: string;
   userId: string;
   userDisplayName: string;
   isAdmin: boolean;
@@ -105,7 +104,6 @@ export function DashboardTileRenderer({
         headline={<>{data.counts.casesOpen} <T>open</T></>}
         metric={<>{data.counts.casesTotal} <T>total</T></>}
         body="Cases shared with the firm. Open + active matters at the top."
-        accent={data.accent}
       />;
     case 'clients-overview':
       return <SimpleCountTile
@@ -114,7 +112,6 @@ export function DashboardTileRenderer({
         headline={String(data.counts.clients)}
         metric={<>{data.counts.clientsActive} <T>active</T></>}
         body="Invite a client and they stay linked to your firm."
-        accent={data.accent}
       />;
     case 'team-overview':
       return <SimpleCountTile
@@ -134,7 +131,6 @@ export function DashboardTileRenderer({
           )
         }
         body="Admins, attorneys, paralegals, staff."
-        accent={data.accent}
       />;
     case 'documents-overview':
       return <SimpleCountTile
@@ -148,7 +144,6 @@ export function DashboardTileRenderer({
         // dashboard already uses for the same number.
         metric={<T>held for this firm</T>}
         body="Contracts, motions, evidence packets."
-        accent={data.accent}
       />;
     case 'signing-overview':
       return <SimpleCountTile
@@ -157,7 +152,6 @@ export function DashboardTileRenderer({
         headline={String(data.counts.signingPending)}
         metric={<T>awaiting signature</T>}
         body="UETA-aligned, tamper-evident audit chain."
-        accent={data.accent}
       />;
     case 'recent-activity':
       return <RecentActivityTile data={data} />;
@@ -170,7 +164,6 @@ export function DashboardTileRenderer({
         headline={<T>Channels + DMs</T>}
         metric={<T>Realtime</T>}
         body="Channels for firm-wide topics, group DMs per matter, 1:1s."
-        accent={data.accent}
       />;
     case 'firm-settings':
       if (!data.isAdmin) return null;
@@ -180,7 +173,6 @@ export function DashboardTileRenderer({
         headline={<T>Brand + scope</T>}
         metric={<T>Owner / admin</T>}
         body="Logo, accent color, jurisdictions, practice areas."
-        accent={data.accent}
       />;
     default:
       return null;
@@ -189,19 +181,34 @@ export function DashboardTileRenderer({
 
 /* ----- atomic tile presentational components ----- */
 
+/**
+ * Every tile eyebrow on this page.
+ *
+ * It used to be `style={{ color: firm.accentColor }}`: the customer's own
+ * hex, painted as TEXT on a card. That is the one thing lib/accent-text.ts
+ * exists to stop. A colour chosen to work as a button FILL is usually
+ * unreadable as words - Advottic's own default gold measures 1.87:1 on a
+ * white card - and because the value arrived as an inline style rather
+ * than as a class, no contrast guard could see it and none of the
+ * arithmetic in that file ever ran on it. `--accent-text` is the same
+ * firm's accent with its lightness pinned and its chroma capped, proved
+ * against every surface either theme paints, for every hex a customer can
+ * type. Fills keep the exact brand colour; only words move.
+ */
+const TILE_EYEBROW =
+  'text-[10px] uppercase tracking-[0.22em] font-semibold text-accent-text';
+
 function TileFrame({
   eyebrow,
   title,
   href,
   span,
-  accent,
   children,
 }: {
   eyebrow: string;
   title: React.ReactNode;
   href?: string;
   span?: 1 | 2 | 4;
-  accent: string;
   children: React.ReactNode;
 }) {
   const colSpan =
@@ -213,10 +220,7 @@ function TileFrame({
   const inner = (
     <div className="card p-5 h-full hover:shadow-card-hover hover:-translate-y-0.5 transition-all">
       <div className="flex items-center justify-between mb-1">
-        <p
-          className="text-[10px] uppercase tracking-[0.22em] font-semibold"
-          style={{ color: accent }}
-        >
+        <p className={TILE_EYEBROW}>
           <T>{eyebrow}</T>
         </p>
         {href ? (
@@ -245,24 +249,19 @@ function SimpleCountTile({
   headline,
   metric,
   body,
-  accent,
 }: {
   href: string;
   eyebrow: string;
   headline: React.ReactNode;
   metric: React.ReactNode;
   body: string;
-  accent: string;
 }) {
   return (
     <Link
       href={href}
       className="card p-5 hover:shadow-card-hover hover:-translate-y-0.5 transition-all group block h-full"
     >
-      <p
-        className="text-[10px] uppercase tracking-[0.22em] font-semibold"
-        style={{ color: accent }}
-      >
+      <p className={TILE_EYEBROW}>
         <T>{eyebrow}</T>
       </p>
       <p className="text-2xl font-medium tracking-[-0.01em] text-foreground mt-1">
@@ -352,7 +351,6 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
           </>
         )
       }
-      accent={data.accent}
       span={4}
     >
       {items.length === 0 ? (
@@ -412,7 +410,6 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
           </>
         )
       }
-      accent={data.accent}
       span={4}
     >
       {total === 0 ? (
@@ -511,7 +508,6 @@ function QuickActionsTile({ data }: { data: DashboardTileData }) {
     <TileFrame
       eyebrow="Quick actions"
       title={<T>Start something</T>}
-      accent={data.accent}
       span={2}
     >
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -543,7 +539,6 @@ function MeetingsTile({ data }: { data: DashboardTileData }) {
         )
       }
       href="/counsel/calendar"
-      accent={data.accent}
       span={2}
     >
       {data.meetings.length === 0 ? (
@@ -591,7 +586,6 @@ function DeadlinesTile({ data }: { data: DashboardTileData }) {
         )
       }
       href="/counsel/calendar"
-      accent={data.accent}
       span={2}
     >
       {data.deadlines.length === 0 ? (
@@ -639,7 +633,6 @@ function IntakePipelineTile({ data }: { data: DashboardTileData }) {
       eyebrow="Intake pipeline"
       title={<T>Request inbox</T>}
       href="/counsel/inbox"
-      accent={data.accent}
       span={2}
     >
       <div className="mt-3 grid grid-cols-4 gap-2">
@@ -690,7 +683,6 @@ function RecentActivityTile({ data }: { data: DashboardTileData }) {
       title={
         top.length === 0 ? <T>Nothing recently</T> : <T>Across the firm</T>
       }
-      accent={data.accent}
       span={2}
     >
       {top.length === 0 ? (
@@ -734,7 +726,6 @@ function RecentUploadsTile({ data }: { data: DashboardTileData }) {
         )
       }
       href="/counsel/documents"
-      accent={data.accent}
       span={2}
     >
       {data.recentUploads.length === 0 ? (
