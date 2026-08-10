@@ -114,6 +114,15 @@ export function LettersStudio({
     }
   }
 
+  /**
+   * The letter as a PDF, in ONE place.
+   *
+   * The preview and the Export PDF button used to each post their own copy of
+   * this payload, side by side, agreeing by inspection. A preview that agrees
+   * with the export only by inspection is a preview that stops agreeing the
+   * first time one of the two is edited, and the whole value of previewing a
+   * document before it leaves the firm is that the bytes are the same bytes.
+   */
   async function buildPdfBlob(): Promise<Blob> {
     const res = await fetch('/api/counsel/draft-template/pdf', {
       method: 'POST',
@@ -136,38 +145,33 @@ export function LettersStudio({
     setExporting(format);
     setError(null);
     try {
-      const endpoint =
-        format === 'pdf'
-          ? '/api/counsel/draft-template/pdf'
-          : '/api/counsel/letters/docx';
-      const payload =
-        format === 'pdf'
-          ? {
-              document: composed,
-              title,
-              firmName: brand.firmName,
-              accent: brand.accent,
-              letterheadUrl: brand.letterheadUrl ?? undefined,
-              logoUrl: brand.logoUrl ?? undefined,
-            }
-          : {
-              title,
-              body,
-              options,
-              signerName,
-              signerTitle,
-              dateText,
-            };
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        setError(`${format.toUpperCase()} ${t('export failed.')}`);
-        return;
+      let blob: Blob;
+      if (format === 'pdf') {
+        try {
+          blob = await buildPdfBlob();
+        } catch {
+          setError(`PDF ${t('export failed.')}`);
+          return;
+        }
+      } else {
+        const res = await fetch('/api/counsel/letters/docx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            body,
+            options,
+            signerName,
+            signerTitle,
+            dateText,
+          }),
+        });
+        if (!res.ok) {
+          setError(`DOCX ${t('export failed.')}`);
+          return;
+        }
+        blob = await res.blob();
       }
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -374,6 +378,17 @@ export function LettersStudio({
                   filename={`${(title || 'letter').replace(/[^a-z0-9]+/gi, '-')}.pdf`}
                   buildPdf={buildPdfBlob}
                   onClose={() => setPreviewOpen(false)}
+                  /* Said plainly, because it is the one place this preview
+                     could mislead: these are the bytes Export PDF produces,
+                     and Save produces a different file. */
+                  note={
+                    <T>
+                      This is the PDF export, to the byte. Saving the letter files it as
+                      a Word document instead, because a letter is meant to be edited:
+                      the words and the draft notice are the same, but Word lays the
+                      page out its own way.
+                    </T>
+                  }
                 />
               )}
               <button
