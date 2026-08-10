@@ -151,6 +151,36 @@ export default async function CounselAccessEndedPage() {
                 <T>Download your organization&rsquo;s data</T>
               </Link>
             ) : null}
+            {/* The way back in. Firm plans on Advottic are sold by talking to
+                someone, not by self-serve checkout: every firm tier on
+                /pricing routes to /counsel/request, and there is no firm
+                branch in /api/stripe/checkout by design. Without this link an
+                organization that WANTS to keep paying leaves here with three
+                options, all of which are ways out.
+
+                Gated on canExport, which is FIRM_ADMIN_ROLES, because that is
+                who can actually act on it. A plain member is already told
+                above to speak to their owner, and offering them a sales
+                conversation they cannot start would be a control with nothing
+                behind it.
+
+                Safe to link: /counsel/request is one of the self-shelled
+                routes the counsel layout short-circuits before the membership
+                and access gates, so an organization whose access has ended
+                lands on it rather than being bounced back here. A link that
+                loops would be worse than no link at all.
+
+                Secondary styling on purpose. Getting their data out is the
+                urgent thing at this moment; this is the calm second option,
+                not a pitch. */}
+            {canExport ? (
+              <Link
+                href="/counsel/request"
+                className="btn border border-cream-100/15 text-cream-100/85 hover:bg-cream-100/5 justify-center"
+              >
+                <T>Talk to us about restoring access</T>
+              </Link>
+            ) : null}
             {/* Neutral retry, and only on the branch that could not tell. A
                 member who genuinely holds no admin role is not offered it,
                 because for them there is nothing to retry.
