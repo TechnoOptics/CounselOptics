@@ -36,7 +36,10 @@ const db = vi.hoisted(() => ({
 }));
 
 const applyUserTrialAction = vi.hoisted(() =>
-  vi.fn(async (_input: Record<string, unknown>) => ({ ok: true }) as { ok: true }),
+  vi.fn(
+    async (_input: Record<string, unknown>) =>
+      ({ ok: true, blocked: false }) as { ok: true; blocked: boolean },
+  ),
 );
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -308,4 +311,81 @@ describe('the day count', () => {
       expect(applyUserTrialAction).not.toHaveBeenCalled();
     });
   }
+});
+
+/**
+ * THE INDIVIDUAL HALF OF THE DEFECT: an extension that reports success and
+ * changes nothing the person can see.
+ *
+ * profiles.is_blocked is this side's suspension. It is checked at sign-in
+ * (app/auth/callback/route.ts:253), never compared against a date, and it
+ * outranks the trial completely: a blocked account is signed straight back out,
+ * so its trial dates are unreachable whatever they say.
+ *
+ * The choice is the same one the organization side makes: complete the change
+ * and report it, rather than refuse. The agreed end date is worth recording,
+ * and refusing would make unblocking the only route to extending a blocked
+ * account, which is the precedence rearranged through the workflow.
+ */
+describe('an extension that the person will not feel says so', () => {
+  it('completes the extension on a blocked account', async () => {
+    db.row = { trial_ends_at: FUTURE };
+    applyUserTrialAction.mockResolvedValueOnce({ ok: true, blocked: true });
+
+    const result = await extendUserTrialAction({ userId: USER, days: 14 });
+
+    expect(result.ok).toBe(true);
+    expect(applyUserTrialAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the block and the remedy in the result', async () => {
+    // The mutation this kills: return a bare `{ ok: true }` from
+    // extendUserTrialAction's tail, which is what it did before.
+    db.row = { trial_ends_at: FUTURE };
+    applyUserTrialAction.mockResolvedValueOnce({ ok: true, blocked: true });
+
+    const result = await extendUserTrialAction({ userId: USER, days: 14 });
+
+    expect(result).toEqual({
+      ok: true,
+      notice:
+        'The end date was saved, but this account is blocked, so it stays locked out and this person will not see a change. Set the account back to active to let them in.',
+    });
+  });
+
+  it('says nothing extra when the person can actually sign in', async () => {
+    // The other half. Without it the notice could be hardcoded and every
+    // ordinary extension would claim a block that is not there.
+    db.row = { trial_ends_at: FUTURE };
+    applyUserTrialAction.mockResolvedValueOnce({ ok: true, blocked: false });
+
+    const result = await extendUserTrialAction({ userId: USER, days: 14 });
+
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('reports the same thing for a restart, which is the other date lever', async () => {
+    db.row = { trial_ends_at: FUTURE };
+    applyUserTrialAction.mockResolvedValueOnce({ ok: true, blocked: true });
+
+    const result = await resetUserTrialAction({ userId: USER, days: 14 });
+
+    expect(result).toMatchObject({ ok: true });
+    expect('notice' in result && result.notice).toMatch(/blocked/);
+  });
+
+  it('carries no notice when the write itself failed', async () => {
+    db.row = { trial_ends_at: FUTURE };
+    applyUserTrialAction.mockResolvedValueOnce({
+      ok: false,
+      error: 'That change did not save. Nothing was written. Try again.',
+    } as never);
+
+    const result = await extendUserTrialAction({ userId: USER, days: 14 });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'That change did not save. Nothing was written. Try again.',
+    });
+  });
 });

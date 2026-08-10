@@ -44,7 +44,35 @@ import { ENTITLEMENT_TIER_SLUGS, isEntitlementTierSlug } from './entitlements';
  * on a date. Nothing on this path deletes anything.
  */
 
-export type UserTrialActionResult = { ok: true } | { ok: false; error: string };
+/**
+ * `notice` is a change that LANDED and will not do what the operator expects.
+ *
+ * It is not an error and not a warning about what might happen. It is the
+ * second half of a true success: the date moved, and the person will see
+ * nothing, because profiles.is_blocked outranks every trial date. An HQ admin
+ * is usually mid-conversation with the customer when they touch this, so it
+ * exists to stop them saying "you're back on" when nobody is.
+ *
+ * Optional rather than always present, so an ordinary extension carries no
+ * sentence at all and the presence of one means something.
+ */
+export type UserTrialActionResult =
+  | { ok: true; notice?: string }
+  | { ok: false; error: string };
+
+/**
+ * WHY THIS COMPLETES AND REPORTS RATHER THAN REFUSING. Same argument as
+ * lib/firm-trial-actions.ts, and it should stay the same argument: the end date
+ * is the record of what was agreed, so declining to store it loses the
+ * agreement, and refusing would make unblocking the only route to extending a
+ * blocked account, which pressures an operator into readmitting somebody who
+ * was closed on purpose.
+ *
+ * The remedy names the Active toggle on this same page, because a sentence that
+ * says only "this did nothing" sends the operator hunting.
+ */
+const BLOCKED_NOTICE =
+  'The end date was saved, but this account is blocked, so it stays locked out and this person will not see a change. Set the account back to active to let them in.';
 
 /**
  * Grant, extend and restart all take a length in days. The ceiling is a typo
@@ -229,8 +257,12 @@ export async function extendUserTrialAction(input: {
     action: { kind: 'extended', days },
     note: readNote(input.note),
   });
-  if (result.ok) revalidatePath('/admin/users');
-  return result;
+  if (!result.ok) return result;
+  revalidatePath('/admin/users');
+  // See BLOCKED_NOTICE. The flag is read from the row applyUserTrialAction
+  // wrote, so it is the state after this change rather than a second read.
+  if (result.blocked) return { ok: true, notice: BLOCKED_NOTICE };
+  return { ok: true };
 }
 
 /**
@@ -256,8 +288,12 @@ export async function resetUserTrialAction(input: {
     action: { kind: 'reset', days },
     note: readNote(input.note),
   });
-  if (result.ok) revalidatePath('/admin/users');
-  return result;
+  if (!result.ok) return result;
+  revalidatePath('/admin/users');
+  // Restart is the other date lever and lands in exactly the same place, so it
+  // owes the same sentence.
+  if (result.blocked) return { ok: true, notice: BLOCKED_NOTICE };
+  return { ok: true };
 }
 
 /**

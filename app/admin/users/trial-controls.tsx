@@ -122,17 +122,31 @@ function useTrialAction() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A change that landed and will not do what the operator expects. Kept
+   * separate from `error` because it is not a failure: the write happened, and
+   * conflating the two would either colour a real refusal as informational or
+   * tell the operator to retry something that already succeeded.
+   *
+   * It is shown beside the button that caused it. This trials table carries no
+   * blocked indicator of its own, so without this there is nothing anywhere on
+   * the panel to say the extension will not be felt.
+   */
+  const [notice, setNotice] = useState<string | null>(null);
 
   function run(call: () => Promise<UserTrialActionResult>) {
     setError(null);
+    setNotice(null);
     startTransition(async () => {
       const result = await call();
-      if (result.ok) router.refresh();
-      else setError(result.error);
+      if (result.ok) {
+        setNotice(result.notice ?? null);
+        router.refresh();
+      } else setError(result.error);
     });
   }
 
-  return { pending, error, setError, run };
+  return { pending, error, notice, setError, run };
 }
 
 export function UserTrialConsole({
@@ -354,7 +368,7 @@ function TrialPanel({
  */
 function ExtendBlock({ row, note }: { row: UserTrialView; note: string | null }) {
   const [days, setDays] = useState(DEFAULT_DAYS);
-  const { pending, error, setError, run } = useTrialAction();
+  const { pending, error, notice, setError, run } = useTrialAction();
 
   if (!row.trialEndsAt) {
     return (
@@ -401,6 +415,7 @@ function ExtendBlock({ row, note }: { row: UserTrialView; note: string | null })
         </button>
       </div>
       <FieldError message={error} />
+      <FieldNotice message={notice} />
     </Block>
   );
 }
@@ -414,7 +429,7 @@ function ExtendBlock({ row, note }: { row: UserTrialView; note: string | null })
 function RestartBlock({ row, note }: { row: UserTrialView; note: string | null }) {
   const [days, setDays] = useState(DEFAULT_DAYS);
   const [confirming, setConfirming] = useState(false);
-  const { pending, error, setError, run } = useTrialAction();
+  const { pending, error, notice, setError, run } = useTrialAction();
 
   const parsed = parseDays(days);
   const shortens =
@@ -500,6 +515,7 @@ function RestartBlock({ row, note }: { row: UserTrialView; note: string | null }
         )}
       </div>
       <FieldError message={error} />
+      <FieldNotice message={notice} />
     </Block>
   );
 }
@@ -999,6 +1015,24 @@ function DaysInput({
  * region that appears at the same moment as its text is often not announced.
  * `empty:hidden` keeps it out of the layout until it has something to say.
  */
+/**
+ * A change that succeeded and needs a caveat. Amber rather than rose, because
+ * rose is this console's colour for "nothing happened, try again" and this is
+ * the opposite: the write landed, and the operator needs to know it will not be
+ * felt yet. aria-live so it reaches a screen reader on the same terms the error
+ * does.
+ */
+function FieldNotice({ message }: { message: string | null }) {
+  return (
+    <p
+      aria-live="polite"
+      className="text-[11px] text-amber-600 dark:text-amber-200/85 leading-snug empty:hidden"
+    >
+      {message}
+    </p>
+  );
+}
+
 function FieldError({ message }: { message: string | null }) {
   return (
     <p

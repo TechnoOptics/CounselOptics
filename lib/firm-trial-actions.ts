@@ -39,7 +39,40 @@ import { ENTITLEMENT_TIER_SLUGS, isEntitlementTierSlug } from './entitlements';
  * through, and both refuse rather than quietly doing the other action's job.
  */
 
-export type TrialActionResult = { ok: true } | { ok: false; error: string };
+/**
+ * `notice` is a change that LANDED and will not do what the operator expects.
+ *
+ * It is not an error and it is not a warning about what might happen. It is the
+ * second half of a true success: the date moved, and the firm will see nothing,
+ * because a suspension outranks every date. An HQ admin extending a trial is
+ * usually mid-conversation with a customer, so this exists to stop them saying
+ * "you're back on" when nobody is.
+ *
+ * Optional rather than always present, so an ordinary extension carries no
+ * sentence at all and the presence of one means something.
+ */
+export type TrialActionResult =
+  | { ok: true; notice?: string }
+  | { ok: false; error: string };
+
+/**
+ * WHY THIS COMPLETES AND REPORTS RATHER THAN REFUSING.
+ *
+ * Refusing was the other candidate, and it is worse in both directions. The end
+ * date is the commercial record of what was agreed on the call, so declining to
+ * store it loses the agreement rather than protecting anything. And it would
+ * make "restore access first" the only route to extending a suspended
+ * organization, which pressures an operator into reopening an account somebody
+ * closed on purpose: the precedence in lib/firm-access.ts inverted through the
+ * workflow instead of through the code.
+ *
+ * What was actually wrong was never the ordering. It was the silence.
+ *
+ * The remedy is named because a sentence that says only "this did nothing"
+ * sends the operator hunting. The lever is Access, in the same panel.
+ */
+const SUSPENDED_NOTICE =
+  'The end date was saved, but this organization is suspended, so it stays closed and nobody there will see a change. Restore access to reopen it.';
 
 /**
  * Grant, extend and restart all take a length in days. The ceiling is a
@@ -260,8 +293,12 @@ export async function extendTrialAction(input: {
     action: { kind: 'extended', days },
     note: readNote(input.note),
   });
-  if (result.ok) revalidatePath('/admin/firms');
-  return result;
+  if (!result.ok) return result;
+  revalidatePath('/admin/firms');
+  // See SUSPENDED_NOTICE. The flag is read from the row applyTrialAction wrote,
+  // so it is the state after this change rather than a second read of it.
+  if (result.suspended) return { ok: true, notice: SUSPENDED_NOTICE };
+  return { ok: true };
 }
 
 /**
@@ -291,8 +328,14 @@ export async function resetTrialAction(input: {
     action: { kind: 'reset', days },
     note: readNote(input.note),
   });
-  if (result.ok) revalidatePath('/admin/firms');
-  return result;
+  if (!result.ok) return result;
+  revalidatePath('/admin/firms');
+  // Restart is the other date lever and lands in exactly the same place, so it
+  // owes the same sentence. The block's static copy already says a restart does
+  // not reopen a suspended organization; this is the same fact told at the
+  // moment it happens, against the state the write actually saw.
+  if (result.suspended) return { ok: true, notice: SUSPENDED_NOTICE };
+  return { ok: true };
 }
 
 /**

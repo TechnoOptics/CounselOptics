@@ -48,7 +48,10 @@ const db = vi.hoisted(() => ({
  * below assert on what the action HANDED DOWN, not only on what it returned.
  */
 const applyTrialAction = vi.hoisted(() =>
-  vi.fn(async (_input: Record<string, unknown>) => ({ ok: true }) as { ok: true }),
+  vi.fn(
+    async (_input: Record<string, unknown>) =>
+      ({ ok: true, suspended: false }) as { ok: true; suspended: boolean },
+  ),
 );
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -364,4 +367,84 @@ describe('the day bounds', () => {
       expect(applyTrialAction).not.toHaveBeenCalled();
     });
   }
+});
+
+/**
+ * THE DEFECT THE OWNER SAW: an extension that reports success and changes
+ * nothing the firm can see.
+ *
+ * Suspension outranks every date in lib/firm-access.ts, and that ordering is
+ * deliberate: a date change must not silently reopen an organization somebody
+ * closed on purpose. What was wrong is that the reverse was silent too. The
+ * write landed, HQ said it worked, and the firm stayed shut out.
+ *
+ * The choice made here is to COMPLETE the change and report it, rather than to
+ * refuse. Refusing would leave the agreed end date unrecorded, and it would
+ * make restoring access the only route to extending a suspended organization,
+ * which is the precedence inverted through the workflow instead of the code.
+ */
+describe('an extension that will not reopen the organization says so', () => {
+  it('completes the extension on a suspended organization', async () => {
+    db.row = { trial_ends_at: FUTURE };
+    applyTrialAction.mockResolvedValueOnce({ ok: true, suspended: true });
+
+    const result = await extendTrialAction({ firmId: FIRM, days: 14 });
+
+    // The date is the commercial record of what was agreed. Refusing to write
+    // it would be the other way to get this wrong.
+    expect(result.ok).toBe(true);
+    expect(applyTrialAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the suspension and the remedy in the result', async () => {
+    // The mutation this kills: return a bare `{ ok: true }` from
+    // extendTrialAction's tail, which is what it did before.
+    db.row = { trial_ends_at: FUTURE };
+    applyTrialAction.mockResolvedValueOnce({ ok: true, suspended: true });
+
+    const result = await extendTrialAction({ firmId: FIRM, days: 14 });
+
+    expect(result).toEqual({
+      ok: true,
+      notice:
+        'The end date was saved, but this organization is suspended, so it stays closed and nobody there will see a change. Restore access to reopen it.',
+    });
+  });
+
+  it('says nothing extra when the extension does reopen the organization', async () => {
+    // The other half. Without it the notice could be hardcoded and every
+    // ordinary extension would claim a suspension that is not there.
+    db.row = { trial_ends_at: FUTURE };
+    applyTrialAction.mockResolvedValueOnce({ ok: true, suspended: false });
+
+    const result = await extendTrialAction({ firmId: FIRM, days: 14 });
+
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('reports the same thing for a restart, which is the other date lever', async () => {
+    db.row = { trial_ends_at: FUTURE };
+    applyTrialAction.mockResolvedValueOnce({ ok: true, suspended: true });
+
+    const result = await resetTrialAction({ firmId: FIRM, days: 14 });
+
+    expect(result).toMatchObject({ ok: true });
+    expect('notice' in result && result.notice).toMatch(/suspended/);
+  });
+
+  it('carries no notice when the write itself failed', async () => {
+    // A refusal must not arrive wearing a success message beside it.
+    db.row = { trial_ends_at: FUTURE };
+    applyTrialAction.mockResolvedValueOnce({
+      ok: false,
+      error: 'That change did not save. Nothing was written. Try again.',
+    } as never);
+
+    const result = await extendTrialAction({ firmId: FIRM, days: 14 });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'That change did not save. Nothing was written. Try again.',
+    });
+  });
 });
