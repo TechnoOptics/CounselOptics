@@ -2,7 +2,10 @@ import type { MetadataRoute } from 'next';
 import { headers } from 'next/headers';
 import { ARTICLES } from '@/lib/articles';
 import { COMPARISONS } from '@/lib/comparisons';
-import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
+import {
+  STATES_SMALL_CLAIMS,
+  SMALL_CLAIMS_REVIEWED_AT,
+} from '@/lib/state-small-claims';
 import { ES_GUIDES } from '@/lib/es-guides';
 import { ES_TEMPLATES } from '@/lib/es-templates';
 
@@ -23,10 +26,32 @@ const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://advottic.com');
 
+/**
+ * `lastModified` is DELIBERATELY optional and DELIBERATELY absent from
+ * most entries below.
+ *
+ * It used to be `new Date()`, evaluated per request, for every entry in
+ * this array and for all 50 state pages: 116 of the 151 URLs, including
+ * `/`, `/pricing` and `/features`. Two fetches three seconds apart
+ * returned different `<lastmod>` values, which is a demonstrably false
+ * claim that these pages had just changed. Google's documented response
+ * to a sitemap whose `lastmod` is provably wrong is to discount the
+ * signal for the whole site, which would also have discredited the 35
+ * URLs carrying genuine dates.
+ *
+ * `lastmod` is an optional element in the sitemaps.org schema. An
+ * absent `lastmod` costs nothing; a false one costs the signal
+ * sitewide. So a value is set here only where a real, sourced date
+ * already exists in the repo. Do not add one you cannot point at.
+ *
+ * See docs/gtm/technical-backlog.md TECH-014.
+ */
 type Entry = {
   path: string;
   changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'];
   priority: number;
+  /** ISO date. Set ONLY from a real reviewed/published date. */
+  lastModified?: string;
 };
 
 const ENTRIES: Entry[] = [
@@ -97,7 +122,14 @@ const ENTRIES: Entry[] = [
   // Flagship comparative asset - the highest-value page in the small
   // claims content set because it's the one a reporter or LLM cites
   // for cross-state comparison questions instead of one state at a time.
-  { path: '/resources/small-claims-rankings', changeFrequency: 'monthly', priority: 0.85 },
+  {
+    path: '/resources/small-claims-rankings',
+    changeFrequency: 'monthly',
+    priority: 0.85,
+    // Real date: the page renders STATES_SMALL_CLAIMS, whose review
+    // date is the same constant the 50 state pages use.
+    lastModified: SMALL_CLAIMS_REVIEWED_AT,
+  },
   { path: '/press/2026-07-03-small-claims-rankings', changeFrequency: 'yearly', priority: 0.7 },
   // Spanish-language content set. Content-only translation (the
   // product itself is English-only), targeting the underserved US
@@ -143,10 +175,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     host === 'advottic.com' || host === 'www.advottic.com' || host === '';
   if (!isApex) return [];
 
-  const now = new Date();
   const baseEntries: MetadataRoute.Sitemap = ENTRIES.map((e) => ({
     url: `${SITE_URL}${e.path}`,
-    lastModified: now,
+    // Omitted entirely when the entry has no sourced date. See the
+    // note on `Entry`.
+    ...(e.lastModified ? { lastModified: new Date(e.lastModified) } : {}),
     changeFrequency: e.changeFrequency,
     priority: e.priority,
   }));
@@ -154,7 +187,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // immediately (the resource library is the SEO compounding flywheel).
   const articleEntries: MetadataRoute.Sitemap = ARTICLES.map((a) => ({
     url: `${SITE_URL}/resources/${a.slug}`,
-    lastModified: a.publishedAt ? new Date(a.publishedAt) : now,
+    ...(a.publishedAt ? { lastModified: new Date(a.publishedAt) } : {}),
     changeFrequency: 'monthly' as const,
     priority: 0.7,
   }));
@@ -172,7 +205,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // articles in the sitemap signal.
   const stateEntries: MetadataRoute.Sitemap = STATES_SMALL_CLAIMS.map((s) => ({
     url: `${SITE_URL}/resources/states/${s.slug}/small-claims`,
-    lastModified: now,
+    // Real date: when the small-claims dataset behind all 50 pages was
+    // last reviewed.
+    lastModified: new Date(SMALL_CLAIMS_REVIEWED_AT),
     changeFrequency: 'yearly' as const,
     priority: 0.6,
   }));

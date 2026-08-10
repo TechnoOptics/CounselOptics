@@ -4,6 +4,11 @@ import { ApproveWatch } from './approve-watch';
 
 export const dynamic = 'force-dynamic';
 
+// Watch-pairing approval, opened from a QR code and gated on a signed
+// in session. noindex rather than a canonical: there is nothing here
+// to index.
+export const metadata = { robots: { index: false, follow: false } };
+
 /**
  * /link-watch?code=...
  *

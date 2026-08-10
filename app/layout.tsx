@@ -117,9 +117,21 @@ export const metadata: Metadata = {
   // so we never advertise an app that 404s.
   ...(IOS_APP_LIVE ? { itunes: { appId: APP_STORE_ID } } : {}),
   formatDetection: { telephone: false },
-  alternates: {
-    canonical: '/',
-  },
+  // No `alternates.canonical` here, deliberately.
+  //
+  // Next.js merges metadata down the tree, so a canonical set in the
+  // ROOT layout is inherited by every page that does not override it.
+  // This used to read `canonical: '/'`, which meant any page whose
+  // author forgot the override told Google it was a duplicate of the
+  // home page and asked to be dropped from the index. Setting it here
+  // cannot be made safe: the default is wrong for every route except
+  // one. Each page declares its own canonical instead, and
+  // scripts/test/canonical-invariants.mjs fails the build if a public
+  // page is missing one or if this default comes back.
+  //
+  // With no canonical emitted, a page without an override is
+  // self-canonicalizing by default, which is the correct fallback.
+  // See docs/gtm/technical-backlog.md TECH-016.
   openGraph: {
     type: 'website',
     siteName: 'Advottic',
