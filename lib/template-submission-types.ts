@@ -13,6 +13,11 @@
  * that had them from there still does.
  */
 
+// Type-only, so nothing of lib/signing-activity.ts survives compilation into a
+// client bundle. That module has no server import today, and this keeps the
+// guarantee above from depending on it never gaining one.
+import type { SubmitterOpenActivity } from './signing-activity';
+
 export type SubmissionStatus =
   /** Waiting on the legal team. The employee cannot change it here. */
   | 'pending'
@@ -210,11 +215,25 @@ export type TemplateSubmission = {
  *
  * The IP and the user agent of a signature are audit facts and stay on the
  * signature row; what a page needs is who and when.
+ *
+ * `activity` extends that by exactly one step, and the same rule governs it.
+ * The colleague who filed the document is entitled to know their document was
+ * opened and whether it was downloaded, because the alternative is the silence
+ * this whole record exists to end. They are not entitled to the recipient's
+ * address or device: they are waiting on an outcome, not investigating a
+ * person, and the firm is the party who would rely on that detail. The
+ * boundary is structural rather than a filter a template has to remember:
+ * SubmitterOpenActivity has no field that could carry either, and
+ * projectActivityForSubmitter is the only way to build one.
  */
 export type SubmissionSigner = {
   name: string | null;
   email: string;
   signedAt: string | null;
+  /** Set when the events were readable. Null means "not known", not "none". */
+  activity: SubmitterOpenActivity | null;
+  /** firm_signatures.response, so a page can tell silence from an answer. */
+  response: string | null;
 };
 
 /**
@@ -233,6 +252,12 @@ export type SubmissionSigning = {
   status: 'draft' | 'sent' | 'partial' | 'completed' | 'canceled';
   signers: SubmissionSigner[];
   executedUrl: string | null;
+  /**
+   * firm_signing_requests.sent_at, which is the clock every "nothing has
+   * happened for N days" statement is measured against. Null on a request
+   * that has not gone out, where there is nothing to be quiet about.
+   */
+  sentAt: string | null;
   /**
    * The viewer's OWN signing link, when this reader is one of the signers and
    * has not signed yet.

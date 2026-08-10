@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { appendSignatureEvent } from '@/lib/esign-audit';
 import { getSignatureByToken } from '@/lib/firm-storage';
 import {
   SIGNER_DOCUMENT_DELIVERY_REFUSAL_COPY,
@@ -81,12 +82,13 @@ export async function GET(
   // headers are set by the browser and cannot be written by page
   // script. A request that states nothing is served, because the
   // signer on an older Safari has to be able to read the document.
+  const purpose = classifyDocumentRequestPurpose({
+    secFetchDest: req.headers.get('sec-fetch-dest'),
+    secFetchMode: req.headers.get('sec-fetch-mode'),
+  });
   const delivery = resolveSignerDocumentDelivery({
     downloadPermitted: request.signerCanDownload,
-    purpose: classifyDocumentRequestPurpose({
-      secFetchDest: req.headers.get('sec-fetch-dest'),
-      secFetchMode: req.headers.get('sec-fetch-mode'),
-    }),
+    purpose,
   });
   if (!delivery.serve) {
     return refuse(403, SIGNER_DOCUMENT_DELIVERY_REFUSAL_COPY[delivery.reason]);
@@ -129,6 +131,45 @@ export async function GET(
   if (size !== 'ok') {
     const refusal = resolveDocumentSizeRefusal(size);
     return refuse(refusal.status, refusal.message);
+  }
+
+  // The recipient pulled the file itself, and the people waiting on this
+  // document are entitled to know that.
+  //
+  // Only the 'navigate' purpose is recorded. That is a browser pointed AT
+  // this URL, which lands in its own PDF viewer with Save and Print on it,
+  // and it is the request a person makes when they want the file rather
+  // than the page. The signing page's own render fetch is 'render' and is
+  // not a download by anyone's reading; 'unstated' is deliberately left out
+  // too, because it covers Safari before 16.4 and a number of in-app
+  // webviews doing exactly that render fetch, and reporting one of those to
+  // a firm as "they downloaded it" would be an invented fact about a real
+  // person. This therefore under-reports on purpose. The purpose is carried
+  // on the event so a reader can see which question was answered.
+  //
+  // Written here rather than earlier so the event describes bytes that were
+  // actually served: every refusal above returns before this line. Wrapped,
+  // awaited and ignored, in the same spirit as appendSignatureEvent itself,
+  // because a document must never fail to arrive over an audit write.
+  if (purpose === 'navigate') {
+    try {
+      await appendSignatureEvent(admin, {
+        signingRequestId: request.id,
+        signatureId: signature.id,
+        eventType: 'document_downloaded',
+        signerEmail: signature.signerEmail,
+        ipAddress:
+          req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+          req.headers.get('x-real-ip') ||
+          null,
+        userAgent: req.headers.get('user-agent') ?? null,
+        documentSha256:
+          (request as { documentSha256?: string | null }).documentSha256 ?? null,
+        metadata: { purpose, bytes: blob.size, path: access.path },
+      });
+    } catch {
+      /* never fail a document delivery on audit logging */
+    }
   }
 
   // The body is a stream over bytes this function already holds:

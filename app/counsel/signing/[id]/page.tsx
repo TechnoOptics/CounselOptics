@@ -16,6 +16,16 @@ import {
   resolveSigningArtifact,
   selectSigningArtifact,
 } from '@/lib/signing-artifact';
+import { createAdminSupabase } from '@/lib/supabase/admin';
+import {
+  NO_ACTIVITY,
+  automatedOpensSentence,
+  firmActivitySentence,
+  loadSigningActivity,
+  opensSentence,
+  resolveActivityVerdict,
+  verdictNeedsAttention,
+} from '@/lib/signing-activity';
 import { RecallButton } from './recall-button';
 import { ReopenButton } from './reopen-button';
 import { ResendButton } from './resend-button';
@@ -96,6 +106,44 @@ export default async function SigningRequestDetail({
   const total = data.signatures.length;
   const live = status !== 'completed' && status !== 'canceled';
   const stalled = status === 'rejected' || status === 'changes_requested';
+
+  // What has actually happened to this document, for a firm that until now
+  // learned nothing at all between sending it and a signature landing.
+  //
+  // Read through the service-role client, scoped to the request this page has
+  // already established belongs to ctx.firm. firm_signature_events is RLS-
+  // gated to firm members and the user-scoped client could read it, but the
+  // same loader serves the employee's portal record, where the reader is a
+  // member of nothing, so there is one loader and it takes an admin client.
+  //
+  // Null, not an empty map, when the events could not be read at all. That is
+  // a different fact from "nobody opened it" and the page says so rather than
+  // rendering an absence as an answer. No report is worth failing a page over
+  // either, so neither case throws.
+  const activityAdmin = createAdminSupabase();
+  const activity = activityAdmin
+    ? await loadSigningActivity(activityAdmin, data.request.id)
+    : null;
+  const now = new Date();
+  const activityOf = (email: string | null) =>
+    activity?.get((email ?? '').trim().toLowerCase()) ?? NO_ACTIVITY;
+  const verdicts = new Map(
+    activity
+      ? data.signatures.map((sig) => [
+          sig.id,
+          resolveActivityVerdict({
+            signedAt: sig.signedAt,
+            response: sig.response ?? null,
+            sentAt: data.request.sentAt,
+            activity: activityOf(sig.signerEmail),
+            now,
+          }),
+        ])
+      : [],
+  );
+  const attention = data.signatures
+    .map((sig) => ({ sig, verdict: verdicts.get(sig.id)! }))
+    .filter((row) => row.verdict && verdictNeedsAttention(row.verdict));
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -191,6 +239,32 @@ export default async function SigningRequestDetail({
               <T>Read their note below. Reopening makes their link work again and puts the same document in front of them; anyone who already signed stays signed. The file on a request cannot be swapped, so if the changes they asked for are changes to the document, send a fresh request from Documents with the revised one.</T>
             )}
           </p>
+        </section>
+      )}
+
+      {/* Silence, said out loud.
+          A request nobody has touched for a long time looks exactly like one
+          sent this morning, and the difference is the whole reason this page
+          reads the events at all. The two ways it goes quiet are kept apart
+          because a firm acts differently on each: a link never opened is
+          probably an address problem and wants a resend, while a link opened
+          and then dropped reached the person and wants a conversation. */}
+      {live && !stalled && attention.length > 0 && (
+        <section className="card p-4 text-sm leading-relaxed">
+          <p className="font-semibold text-warn-text">
+            <T>This request has gone quiet.</T>
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {attention.map(({ sig, verdict }) => (
+              <li key={sig.id} className="text-foreground">
+                <span data-no-translate>
+                  {sig.signerName || sig.signerEmail}
+                </span>
+                {' · '}
+                {firmActivitySentence(verdict)}
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -319,9 +393,85 @@ export default async function SigningRequestDetail({
                       </p>
                     )}
                   </div>
+                  {/* What happened to the link, on its own line rather than
+                      squeezed under the status, because it is a sentence and
+                      the status is a word. */}
+                  {(() => {
+                    const verdict = verdicts.get(sig.id);
+                    if (!verdict || verdict.kind === 'signed') return null;
+                    const own = activityOf(sig.signerEmail);
+                    const opens = opensSentence(own);
+                    const machines = automatedOpensSentence(own);
+                    return (
+                      <div className="w-full border-t border-edge pt-2">
+                        <p
+                          className={`text-[12.5px] leading-relaxed ${
+                            verdictNeedsAttention(verdict)
+                              ? 'text-warn-text'
+                              : 'text-foreground'
+                          }`}
+                        >
+                          {firmActivitySentence(verdict)}
+                        </p>
+                        {opens && (
+                          <p className="mt-0.5 text-[11.5px] text-muted">
+                            {opens}
+                            {own.lastOpenedAt && (
+                              <span data-no-translate>
+                                {' '}
+                                Last on{' '}
+                                {new Date(own.lastOpenedAt).toLocaleString()}.
+                              </span>
+                            )}
+                          </p>
+                        )}
+                        {machines && (
+                          <p className="mt-0.5 text-[11.5px] text-muted">
+                            {machines}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </li>
               ))}
             </ul>
+            {/* The one case where saying nothing would be read as an answer.
+                An empty activity block looks exactly like a document nobody
+                touched, so a failed read says it failed. */}
+            {!activity && (
+              <p className="mt-3 text-[11.5px] text-muted">
+                <T>
+                  The open and download history could not be read just now.
+                  Reload the page to try again.
+                </T>
+              </p>
+            )}
+            {/* Said once, under the list, because it qualifies every line in
+                it. An open is an HTTP request carrying that signer's token
+                and nothing more: it does not establish that a person read
+                the document, and this page must not let a reader believe it
+                does. The events are also only as complete as the writes that
+                made them, which is what the audit trail says in full. */}
+            <p className="mt-4 border-t border-edge pt-3 text-[11.5px] leading-relaxed text-muted">
+              <T>
+                An open means the signing link was requested with this
+                signer&rsquo;s token. It does not establish that anyone read the
+                document. Opens that identify themselves as a link scanner or a
+                mail client fetching the link are counted separately and are
+                never reported as the signer.
+              </T>{' '}
+              <ExternalLink
+                href={`/api/firm/sign/audit-trail/${data.request.id}`}
+                className="underline"
+              >
+                <T>Full event record</T>
+              </ExternalLink>
+              <T>
+                , with addresses, devices and the tamper-evident chain, is open
+                to firm members.
+              </T>
+            </p>
           </PanelCard>
 
           {artifact && (

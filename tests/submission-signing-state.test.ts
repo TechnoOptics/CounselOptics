@@ -29,16 +29,31 @@ function signing(over: Partial<SubmissionSigning> = {}): SubmissionSigning {
     // it is, is decided from the signature rows, and a token is a route to
     // the ceremony rather than a fact about it.
     yourSignToken: null,
+    // When it went out. Not part of any rule below: whose turn it is comes
+    // off the signature rows, and the send time only ever answers how long
+    // the quiet has lasted.
+    sentAt: null,
     ...over,
   };
 }
 
+/* `activity` and `response` are on every signer now. Neither bears on whose
+   turn it is, which is what this file is about, so they are null throughout
+   and the rule must keep ignoring them. */
 const COUNTERPARTY = {
   name: 'Dana Whitfield',
   email: 'dana@northwind.test',
   signedAt: null,
+  activity: null,
+  response: null,
 };
-const EMPLOYEE = { name: 'Sam Ortiz', email: 'sam@anderson.test', signedAt: null };
+const EMPLOYEE = {
+  name: 'Sam Ortiz',
+  email: 'sam@anderson.test',
+  signedAt: null,
+  activity: null,
+  response: null,
+};
 
 describe('resolveSubmissionSigningState', () => {
   it('says who it is waiting on while nobody has signed', () => {

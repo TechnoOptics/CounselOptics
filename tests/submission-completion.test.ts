@@ -62,6 +62,7 @@ const db = {
   submissions: [] as Row[],
   signatures: [] as Row[],
   members: [] as Row[],
+  events: [] as Row[],
   /** Tables whose columns 20260807_flow_join.sql has not added yet. */
   missingColumn: null as string | null,
   /** Paths the storage fake will mint a link for. */
@@ -86,6 +87,9 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
     return this;
   }
   limit() {
+    return this;
+  }
+  order() {
     return this;
   }
   private run(): { data: unknown; error: unknown } {
@@ -126,6 +130,7 @@ const admin = {
     if (table === 'firm_template_submissions') return new Query(db.submissions, table);
     if (table === 'firm_signatures') return new Query(db.signatures, table);
     if (table === 'firm_members') return new Query(db.members, table);
+    if (table === 'firm_signature_events') return new Query(db.events, table);
     throw new Error(`unexpected table ${table}`);
   },
   storage: {
@@ -151,6 +156,7 @@ beforeEach(() => {
   sendEmail.mockClear();
   sendEmail.mockImplementation(async () => ({ ok: true }));
   db.missingColumn = null;
+  db.events = [];
   db.requests = [
     {
       id: REQUEST_ID,
@@ -371,8 +377,75 @@ describe('loadSubmissionSigning', () => {
         name: 'Dana Whitfield',
         email: 'dana@northwind.test',
         signedAt: '2026-08-07T15:03:00.000Z',
+        response: null,
+        activity: {
+          opens: 0,
+          firstOpenedAt: null,
+          lastOpenedAt: null,
+          downloads: 0,
+          lastDownloadedAt: null,
+        },
       },
     ]);
+    // Nothing forensic rides along. toEqual above already fails on an extra
+    // key; this says why, so a reader adding one knows what they are
+    // breaking rather than only that they broke it.
+    expect(signing?.signers[0].activity).not.toHaveProperty('interactiveOpens');
+    expect(signing?.signers[0].activity).not.toHaveProperty('automatedOpens');
+  });
+
+  /**
+   * What the colleague who filed the document is told about the recipient.
+   *
+   * They are owed the outcome: their document was opened, and downloaded, and
+   * when. They are not owed the recipient's address or device. Those are on
+   * the event rows, are properly the firm's to read, and have no business on
+   * a portal page. Asserted over events that DO carry both, because a
+   * projection tested against clean input proves nothing.
+   */
+  it('tells the employee their document was opened and nothing about the person', async () => {
+    db.events = [
+      {
+        signing_request_id: REQUEST_ID,
+        event_type: 'link_viewed',
+        signer_email: 'dana@northwind.test',
+        ip_address: '198.51.100.7',
+        user_agent: 'Mozilla/5.0 Chrome/126.0',
+        metadata: { open_attribution: 'interactive' },
+        created_at: '2026-08-06T09:00:00.000Z',
+      },
+      {
+        signing_request_id: REQUEST_ID,
+        event_type: 'link_viewed',
+        signer_email: 'dana@northwind.test',
+        ip_address: '198.51.100.7',
+        user_agent: 'Mimecast Link Scanner',
+        metadata: { open_attribution: 'automated' },
+        created_at: '2026-08-05T09:00:00.000Z',
+      },
+      {
+        signing_request_id: REQUEST_ID,
+        event_type: 'document_downloaded',
+        signer_email: 'dana@northwind.test',
+        ip_address: '198.51.100.7',
+        user_agent: 'Mozilla/5.0 Chrome/126.0',
+        metadata: { purpose: 'navigate' },
+        created_at: '2026-08-06T09:02:00.000Z',
+      },
+    ];
+    const signing = await loadSubmissionSigning(admin, REQUEST_ID, true);
+    const activity = signing?.signers[0].activity;
+
+    // The facts they are owed.
+    expect(activity?.opens).toBe(1);
+    expect(activity?.downloads).toBe(1);
+    expect(activity?.lastOpenedAt).toBe('2026-08-06T09:00:00.000Z');
+    // The scanner is not one of the opens, and the scanner's existence is
+    // not reported to them either.
+    expect(JSON.stringify(activity)).not.toContain('Mimecast');
+    // And nothing about the person.
+    expect(JSON.stringify(signing)).not.toContain('198.51.100.7');
+    expect(JSON.stringify(signing)).not.toContain('Mozilla');
   });
 
   /** The stored path itself never leaves the server. */
