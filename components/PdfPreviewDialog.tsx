@@ -24,6 +24,7 @@ export function PdfPreviewDialog({
   buildPdf,
   onClose,
   actions,
+  note,
 }: {
   title: string;
   filename: string;
@@ -31,6 +32,18 @@ export function PdfPreviewDialog({
   onClose: () => void;
   /** Extra footer buttons (e.g. "Looks good, send") rendered next to the defaults. */
   actions?: React.ReactNode;
+  /**
+   * What this preview is NOT, on the surfaces where the honest answer is not
+   * "the file that goes out".
+   *
+   * A letter is saved as Word, and a template has blanks nobody has answered
+   * yet. Both are real differences between these bytes and the artifact the
+   * other side ends up with, and a preview that let someone believe otherwise
+   * would be worse than no preview: it manufactures confidence about a
+   * document leaving the firm. Stated above the viewer, before the document is
+   * read, rather than in a footnote under it.
+   */
+  note?: React.ReactNode;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +112,12 @@ export function PdfPreviewDialog({
             </a>
           )}
         </header>
+
+        {note && (
+          <p className="rounded-lg border border-ink-200 bg-cream-50/60 px-3 py-2 text-[12.5px] leading-relaxed text-ink-600 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100/70">
+            {note}
+          </p>
+        )}
 
         {error ? (
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-800 dark:border-rose-700/40 dark:bg-rose-950/40 dark:text-rose-200">

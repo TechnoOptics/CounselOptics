@@ -21,6 +21,18 @@ import { counterpartyMarker } from './template-field-boxes';
  */
 export const RESERVED_FIRM_KEYS = ['firm_name', 'company_name'] as const;
 
+/**
+ * The longest template body that is ever stored, in characters.
+ *
+ * It lives here, next to the merge, because two surfaces have to agree on it:
+ * lib/firm-templates.ts truncates to this on the way into the database, and
+ * the PDF preview of an unsaved draft
+ * (app/api/counsel/draft-template/pdf) truncates to the same number before
+ * rendering. A preview that drew more of the body than the save would keep
+ * would show the author a page that cannot be produced again.
+ */
+export const TEMPLATE_BODY_MAX = 100000;
+
 export function isReservedFirmKey(key: string): boolean {
   return (RESERVED_FIRM_KEYS as readonly string[]).includes(key);
 }
