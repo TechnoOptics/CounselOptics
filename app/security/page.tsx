@@ -82,7 +82,7 @@ export default function SecurityPage() {
             </li>
           </ul>
         </SubSection>
-        <SubSection title="Backups & recovery">
+        <SubSection title="Backups">
           Supabase performs daily automated backups on the paid plan we run on.
         </SubSection>
       </Section>
