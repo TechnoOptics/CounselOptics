@@ -14,9 +14,13 @@ import { SectionPhoto } from '@/components/marketing/SectionPhoto';
  *           proof points sized for a firm pitch).
  *
  * Renders identically on both /  and /enterprise; the `active` prop
- * just picks which card gets the glowing "current" state and shifts
- * the CTA copy ("Continue" vs "Switch to ...") so the user always
- * has a one-tap path back to the other audience.
+ * only picks which card gets the glowing "current" state and the
+ * "You're here" badge. It does NOT change the CTA copy: each card's
+ * primary button is fixed per variant ("Start free - no card needed"
+ * and "Tell us about your firm"), and the one-tap path to the other
+ * audience is the secondary link, "Or look at the <other> side
+ * instead". An earlier version of this comment described a "Continue"
+ * and "Switch to ..." pair that does not exist in this file.
  *
  * Every glyph is an in-house SVG so the page reads as a serious
  * legal tool, not a consumer app dotted with emoji.
