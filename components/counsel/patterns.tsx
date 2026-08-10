@@ -238,6 +238,38 @@ export function Toolbar({
 }
 
 /**
+ * The uppercase letterspaced label the parity spec asks for.
+ *
+ * PanelCard has always drawn this as its header band. It is extracted so a
+ * page that wants the label ABOVE a card rather than inside it (the approvals
+ * queue, which puts the count in the label over a plain card) uses the same
+ * type rather than a hand-written copy of it. PanelCard renders this, so there
+ * is one spelling and not two.
+ *
+ * The colour is `text-muted` deliberately, and it was measured rather than
+ * chosen: on the light counsel shell it renders rgb(93,93,104), which is
+ * 6.02:1 on the page ground and 6.5:1 on a card, and rgb(156,156,166) on the
+ * dark shell, which is 7.27:1. The other candidate was SectionTitle's `label`
+ * variant, which reads its colour from the ink palette and measured 4.47:1 on
+ * that same light ground: under AA for text this size at weight 600.
+ */
+export function SectionLabel({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <h2
+      className={`text-[11px] font-semibold uppercase tracking-[0.16em] text-muted ${className}`}
+    >
+      {children}
+    </h2>
+  );
+}
+
+/**
  * A card whose header is an uppercase letterspaced label.
  *
  * The header is a band with its own bottom edge rather than a heading
@@ -265,9 +297,7 @@ export function PanelCard({
   return (
     <section className={`card overflow-hidden ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-4 py-2.5">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
-          {title}
-        </h2>
+        <SectionLabel>{title}</SectionLabel>
         {action}
       </div>
       <div className={bodyClassName}>{children}</div>

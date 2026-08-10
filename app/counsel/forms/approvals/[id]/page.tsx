@@ -11,6 +11,7 @@ import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 import { ReviewActions } from './review-actions';
+import { SubmissionPreviewButton } from './preview-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,7 +133,26 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
       )}
 
       <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-forest-700/50 dark:bg-forest-900/40">
-        <SectionTitle className="mb-3">What would be sent</SectionTitle>
+        {/* The wording as text is what a reviewer reads closely. The button
+            beside it opens the artifact that actually leaves the firm, which
+            is a letterheaded PDF and not this. It is offered only to a reader
+            who may already see the wording: a prettier read is still a read,
+            and the route checks the same predicate again for itself. */}
+        <SectionTitle
+          className="mb-3"
+          action={
+            s.documentVisible ? (
+              <SubmissionPreviewButton
+                submissionId={s.id}
+                revision={s.revision}
+                documentText={s.documentText}
+                title={s.templateName}
+              />
+            ) : undefined
+          }
+        >
+          What would be sent
+        </SectionTitle>
         {s.documentVisible ? (
           <div
             className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"

@@ -1,10 +1,61 @@
-import type { SubmissionStatus } from './template-approval';
-
 /**
  * Shapes shared by the approval server actions, the release helper, and both
  * UIs. Kept free of any server import so a client component can hold a
  * submission without dragging the service-role code path into the bundle.
+ *
+ * THE STATUS VOCABULARY LIVES HERE, NOT IN lib/template-approval.ts, AND THAT
+ * IS LOAD-BEARING. The gate module is pure in the sense that matters to it, no
+ * I/O, but it reads its role list from lib/firm-authz.ts, which begins with
+ * `import 'server-only'`. Anything a client component reaches for therefore
+ * drags that in and the page fails to build. The union and the three
+ * predicates over it carry no role and no I/O at all, so they belong on this
+ * side of the line; template-approval re-exports them, and every call site
+ * that had them from there still does.
  */
+
+export type SubmissionStatus =
+  /** Waiting on the legal team. The employee cannot change it here. */
+  | 'pending'
+  /** Legal sent it back with a reason. The employee can fix and resubmit. */
+  | 'changes_requested'
+  /** Cleared for release. Nothing else clears a document for release. */
+  | 'approved'
+  /** Delivered to the recipient. Terminal. */
+  | 'sent'
+  /** The employee pulled it back before a decision. Terminal. */
+  | 'withdrawn'
+  /**
+   * Legal decided this document is not going out. Terminal, and distinct from
+   * 'changes_requested': a returned submission is still alive and the employee
+   * is expected to fix it, whereas this one is finished. Nothing reopens it,
+   * nothing resubmits it, and checkReleasable refuses it like every other
+   * non-approved status.
+   */
+  | 'declined';
+
+export const ALL_SUBMISSION_STATUSES: readonly SubmissionStatus[] = [
+  'pending',
+  'changes_requested',
+  'approved',
+  'sent',
+  'withdrawn',
+  'declined',
+];
+
+/** True while the legal team still owes a decision. */
+export function isAwaitingReview(status: SubmissionStatus): boolean {
+  return status === 'pending';
+}
+
+/** The employee may edit their own submission only after it comes back. */
+export function isEditableBySubmitter(status: SubmissionStatus): boolean {
+  return status === 'changes_requested';
+}
+
+/** A decision has been taken and nothing further will happen on its own. */
+export function isTerminal(status: SubmissionStatus): boolean {
+  return status === 'sent' || status === 'withdrawn' || status === 'declined';
+}
 
 /** The row as stored in firm_template_submissions. */
 export type SubmissionRow = {

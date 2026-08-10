@@ -6,6 +6,8 @@ import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { authorizeFirmActor } from './portal-entitlements';
 import { callerFirmRole, FIRM_MANAGE_ROLES } from './firm-authz';
+import type { FirmRole } from './firm-types';
+import { MAX_BULK_SEND_BACK, type BulkSendBackResult } from './approval-queue';
 import { getFirmByIdAdmin } from './firm-storage';
 import { hydratePeople } from './intake-notify';
 import { createNotification } from './notifications';
@@ -919,6 +921,150 @@ export async function decideTemplateSubmissionAction(
     status: released.ok ? 'sent' : 'approved',
     deliveryError: released.ok ? undefined : released.error,
   };
+}
+
+/**
+ * Send several waiting submissions back to the colleagues who filed them, with
+ * one note.
+ *
+ * THERE IS DELIBERATELY NO BULK APPROVE, AND THIS COMMENT IS WHERE THAT
+ * DECISION LIVES. Approving in this product is not marking a row done: it
+ * releases the finished document to a named party outside the company, from
+ * the firm. A bulk approve is therefore a bulk send to third parties. Three
+ * things say it must not exist:
+ *
+ *   1. decideTemplateSubmissionAction is conditional on the wording AND the
+ *      revision the reviewer's own page rendered, precisely so that nobody is
+ *      recorded as having released text they never read. A list row shows a
+ *      form name, a colleague and an address; it does not show the agreement.
+ *      Any bulk approve would have to supply that wording from somewhere other
+ *      than the reviewer's eyes, which converts a deliberate read-then-release
+ *      into a click-then-release and empties the guard of its meaning.
+ *   2. The queue does not even hold the wording. listFirmTemplateSubmissions
+ *      hands rows through canReadSubmissionDocument, and the queue narrows
+ *      them again to ApprovalRow, which has no document field. Building bulk
+ *      approve would mean opening a new server path that reads document_text
+ *      past that gate to feed it.
+ *   3. Sending back releases nothing. It returns the document to the person
+ *      who wrote it and keeps it alive, so getting it wrong costs a colleague
+ *      a second pass rather than putting confidential material outside the
+ *      firm. That asymmetry is the whole reason one of these is a bulk action
+ *      and the other is not.
+ *
+ * Everything else here follows decideTemplateSubmissionAction row by row. The
+ * caller's role is resolved from their own session against each row's OWN firm
+ * (never a firm id passed in), reviewDecision checks role and transition
+ * together, and the write is a compare-and-swap on the status and the revision
+ * this call just read, so a row a colleague acted on in the meantime is
+ * reported as lost rather than overwritten. Each row's outcome is returned
+ * separately: a bulk action that reported one success over a partial failure
+ * would be telling a reviewer that work landed which did not.
+ */
+export async function sendBackTemplateSubmissionsAction(
+  submissionIds: string[],
+  note: string,
+): Promise<{ ok: boolean; error?: string; results?: BulkSendBackResult[] }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const ids = [...new Set((submissionIds ?? []).map((id) => String(id ?? '')).filter(Boolean))];
+  if (ids.length === 0) return { ok: false, error: 'Nothing was selected.' };
+  if (ids.length > MAX_BULK_SEND_BACK) {
+    return { ok: false, error: 'Too many at once. Narrow the queue and try again.' };
+  }
+  // The note is what the colleague is told, and reviewDecision requires one on
+  // every row. Refused once here so a missing note is one sentence rather than
+  // fifty copies of the same one.
+  if (!String(note ?? '').trim()) {
+    return { ok: false, error: 'Add a short note so your colleagues know what to change.' };
+  }
+
+  const allowed = await checkRateLimit(`template-send-back:${user.id}`, {
+    limit: 20,
+    windowSeconds: 3600,
+  });
+  if (!allowed) {
+    return { ok: false, error: 'You have sent a lot of documents back. Try again later.' };
+  }
+
+  const { data } = await admin
+    .from('firm_template_submissions')
+    .select(SUBMISSION_COLS)
+    .in('id', ids);
+  const byId = new Map<string, SubmissionRow>();
+  for (const r of (data ?? []) as SubmissionRow[]) byId.set(r.id, r);
+
+  // One role lookup per firm rather than per row. The lookup reads the CALLER's
+  // own membership through the user-scoped client, so this is a cache of the
+  // caller's own roles and not a way to widen them.
+  const roles = new Map<string, FirmRole | null>();
+  const roleIn = async (firmId: string): Promise<FirmRole | null> => {
+    if (!roles.has(firmId)) roles.set(firmId, await callerFirmRole(firmId));
+    return roles.get(firmId) ?? null;
+  };
+
+  const results: BulkSendBackResult[] = [];
+
+  for (const id of ids) {
+    const row = byId.get(id);
+    if (!row) {
+      results.push({ id, ref: id.split('-')[0] ?? id, ok: false, error: 'That submission could not be found.' });
+      continue;
+    }
+    const ref = refOf(row);
+    const decision = reviewDecision({
+      role: await roleIn(row.firm_id),
+      current: row.status,
+      action: 'request_changes',
+      note,
+    });
+    if (!decision.ok) {
+      results.push({ id, ref, ok: false, error: decision.error });
+      continue;
+    }
+
+    const { data: updated, error: updateError } = await admin
+      .from('firm_template_submissions')
+      .update({
+        status: decision.status,
+        decided_by: user.id,
+        decided_at: new Date().toISOString(),
+        decision_note: trimTo(note, 2000) || null,
+        release_error: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('status', 'pending')
+      .eq('revision', row.revision)
+      .select(SUBMISSION_COLS)
+      .maybeSingle();
+    // PostgREST reports a filter that matched nothing as success with no rows,
+    // so an empty result is a failure this caller has to be told about.
+    if (updateError) {
+      results.push({ id, ref, ok: false, error: 'That could not be recorded just now. Try again shortly.' });
+      continue;
+    }
+    if (!updated) {
+      results.push({ id, ref, ok: false, error: 'Someone else has already acted on this submission.' });
+      continue;
+    }
+
+    const fresh = updated as SubmissionRow;
+    await createNotification({
+      userId: fresh.submitted_by,
+      type: 'system',
+      title: `${fresh.template_name} needs a change before it goes out`,
+      body: `${ref} · ${trimTo(note, 300)}`,
+      link: `/portal/forms/submissions/${fresh.id}`,
+      actorUserId: user.id,
+    });
+    results.push({ id, ref, ok: true });
+  }
+
+  refresh();
+  return { ok: true, results };
 }
 
 /**
