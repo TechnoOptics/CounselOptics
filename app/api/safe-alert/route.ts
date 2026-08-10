@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { sendEmail } from '@/lib/email';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { formatDistanceFromMeters } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -75,9 +76,11 @@ export async function POST(req: NextRequest) {
   const mapUrl = hasLoc
     ? `https://www.google.com/maps?q=${b.lat},${b.lng}`
     : null;
+  // US customary. The reader is a safe contact in the United States
+  // working out how wide the search area is.
   const acc =
     typeof b.accuracy === 'number' && Number.isFinite(b.accuracy)
-      ? ` (±${Math.round(b.accuracy)} m)`
+      ? ` (±${formatDistanceFromMeters(b.accuracy)})`
       : '';
 
   const sha = (b.sha256 || '').replace(/[^a-f0-9]/gi, '').slice(0, 64);
