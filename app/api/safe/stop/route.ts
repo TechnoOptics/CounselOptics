@@ -90,13 +90,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, already_stopped: true });
   }
 
-  await admin
+  // ok:true here means "your location is no longer being shared", and the
+  // app says exactly that. A zero-row or rejected UPDATE resolves error
+  // null under PostgREST, so an unread write let this endpoint tell someone
+  // in a safety situation that tracking had stopped while live_tracking
+  // stayed true and the ping endpoint kept accepting positions. Read it
+  // back and fail loudly instead, so the caller retries.
+  const { data: stopped, error: stopErr } = await admin
     .from('safe_witness_alerts')
     .update({
       live_tracking: false,
       tracking_stopped_at: new Date().toISOString(),
       tracking_stopped_by: source,
     })
-    .eq('id', alertId);
+    .eq('id', alertId)
+    .select('id');
+  if (stopErr || !stopped || stopped.length === 0) {
+    console.error(
+      `[safe/stop] alert ${alertId} was not stopped: ${stopErr?.message ?? 'no row matched'}`,
+    );
+    return NextResponse.json(
+      { error: 'Tracking could not be stopped. Please try again.' },
+      { status: 500 },
+    );
+  }
   return NextResponse.json({ ok: true });
 }

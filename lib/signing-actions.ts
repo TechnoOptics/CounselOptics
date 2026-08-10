@@ -64,10 +64,27 @@ export async function recallSigningRequestAction(
   // against the caller's active firm above, never on a caller-supplied id.
   await requireActiveFirm(request.firm_id);
 
-  await admin
+  // Read back, and only then say it happened. Everything below this write
+  // asserts that the request is dead: a 'recalled' event goes into the
+  // tamper-evident chain, and every signer with an account is told the
+  // document is no longer available to sign. PostgREST reports a zero-row
+  // UPDATE as error null, so without this the firm could be shown a
+  // recalled request whose links still work, with a chain that says
+  // otherwise. Atomic on the status just read, so a colleague who
+  // completed the request in the meantime wins rather than having a
+  // finished instrument cancelled under them.
+  const { data: canceled, error: cancelErr } = await admin
     .from('firm_signing_requests')
     .update({ status: 'canceled' })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', request.status)
+    .select('id');
+  if (cancelErr || !canceled || canceled.length === 0) {
+    return {
+      ok: false,
+      error: 'This request could not be recalled just now. Reload and try again.',
+    };
+  }
 
   // Audit + notify any signer who has an account.
   const { data: sigs } = await admin
@@ -160,19 +177,43 @@ export async function reopenSigningRequestAction(
   }>;
 
   // Clear the objecting signers' response so their link is live again.
+  //
+  // This is the write that actually makes the links live again, so it is
+  // the one the notification below speaks for. Every id must come back:
+  // clearing three of four responses and then telling all four that their
+  // link works is the same lie in a smaller size.
   const toClear = rows.filter((r) => r.response && !r.signed_at).map((r) => r.id);
   if (toClear.length > 0) {
-    await admin
+    const { data: cleared, error: clearErr } = await admin
       .from('firm_signatures')
       .update({ response: null, response_note: null, responded_at: null })
-      .in('id', toClear);
+      .in('id', toClear)
+      .select('id');
+    if (clearErr || (cleared ?? []).length !== toClear.length) {
+      return {
+        ok: false,
+        error: 'This request could not be reopened just now. Reload and try again.',
+      };
+    }
   }
 
   const anySigned = rows.some((r) => r.signed_at);
-  await admin
+  // The rollup, not the thing itself. The links are live at this point
+  // whatever this write does, so a failure here is reported to the
+  // operator rather than turned into a refusal that would strand a signer
+  // whose link is already working.
+  const { data: rolled, error: rollErr } = await admin
     .from('firm_signing_requests')
     .update({ status: anySigned ? 'partial' : 'sent' })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .select('id');
+  if (rollErr || !rolled || rolled.length === 0) {
+    console.error(
+      `[signing] request ${requestId} was reopened but its status could not be rolled up: ${
+        rollErr?.message ?? 'no row matched'
+      }`,
+    );
+  }
 
   await appendSignatureEvent(admin, {
     signingRequestId: requestId,
@@ -298,10 +339,21 @@ export async function verifyAccessCodeAction(
     };
   }
 
-  await admin
+  // The code was right, but that is not the same as the gate being open.
+  // Only this write opens it, and an unread one let the signer be told
+  // their code was accepted - and put an 'access_verified' event in the
+  // chain saying so - while the next page load asked for it again.
+  const { data: unlocked, error: unlockErr } = await admin
     .from('firm_signatures')
     .update({ access_code_verified_at: new Date().toISOString() })
-    .eq('id', sig.id);
+    .eq('id', sig.id)
+    .select('id');
+  if (unlockErr || !unlocked || unlocked.length === 0) {
+    return {
+      ok: false,
+      error: 'That code could not be checked just now. Please try again shortly.',
+    };
+  }
   await appendSignatureEvent(admin, {
     signingRequestId: sig.signing_request_id,
     signatureId: sig.id,
@@ -480,18 +532,45 @@ export async function respondToSignatureAction(
   }
 
   const trimmedNote = note.trim().slice(0, 2000) || null;
-  await admin
+  // The signer's act, and the only record of it. The chain event below is
+  // attributed by name and address to the person this row names and is
+  // offered as evidence, so it must not be written for a response the
+  // database never took. Claimed on response IS NULL as well as the id, so
+  // two clicks cannot both put an event in the chain; the read above has
+  // already refused a link that is on hold, so this predicate can only
+  // lose to a genuine concurrent response.
+  const { data: responded, error: respondErr } = await admin
     .from('firm_signatures')
     .update({
       response,
       response_note: trimmedNote,
       responded_at: new Date().toISOString(),
     })
-    .eq('id', sig.id);
-  await admin
+    .eq('id', sig.id)
+    .is('response', null)
+    .select('id');
+  if (respondErr || !responded || responded.length === 0) {
+    return {
+      ok: false,
+      error: 'This could not be recorded just now. Please try again shortly.',
+    };
+  }
+  // The rollup. The response is already recorded and is what the chain
+  // event and the notification speak for, so a failure here is the
+  // operator's problem, not a reason to tell the signer their decline did
+  // not go through when it did.
+  const { data: statusRows, error: statusErr } = await admin
     .from('firm_signing_requests')
     .update({ status: response })
-    .eq('id', request.id);
+    .eq('id', request.id)
+    .select('id');
+  if (statusErr || !statusRows || statusRows.length === 0) {
+    console.error(
+      `[signing] signature ${sig.id} recorded ${response} but request ${request.id} could not be rolled up: ${
+        statusErr?.message ?? 'no row matched'
+      }`,
+    );
+  }
 
   await appendSignatureEvent(admin, {
     signingRequestId: request.id,

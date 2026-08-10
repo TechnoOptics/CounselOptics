@@ -243,16 +243,34 @@ export async function runConflictCheckAction(
     }
   }
 
-  // Persist the result.
+  // Persist the result, and read it back before saying it was persisted.
+  //
+  // This is a conflicts check. Returning hits the caller renders while the
+  // row keeps its old status is how a matter gets opened against a screen
+  // nobody can find afterwards, and a clean result that was never stored
+  // is worse still: the intake stays unchecked while the screen says it
+  // passed. The write runs through the member client, and this file
+  // already documents that a portal employee is not a firm_member and is
+  // refused by this table's RLS policy, so a filtered-to-zero update here
+  // is an ordinary Tuesday rather than a corner case. PostgREST reports it
+  // as error null.
   const status = hits.length > 0 ? 'conflict_check_flagged' : 'conflict_check_passed';
-  await supabase
+  const { data: stored, error: storeErr } = await supabase
     .from('firm_matter_intakes')
     .update({
       status,
       conflict_results: hits,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', intakeId);
+    .eq('id', intakeId)
+    .select('id');
+  if (storeErr || !stored || stored.length === 0) {
+    return {
+      ok: false,
+      error:
+        'The conflicts check ran but its result could not be saved, so it has not been recorded. Try again before relying on it.',
+    };
+  }
 
   // Partner-born tickets push the status change to the partner app.
   try {
@@ -310,7 +328,13 @@ export async function clearConflictAction(
     };
   }
   const supabase = createServerSupabase();
-  const { error } = await supabase
+  // Neither predicate was proved by a read: firm_id in particular comes
+  // straight off the caller's arguments. An id that is not this firm's, or
+  // a row the member client's policy does not admit, matches nothing and
+  // PostgREST calls that error null - so the person is told a conflict was
+  // cleared, and the written reason this function insists on for the audit
+  // trail is the very thing that was not stored.
+  const { data: cleared, error } = await supabase
     .from('firm_matter_intakes')
     .update({
       status: 'conflict_check_passed',
@@ -318,8 +342,16 @@ export async function clearConflictAction(
       updated_at: new Date().toISOString(),
     })
     .eq('id', intakeId)
-    .eq('firm_id', firmId);
+    .eq('firm_id', firmId)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  if (!cleared || cleared.length === 0) {
+    return {
+      ok: false,
+      error:
+        'That conflict could not be cleared, so no reason was recorded. Reload the request and try again.',
+    };
+  }
   try {
     const { partnerTicketEvent } = await import('./partner-notify');
     await partnerTicketEvent(intakeId, 'ticket.status_changed');

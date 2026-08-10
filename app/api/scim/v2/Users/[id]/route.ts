@@ -109,9 +109,21 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const e = await load(auth, params.id);
   if (!e) return scimError(404, 'User not found.');
   // Soft-deprovision: keep the row (audit) but mark inactive.
-  await auth.admin
+  //
+  // 204 is the IdP being told the person is offboarded, and it is the last
+  // word on it: the directory marks the user deprovisioned and stops
+  // reconciling them. This was the only SCIM write on this resource that
+  // dropped its result, and it is the deprovisioning one, so a rejected or
+  // zero-row UPDATE - error null, under PostgREST - left a departed
+  // employee active here with the IdP certain they were not. Read it back
+  // and answer 500 instead, which is what makes the IdP retry.
+  const { data: deactivated, error } = await auth.admin
     .from('firm_employees')
     .update({ deactivated_at: e.deactivated_at ?? new Date().toISOString() })
-    .eq('id', e.id);
+    .eq('id', e.id)
+    .select('id');
+  if (error || !deactivated || deactivated.length === 0) {
+    return scimError(500, error?.message ?? 'The user could not be deprovisioned.');
+  }
   return new Response(null, { status: 204 });
 }
