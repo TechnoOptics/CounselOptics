@@ -1,15 +1,30 @@
 -- Trials carry a plan level, and individual users can be put on one.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-06. Applying this and regenerating
--- supabase/schema-fingerprint.sha256 is the OWNER'S step, not an
--- implementer's: the CI drift gate hashes the live schema against that
--- committed fingerprint, so applying one without the other fails the next
--- push either way round.
+-- ============================== APPLIED ==================================
+-- Written 2026-08-06. APPLIED to production. This header said NOT APPLIED
+-- until 2026-08-09 and was wrong.
+--
+-- HOW THAT WAS ESTABLISHED. The live schema was queried on 2026-08-09 and
+-- public.firms carries trial_tier. That column is added HERE, at line 42,
+-- and nowhere else in supabase/migrations. Because every statement in this
+-- file sits inside the single begin/commit below, the presence of that one
+-- column means the whole transaction committed: profiles.trial_ends_at,
+-- profiles.trial_tier, public.user_trial_events and the widened
+-- firm_trial_events_action_check are all live too. That inference holds only
+-- if the file was applied as written rather than hand-run statement by
+-- statement; if you have reason to doubt that, re-check the objects
+-- individually.
+--
+-- Regenerating supabase/schema-fingerprint.sha256 is still owed if it was
+-- not done at apply time, and nothing in CI will tell you: the schema-drift
+-- gate is INERT, not merely unconfigured. With the SUPABASE_DB_URL secret
+-- absent its comparison step reports skipped on every run and the job still
+-- passes green. See scripts/schema/README.md, "Current status".
 -- =========================================================================
 --
 -- ORDERING. This file runs AFTER supabase/migrations/20260801_firm_trials.sql,
--- which is itself still unapplied. That file creates public.firm_trial_events
+-- which is also applied (its header records how that was confirmed). That
+-- file creates public.firm_trial_events
 -- and adds firms.trial_ends_at; the ALTER below widens that table's action
 -- constraint, so applying this one first fails on a table that does not exist
 -- yet. The file names sort in the right order. Do not renumber either one, and

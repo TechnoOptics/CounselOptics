@@ -450,9 +450,11 @@ export default async function CounselLayout({
                 for that one route. */}
             {active &&
             pathname !== '/counsel' &&
-            // A request detail is a two-pane workspace: it renders the Ask bar
-            // inside its right rail instead, so a full-width bar can't span
-            // both panes or steal height from either scroller.
+            // A request detail is a two-pane workspace, so the full-width bar
+            // is suppressed rather than allowed to span both panes or steal
+            // height from either scroller. Nothing puts it back: that route
+            // has NO Ask bar. The only other mount of AskAdvottic is
+            // app/counsel/page.tsx.
             !/^\/counsel\/intake\/[^/]+$/.test(pathname) &&
             !surface.hideSearch ? (
               <AskAdvottic />

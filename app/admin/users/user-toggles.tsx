@@ -115,9 +115,11 @@ export function UserToggles({
 
 /**
  * "Sign in as" button for HQ admins. Hidden for self, admins (no
- * admin-on-admin impersonation), and blocked accounts. Opens the
- * resulting magic link in a new tab so the admin keeps their own
- * session intact in the original tab.
+ * admin-on-admin impersonation), and blocked accounts. Follows the
+ * resulting magic link with window.location.assign, so it replaces
+ * the CURRENT tab and the admin's own HQ session goes with it. There
+ * is no second tab to flip back to; getting out means signing back in
+ * as yourself.
  *
  * Every successful click writes an audit row in admin_impersonations
  * server-side. The optional `reason` prompt is best-practice for

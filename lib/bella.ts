@@ -178,7 +178,6 @@ Knowing the firm's environment - DO NOT GUESS, USE TOOLS:
     Intake / action ctr  -> list_intake_inbox (filter by lane + source)
     Clients              -> list_clients (filter by status, mine_only, query); get_client_detail for one client
     Team                 -> list_team_members
-    Access requests      -> list_access_requests
     Documents / vault    -> list_documents (filter by case, client, status); get_document_detail for one
     Signing              -> list_signing_requests (filter by status, mine_only)
     Leads                -> list_leads
@@ -362,7 +361,6 @@ type ToolName =
   | 'list_clients'
   | 'get_client_detail'
   | 'list_team_members'
-  | 'list_access_requests'
   | 'list_documents'
   | 'get_document_detail'
   | 'list_signing_requests'
@@ -834,28 +832,6 @@ const LIST_TEAM_MEMBERS_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
-const LIST_ACCESS_REQUESTS_TOOL: Anthropic.Messages.Tool = {
-  name: 'list_access_requests',
-  description:
-    "List external sign-up access requests waiting on admin review. Use for 'who's waiting on access', 'any new external sign-ups', 'show pending access requests'.",
-  input_schema: {
-    type: 'object',
-    properties: {
-      status: {
-        type: 'string',
-        enum: ['pending', 'approved', 'denied', 'all'],
-        description: "Default 'pending'.",
-      },
-      limit: {
-        type: 'integer',
-        minimum: 1,
-        maximum: 50,
-        description: 'Max items. Default 20.',
-      },
-    },
-  },
-};
-
 const LIST_DOCUMENTS_TOOL: Anthropic.Messages.Tool = {
   name: 'list_documents',
   description:
@@ -1229,7 +1205,6 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
       LIST_CLIENTS_TOOL,
       GET_CLIENT_DETAIL_TOOL,
       LIST_TEAM_MEMBERS_TOOL,
-      LIST_ACCESS_REQUESTS_TOOL,
       LIST_DOCUMENTS_TOOL,
       GET_DOCUMENT_DETAIL_TOOL,
       LIST_SIGNING_REQUESTS_TOOL,
@@ -1261,10 +1236,27 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
 
 /**
  * Run a single Bella tool, returning a JSON-serializable result that
- * goes back to Claude as a tool_result. RLS scopes everything to the
- * current user (createServerSupabase reads cookies); on top of that,
- * the `portal` argument adds a firm-vs-consumer-vs-hq scope so a
- * user's personal cases never leak into a firm chat and vice versa.
+ * goes back to Claude as a tool_result.
+ *
+ * Do not read this as "RLS scopes everything". Only the two consumer
+ * case tools (search_my_cases, get_case_detail) use the user-scoped
+ * cookie client, so only those two are behind RLS. Every firm-side
+ * loader below uses the service-role admin client and is therefore
+ * scoped by the `firmId` argument alone, plus the FIRM_ONLY guard
+ * that refuses the tool unless portal === 'firm'. `portal` and
+ * `firmId` come from resolvePortal in app/api/bella/route.ts, which
+ * proves firm membership before either is set; they are the whole
+ * access control for those tools, so a new firm tool that forgets
+ * `.eq('firm_id', firmId)` leaks across firms with nothing to catch
+ * it.
+ *
+ * ONE dispatch below takes no firmId, and it is not an oversight to
+ * copy: `list_leads` reads firm_leads, a marketplace pool with no
+ * firm_id column that every member firm is meant to see. A firm tool
+ * that reads an unscoped table for any other reason is misfiled.
+ * `list_access_requests` was the counter-example and was removed
+ * rather than gated, because firm_access_requests is an HQ table and
+ * no firm ever had a reason to read it.
  */
 async function executeTool(
   name: ToolName,
@@ -1502,7 +1494,6 @@ async function executeTool(
     'list_clients',
     'get_client_detail',
     'list_team_members',
-    'list_access_requests',
     'list_documents',
     'get_document_detail',
     'list_signing_requests',
@@ -1545,7 +1536,6 @@ async function executeTool(
   if (name === 'list_clients') return await loadClients(firmId!, input);
   if (name === 'get_client_detail') return await loadClientDetail(firmId!, input);
   if (name === 'list_team_members') return await loadTeamMembers(firmId!, input);
-  if (name === 'list_access_requests') return await loadAccessRequests(input);
   if (name === 'list_documents') return await loadDocuments(firmId!, input);
   if (name === 'get_document_detail') return await loadDocumentDetail(firmId!, input);
   if (name === 'list_signing_requests') return await loadSigningRequests(firmId!, input);
@@ -1987,7 +1977,9 @@ async function searchCourtListener(input: Record<string, unknown>) {
 // app/counsel/page.tsx so Bella sees exactly what the dashboard
 // shows. All three require a verified firm portal (the executeTool
 // FIRM_ONLY guard ensures portal === 'firm' before they run); each
-// uses the user-scoped server client so RLS still applies on top.
+// then uses the service-role admin client, so RLS is NOT in play
+// and `.eq('firm_id', firmId)` is the only thing keeping one firm's
+// rows out of another firm's chat. See loadFirmOverview for why.
 // ===========================================================================
 
 async function loadFirmOverview(
@@ -2541,24 +2533,6 @@ async function loadTeamMembers(
     });
   }
   return { ok: true, count: hydrated.length, members: hydrated };
-}
-
-async function loadAccessRequests(
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const supabase = createAdminSupabase();
-  if (!supabase) return { ok: false, error: 'Service role not configured.' };
-  const status = String(input.status ?? 'pending').trim();
-  const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
-  let q = supabase
-    .from('firm_access_requests')
-    .select('id, organization_name, contact_name, contact_email, contact_role, firm_type, team_size, jurisdictions, status, created_at')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  if (status !== 'all') q = q.eq('status', status);
-  const { data, error } = await q;
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, count: (data ?? []).length, requests: data ?? [] };
 }
 
 async function loadDocuments(

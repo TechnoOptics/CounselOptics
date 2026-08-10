@@ -22,8 +22,11 @@ const SIZES = [
 
 /**
  * Replaces the prior mailto link. Submissions go through a server
- * action that writes to enterprise_inquiries (Supabase) and emails
- * the admin team. Admin reviews in the dashboard, replies, and
+ * action that inserts one enterprise_inquiries row (Supabase) and
+ * stops there. NOTHING IS SENT: no email, no notification, no
+ * webhook, and the table has no trigger beyond updated_at. A new
+ * inquiry is seen only when someone opens /admin/enterprise-inquiries
+ * and looks. Admin reviews in the dashboard, replies, and
  * eventually sets a custom price in the firm's subscription record
  * for the agreed-upon auto-payment cadence.
  */

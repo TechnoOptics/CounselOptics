@@ -15,13 +15,13 @@ import { expiryFromNow, type GiftDuration } from '@/lib/gift';
  * What "activate" means concretely:
  *   1. Bump the gift_subscriptions row to status='claimed' with
  *      claimed_by_user_id + claimed_at + expires_at populated.
- *   2. Upsert a user_subscriptions row giving the recipient the
+ *   2. Upsert a public.subscriptions row giving the recipient the
  *      tier they were gifted. We use 'active' status and set
  *      current_period_end to expires_at so the existing entitlement
  *      checks elsewhere in the app naturally honor the gift window
  *      without any special-cased gift handling.
  *
- * If the existing user_subscriptions row already has a paid
+ * If the existing subscriptions row already has a paid
  * Stripe subscription, we DON'T overwrite it - instead we extend
  * its expiration by duration_months on top of whatever current_
  * period_end already says. That way someone with an existing Pro

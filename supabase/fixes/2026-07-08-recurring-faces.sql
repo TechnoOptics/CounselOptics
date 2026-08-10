@@ -127,6 +127,8 @@ create policy case_face_clusters_member_all on public.case_face_clusters
   with check (private.is_case_member(case_id));
 
 -- NOTE: after applying this migration to the live DB, regenerate the schema
--- fingerprint or CI (schema-drift gate) will fail:
+-- fingerprint. CI will not catch it if you do not: the schema-drift gate
+-- skips while the SUPABASE_DB_URL secret is unset (scripts/schema/README.md,
+-- "Current status"). Regenerate with:
 --   psql "$SUPABASE_DB_URL" -X -q -t -A -f scripts/schema/fingerprint-hash.sql \
 --     | tr -d '[:space:]' > supabase/schema-fingerprint.sha256

@@ -11,9 +11,13 @@ export const runtime = 'nodejs';
  * anonymous visitors. We still record their auth.users.id when present
  * so admins can spot patterns by user.
  *
- * Rate-limit: a basic check on message+url+ua to skip storing exact
- * duplicates the client sends in a tight retry loop. Anything more
- * sophisticated belongs in a real APM, not this app.
+ * NO server-side rate limit or de-duplication. Every accepted POST
+ * becomes a row: recordCrashReport does a bare insert with no prior
+ * select, no upsert, and crash_reports has no unique constraint. The
+ * only throttle is client-side and lives in components/CrashReporter.tsx,
+ * which suppresses a repeat of the same message + first stack line for
+ * 60s per session. Anything that does not run that component, or that
+ * retries in a fresh session, writes a row per attempt.
  */
 export async function POST(request: NextRequest) {
   let body: Record<string, unknown> = {};

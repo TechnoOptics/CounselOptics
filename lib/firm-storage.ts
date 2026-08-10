@@ -23,13 +23,19 @@ import type {
 } from './firm-types';
 
 /**
- * Server-side data layer for the firm-mode product. Every read goes
- * through the RLS-scoped client (the user's session) so a query for
- * firm A can never leak data from firm B even if the application
- * logic is buggy. The few writes that need to bypass RLS - accepting
- * an invitation, recording a signature on the public /sign page -
- * use the admin (service-role) client and validate authorization in
- * application code.
+ * Server-side data layer for the firm-mode product. MOST reads go
+ * through the RLS-scoped client (the user's session), and on those a
+ * query for firm A cannot leak data from firm B even if the
+ * application logic is buggy.
+ *
+ * Do not generalise that to the whole module. Reads as well as writes
+ * use the admin (service-role) client where the caller has no usable
+ * session or the row is deliberately outside the user's scope, and on
+ * every one of them application logic is the only containment:
+ * getFirmByIdAdmin, listConsumerInboxDocuments, getSignatureByToken
+ * (the public /sign page), and the auth.admin.listUsers lookups inside
+ * listFirmMembers and listFirmClients. Check which client a function
+ * builds before relying on the guarantee above.
  */
 
 // ============================================================================
