@@ -61,8 +61,12 @@ export function ProfileForm({
           {error}
         </p>
       )}
+      {/* The same shape as the error line above: a tint that reads on
+          either ground and a text colour declared for both. The dark fill
+          and near-white type this used to carry were written when the
+          portal had one theme, and measured 1.3:1 on the light one. */}
       {saved && (
-        <p className="rounded-lg ring-1 ring-emerald-700/40 bg-emerald-950/30 px-3 py-2 text-[12.5px] text-emerald-200">
+        <p className="rounded-lg ring-1 ring-emerald-700/40 bg-emerald-500/10 px-3 py-2 text-[12.5px] text-emerald-800 dark:text-emerald-300">
           Saved.
         </p>
       )}

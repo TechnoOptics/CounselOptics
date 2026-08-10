@@ -297,7 +297,11 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                   {doc}
                 </pre>
               </div>
-              <div className="px-8 py-4 text-[10px] text-[#8a8472] border-t border-[#ece8dd]">
+              {/* #6f6a5a rather than #8a8472: the same warm grey at a legible
+                  weight. The lighter one measured 3.58:1 on this page stock
+                  and 3.22:1 on the workspace behind it, and it has no
+                  counterpart in the PDF renderer to stay faithful to. */}
+              <div className="px-8 py-4 text-[10px] text-[#6f6a5a] border-t border-[#ece8dd]">
                 {meta.firmName} · <T>Generated</T>{' '}
                 {formatDateNumeric(Date.now())} · <T>Draft for attorney review</T>
               </div>

@@ -384,7 +384,10 @@ function ApproachCard({
               <span
                 className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                   running
-                    ? 'bg-sky-500/12 text-sky-200/90'
+                    ? // `text-info-text` like the two branches below reach for
+                      // their own tokens. The near-white sky it replaces was
+                      // 1.15:1 once this shell grew a light theme.
+                      'bg-sky-500/12 text-info-text'
                     : assembled
                     ? 'bg-gold-metal/[0.12] text-gold-metal'
                     : 'bg-amber-500/10 text-warn-text'

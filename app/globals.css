@@ -581,6 +581,51 @@ html.dark body::before {
     radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.10), transparent 60%),
     radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%);
 }
+
+/* ------------------------------ The canvas ------------------------------
+   The area the browser paints OUTSIDE the document: the strip revealed
+   when a page is dragged past its end, and the space under a document
+   shorter than the viewport.
+
+   It comes from the ROOT element's background, and every shell in this
+   product paints its colour on a `div`. So the two rules above were the
+   only answer the canvas ever got, and on a shell page they were the
+   wrong one. Captured past the end of the document at 900x700: /join
+   ends in near-black with a strip of pure #ffffff below it, and a dark
+   counsel page under a dark consumer theme gets the consumer forest
+   #0a1f19 against a #0a0a0b workspace. That white strip is the report
+   this block answers.
+
+   `min-h-screen` on the shell cannot fix it. It sizes the div to the
+   viewport, and the canvas is by definition what is painted beyond the
+   viewport, so the shell never reaches it.
+
+   Theme still comes from `.dark`, deliberately: a canvas hardcoded for
+   the dark shell is the same defect pointing the other way, and light
+   counsel is a real theme now. The compound selectors outrank the
+   `html.dark` pair above on specificity rather than on source order.
+
+   `overscroll-behavior` is left exactly as it is. `html, body` already
+   set it to `none` further up, which is what suppresses the bounce in
+   the browser; the iOS shell points at the remote URL and lets WKWebView
+   bounce natively, where matching the colour is the whole fix and where
+   tightening CSS further would buy nothing and cost pull-to-refresh.
+
+   `lib/counsel-theme-values.ts` decides which class `<html>` wears. Add
+   a family there and here together, or the canvas silently falls back to
+   the consumer answer. */
+html.surface-counsel,
+html.surface-counsel body {
+  background-color: #f6f6f7;
+}
+html.surface-counsel.dark,
+html.surface-counsel.dark body {
+  background-color: #0a0a0b;
+}
+html.surface-hq,
+html.surface-hq body {
+  background-color: #0a1714;
+}
 /* ================= THE PER-CLASS THEME OVERRIDE BLOCK ==================
    Everything from here to the ring rule at the end of this section
    reassigns what a Tailwind PALETTE class means, per theme. It is the
@@ -1229,10 +1274,17 @@ body > * {
    repainted here, which reaches 162 of those 178 tokens, and the 16 in
    the five spellings used BOTH ways were changed at the call site to
    say which they meant. Anything a light ground already renders
-   correctly gets no rule: `bg-white`, `bg-cream-*`, `text-ink-*`,
-   `border-ink-*` and `ring-ink-*` all revert to their authored light
-   values the moment `.dark` comes off, because the per-class override
-   block above is scoped to `.dark`.
+   correctly gets no rule: `bg-white`, `bg-cream-*`, `border-ink-*` and
+   `ring-ink-*` revert to their authored light values once `.dark` is
+   off the page, because the per-class override block above is scoped to
+   `.dark`.
+
+   `text-ink-*` was on that list and should not have been, twice over.
+   `.dark` sits on <html> and this shell cannot take it off, so the
+   block above kept reaching in - and the authored light values do not
+   clear AA on this ground anyway. Both are answered further down; the
+   first also needed a change outside this file, in
+   lib/counsel-theme-values.ts.
 
    `text-white` and `ring-white` are deliberately NOT repainted. Every
    one of their 32 counsel call sites sits on a saturated fill
@@ -1369,18 +1421,118 @@ body > * {
 .counsel-shell:not(.dark) .text-gold-metal,
 .counsel-shell:not(.dark) .hover\:text-gold-metal:hover { color: #6a5521; }
 
+/* The rest of the gold RAMP, as words, on the same value and for the
+   same reason. `text-gold-metal` was moved first because it is the one
+   spelling a component class reaches for; the numbered stops were left,
+   and they are the lighter half of the same ramp, so they fail harder:
+   gold-200 #efe0b7 measures 1.13:1 on the light counsel chip, gold-300
+   #e5ce93 1.34:1, gold-400 #dec68a 1.39:1, gold-600 #c2a66a 2.02:1 and
+   gold-700 #a38a55 2.87:1. The first three are the defect this whole
+   pass is about: not low contrast, the same colour as the surface.
+
+   They all land on ONE value rather than five light stops, because a
+   light ground does not have five legible golds to give: #6a5521 is the
+   `--accent-text` light fallback and the only gold in this file proved
+   on every surface this shell paints. The ramp's job on a dark ground is
+   emphasis by lightness, and that job is done here by weight and size
+   instead. `bg-gold-*`, `border-gold-*` and `ring-gold-*` are untouched
+   for the reason stated just above: they are decoration, not words.
+
+   Only spellings that exist at a counsel or portal call site are listed,
+   which is the same discipline the per-class block above records. */
+.counsel-shell:not(.dark) .text-gold-100,
+.counsel-shell:not(.dark) .text-gold-200,
+.counsel-shell:not(.dark) .text-gold-300,
+.counsel-shell:not(.dark) .text-gold-400,
+.counsel-shell:not(.dark) .text-gold-400\/60,
+.counsel-shell:not(.dark) .text-gold-400\/90,
+.counsel-shell:not(.dark) .text-gold-500,
+.counsel-shell:not(.dark) .text-gold-600,
+.counsel-shell:not(.dark) .text-gold-700,
+.counsel-shell:not(.dark) .text-gold-800,
+.counsel-shell:not(.dark) .hover\:text-gold-200:hover,
+.counsel-shell:not(.dark) .hover\:text-gold-300:hover,
+.counsel-shell:not(.dark) .hover\:text-gold-600:hover,
+.counsel-shell:not(.dark) .hover\:text-gold-700:hover,
+/* A `group-hover:` utility sits on the CHILD and only paints while the
+   named parent is hovered, so the group's own `:hover` has to be in the
+   selector. Writing the class on its own would paint the label gold at
+   rest, which is the opposite of what the call site asked for. */
+.counsel-shell:not(.dark) .group:hover .group-hover\:text-gold-500,
+.counsel-shell:not(.dark) .group\/row:hover .group-hover\/row\:text-gold-700 { color: #6a5521; }
+
+/* The ink ramp, which this layer used to say needed no rule at all.
+   That claim was wrong in both directions.
+
+   It read: "`text-ink-*` reverts to its authored light value the moment
+   `.dark` comes off, because the per-class override block is scoped to
+   `.dark`." `.dark` is on <html>, not on this shell, so it does not come
+   off - see lib/counsel-theme-values.ts for the fix that makes it, and
+   for what it cost while it did not. And even with `.dark` gone the raw
+   Tailwind values do not clear AA on a near-white workspace: #71717a is
+   4.17:1 on the light counsel chip and #a1a1aa is 2.21:1, on 103 and 89
+   call sites respectively.
+
+   So the ramp is mapped onto the five ink stops this layer already
+   declares, by the same role: the two darkest spellings become the ink
+   this shell writes body copy in, the quietest become the quietest stop
+   that is still legible. No new colour is introduced and there is no
+   sixth value to keep in step. #5d5d68 is `--muted`, the value the
+   counsel primitives were already moved onto and which measures 4.63:1
+   on the tightest of the four surfaces. */
+.counsel-shell:not(.dark) .text-ink-950,
+.counsel-shell:not(.dark) .text-ink-900,
+.counsel-shell:not(.dark) .hover\:text-ink-900:hover { color: #17171b; }
+.counsel-shell:not(.dark) .text-ink-800,
+.counsel-shell:not(.dark) .text-ink-700,
+.counsel-shell:not(.dark) .hover\:text-ink-700:hover { color: #2e2e35; }
+.counsel-shell:not(.dark) .text-ink-600,
+.counsel-shell:not(.dark) .hover\:text-ink-600:hover { color: #45454e; }
+.counsel-shell:not(.dark) .text-ink-500 { color: #5d5d68; }
+.counsel-shell:not(.dark) .text-ink-400,
+.counsel-shell:not(.dark) .text-ink-300,
+.counsel-shell:not(.dark) .text-ink-100,
+.counsel-shell:not(.dark) .placeholder\:text-ink-400::placeholder { color: #6b6b75; }
+
+/* The status stops that are tuned for a dark ground, pointed at the
+   tokens this file already proves for a light one.
+   `var()` rather than a hex, deliberately: the light values are declared
+   once at the top of this file and re-declared on this exact selector,
+   so there is no fifth spelling of #b91c1c to keep in step, and a change
+   to the token moves these with it.
+   Only the stops that MEASURE under the floor are listed. rose-700 is
+   5.43:1 here, amber-800 6.12:1 and emerald-700 4.74:1, and repainting
+   a colour that already reads would flatten a scale the call sites use
+   deliberately. The `/` opacity spellings are absent for the same
+   reason: none exists at a call site. */
+.counsel-shell:not(.dark) .text-rose-500,
+.counsel-shell:not(.dark) .text-rose-600,
+.counsel-shell:not(.dark) .text-red-600,
+.counsel-shell:not(.dark) .hover\:text-rose-600:hover { color: var(--danger-text); }
+.counsel-shell:not(.dark) .text-amber-600,
+.counsel-shell:not(.dark) .text-amber-700 { color: var(--warn-text); }
+
 /* TEXT */
 .counsel-shell:not(.dark) .text-forest-900 { color: #17171b; }
 .counsel-shell:not(.dark) .text-cream-100:not(.card-ai) { color: #17171b; }
 .counsel-shell:not(.dark) .text-cream-100\/55 { color: #45454e; }
-/* `.bg-forest-600` is the one fill this layer deliberately leaves dark
-   (an opaque selected chip, correct as a dark element on a light page),
-   and seven call sites pair it with `text-cream-50` on the SAME element.
-   Repainting those would be dark-on-dark, so the fill is named here
-   rather than churned at the call site. Same idea as the guards' own
-   "this element paints its own background" exemption, narrowed to the
-   one background that stays dark. */
-.counsel-shell:not(.dark) .text-cream-50:not(.btn-primary):not(.bg-forest-600) { color: #17171b; }
+/* `.bg-forest-600` and `.bg-forest-900` are the fills this layer
+   deliberately leaves dark (an opaque selected chip and the primary
+   action fill, both correct as dark elements on a light page), and
+   eleven call sites pair one of them with `text-cream-50` on the SAME
+   element. Repainting those would be dark-on-dark, so the fills are
+   named here rather than churned at the call site. Same idea as the
+   guards' own "this element paints its own background" exemption,
+   narrowed to the backgrounds that stay dark.
+
+   `.bg-forest-900\/85` is listed separately because an opacity variant
+   is a different CLASS, not the same class with a modifier, so
+   `:not(.bg-forest-900)` does not reach it. It was the one that got
+   away: a day-count bubble on the firm timeline calendar, near-black
+   type on its own near-black pill at 1.06:1. The other `bg-forest-900`
+   tints ARE repainted light by the SURFACES section below, so they must
+   NOT be listed - exempting them would put cream on near-white. */
+.counsel-shell:not(.dark) .text-cream-50:not(.btn-primary):not(.bg-forest-600):not(.bg-forest-900):not(.bg-forest-900\/85) { color: #17171b; }
 .counsel-shell:not(.dark) .text-cream-100\/60 { color: #45454e; }
 .counsel-shell:not(.dark) .text-forest-950 { color: #17171b; }
 .counsel-shell:not(.dark) .hover\:text-cream-100:hover:not(.nav-link) { color: #17171b; }
