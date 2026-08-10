@@ -14,6 +14,17 @@
  *
  * No outer margin on purpose: counsel pages stack their sections with a
  * `space-y-*` wrapper, and a margin here would double the gap.
+ *
+ * SECONDARY TEXT READS `text-muted`, NOT `text-ink-500`. The four places
+ * in this file that carried `text-ink-500 dark:text-cream-100/*` - the
+ * section label, the header's mono particulars line, and the stat tile's
+ * label and sub - were legible in dark and under AA in light, all four
+ * for the same reason: the light counsel layer in app/globals.css
+ * repaints the cream classes and not the ink ones, so the dark half was
+ * measured and the light half fell through to a raw #71717a at 4.17:1.
+ * A token has one declaration per theme and cannot go unrepainted, and
+ * tests/accent-text.test.ts now measures every neutral this file paints
+ * on every ground the counsel shell paints, in both themes.
  */
 
 import type { CSSProperties, ReactNode } from 'react';
@@ -161,9 +172,7 @@ export function PageHeader({
           </p>
         )}
         {meta != null && (
-          <p className="mt-1 font-mono text-[12px] text-ink-500 dark:text-cream-100/55">
-            {meta}
-          </p>
+          <p className="mt-1 font-mono text-[12px] text-muted">{meta}</p>
         )}
         {children}
       </div>
@@ -174,7 +183,7 @@ export function PageHeader({
 
 const SECTION_VARIANT = {
   label:
-    'text-sm font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/60',
+    'text-sm font-semibold uppercase tracking-wider text-muted',
   display:
     'text-lg font-semibold tracking-[-0.01em] text-forest-900 dark:text-cream-100',
 } as const;
@@ -185,6 +194,22 @@ const SECTION_VARIANT = {
  * `label`, the default, is deliberately small, uppercase and muted: it
  * separates without competing with the page title, which is the one
  * thing on screen allowed to be large.
+ *
+ * MUTED IS A TOKEN HERE, NOT A PALETTE STEP, and that is the fix rather
+ * than a tidy-up. `text-ink-500 dark:text-cream-100/60` was correct in
+ * dark (5.70:1 on the tightest counsel ground) and failed in light,
+ * because the light counsel layer in app/globals.css repaints the CREAM
+ * classes and not the ink ones: `text-ink-500` kept its raw #71717a and
+ * measured 4.47:1 on the page, 4.25:1 on an inset and 4.17:1 on a chip,
+ * all under AA for text at this size and weight. `text-muted` resolves
+ * #5d5d68 light and #9c9ca6 dark, which is 5.61:1 at worst on either
+ * ground. Both numbers are held by tests/accent-text.test.ts.
+ *
+ * It is also the colour SectionLabel in ./patterns already carried, so
+ * the two spellings of an uppercase section heading can no longer
+ * disagree about colour. They still disagree about SIZE - this is
+ * 14px/0.05em, that one 11px/0.16em - and that difference is
+ * deliberate rather than settled: see the note on SectionLabel.
  *
  * `display` is the other heading the product actually uses, and it was
  * the more common of the two: the matter page alone wrote the same
@@ -261,7 +286,7 @@ export function StatCard({
     <div
       className={`card h-full p-4 transition-colors ${className}`}
     >
-      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-ink-500 dark:text-cream-100/60">
+      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
       <p
@@ -271,9 +296,7 @@ export function StatCard({
         {value}
       </p>
       {sub != null && (
-        <p className="mt-1 text-[12px] text-ink-500 dark:text-cream-100/55">
-          {sub}
-        </p>
+        <p className="mt-1 text-[12px] text-muted">{sub}</p>
       )}
     </div>
   );

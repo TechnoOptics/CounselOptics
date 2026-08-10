@@ -1959,3 +1959,389 @@ describe('every error and warning surface can be read on both of its grounds', (
     }
   });
 });
+
+/*
+ * The shared counsel primitives, measured as they are COMPOSED rather
+ * than as tokens.
+ *
+ * THE HOLE THIS CLOSES, which is the more useful half of the fix.
+ * Everything above measures either a VALUE (a derived accent, a status
+ * token, a pill hex, a badge fill) or a DECLARATION read out of
+ * app/globals.css. Nothing measured a component's class string. So a
+ * primitive that names a Tailwind palette class the light counsel layer
+ * does not repaint was invisible to the whole file: the class carries
+ * its raw palette value, no `color:` declaration exists under the light
+ * scope for the repaint sweep to find, and no token exists for the token
+ * sweep to find. `SectionTitle`'s `label` variant sat there as
+ * `text-ink-500 dark:text-cream-100/60`, which is 5.70:1 in dark and
+ * 4.17:1 in light, and was correct in exactly the half somebody checked.
+ *
+ * The palette sweep further up would not have caught it either, for a
+ * second and different reason: its `NOT_OURS` list names
+ * components/counsel/ui.tsx, so the one existing net that touches this
+ * file was slack by construction. That exclusion is left alone. It bans
+ * a CLASS, which would force a full migration of a file another branch
+ * is rebuilding; this block measures the PAINT, which is the claim that
+ * actually matters and costs no migration.
+ *
+ * WHAT IS MEASURED. Every neutral text colour these two files paint, on
+ * every solid ground the counsel shell paints, in both themes. Counsel
+ * and the employee portal are the same shell (`counselShellClass`), so
+ * one set of grounds covers both; the portal's own accent does not reach
+ * these headings, which are neutral by construction, and the accent
+ * itself is proved for all 4913 customer hexes further up.
+ *
+ * THE CASCADE IS NOT ASSUMED, it was read out of the built stylesheet.
+ * A `dark:` variant compiles to `.dark\:x:is(.dark *)`, which is two
+ * classes, the same specificity as the `.dark .x` override block, and
+ * lands AFTER it in the emitted CSS. So a run carrying both paints the
+ * `dark:` one in dark mode and the override block is dead there. A run
+ * carrying only a bare palette class paints the override block's value.
+ * Both arms are resolved below rather than guessed.
+ */
+describe('the shared counsel primitives paint no neutral under AA on a counsel ground', () => {
+  const FILES = [
+    'components/counsel/ui.tsx',
+    'components/counsel/patterns.tsx',
+  ];
+
+  /** The raw Tailwind values of the neutral ramps, from tailwind.config.ts. */
+  const PALETTE: Record<string, string> = {
+    'ink-400': '#a1a1aa',
+    'ink-500': '#71717a',
+    'ink-600': '#52525b',
+    'ink-700': '#3f3f46',
+    'ink-800': '#27272a',
+    'ink-900': '#18181b',
+    'ink-950': '#09090b',
+    'cream-50': '#fefcf3',
+    'cream-100': '#fbf7e9',
+    'cream-200': '#f5edd6',
+  };
+
+  /** Neutral tokens, and the custom property each one reads. */
+  const TOKEN_VAR: Record<string, string> = {
+    muted: '--muted',
+    foreground: '--foreground',
+  };
+
+  /**
+   * Colours these files paint that are NOT neutrals, and which guard
+   * covers each instead. Registered rather than ignored: a brand or
+   * status colour added to one of these files fails the sweep below
+   * until somebody says here which proof it falls under, which is what
+   * stops "not a neutral" quietly becoming "not measured".
+   */
+  const NON_NEUTRAL: Record<string, string> = {
+    'accent-text':
+      'the per-firm derived accent, proved on every surface for every customer hex by the blocks above',
+    'gold-300':
+      "PageHeader's `plain` eyebrow. A FIXED brand gold, not the firm accent, and it is under AA on light counsel at 1.34:1 worst. Recording it here rather than silently skipping it: replacing it needs a gold that clears the floor on light counsel AND on every dark counsel ground, and `.eyebrow`'s own pair does not (#a38a55 is 4.18:1 on the dark .bg-cream-200), so it is a colour decision and not a rename",
+  };
+
+  /**
+   * Left on the palette on purpose, keyed by file AND class so an
+   * exemption cannot quietly cover the next call site in the same file.
+   */
+  const ALLOWED = new Map([
+    [
+      'components/counsel/ui.tsx|text-ink-400',
+      "EmptyState's icon well is `aria-hidden`, so it is decoration and carries no contrast requirement; it is deliberately quieter than the copy beside it",
+    ],
+    [
+      'components/counsel/ui.tsx|dark:text-cream-100/40',
+      'the dark half of that same aria-hidden icon well',
+    ],
+  ]);
+
+  /** Class fragments that are type, not colour. */
+  const NOT_A_COLOUR =
+    /^(?:xs|sm|base|lg|xl|\d?xl|left|right|center|justify|start|end|balance|pretty|wrap|nowrap|ellipsis|clip)$/;
+
+  const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  type Paint = { hex: string; alpha: number };
+
+  function parseColour(value: string): Paint | null {
+    const hex = /^#([0-9a-fA-F]{6})$/.exec(value.trim());
+    if (hex) return { hex: `#${hex[1].toLowerCase()}`, alpha: 1 };
+    const rgba = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/.exec(
+      value.trim(),
+    );
+    if (!rgba) return null;
+    const to2 = (n: string) => Number(n).toString(16).padStart(2, '0');
+    return {
+      hex: `#${to2(rgba[1])}${to2(rgba[2])}${to2(rgba[3])}`,
+      alpha: rgba[4] === undefined ? 1 : Number(rgba[4]),
+    };
+  }
+
+  /** The last `color:` any rule declares for `<scope> .<class>`. */
+  function repaint(scope: string, cls: string): Paint | null {
+    const escaped = cls.replace(/\//g, '\\/');
+    const prefix = `${scope} .${escaped}`;
+    let found: Paint | null = null;
+    for (const [, selectors, body] of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const parts = selectors.split(',').map((s) => s.trim());
+      // A trailing `:not(...)` is still the same class; a trailing word
+      // character is a different, longer class name.
+      if (!parts.some((s) => s.startsWith(prefix) && !/^[\w\\/-]/.test(s.slice(prefix.length))))
+        continue;
+      const m = /(?:^|[;\s])color:\s*([^;]+);/.exec(body);
+      if (m) found = parseColour(m[1]);
+    }
+    return found;
+  }
+
+  /** The last value any rule on `scopes` gives a custom property. */
+  function varValue(name: string, scopes: string[]): Paint | null {
+    let found: Paint | null = null;
+    for (const [, selectors, body] of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const parts = selectors.split(',').map((s) => s.trim());
+      if (!parts.some((s) => scopes.includes(s))) continue;
+      const m = new RegExp(`(?:^|[;\\s])${name}:\\s*([^;]+);`).exec(body);
+      if (m) found = parseColour(m[1]);
+    }
+    return found;
+  }
+
+  const DARK_SCOPES = ['html.dark', '.dark', '.enterprise-shell', '.hq-shell'];
+  const LIGHT_COUNSEL = '.counsel-shell:not(.dark)';
+
+  /**
+   * What a class actually paints in one theme.
+   *
+   * Light counsel takes the repaint layer if it declares one and the raw
+   * palette otherwise, which is the exact asymmetry that hid the defect.
+   * Dark takes the `.dark` override block for a bare class; a class that
+   * only exists under a `dark:` variant is a plain utility and takes the
+   * raw palette. Tokens read their custom property on the scope that
+   * declares it, `:root` being what light counsel falls through to.
+   */
+  function resolve(cls: string, theme: 'light' | 'dark'): Paint | null {
+    const bare = cls.replace(/^dark:/, '');
+    const body = bare.replace(/^(?:[a-z-]+:)*text-/, '');
+    const arbitrary = /^\[(#[0-9a-fA-F]{6})\]$/.exec(body);
+    if (arbitrary) return { hex: arbitrary[1].toLowerCase(), alpha: 1 };
+    const [name, alphaPart] = body.split('/');
+    const alpha = alphaPart ? Number(alphaPart) / 100 : 1;
+    if (TOKEN_VAR[name]) {
+      const value = varValue(
+        TOKEN_VAR[name],
+        theme === 'dark' ? DARK_SCOPES : [':root'],
+      );
+      return value && { ...value, alpha: value.alpha * alpha };
+    }
+    // A `dark:`-prefixed class is its own utility; no repaint rule names
+    // it, so it goes straight to the raw palette value.
+    if (!cls.startsWith('dark:')) {
+      const rule =
+        theme === 'dark'
+          ? repaint('.dark', bare)
+          : repaint(LIGHT_COUNSEL, bare);
+      // The repaint layers come first, not last. `forest-*` has no raw
+      // value at all - it is `rgb(var(--forest-900))` and every shell
+      // remaps the channels - so a rule is the ONLY way to resolve it,
+      // and for `ink-*` the rule is what the two themes disagree about.
+      if (rule) return rule;
+    }
+    if (!PALETTE[name]) return null;
+    return { hex: PALETTE[name], alpha };
+  }
+
+  const composite = (paint: Paint, surface: string): string => {
+    if (paint.alpha >= 1) return paint.hex;
+    const ch = (h: string) => {
+      const n = parseInt(h.replace('#', ''), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    };
+    const f = ch(paint.hex);
+    const g = ch(surface);
+    return (
+      '#' +
+      f
+        .map((v, i) =>
+          Math.round(v * paint.alpha + g[i] * (1 - paint.alpha))
+            .toString(16)
+            .padStart(2, '0'),
+        )
+        .join('')
+    );
+  };
+
+  /* ---------------- the sweep ---------------- */
+
+  /** Every `text-*` class, with the variant chain in front of it. */
+  const TEXT_CLASS =
+    /(?<![\w:-])((?:[a-z-]+:)*)text-(\[[^\]]+\]|[a-z0-9]+(?:-[a-z0-9]+)*(?:\/\d+)?)(?![\w/[-])/g;
+
+  /** The quoted run a match sits in: one element's class list. */
+  function runAround(src: string, index: number): [number, string] {
+    const DELIM = /['"`]/;
+    let start = index;
+    while (start > 0 && !DELIM.test(src[start - 1])) start -= 1;
+    let end = index;
+    while (end < src.length && !DELIM.test(src[end])) end += 1;
+    return [start, src.slice(start, end)];
+  }
+
+  type Occurrence = {
+    rel: string;
+    cls: string;
+    chain: string;
+    name: string;
+    run: string;
+  };
+
+  function occurrencesIn(rel: string): Occurrence[] {
+    const src = readFileSync(
+      fileURLToPath(new URL(`../${rel}`, import.meta.url)),
+      'utf8',
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+    const out: Occurrence[] = [];
+    const seen = new Set<string>();
+    for (const m of src.matchAll(TEXT_CLASS)) {
+      const chain = m[1];
+      const name = m[2];
+      if (NOT_A_COLOUR.test(name)) continue;
+      if (name.startsWith('[') && !name.startsWith('[#')) continue;
+      const [start, run] = runAround(src, m.index ?? 0);
+      const cls = `${chain}text-${name}`;
+      const key = `${start}|${cls}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ rel, cls, chain, name: name.split('/')[0], run });
+    }
+    return out;
+  }
+
+  const OCCURRENCES = FILES.flatMap(occurrencesIn);
+
+  it('finds the primitives at all, so an empty sweep cannot pass', () => {
+    // Four components in ui.tsx and six in patterns.tsx, every one of
+    // which paints text. If this drops the sweep has stopped matching.
+    expect(OCCURRENCES.length).toBeGreaterThanOrEqual(14);
+    expect(FILES.every((f) => OCCURRENCES.some((o) => o.rel === f))).toBe(true);
+    expect(varValue('--muted', [':root'])?.hex).toMatch(/^#[0-9a-f]{6}$/);
+    expect(varValue('--muted', DARK_SCOPES)?.hex).toMatch(/^#[0-9a-f]{6}$/);
+    // The light counsel repaint layer is reachable from here, which is
+    // what the light half of every resolution depends on.
+    expect(repaint(LIGHT_COUNSEL, 'text-forest-900')?.hex).toBe('#17171b');
+    expect(repaint('.dark', 'text-ink-500')?.alpha).toBeCloseTo(0.55, 2);
+  });
+
+  it('knows the paint behind every text colour it swept', () => {
+    // The arm that keeps this from going quiet. A class the resolver
+    // cannot place is a failure, not a skip, so a new palette family or
+    // a new token in these files has to be registered before it ships.
+    for (const o of OCCURRENCES) {
+      if (NON_NEUTRAL[o.name]) continue;
+      for (const theme of ['light', 'dark'] as const) {
+        expect(
+          resolve(o.cls, theme),
+          `${o.rel} paints \`${o.cls}\`, which is neither a neutral this guard can resolve nor a registered non-neutral; add it to PALETTE, to TOKEN_VAR, or to NON_NEUTRAL with the guard that covers it`,
+        ).not.toBeNull();
+      }
+    }
+  });
+
+  it(`holds every neutral to ${AA_SMALL_TEXT}:1 on every counsel ground, both themes`, () => {
+    const GROUNDS = {
+      light: LIGHT_SURFACE_GROUPS.counselLight.surfaces as Record<string, string>,
+      dark: DARK_SURFACE_GROUPS.counsel.surfaces as Record<string, string>,
+    };
+    for (const o of OCCURRENCES) {
+      if (NON_NEUTRAL[o.name]) continue;
+      if (ALLOWED.has(`${o.rel}|${o.cls}`)) continue;
+      const isDarkOnly = o.chain.split(':').includes('dark');
+      // A bare class stops painting in dark when its run carries a
+      // `dark:` twin under the same remaining variants, because the
+      // variant utility lands later in the emitted stylesheet.
+      const twin = `dark:${o.chain}text-`;
+      const themes: ('light' | 'dark')[] = isDarkOnly
+        ? ['dark']
+        : o.run.includes(twin)
+          ? ['light']
+          : ['light', 'dark'];
+      for (const theme of themes) {
+        const paint = resolve(o.cls, theme);
+        if (!paint) continue;
+        for (const [surfaceName, surface] of Object.entries(GROUNDS[theme])) {
+          const ratio = contrastRatio(composite(paint, surface), surface);
+          expect(
+            ratio,
+            `${o.rel}: \`${o.cls}\` paints ${composite(paint, surface)} on the ${theme} ${surfaceName} (${surface}) and measures ${ratio.toFixed(3)}:1`,
+          ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+        }
+      }
+    }
+  });
+
+  it('the exemption list stays honest', () => {
+    for (const [key, why] of ALLOWED) {
+      const [rel, cls] = key.split('|');
+      expect(
+        OCCURRENCES.some((o) => o.rel === rel && o.cls === cls),
+        `${rel} no longer paints ${cls}, so its exemption is dead and would silently cover the next one: ${why}`,
+      ).toBe(true);
+    }
+    for (const name of Object.keys(NON_NEUTRAL)) {
+      expect(
+        OCCURRENCES.some((o) => o.name === name),
+        `no swept file paints text-${name} any more; drop it from NON_NEUTRAL rather than leaving a standing exemption`,
+      ).toBe(true);
+    }
+  });
+
+  it('states the regression this guard exists for, as arithmetic', () => {
+    // SectionTitle's `label` variant as it shipped. The dark half was
+    // fine, which is why it survived: whoever wrote it checked the
+    // theme they were looking at.
+    const lightGrounds = Object.values(
+      LIGHT_SURFACE_GROUPS.counselLight.surfaces,
+    );
+    const shipped = '#71717a'; // text-ink-500, unrepainted on light counsel
+    expect(contrastRatio(shipped, '#f6f6f7')).toBeLessThan(AA_SMALL_TEXT);
+    expect(
+      Math.min(...lightGrounds.map((s) => contrastRatio(shipped, s))),
+    ).toBeLessThan(4.2);
+    // And the value that replaced it clears the floor on all four.
+    const fixed = varValue('--muted', [':root'])?.hex as string;
+    for (const surface of lightGrounds) {
+      expect(contrastRatio(fixed, surface)).toBeGreaterThanOrEqual(
+        AA_SMALL_TEXT,
+      );
+    }
+  });
+
+  it('keeps the two section headings on one colour', () => {
+    // The drift this started as. SectionTitle's `label` and
+    // SectionLabel are the same heading at two sizes, and they got here
+    // by each spelling their own colour. They may keep disagreeing
+    // about size; disagreeing about colour again has to fail.
+    const ui = readFileSync(
+      fileURLToPath(new URL('../components/counsel/ui.tsx', import.meta.url)),
+      'utf8',
+    );
+    const patterns = readFileSync(
+      fileURLToPath(
+        new URL('../components/counsel/patterns.tsx', import.meta.url),
+      ),
+      'utf8',
+    );
+    const labelVariant = /label:\s*\n?\s*'([^']*)'/.exec(ui)?.[1] ?? '';
+    expect(labelVariant, 'SECTION_VARIANT.label was not found').toContain(
+      'uppercase',
+    );
+    const sectionLabel =
+      /export function SectionLabel[\s\S]*?className=\{`([^`]*)`/.exec(
+        patterns,
+      )?.[1] ?? '';
+    expect(sectionLabel, 'SectionLabel was not found').toContain('uppercase');
+    const colourOf = (s: string) =>
+      s.split(/\s+/).filter((c) => /(?:^|:)text-(?:muted|foreground|ink-|cream-|forest-)/.test(c));
+    expect(colourOf(labelVariant)).toEqual(colourOf(sectionLabel));
+  });
+});

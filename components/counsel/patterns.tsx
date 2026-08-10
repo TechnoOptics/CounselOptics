@@ -250,8 +250,21 @@ export function Toolbar({
  * chosen: on the light counsel shell it renders rgb(93,93,104), which is
  * 6.02:1 on the page ground and 6.5:1 on a card, and rgb(156,156,166) on the
  * dark shell, which is 7.27:1. The other candidate was SectionTitle's `label`
- * variant, which reads its colour from the ink palette and measured 4.47:1 on
- * that same light ground: under AA for text this size at weight 600.
+ * variant, which read its colour from the ink palette and measured 4.47:1 on
+ * that same light ground: under AA for text this size at weight 600. That
+ * variant now reads `text-muted` too, so the two are one colour, and
+ * tests/accent-text.test.ts measures both rather than either one carrying
+ * the number only in prose.
+ *
+ * WHY BOTH STILL EXIST, since they are now the same colour on the same
+ * element. They are two SIZES for two positions: this is 11px at 0.16em
+ * inside a card's header band, which is the spelling PageHeader's eyebrow
+ * and StatCard's label already use, and SectionTitle's `label` is 14px at
+ * 0.05em standing over a band of a page, with an `action` slot beside it
+ * that this has no room for. Collapsing them means either giving this one
+ * a flex row and an action it never uses, or shrinking sixteen shipped
+ * headings across counsel and the portal by three points. The second is
+ * probably right and it is a design decision, not a contrast fix.
  */
 export function SectionLabel({
   children,
