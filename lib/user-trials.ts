@@ -432,10 +432,17 @@ export async function listTrialUsers(): Promise<UserTrialList> {
  * The days are a count and never a date string, because a date from an HQ form
  * is zone-less and would be read as UTC midnight or as server-local time
  * depending on its shape.
+ *
+ * Neither extend nor restart lifts a BLOCK. profiles.is_blocked is the
+ * individual equivalent of a firm's suspension, it is checked at sign-in rather
+ * than compared against any date, and it stays until it is explicitly cleared.
+ * That is correct: a date change must not silently readmit an account somebody
+ * closed on purpose. What this function owes is that it is not SILENT about it,
+ * which is why the success branch carries `blocked`.
  */
 export async function applyUserTrialAction(
   input: UserTrialActionInput,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; blocked: boolean } | { ok: false; error: string }> {
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Unavailable. Please try again.' };
 
@@ -519,15 +526,51 @@ export async function applyUserTrialAction(
     }
   }
 
-  const { error: updateErr } = await admin
+  // THE WRITE READS ITS ROW BACK, and both columns are load-bearing. Same
+  // shape as applyTrialAction in lib/firm-trials.ts, for the same two reasons.
+  //
+  // `id` is the proof. PostgREST does not raise an error when an UPDATE matches
+  // nothing, so a bare `{ error: null }` says the statement ran and says nothing
+  // about whether this account changed. Without it, an extension that matched no
+  // row returned ok and filed an audit row asserting a new end date while the
+  // stored date never moved.
+  //
+  // `is_blocked` is this side's answer to "will the person feel it". It is the
+  // individual equivalent of a firm's suspended_at: a blocked account is signed
+  // straight back out at app/auth/callback/route.ts:253, so its trial dates are
+  // unreachable no matter what they say. It is read HERE, from the row this
+  // statement wrote, because unblocking and extending are separate levers on the
+  // same HQ page and nothing serialises them.
+  const { data: written, error: updateErr } = await admin
     .from('profiles')
     .update(patch)
-    .eq('id', input.userId);
+    .eq('id', input.userId)
+    .select('id, is_blocked');
 
   if (updateErr) {
     console.error('applyUserTrialAction: update failed', updateErr.message);
     return { ok: false, error: 'Unavailable. Please try again.' };
   }
+
+  const writtenRows = (written ?? []) as Array<Record<string, unknown>>;
+  // No error and no row is the silent case. The account was read a few lines
+  // above, so this is a row that went away underneath us rather than a wrong id,
+  // and it must not be reported as a change. Nothing is audited: an audit row
+  // here would assert an extension nobody received.
+  if (writtenRows.length === 0) {
+    console.error(
+      'applyUserTrialAction: the update matched no row, so nothing was written',
+      JSON.stringify({ userId: input.userId, action: input.action.kind }),
+    );
+    return {
+      ok: false,
+      error: 'That change did not save. Nothing was written. Try again.',
+    };
+  }
+  if (!('is_blocked' in writtenRows[0])) {
+    throw new Error('user-trials read back a profiles row without is_blocked.');
+  }
+  const blocked = writtenRows[0].is_blocked === true;
 
   const { error: auditErr } = await admin.from('user_trial_events').insert({
     user_id: input.userId,
@@ -563,5 +606,5 @@ export async function applyUserTrialAction(
     );
   }
 
-  return { ok: true };
+  return { ok: true, blocked };
 }
