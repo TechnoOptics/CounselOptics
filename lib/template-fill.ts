@@ -5,6 +5,7 @@ import type { FirmTemplate, TemplateField } from './firm-templates';
 import { parseDeliveryMode } from './submission-dispatch';
 import { employeeFieldsOf } from './counterparty-fields';
 import { sanitizeDocumentLayoutOverride } from './document-layout';
+import { parseAllowedSignatureMethods } from './signature-methods';
 
 /**
  * Reading a published firm template on the server, for the two places that
@@ -30,6 +31,11 @@ import { sanitizeDocumentLayoutOverride } from './document-layout';
  * `document_layout` is absent until 20260809_template_document_layout.sql runs
  * and reads as no override, so the document is laid out on the firm's own
  * layout. Same direction again: the page the firm was already getting.
+ *
+ * `signature_methods` is absent until 20260814_signature_methods.sql runs and
+ * reads as null, which means no restriction and so all four methods. That is
+ * the same direction once more: an unmigrated database offers exactly what the
+ * product offers today rather than refusing every way of signing.
  */
 export async function loadPublishedTemplate(
   admin: SupabaseClient,
@@ -58,6 +64,7 @@ export async function loadPublishedTemplate(
     requiresApproval: r.requires_approval !== false,
     deliveryMode: parseDeliveryMode(r.delivery_mode),
     documentLayout: sanitizeDocumentLayoutOverride(r.document_layout),
+    signatureMethods: parseAllowedSignatureMethods(r.signature_methods),
     createdAt: String(r.created_at),
     updatedAt: (r.updated_at as string | null) ?? null,
   };

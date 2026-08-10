@@ -69,6 +69,11 @@ import {
   resolveDownloadColumnFallback,
 } from './signer-view';
 import { resolveSignerTurn } from './signer-order';
+import {
+  resolveSignatureMethodsColumnFallback,
+  SIGNATURE_METHODS_UNSAVED_ERROR,
+} from './submission-dispatch';
+import type { SignatureMethod } from './signature-methods';
 // The link email lives in a server-only module now, because a signer
 // numbered second is invited from lib/signature-write.ts rather than
 // from here, and a resend, a first send and a late invitation have to be
@@ -3041,6 +3046,19 @@ export async function createSigningRequestAction(
      * and the default the column carries.
      */
     signerCanDownload?: boolean;
+    /**
+     * Which signature methods this request may be signed with, frozen from the
+     * dispatching template. Omitted (every caller but the template dispatch)
+     * means no restriction, which is what every request has meant until now.
+     *
+     * lib/signature-write.ts reads the stored column and refuses a signature
+     * made any other way, so this is the moment the firm's choice becomes
+     * enforceable. It is frozen rather than joined at signing time on purpose:
+     * a counterparty may hold the link for weeks, and a template edited while
+     * they held it must not retroactively change the ceremony they were
+     * invited to.
+     */
+    signatureMethods?: SignatureMethod[] | null;
   },
 ): Promise<{
   ok: boolean;
@@ -3253,9 +3271,19 @@ export async function createSigningRequestAction(
     document_sha256: documentSha256,
   };
   let downloadPermissionPersisted = true;
+  // Named only when there IS a restriction, so a request that restricts
+  // nothing never touches a column that may not exist yet.
+  const signatureMethods = options?.signatureMethods ?? null;
+  const methodsExtra = signatureMethods
+    ? { signature_methods: signatureMethods }
+    : {};
   let { data: req, error: reqErr } = await supabase
     .from('firm_signing_requests')
-    .insert({ ...requestInsert, signer_can_download: signerCanDownload })
+    .insert({
+      ...requestInsert,
+      ...methodsExtra,
+      signer_can_download: signerCanDownload,
+    })
     .select('id')
     .single();
   // The column arrives with a migration the owner applies, and there is
@@ -3269,6 +3297,24 @@ export async function createSigningRequestAction(
   // in lib/signer-view.ts, and it is narrowly scoped to a missing
   // column so a permission or constraint failure still surfaces.
   if (reqErr) {
+    // The method restriction is checked first and aborts, for the reason the
+    // download restriction below aborts: sending without it would put the
+    // document in front of the counterparty accepting exactly the ways of
+    // signing the firm refused, and nothing about that is recoverable once
+    // they have signed. Clearing is not a case here, since a null restriction
+    // never names the column at all.
+    if (
+      resolveSignatureMethodsColumnFallback({
+        methods: signatureMethods,
+        error: reqErr,
+      }) === 'abort-restriction-unsaved'
+    ) {
+      return {
+        ok: false,
+        error: SIGNATURE_METHODS_UNSAVED_ERROR,
+        errorSource: 'app',
+      };
+    }
     const fallback = resolveDownloadColumnFallback({
       signerCanDownload,
       error: reqErr,
@@ -3284,7 +3330,7 @@ export async function createSigningRequestAction(
       downloadPermissionPersisted = false;
       ({ data: req, error: reqErr } = await supabase
         .from('firm_signing_requests')
-        .insert(requestInsert)
+        .insert({ ...requestInsert, ...methodsExtra })
         .select('id')
         .single());
     }
