@@ -14,6 +14,13 @@ import {
   isReservedFirmKey,
   unmergedPlaceholders,
 } from '@/lib/firm-template-placeholders';
+import {
+  applyBlankSuggestion,
+  detectSignatureEvidence,
+  detectTemplateBlanks,
+  removeRuledBlank,
+  type DetectedBlank,
+} from '@/lib/template-blank-detection';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
 import {
   resolveDocumentLayout,
@@ -549,6 +556,93 @@ function TemplateEditor({
   );
 
   /**
+   * WHAT THE DOCUMENT ITSELF SAYS ABOUT WHERE SOMEBODY WRITES AND SIGNS.
+   *
+   * The fields above come from `{{placeholders}}`, which only exist because an
+   * author typed them. An author who pastes in the agreement their firm already
+   * uses has none: they have "Name: ______" and "By: ______", and until now
+   * every one of those had to be found by eye and retyped as a placeholder.
+   *
+   * These two reads answer the other half. lib/template-blank-detection.ts is
+   * the same rule set the AI import path has used since it shipped; it is run
+   * here over whatever body is on screen, with no upload, no model call and no
+   * rate limit. It is deliberately RECOMPUTED from `body` on every render
+   * rather than held in state: a suggestion list that could be older than the
+   * text it describes is a list of offsets pointing into a document that has
+   * moved.
+   *
+   * NOTHING BELOW IS APPLIED BY BEING FOUND. Detection produces a list; the
+   * buttons apply one item at a time; and what a button writes is the BODY,
+   * which is the textarea the author is looking at. There is no path by which a
+   * field appears on an instrument without somebody clicking for it.
+   */
+  const detected = useMemo(() => detectTemplateBlanks(body), [body]);
+  const signatureEvidence = useMemo(() => detectSignatureEvidence(body), [body]);
+
+  /**
+   * Suggestions the author has waved away, by what they describe rather than by
+   * where they sit. An index would be invalidated by the next keystroke, and a
+   * dismissal that survives an edit to the very text it is about would hide a
+   * blank the author has just changed their mind over. This identity resets
+   * when the surrounding words change, which is the safe direction: a
+   * suggestion coming back is noise, a dismissal outliving its blank is a
+   * silence.
+   */
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const identify = (b: DetectedBlank) =>
+    `${b.kind}|${b.key ?? b.label ?? ''}|${b.context}`;
+  const dismiss = (b: DetectedBlank) =>
+    setDismissed((s) => new Set(s).add(identify(b)));
+
+  /**
+   * Keys that reached the field list because the author accepted a suggestion
+   * in THIS editing session, so the row can say so.
+   *
+   * Session-scoped on purpose, and not stored. The accept IS the review: an
+   * author who has read the suggestion, pressed the button and then pressed
+   * Save has adopted that field, and after the save it is a `{{placeholder}}`
+   * in their own body indistinguishable from one they typed, because that is
+   * exactly what it is. What has to be attributable is the moment the decision
+   * is still open, and this covers all of it.
+   */
+  const [fromDetection, setFromDetection] = useState<Set<string>>(() => new Set());
+
+  const acceptBlank = (b: DetectedBlank) => {
+    if (!b.key) return;
+    const next = applyBlankSuggestion(body, b);
+    // Null means the body moved under the suggestion. Nothing is written and
+    // nothing is said: the list is about to recompute from the current body
+    // anyway, and the stale row disappears with it.
+    if (next === null) return;
+    setBody(next);
+    // Seeded with the DOCUMENT'S own label rather than the title-cased key, so
+    // "Print Name: ______" becomes a field labelled "Print Name" and not
+    // "Print Name" by coincidence of the key. Required is true, matching the
+    // default a hand-typed placeholder already gets a few lines above.
+    setFieldMeta((m) => ({
+      ...m,
+      [b.key as string]: {
+        key: b.key as string,
+        label: b.label ?? (b.key as string),
+        type: b.type,
+        required: true,
+      },
+    }));
+    setFromDetection((s) => new Set(s).add(b.key as string));
+  };
+
+  const removeRule = (b: DetectedBlank) => {
+    const next = removeRuledBlank(body, b);
+    if (next === null) return;
+    setBody(next);
+  };
+
+  const live = detected.filter((b) => !dismissed.has(identify(b)));
+  const addable = live.filter((b) => b.kind === 'fill' && b.key);
+  const signaturePlaces = live.filter((b) => b.kind === 'signature');
+  const unnamed = live.filter((b) => b.kind === 'fill' && !b.key);
+
+  /**
    * The placeholders in this body that nothing will fill in.
    *
    * The fields above are derived FROM the body, so it is easy to assume this
@@ -834,6 +928,219 @@ function TemplateEditor({
         </div>
       </div>
 
+      {/* WHAT THE DOCUMENT SAYS, next to the list of what the template
+          declares, because the two answer the same question from opposite
+          ends: the Fields list below is every blank the author has already
+          marked up, and this is every blank the document still carries that
+          nobody has. Directly above Fields so that accepting a suggestion and
+          seeing the field row appear is one glance. */}
+      {body.trim() !== '' && (
+        <div className="rounded-lg border border-edge p-3.5">
+          <p className="text-[13px] font-semibold uppercase tracking-wider text-muted">
+            <T>Blanks found in this document</T>
+          </p>
+          <p className="mt-1 text-[12px] leading-relaxed text-muted">
+            <T>
+              Read from the body above. Nothing here is part of your template
+              until you add it, and adding one writes a placeholder into the
+              body where the rule is, so you can see exactly what changed.
+            </T>
+          </p>
+
+          {addable.length > 0 && (
+            <>
+              <p className="mt-3 text-[12.5px] font-medium text-foreground">
+                <T>Blanks somebody has to fill in</T>
+              </p>
+              {/* Said ONCE for the group, not on every row it applies to. The
+                  first version repeated the whole sentence per blank, and on a
+                  real NDA that is five identical lines of amber down the panel,
+                  which is how a warning stops being read. The rows carry a
+                  three-word marker and this explains what the marker means.
+                  mergeTemplateDocument appends its own signature and date lines
+                  per party, so a printed name or a date taken from inside an
+                  execution block puts the same fact on the instrument twice.
+                  Said, not decided: the author may genuinely want it. */}
+              {addable.some((b) => b.inExecutionBlock) && (
+                <p className="mt-1 text-[12px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  <T>
+                    Some of these sit in the signature block, marked below. The
+                    signature and date lines are added for you when the document
+                    goes out, so adding one of those would put the same thing on
+                    the page twice.
+                  </T>
+                </p>
+              )}
+              <ul className="mt-1.5 space-y-1.5">
+                {addable.map((b) => (
+                  <li key={identify(b)} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <code
+                      className="rounded bg-cream-100 px-1.5 py-0.5 font-mono text-[11.5px] text-foreground dark:bg-forest-800"
+                      data-no-translate
+                    >
+                      {'{{'}
+                      {b.key}
+                      {'}}'}
+                    </code>
+                    <span className="text-[12.5px] text-foreground" data-no-translate>
+                      {b.label}
+                    </span>
+                    {b.inExecutionBlock && (
+                      <span className="text-[12px] text-amber-700 dark:text-amber-300">
+                        <T>in the signature block</T>
+                      </span>
+                    )}
+                    {/* Pushed to one edge so the actions line up down the list.
+                        Left inline they followed a label and an optional marker,
+                        both variable width, and landed at a different place on
+                        every row. */}
+                    <span className="ml-auto flex items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => acceptBlank(b)}
+                        className="text-[12.5px] font-medium text-accent-text hover:underline disabled:opacity-50"
+                      >
+                        <T>Add as a field</T>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => dismiss(b)}
+                        className="text-[12.5px] text-muted hover:text-danger-text"
+                      >
+                        <T>Not a field</T>
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {(signaturePlaces.length > 0 || signatureEvidence) && (
+            <>
+              <p className="mt-3 text-[12.5px] font-medium text-foreground">
+                <T>Places somebody signs</T>
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted">
+                <T>
+                  These do not become fields. The signature and date lines are
+                  added for you when the document goes out, so a rule left here
+                  would be a second place to sign that nothing stamps and
+                  nothing records.
+                </T>
+              </p>
+              {signaturePlaces.length > 0 && (
+                <ul className="mt-1.5 space-y-1.5">
+                  {signaturePlaces.map((b) => (
+                    <li key={identify(b)} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <code
+                        className="rounded bg-cream-100 px-1.5 py-0.5 font-mono text-[11.5px] text-foreground dark:bg-forest-800"
+                        data-no-translate
+                      >
+                        {b.context}
+                      </code>
+                      <span className="ml-auto flex items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => removeRule(b)}
+                          className="text-[12.5px] font-medium text-accent-text hover:underline disabled:opacity-50"
+                        >
+                          <T>Remove this rule</T>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => dismiss(b)}
+                          className="text-[12.5px] text-muted hover:text-danger-text"
+                        >
+                          <T>Leave it</T>
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {/* ONLY when there is nothing on the page to point at. "IN WITNESS
+                  WHEREOF" and "[Signature Page Follows]" are both signed
+                  documents carrying no rule at all, and this is the sentence for
+                  them. Shown alongside a list of rules it just quotes one of the
+                  rules back, which the list above has already said better. */}
+              {signatureEvidence && signaturePlaces.length === 0 && (
+                <p className="mt-1.5 text-[12px] text-muted">
+                  <T>This body carries</T>{' '}
+                  <span data-no-translate>{signatureEvidence}</span>.
+                </p>
+              )}
+              {deliveryMode !== 'signature' && (
+                <p className="mt-1.5 text-[12.5px]">
+                  <span className="text-amber-700 dark:text-amber-300">
+                    <T>
+                      This template is set to go out as a secure read-only link,
+                      so nobody will be asked to sign it.
+                    </T>
+                  </span>{' '}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setDeliveryMode('signature')}
+                    className="font-medium text-accent-text hover:underline disabled:opacity-50"
+                  >
+                    <T>Set it to go out for signature</T>
+                  </button>
+                </p>
+              )}
+            </>
+          )}
+
+          {unnamed.length > 0 && (
+            <>
+              <p className="mt-3 text-[12.5px] font-medium text-foreground">
+                <T>Blanks with no name to give them</T>
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted">
+                <T>
+                  There is a blank here but nothing beside it that says what goes
+                  in it, so it is left alone rather than given an invented name.
+                  If somebody should fill one in, put a placeholder where the
+                  rule is and it becomes a field.
+                </T>
+              </p>
+              <ul className="mt-1.5 space-y-1" data-no-translate>
+                {unnamed.map((b) => (
+                  <li
+                    key={identify(b)}
+                    className="rounded bg-cream-100 px-1.5 py-0.5 font-mono text-[11.5px] text-foreground dark:bg-forest-800"
+                  >
+                    {b.context}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {/* A body with nothing to find says so. An empty panel reads as a
+              panel that failed rather than as a document with no blanks in it,
+              and the two need to be told apart at a glance. */}
+          {live.length === 0 && !signatureEvidence && (
+            <p className="mt-3 text-[12.5px] text-muted">
+              {detected.length === 0 ? (
+                <T>
+                  No blanks were found in this body. Type a placeholder in double
+                  braces wherever somebody should fill something in, and it
+                  becomes a field below.
+                </T>
+              ) : (
+                <T>
+                  Every blank found here has been set aside. Edit the body to
+                  look again.
+                </T>
+              )}
+            </p>
+          )}
+        </div>
+      )}
+
       {fields.length > 0 && (
         <div>
           <p className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
@@ -868,6 +1175,16 @@ function TemplateEditor({
                 <code className="rounded bg-cream-100 px-1.5 py-0.5 text-[11.5px] dark:bg-forest-800" data-no-translate>
                   {'{{'}{f.key}{'}}'}
                 </code>
+                {/* Which of these rows the author put there and which this page
+                    suggested, while the difference can still change what they
+                    do. It lasts as long as the editing session: once the
+                    template is saved, the placeholder is in the author's own
+                    body and there is nothing left to attribute. */}
+                {fromDetection.has(f.key) && (
+                  <span className="rounded bg-gold-500/15 px-1.5 py-0.5 text-[11px] text-accent-text">
+                    <T>Suggested</T>
+                  </span>
+                )}
                 <input
                   className={`${inputCls} !w-56`}
                   value={f.label}
