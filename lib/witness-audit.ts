@@ -33,16 +33,31 @@ export async function appendWitnessEvent(
 ): Promise<void> {
   let prevHash: string | null = null;
   try {
-    const { data } = await admin
+    const { data, error } = await admin
       .from('witness_submission_events')
       .select('event_hash')
       .eq('submission_id', input.submissionId)
       .order('created_at', { ascending: false })
       .limit(1);
+    // Same postgrest-js contract as the insert below: a failed read
+    // resolves with `{ error }` and a null `data`. Left uninspected it
+    // is indistinguishable from "this submission has no events yet",
+    // so the event that follows would chain off null and start a
+    // second chain behind the first, silently, in a table sold as a
+    // record of what happened. Report it and carry on.
+    if (error) {
+      reportWitnessAuditFailure(
+        input.eventType,
+        `could not read the previous event: ${error.message}`,
+      );
+    }
     const row = data?.[0] as { event_hash: string } | undefined;
     prevHash = row?.event_hash ?? null;
-  } catch {
-    /* fall through with prevHash null */
+  } catch (err) {
+    reportWitnessAuditFailure(
+      input.eventType,
+      `previous-event read threw: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   const ts = new Date().toISOString();
@@ -60,23 +75,54 @@ export async function appendWitnessEvent(
     .digest('hex');
 
   try {
-    await admin.from('witness_submission_events').insert({
-      submission_id: input.submissionId,
-      event_type: input.eventType,
-      actor_user_id: input.actorUserId ?? null,
-      ip_address: input.ipAddress ?? null,
-      user_agent: input.userAgent ?? null,
-      metadata: input.metadata ?? {},
-      prev_event_hash: prevHash,
-      event_hash: eventHash,
-      created_at: ts,
-    });
+    // NOTE: postgrest-js resolves with `{ error }` instead of throwing, so
+    // this result MUST be inspected. The `try/catch` around it never saw a
+    // rejected insert, which meant a dropped audit event looked exactly
+    // like a written one. `.select('id').single()` asks the database which
+    // row was actually written, the same way appendSignatureEvent in
+    // lib/esign-audit.ts does.
+    const { error } = await admin
+      .from('witness_submission_events')
+      .insert({
+        submission_id: input.submissionId,
+        event_type: input.eventType,
+        actor_user_id: input.actorUserId ?? null,
+        ip_address: input.ipAddress ?? null,
+        user_agent: input.userAgent ?? null,
+        metadata: input.metadata ?? {},
+        prev_event_hash: prevHash,
+        event_hash: eventHash,
+        created_at: ts,
+      })
+      .select('id')
+      .single();
+    if (error) {
+      // Never block a submission on an audit-log write failure - the
+      // submission row itself stays the source of truth.
+      reportWitnessAuditFailure(
+        input.eventType,
+        `${error.message}${error.code ? ` (${error.code})` : ''}`,
+      );
+    }
   } catch (err) {
-    // Never block a submission on an audit-log write failure - the
-    // submission row itself stays the source of truth.
-    console.warn(
-      '[appendWitnessEvent] insert failed; submission flow continues',
-      err instanceof Error ? err.message : err,
+    reportWitnessAuditFailure(
+      input.eventType,
+      err instanceof Error ? err.message : String(err),
     );
   }
+}
+
+/**
+ * Surface a dropped witness audit write. Kept non-throwing on purpose: a
+ * witness submitting evidence must not be turned away because the event
+ * log refused a row. Loud rather than silent, though, because the whole
+ * value of this table is that it is believed.
+ */
+function reportWitnessAuditFailure(
+  eventType: WitnessEventType,
+  reason: string,
+): void {
+  console.warn(
+    `[appendWitnessEvent] failed to record witness event "${eventType}": ${reason}`,
+  );
 }
