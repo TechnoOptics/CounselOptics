@@ -178,7 +178,6 @@ Knowing the firm's environment - DO NOT GUESS, USE TOOLS:
     Intake / action ctr  -> list_intake_inbox (filter by lane + source)
     Clients              -> list_clients (filter by status, mine_only, query); get_client_detail for one client
     Team                 -> list_team_members
-    Access requests      -> list_access_requests
     Documents / vault    -> list_documents (filter by case, client, status); get_document_detail for one
     Signing              -> list_signing_requests (filter by status, mine_only)
     Leads                -> list_leads
@@ -362,7 +361,6 @@ type ToolName =
   | 'list_clients'
   | 'get_client_detail'
   | 'list_team_members'
-  | 'list_access_requests'
   | 'list_documents'
   | 'get_document_detail'
   | 'list_signing_requests'
@@ -834,28 +832,6 @@ const LIST_TEAM_MEMBERS_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
-const LIST_ACCESS_REQUESTS_TOOL: Anthropic.Messages.Tool = {
-  name: 'list_access_requests',
-  description:
-    "List external sign-up access requests waiting on admin review. Use for 'who's waiting on access', 'any new external sign-ups', 'show pending access requests'.",
-  input_schema: {
-    type: 'object',
-    properties: {
-      status: {
-        type: 'string',
-        enum: ['pending', 'approved', 'denied', 'all'],
-        description: "Default 'pending'.",
-      },
-      limit: {
-        type: 'integer',
-        minimum: 1,
-        maximum: 50,
-        description: 'Max items. Default 20.',
-      },
-    },
-  },
-};
-
 const LIST_DOCUMENTS_TOOL: Anthropic.Messages.Tool = {
   name: 'list_documents',
   description:
@@ -1229,7 +1205,6 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
       LIST_CLIENTS_TOOL,
       GET_CLIENT_DETAIL_TOOL,
       LIST_TEAM_MEMBERS_TOOL,
-      LIST_ACCESS_REQUESTS_TOOL,
       LIST_DOCUMENTS_TOOL,
       GET_DOCUMENT_DETAIL_TOOL,
       LIST_SIGNING_REQUESTS_TOOL,
@@ -1275,11 +1250,13 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
  * `.eq('firm_id', firmId)` leaks across firms with nothing to catch
  * it.
  *
- * Two dispatches below already take no firmId, and neither is an
- * oversight to copy. `list_leads` reads firm_leads, a marketplace
- * pool with no firm_id column that every member firm is meant to
- * see. `list_access_requests` reads firm_access_requests, which is
- * an HQ table: see the note on loadAccessRequests.
+ * ONE dispatch below takes no firmId, and it is not an oversight to
+ * copy: `list_leads` reads firm_leads, a marketplace pool with no
+ * firm_id column that every member firm is meant to see. A firm tool
+ * that reads an unscoped table for any other reason is misfiled.
+ * `list_access_requests` was the counter-example and was removed
+ * rather than gated, because firm_access_requests is an HQ table and
+ * no firm ever had a reason to read it.
  */
 async function executeTool(
   name: ToolName,
@@ -1517,7 +1494,6 @@ async function executeTool(
     'list_clients',
     'get_client_detail',
     'list_team_members',
-    'list_access_requests',
     'list_documents',
     'get_document_detail',
     'list_signing_requests',
@@ -1560,7 +1536,6 @@ async function executeTool(
   if (name === 'list_clients') return await loadClients(firmId!, input);
   if (name === 'get_client_detail') return await loadClientDetail(firmId!, input);
   if (name === 'list_team_members') return await loadTeamMembers(firmId!, input);
-  if (name === 'list_access_requests') return await loadAccessRequests(input);
   if (name === 'list_documents') return await loadDocuments(firmId!, input);
   if (name === 'get_document_detail') return await loadDocumentDetail(firmId!, input);
   if (name === 'list_signing_requests') return await loadSigningRequests(firmId!, input);
@@ -2558,40 +2533,6 @@ async function loadTeamMembers(
     });
   }
   return { ok: true, count: hydrated.length, members: hydrated };
-}
-
-/**
- * KNOWN DEFECT, recorded here rather than fixed, because fixing it is a
- * behaviour change and belongs in its own review.
- *
- * firm_access_requests is an HQ table: an organization asking Advottic for
- * a Counsel workspace. Its only other readers are HQ-admin gated
- * (app/admin/counsel-requests/page.tsx redirects unless isCurrentUserAdmin,
- * and lib/hq-storage.ts). This loader takes no firmId and applies no firm
- * filter, so it returns EVERY organization's request - name, contact name,
- * contact email, role, firm type, team size, jurisdictions - through the
- * service-role client.
- *
- * The audience is also inverted. `list_access_requests` is in FIRM_ONLY, so
- * any member of any firm can ask Bella for it, while HQ admin, the one
- * caller with a legitimate reason, is refused by that same guard.
- */
-async function loadAccessRequests(
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const supabase = createAdminSupabase();
-  if (!supabase) return { ok: false, error: 'Service role not configured.' };
-  const status = String(input.status ?? 'pending').trim();
-  const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
-  let q = supabase
-    .from('firm_access_requests')
-    .select('id, organization_name, contact_name, contact_email, contact_role, firm_type, team_size, jurisdictions, status, created_at')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  if (status !== 'all') q = q.eq('status', status);
-  const { data, error } = await q;
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, count: (data ?? []).length, requests: data ?? [] };
 }
 
 async function loadDocuments(
