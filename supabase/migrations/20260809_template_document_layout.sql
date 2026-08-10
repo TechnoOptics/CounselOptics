@@ -1,12 +1,26 @@
 -- A template can override its firm's page layout.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-08. Applying this and regenerating
--- supabase/schema-fingerprint.sha256 is the OWNER'S step, not an
--- implementer's. The CI drift gate is designed to hash the live schema
--- against that committed fingerprint, but it is not doing so: it skips
--- while the SUPABASE_DB_URL secret is unset, so applying one without the
--- other fails nothing. See scripts/schema/README.md, "Current status".
+-- ============================== APPLIED ==================================
+-- Written 2026-08-08. APPLIED to production. This header said NOT APPLIED
+-- until 2026-08-10 and was wrong.
+--
+-- WHAT SETTLED IT, from the repo alone: commit c1f9088b, "Regenerate the
+-- fingerprint for firm_templates.document_layout", is an ancestor of main
+-- and a descendant of 81f6c749, the commit that added this file. It says in
+-- terms that "20260809_template_document_layout.sql is applied to
+-- production: one nullable jsonb column, no default, no CHECK. Verified in
+-- the live database rather than inferred from the absence of an error." It
+-- regenerated supabase/schema-fingerprint.sha256 in the same change, so
+-- nothing is owed.
+--
+-- The banner survived the apply because a later commit (33e3c32c) edited
+-- this file without revisiting the header.
+--
+-- The CI drift gate is designed to hash the live schema against that
+-- committed fingerprint, but it is not doing so: it self-skips while the
+-- SUPABASE_DB_URL secret is unset, so it has never executed a comparison
+-- and could not have contradicted the stale banner. See
+-- scripts/schema/README.md, "Current status".
 -- =========================================================================
 --
 -- WHAT THIS IS HALF OF. The firm-wide default lives on

@@ -661,7 +661,7 @@ function TemplateEditor({
   // Tied to the exact list that was read. Editing the body into a NEW stray
   // token clears the acknowledgement, because what was agreed to was those
   // tokens and not the idea of tokens.
-  const unmergedSignature = unmerged.join(' ');
+  const unmergedSignature = unmerged.join('\u0000');
   const [acknowledgedFor, setAcknowledgedFor] = useState<string | null>(null);
   const placeholdersSettled =
     unmerged.length === 0 || acknowledgedFor === unmergedSignature;

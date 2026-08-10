@@ -1,9 +1,23 @@
 -- Per-request control over whether the SIGNER may download a copy of
 -- what they signed.
 --
--- NOT APPLIED BY THE CHANGE THAT INTRODUCED IT. Applying migrations
--- and regenerating supabase/schema-fingerprint.sha256 is the owner's
--- step.
+-- ============================== APPLIED ==================================
+-- Not applied by the change that introduced it, but APPLIED to production
+-- afterwards. This header said only "NOT APPLIED BY THE CHANGE THAT
+-- INTRODUCED IT" until 2026-08-10, which a reader could take for pending.
+--
+-- WHAT SETTLED IT, from the repo alone: commit 352976e8, "Regenerate the
+-- schema fingerprint after applying seven migrations", is an ancestor of
+-- main. It states the seven then-pending migrations were applied in
+-- filename order and lists the objects checked in the live database,
+-- including "firm_signing_requests gains signer_can_download". This file
+-- is the only place in supabase/migrations that adds that column. The same
+-- commit regenerated supabase/schema-fingerprint.sha256, so nothing is owed.
+--
+-- Nothing in CI could have contradicted a stale banner: the schema-drift
+-- gate self-skips while the SUPABASE_DB_URL secret is unset, so it has never
+-- executed a comparison. See scripts/schema/README.md, "Current status".
+-- =========================================================================
 --
 -- Why a column and not a jsonb key: firm_signing_requests has no jsonb
 -- column to hang this off. Its columns are id, firm_id, document_id,

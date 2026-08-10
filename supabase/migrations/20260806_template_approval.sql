@@ -18,12 +18,32 @@
 -- authorize the caller in code (lib/template-submissions.ts ->
 -- lib/template-approval.ts).
 --
--- APPLY THIS IN THE SAME WINDOW AS THE MERGE. IT CANNOT TRAIL THE DEPLOY.
+-- ============================== APPLIED ==================================
+-- APPLIED to production, in the same window as the merge. This header said
+-- "This file has never been run" until 2026-08-10 and was wrong by then.
 --
--- This file has never been run, so the decline state and the reviewer-edit
--- columns were folded into it rather than added as a second migration. If any
--- environment has already applied an earlier copy of this file, run the
--- catch-up block at the bottom instead of re-running the whole thing.
+-- WHAT SETTLED IT, from the repo alone: commit 352976e8, "Regenerate the
+-- schema fingerprint after applying seven migrations", is an ancestor of
+-- main. It states the seven then-pending migrations were applied in
+-- filename order, deliberately BEFORE the push rather than after, and lists
+-- the objects checked in the live database, firm_template_submissions among
+-- them. This file is the only place in supabase/migrations that creates
+-- that table. The same commit regenerated
+-- supabase/schema-fingerprint.sha256, so nothing is owed.
+--
+-- The instruction below is retained because it still governs any environment
+-- that has not been migrated yet: apply this in the same window as the
+-- deploy, because the Forms surface does not degrade gracefully without it.
+--
+-- If an environment applied an earlier copy of this file, the decline state
+-- and the reviewer-edit columns were folded in here rather than added as a
+-- second migration, so run the catch-up block at the bottom instead of
+-- re-running the whole thing.
+--
+-- Nothing in CI could have contradicted a stale banner: the schema-drift
+-- gate self-skips while the SUPABASE_DB_URL secret is unset, so it has never
+-- executed a comparison. See scripts/schema/README.md, "Current status".
+-- =========================================================================
 --
 -- The employee Forms surface does not degrade gracefully without it, it stops
 -- working. `requires_approval` is absent from the row until this runs, and the
