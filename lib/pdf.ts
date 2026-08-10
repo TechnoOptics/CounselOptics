@@ -27,6 +27,12 @@ const MAX_PDF_EXHIBIT_PAGES = 40;
  * note instead so the user knows what's missing.
  */
 const MAX_PACKET_PAGES = 200;
+/**
+ * Largest exhibit we will pull into memory to embed. The upload form accepts
+ * 50MB, so this cap is reachable by an ordinary upload: anything past it is
+ * named on its own header page as not reproduced, never dropped in silence.
+ */
+const MAX_EMBED_BYTES = 20 * 1024 * 1024;
 
 // Cap each list section in the PDF Review so the export does not
 // balloon to 30 pages on a heavy matter. The web app still shows the
@@ -106,15 +112,61 @@ export async function generateCasePdf(input: {
   // knows where to splice the merged pages in.
   const exhibitPdfs = new Map<string, Buffer>();
   const exhibitPlaceholderPage = new Map<string, number>();
-  const MAX_EMBED_BYTES = 20 * 1024 * 1024;
+  // The exact source pages each PDF exhibit will contribute: blanks already
+  // dropped, per-exhibit cap already applied. The header page and the merge
+  // both read this, so the page cannot promise pages the merge won't add.
+  const exhibitPageIndices = new Map<string, number[]>();
+  const plans = new Map<string, ExhibitRenderPlan>();
+
   for (const e of input.exhibits) {
-    if (e.fileSize > MAX_EMBED_BYTES) continue;
-    if (isSupportedImage(e)) {
-      const buf = await getExhibitFileBuffer(e).catch(() => null);
-      if (buf) exhibitImages.set(e.id, buf);
-    } else if (isPdfExhibit(e)) {
-      const buf = await getExhibitFileBuffer(e).catch(() => null);
-      if (buf) exhibitPdfs.set(e.id, buf);
+    const image = isSupportedImage(e);
+    const pdf = isPdfExhibit(e);
+    // An image we have no decoder for, and a file that is neither an image
+    // nor a document, are different statements to the reader.
+    if (!image && !pdf) {
+      const looksLikeImage = (e.fileType || '').toLowerCase().startsWith('image/');
+      plans.set(
+        e.id,
+        planExhibitRender(e, { status: looksLikeImage ? 'unsupported-image' : 'not-applicable' }),
+      );
+      continue;
+    }
+    if (e.fileSize > MAX_EMBED_BYTES) {
+      plans.set(e.id, planExhibitRender(e, { status: 'too-large' }));
+      continue;
+    }
+    const buf = await getExhibitFileBuffer(e).catch(() => null);
+    if (!buf || buf.byteLength === 0) {
+      plans.set(e.id, planExhibitRender(e, { status: 'unreadable' }));
+      continue;
+    }
+    if (image) {
+      exhibitImages.set(e.id, buf);
+      plans.set(e.id, planExhibitRender(e, { status: 'ok', totalPages: 0, usablePages: 0 }));
+      continue;
+    }
+    // A PDF: open it now so the page count on the header is the real one. A
+    // source we cannot parse is withheld by name rather than promised and
+    // then skipped by the merge's catch.
+    try {
+      const doc = await PdfLibDoc.load(buf, { ignoreEncryption: true });
+      const totalPages = doc.getPageCount();
+      const indices: number[] = [];
+      for (let i = 0; i < totalPages && indices.length < MAX_PDF_EXHIBIT_PAGES; i++) {
+        if (!isPageLikelyBlank(doc.getPage(i))) indices.push(i);
+      }
+      const plan = planExhibitRender(e, {
+        status: 'ok',
+        totalPages,
+        usablePages: indices.length,
+      });
+      plans.set(e.id, plan);
+      if (plan.kind === 'document') {
+        exhibitPdfs.set(e.id, buf);
+        exhibitPageIndices.set(e.id, indices);
+      }
+    } catch {
+      plans.set(e.id, planExhibitRender(e, { status: 'unreadable' }));
     }
   }
 
@@ -146,6 +198,7 @@ export async function generateCasePdf(input: {
             input.exhibits,
             exhibitPdfs,
             exhibitPlaceholderPage,
+            exhibitPageIndices,
           );
           resolve(merged);
         } catch (e) {
@@ -158,7 +211,7 @@ export async function generateCasePdf(input: {
       });
       doc.on('error', reject);
 
-      writePdf(doc, { ...input, logoBuffer }, exhibitImages, exhibitPlaceholderPage);
+      writePdf(doc, { ...input, logoBuffer }, exhibitImages, exhibitPlaceholderPage, plans);
 
       // Page numbers (skip cover) and watermark every page including
       // cover during trial. The watermark layer is drawn LAST so it
@@ -194,6 +247,9 @@ function writePdf(
   // exhibit's header lands. The post-merge step uses this to splice
   // the actual PDF pages in right after the header.
   exhibitPlaceholderPage?: Map<string, number>,
+  // What the packet is allowed to claim about each exhibit. Absent for the
+  // legacy callers that pass no plans; those fall back to the old behaviour.
+  plans?: Map<string, ExhibitRenderPlan>,
 ) {
   const { caseRecord, exhibits, review, profile, clientName, reviewEntitled, logoBuffer } = input;
 
@@ -231,7 +287,7 @@ function writePdf(
         const pageIndex = doc.bufferedPageRange().count - 1;
         exhibitPlaceholderPage.set(e.id, pageIndex);
       }
-      drawExhibit(doc, e, exhibitImages.get(e.id) ?? null);
+      drawExhibit(doc, e, exhibitImages.get(e.id) ?? null, plans?.get(e.id));
     }
   }
 
@@ -471,7 +527,12 @@ function drawExhibitIndex(doc: Doc, exhibits: Exhibit[]) {
 
 // ---------------------------- Exhibit detail page ------------------------
 
-function drawExhibit(doc: Doc, e: Exhibit, imageBuffer: Buffer | null) {
+function drawExhibit(
+  doc: Doc,
+  e: Exhibit,
+  imageBuffer: Buffer | null,
+  plan?: ExhibitRenderPlan,
+) {
   resetToContentTop(doc);
 
   // Label chip
@@ -512,6 +573,14 @@ function drawExhibit(doc: Doc, e: Exhibit, imageBuffer: Buffer | null) {
 
   gap(doc, 18);
 
+  // An exhibit the packet cannot reproduce is named here, with the reason,
+  // because a record that omits evidence without saying so is worse than one
+  // that says plainly what is missing.
+  if (plan?.kind === 'withheld') {
+    drawWithheldNotice(doc, e, plan.reason);
+    return;
+  }
+
   if (imageBuffer) {
     try {
       const maxW = CONTENT_WIDTH;
@@ -523,29 +592,33 @@ function drawExhibit(doc: Doc, e: Exhibit, imageBuffer: Buffer | null) {
         valign: 'center',
       });
     } catch {
-      drawAttachmentPlaceholder(doc, e);
+      drawWithheldNotice(
+        doc,
+        e,
+        'This image could not be rendered into the packet. The original is unchanged in your case file.',
+      );
     }
-  } else if (isPdfExhibit(e)) {
+  } else if (plan ? plan.kind === 'document' : isPdfExhibit(e)) {
     // PDF exhibit: the actual document pages get merged in by the
     // post-pass right after this header page. We only need a
     // short caption telling the reader to scroll to see the full
     // document. The full-page placeholder is what was making PDF
     // exhibits look like "blank pages" before.
-    drawPdfFollowsCaption(doc, e);
+    drawPdfFollowsCaption(doc, e, plan?.kind === 'document' ? plan : undefined);
   } else {
     drawAttachmentPlaceholder(doc, e);
   }
 }
 
 /**
- * Compact "Full document follows" caption for PDF exhibits. Drawn
- * on the exhibit header page just below the metadata grid. The
- * actual document pages are merged in by mergeExhibitPdfs() after
- * PDFKit finishes streaming.
+ * Say, on the exhibit's own page, that the file is not reproduced and why.
+ *
+ * Neutral register on purpose: this is a court-facing document, and the reader
+ * is often the person whose evidence it is.
  */
-function drawPdfFollowsCaption(doc: Doc, e: Exhibit) {
+function drawWithheldNotice(doc: Doc, e: Exhibit, reason: string) {
   const boxY = doc.y;
-  const boxH = 60;
+  const boxH = 118;
   doc.save();
   doc
     .roundedRect(MARGIN, boxY, CONTENT_WIDTH, boxH, 8)
@@ -555,7 +628,57 @@ function drawPdfFollowsCaption(doc: Doc, e: Exhibit) {
     .font('Helvetica-Bold')
     .fontSize(11)
     .fillColor(COLOR.ink)
-    .text('Full document follows on the next pages.', MARGIN + 16, boxY + 16, {
+    .text('Not reproduced in this packet', MARGIN + 16, boxY + 18, {
+      width: CONTENT_WIDTH - 32,
+    });
+  doc
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor(COLOR.inkSoft)
+    .text(reason, MARGIN + 16, boxY + 36, { width: CONTENT_WIDTH - 32 });
+  doc
+    .font('Helvetica')
+    .fontSize(9.5)
+    .fillColor(COLOR.muted)
+    .text(
+      `${e.fileName} - ${e.fileType || 'unknown type'} - ${formatBytes(e.fileSize)}`,
+      MARGIN + 16,
+      boxY + boxH - 26,
+      { width: CONTENT_WIDTH - 32 },
+    );
+  doc.y = boxY + boxH + 4;
+}
+
+/**
+ * Compact "Full document follows" caption for PDF exhibits. Drawn
+ * on the exhibit header page just below the metadata grid. The
+ * actual document pages are merged in by mergeExhibitPdfs() after
+ * PDFKit finishes streaming.
+ */
+function drawPdfFollowsCaption(
+  doc: Doc,
+  e: Exhibit,
+  plan?: { reproduced: number; total: number },
+) {
+  const boxY = doc.y;
+  const boxH = 60;
+  // A document trimmed by the per-exhibit page cap must not be described as
+  // the full document. The cap was always there; the sentence saying so was
+  // computed and then discarded.
+  const partial = plan ? plan.reproduced < plan.total : false;
+  const headline = partial
+    ? `First ${plan!.reproduced} pages of ${plan!.total} follow. The rest is in the original file.`
+    : 'Full document follows on the next pages.';
+  doc.save();
+  doc
+    .roundedRect(MARGIN, boxY, CONTENT_WIDTH, boxH, 8)
+    .fillAndStroke(COLOR.tint, COLOR.rule);
+  doc.restore();
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(11)
+    .fillColor(COLOR.ink)
+    .text(headline, MARGIN + 16, boxY + 16, {
       width: CONTENT_WIDTH - 32,
     });
   doc
@@ -821,6 +944,76 @@ function gap(doc: Doc, n: number) {
   doc.y += n;
 }
 
+/**
+ * What we found when we went to fetch an exhibit's bytes.
+ *
+ * `usablePages` is the number of pages that will actually be copied into the
+ * packet: blanks removed, per-exhibit cap already applied. It is computed once,
+ * in the pre-pass, and both the header page and the merge read the same number,
+ * so the page cannot promise something the merge does not deliver.
+ */
+export type ExhibitSource =
+  | { status: 'ok'; totalPages: number; usablePages: number }
+  | { status: 'too-large' }
+  | { status: 'unreadable' }
+  | { status: 'unsupported-image' }
+  | { status: 'not-applicable' };
+
+/** What the packet will show for one exhibit, and what it may therefore say. */
+export type ExhibitRenderPlan =
+  | { kind: 'image' }
+  | { kind: 'document'; reproduced: number; total: number }
+  | { kind: 'attachment' }
+  | { kind: 'withheld'; reason: string };
+
+function mb(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Decide what the packet may claim about one exhibit.
+ *
+ * The packet is offered as a record of a case, so an exhibit it cannot
+ * reproduce has to be named as missing, with a reason, rather than quietly
+ * left out. Every branch here ends in a statement the reader can act on.
+ */
+export function planExhibitRender(e: Exhibit, source: ExhibitSource): ExhibitRenderPlan {
+  switch (source.status) {
+    case 'too-large':
+      return {
+        kind: 'withheld',
+        reason: `This file is too large to reproduce inside the packet (${mb(e.fileSize)}; the limit is ${mb(MAX_EMBED_BYTES)}). The original is unchanged in your case file.`,
+      };
+    case 'unreadable':
+      return {
+        kind: 'withheld',
+        reason:
+          'This file could not be read from storage while the packet was being generated, so it is not reproduced here. The original is still listed on the case.',
+      };
+    case 'unsupported-image':
+      return {
+        kind: 'withheld',
+        reason: `This image format (${e.fileType || 'unknown'}) cannot be embedded in a PDF, so the picture itself is not reproduced here. The original is unchanged in your case file.`,
+      };
+    case 'not-applicable':
+      return { kind: 'attachment' };
+    case 'ok':
+    default:
+      if (isSupportedImage(e)) return { kind: 'image' };
+      if (isPdfExhibit(e)) {
+        if (source.usablePages <= 0) {
+          return {
+            kind: 'withheld',
+            reason:
+              'Every page of this document is blank, so there is nothing to reproduce here. The original is unchanged in your case file.',
+          };
+        }
+        return { kind: 'document', reproduced: source.usablePages, total: source.totalPages };
+      }
+      return { kind: 'attachment' };
+  }
+}
+
 function isSupportedImage(e: Exhibit): boolean {
   const ft = (e.fileType || '').toLowerCase();
   if (ft === 'image/png' || ft === 'image/jpeg' || ft === 'image/jpg') return true;
@@ -863,6 +1056,7 @@ async function mergeExhibitPdfs(
   exhibits: Exhibit[],
   exhibitPdfs: Map<string, Buffer>,
   exhibitPlaceholderPage: Map<string, number>,
+  exhibitPageIndices: Map<string, number[]>,
 ): Promise<Buffer> {
   const source = await PdfLibDoc.load(pdfkitBuffer, {
     ignoreEncryption: true,
@@ -886,20 +1080,26 @@ async function mergeExhibitPdfs(
   // Cache loaded pdf-lib docs so we only parse each exhibit once.
   const loadedExhibits = new Map<string, PdfLibDoc>();
   let mergedSoFar = 0;
-  let aborted = false;
+  const cutByPacketCap: string[] = [];
 
   for (let i = 0; i < sourceCount; i++) {
-    if (out.getPageCount() >= MAX_PACKET_PAGES) {
-      aborted = true;
-      break;
-    }
     const [copied] = await out.copyPages(source, [i]);
     out.addPage(copied);
     const exhibitId = insertAfter.get(i);
     if (!exhibitId) continue;
-    if (out.getPageCount() >= MAX_PACKET_PAGES) {
-      aborted = true;
-      break;
+    // The pages were chosen in the pre-pass, by the same pass that wrote the
+    // header sentence. Recomputing them here is how the page and the merge
+    // drifted apart: the page promised a document the merge then skipped.
+    const chosen = exhibitPageIndices.get(exhibitId) ?? [];
+    if (chosen.length === 0) continue;
+    const remainingBudget = MAX_PACKET_PAGES - out.getPageCount();
+    if (chosen.length > remainingBudget) {
+      // The packet cap, not this exhibit, is what stops us. Record it and keep
+      // going: the remaining source pages are this packet's own header and
+      // disclaimer pages, and dropping those is how an exhibit would vanish
+      // from the record entirely rather than merely losing its attachment.
+      cutByPacketCap.push(exhibitId);
+      continue;
     }
     try {
       let exhibitDoc = loadedExhibits.get(exhibitId);
@@ -908,51 +1108,64 @@ async function mergeExhibitPdfs(
         exhibitDoc = await PdfLibDoc.load(buf, { ignoreEncryption: true });
         loadedExhibits.set(exhibitId, exhibitDoc);
       }
-      const exhibitPages = exhibitDoc.getPageCount();
-      const remainingBudget = MAX_PACKET_PAGES - out.getPageCount();
-      const allowedByCap = Math.min(MAX_PDF_EXHIBIT_PAGES, remainingBudget);
-      // Skip blank trailing/embedded pages in the source exhibit
-      // before computing how many to copy. Real-world legal PDFs
-      // (especially scanned leases) routinely have 5-15 blank pages
-      // at the end from auto-feed scanners or templates with empty
-      // pages. Without this filter the packet ends up with a long
-      // tail of blank pages between the lease content and the
-      // disclaimer, which the user perceives as a quality bug.
-      const allIndices = Array.from(
-        { length: exhibitPages },
-        (_, idx) => idx,
-      );
-      const nonBlankIndices: number[] = [];
-      for (const idx of allIndices) {
-        if (nonBlankIndices.length >= allowedByCap) break;
-        const page = exhibitDoc.getPage(idx);
-        if (!isPageLikelyBlank(page)) {
-          nonBlankIndices.push(idx);
-        }
-      }
-      if (nonBlankIndices.length === 0) continue;
-      const merged = await out.copyPages(exhibitDoc, nonBlankIndices);
+      const merged = await out.copyPages(exhibitDoc, chosen);
       for (const p of merged) out.addPage(p);
-      mergedSoFar += nonBlankIndices.length;
-      // Truncation footnote if we skipped any pages because the
-      // cap kicked in. Skipped *blanks* don't count - those are
-      // safe to drop silently. Without this guard the exhibitPages
-      // > pagesToCopy comparison would always be true after a
-      // blank-skip and confuse the truncation logic.
-      const usefulPages = nonBlankIndices.length;
-      const truncatedByCap =
-        usefulPages < exhibitPages && usefulPages >= allowedByCap;
-      void truncatedByCap;
+      mergedSoFar += chosen.length;
     } catch {
-      // Corrupted / encrypted source PDF: leave the header page
-      // as-is and continue with the rest of the packet.
-      continue;
+      // Corrupted / encrypted source PDF: the header page already said the
+      // document follows, so name it rather than leaving a bare promise.
+      cutByPacketCap.push(exhibitId);
     }
   }
+  if (cutByPacketCap.length > 0) {
+    await appendOmissionNote(out, exhibits, cutByPacketCap);
+  }
   void mergedSoFar;
-  void aborted;
   const finalBytes = await out.save();
   return Buffer.from(finalBytes);
+}
+
+/**
+ * Final page listing exhibits whose documents did not fit.
+ *
+ * Without it the packet simply ends, and an exhibit that promised "full
+ * document follows" is followed by the disclaimer. A reader has no way to tell
+ * that from a document that genuinely had nothing more in it.
+ */
+async function appendOmissionNote(
+  out: PdfLibDoc,
+  exhibits: Exhibit[],
+  omittedIds: string[],
+) {
+  const font = await out.embedFont(StandardFonts.Helvetica);
+  const bold = await out.embedFont(StandardFonts.HelveticaBold);
+  const page = out.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let y = PAGE_HEIGHT - MARGIN - 20;
+  page.drawText('Exhibits not reproduced in full', {
+    x: MARGIN,
+    y,
+    size: 16,
+    font: bold,
+  });
+  y -= 26;
+  page.drawText(
+    `This packet reached its ${MAX_PACKET_PAGES}-page limit. The exhibits below are`,
+    { x: MARGIN, y, size: 10.5, font },
+  );
+  y -= 15;
+  page.drawText(
+    'listed on the case and unchanged in your case file, but their pages are not',
+    { x: MARGIN, y, size: 10.5, font },
+  );
+  y -= 15;
+  page.drawText('included here.', { x: MARGIN, y, size: 10.5, font });
+  y -= 26;
+  for (const id of omittedIds) {
+    const e = exhibits.find((x) => x.id === id);
+    if (!e || y < MARGIN + 30) continue;
+    page.drawText(`${e.label}   ${e.fileName}`, { x: MARGIN, y, size: 10, font });
+    y -= 16;
+  }
 }
 
 /**
