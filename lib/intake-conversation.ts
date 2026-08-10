@@ -663,11 +663,24 @@ export async function revokeIntakeUploadRequestAction(
   const access = await resolveAccess(intakeId);
   if (!access.ok) return { ok: false, error: access.error };
   if (access.role !== 'legal') return { ok: false, error: 'Only the legal team can do that.' };
-  await access.admin
+  // Read the write back. This column IS the revocation: the public upload
+  // endpoint checks revoked_at and nothing else, and the link is already in
+  // an outside client's inbox. PostgREST answers a write that matched no
+  // rows with error null, so without the row count this returned ok on a
+  // link that is still accepting files, under a dialog that had just told
+  // the legal team it stops working.
+  const { data: revoked, error } = await access.admin
     .from('firm_intake_upload_requests')
     .update({ revoked_at: new Date().toISOString() })
     .eq('id', requestId)
-    .eq('intake_id', intakeId);
+    .eq('intake_id', intakeId)
+    .select('id');
+  if (error || !revoked || revoked.length === 0) {
+    return {
+      ok: false,
+      error: 'That link was not revoked and may still work. Reload the page and try again.',
+    };
+  }
   revalidateIntake(intakeId);
   return { ok: true };
 }
