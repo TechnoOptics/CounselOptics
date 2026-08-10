@@ -17,6 +17,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { stripComments } from './strip-comments.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -26,7 +27,10 @@ const CHECKS = [
     file: 'app/layout.tsx',
     label: 'consumer i18n is wired into the root layout',
     needs: [
-      'AutoTranslate',
+      // The ELEMENT, not the name: unwrapping both <AutoTranslate> wrappers and
+      // keeping the import turned consumer runtime translation off with this
+      // check still green.
+      '<AutoTranslate',
       'LanguageSwitcher',
       'getLocaleCookie',
       'consumerI18n', // the non-shell / non-/sign / non-/es gate
@@ -79,7 +83,7 @@ for (const check of CHECKS) {
     failures += 1;
     continue;
   }
-  const missing = check.needs.filter((n) => !src.includes(n));
+  const missing = check.needs.filter((n) => !stripComments(src).includes(n));
   if (missing.length > 0) {
     console.error(
       `✗ ${check.file}: ${check.label}\n    missing: ${missing.join(', ')}`,

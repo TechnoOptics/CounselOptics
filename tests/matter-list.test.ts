@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { stripComments } from './support/strip-comments';
 import {
   filterMatters,
   hasActiveFilters,
@@ -442,12 +443,41 @@ describe('the list ships no control without an action behind it', () => {
    * bulk reassignment is ever removed, this fails, and the right fix is
    * to remove the checkbox column rather than to delete the test.
    */
+  /**
+   * This asked for the NAME `setCaseAssigneeAction` somewhere in the table
+   * file. The mutation only stopped being wired when the call moved into
+   * app/counsel/cases/assign-to.ts: the name survived in two prose comments,
+   * so the check went on passing while the only thing left in the file was
+   * the word. Replacing `await assignTo(id, value)` with `{ ok: true }` left
+   * the checkbox column, the Reassign control, and this test all green with
+   * nothing behind the control at all.
+   *
+   * So the wiring is followed rather than grepped: comments are removed
+   * first, the table must CALL assignTo, and the module it imports that from
+   * must itself call the server action. A rename anywhere along that chain
+   * fails here instead of going quiet.
+   */
+  const code = stripComments(source);
+  const helper = stripComments(
+    readFileSync(join(__dirname, '..', 'app', 'counsel', 'cases', 'assign-to.ts'), 'utf8'),
+  );
+
   it('keeps the checkbox column and the bulk action together', () => {
-    const hasCheckboxes = source.includes("type=\"checkbox\"");
+    // Scoped to BulkAssign's own body. The table has a second, single-row
+    // call to assignTo, so a file-wide `assignTo(` stayed true after the
+    // bulk one was cut out.
+    const at = code.indexOf('function BulkAssign(');
+    const bulk = at === -1 ? '' : code.slice(at);
+    const hasCheckboxes = code.includes('type="checkbox"');
     const hasBulkAction =
-      source.includes('Reassign the selected matters to') &&
-      source.includes('setCaseAssigneeAction');
+      bulk.includes('Reassign the selected matters to') &&
+      /\bassignTo\s*\(/.test(bulk) &&
+      /from\s*'\.\/assign-to'/.test(code);
     expect(hasCheckboxes).toBe(hasBulkAction);
+  });
+
+  it('has a real mutation at the end of that helper', () => {
+    expect(helper).toMatch(/\bsetCaseAssigneeAction\s*\(/);
   });
 
   /**

@@ -78,7 +78,7 @@ describe('the employee surface says less than the firm surface', () => {
   const counsel = read(COUNSEL_PAGE);
 
   it('gives the employee their own copy and never the firm copy', () => {
-    expect(portal).toContain('submitterActivitySentence');
+    expect(portal).toContain('submitterActivitySentence(');
     // firmActivitySentence names the next move (resend, call them), which is
     // the legal team's move and not the employee's. Handing it to the
     // employee would have them chasing a counterparty across their own
@@ -96,13 +96,13 @@ describe('the employee surface says less than the firm surface', () => {
   it('narrows in the loader, not in the template', () => {
     // A template that has to remember to narrow is a template that will one
     // day forget.
-    expect(read(PORTAL_LOADER)).toContain('projectActivityForSubmitter');
+    expect(read(PORTAL_LOADER)).toContain('projectActivityForSubmitter(');
     expect(portal).not.toContain('projectActivityForSubmitter');
   });
 
   it('gives the firm the whole picture, including what it does not prove', () => {
-    expect(counsel).toContain('firmActivitySentence');
-    expect(counsel).toContain('automatedOpensSentence');
+    expect(counsel).toContain('firmActivitySentence(');
+    expect(counsel).toContain('automatedOpensSentence(');
     // And the sentence that stops a reader taking an open for a reading.
     expect(counsel).toContain('It does not establish that anyone read the');
     expect(counsel).toContain('/api/firm/sign/audit-trail/');
@@ -112,7 +112,7 @@ describe('the employee surface says less than the firm surface', () => {
     // verdictNeedsAttention is what raises the banner; firmActivitySentence
     // is what says WHICH silence it is. A banner with one sentence for both
     // would send a firm to resend a link that was already opened.
-    expect(counsel).toContain('verdictNeedsAttention');
+    expect(counsel).toContain('verdictNeedsAttention(');
     expect(counsel).toMatch(/attention\.map/);
   });
 });

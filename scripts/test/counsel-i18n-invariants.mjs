@@ -37,6 +37,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
+import { stripComments } from './strip-comments.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const IMPORT = "from '@/components/i18n/LocaleProvider'";
@@ -47,7 +48,12 @@ const CHECKS = [
     file: 'app/counsel/layout.tsx',
     label:
       'LocaleProvider wraps the counsel surface (else every <T> degrades to English)',
-    needs: ['LocaleProvider'],
+    // The ELEMENT, not the name. Replacing both <LocaleProvider> wrappers with
+    // fragments and keeping the import left this check green while every <T>
+    // in the counsel surface degraded to English, which is the whole thing it
+    // exists to catch. The line-342 comment naming the provider would have
+    // done the same on its own.
+    needs: ['<LocaleProvider'],
   },
   {
     file: 'components/i18n/LocaleProvider.tsx',
@@ -244,7 +250,7 @@ for (const check of CHECKS) {
     failures += 1;
     continue;
   }
-  const missing = check.needs.filter((n) => !src.includes(n));
+  const missing = check.needs.filter((n) => !stripComments(src).includes(n));
   if (missing.length > 0) {
     console.error(
       `✗ ${check.file}: ${check.label}\n    missing: ${missing.join(', ')}`,

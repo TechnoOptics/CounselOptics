@@ -54,7 +54,7 @@ describe('the facts that sentence rests on', () => {
   it('the draft notice really does travel with both files', () => {
     // The PDF gets it appended to the composed text; the Word file carries it
     // in the page footer. Same sentence, two places, and the note says so.
-    expect(STUDIO).toMatch(/LETTER_DRAFT_NOTICE/);
+    expect(STUDIO).toMatch(/\$\{LETTER_DRAFT_NOTICE\}/);
     expect(DOCX).toContain(LETTER_DRAFT_NOTICE);
   });
 });
