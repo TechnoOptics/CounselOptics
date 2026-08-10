@@ -28,6 +28,11 @@ import {
   type ReviewAction,
 } from './template-approval';
 import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
+import {
+  claimedSignatureMethod,
+  decideSignatureMethod,
+} from './signature-methods';
+import { spendPhoneMarkAttestation } from './mark-handoff-queries';
 import { employeeFieldsOf } from './counterparty-fields';
 import { releaseApprovedSubmission } from './template-release';
 import {
@@ -233,6 +238,69 @@ function seenRevision(value: unknown): number {
 }
 
 /**
+ * Was this a way of signing the firm agreed to accept?
+ *
+ * The firm chooses per template, and until now the employee's own signature
+ * was the one signature in the product that ignored the choice: the pad
+ * offered all three modes whatever the template said, and nothing on the way
+ * in looked. So a template restricted to a typed name was signed with an
+ * uploaded photograph and the row recorded it without complaint.
+ *
+ * THE PHONE IS DECIDED BY THE SERVER, and that is the whole reason this
+ * function takes a handoff id rather than a method. A page claiming 'phone'
+ * would be a page's word for it, and a restriction one string wide is not a
+ * restriction. What is checked instead is a row: found under this caller's own
+ * user, firm and template, carrying a fingerprint left by a phone that burned
+ * a one-time token and holds the cookie bound to it, and matching the bytes
+ * being submitted now. claimedSignatureMethod then translates the pad's own
+ * vocabulary for every other case, and reads a caller that simply says 'phone'
+ * as having said nothing.
+ *
+ * Called immediately before the write and not earlier, because verifying the
+ * attestation spends it: one phone mark signs one document. Everything that
+ * can refuse a submission for a reason unrelated to signing has already run by
+ * then, so a refusal here does not burn a mark the employee will need again.
+ */
+async function guardSignatureMethod(input: {
+  /**
+   * The template's parsed restriction. Undefined is accepted and reads as no
+   * restriction, which is the same answer null gives and the same answer a
+   * database without 20260814_signature_methods.sql produces. A gate that
+   * threw on a column that is not there yet would refuse every submission in
+   * the product.
+   */
+  allowed: Parameters<typeof decideSignatureMethod>[0]['allowed'] | undefined;
+  userId: string;
+  firmId: string;
+  templateId: string;
+  submission: SubmissionInput;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const handoffId =
+    typeof input.submission.signatureHandoffId === 'string'
+      ? input.submission.signatureHandoffId.trim()
+      : '';
+
+  const attestedPhone = handoffId
+    ? await spendPhoneMarkAttestation({
+        handoffId,
+        userId: input.userId,
+        firmId: input.firmId,
+        templateId: input.templateId,
+        signatureDataUrl: input.submission.signatureDataUrl,
+      })
+    : false;
+
+  const decision = decideSignatureMethod({
+    allowed: input.allowed ?? null,
+    claimed: claimedSignatureMethod({
+      attestedPhone,
+      padMode: input.submission.signatureMode,
+    }),
+  });
+  return decision.ok ? { ok: true } : { ok: false, error: decision.error };
+}
+
+/**
  * Store the employee's mark and write the record around it.
  *
  * This runs after the write that creates or updates the submission, and it
@@ -433,6 +501,15 @@ export async function submitTemplateForApprovalAction(
     email: recipientEmail,
   });
 
+  const methodGate = await guardSignatureMethod({
+    allowed: template.signatureMethods,
+    userId: user.id,
+    firmId,
+    templateId: template.id,
+    submission: input,
+  });
+  if (!methodGate.ok) return { ok: false, error: methodGate.error };
+
   const { data, error } = await writeWithDeliveryMode<SubmissionRow>(
     (extra) =>
       admin
@@ -562,6 +639,15 @@ export async function resubmitTemplateSubmissionAction(
     row.submitter_email ?? user.email ?? '',
     { name: recipientName, email: recipientEmail },
   );
+
+  const methodGate = await guardSignatureMethod({
+    allowed: template.signatureMethods,
+    userId: user.id,
+    firmId: row.firm_id,
+    templateId: template.id,
+    submission: input,
+  });
+  if (!methodGate.ok) return { ok: false, error: methodGate.error };
 
   const { data: updated } = await writeWithDeliveryMode<SubmissionRow>(
     (extra) =>

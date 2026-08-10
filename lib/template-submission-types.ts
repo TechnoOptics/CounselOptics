@@ -357,6 +357,16 @@ export type SubmissionInput = {
   /** When the employee affirmed they intend the mark to be their signature. */
   signatureIntentAt?: string;
   signatureMode?: 'typed' | 'drawn' | 'uploaded';
+  /**
+   * The handoff a mark drawn on the employee's own phone came back through.
+   *
+   * Not proof of anything by itself, and not read as any. The server finds the
+   * row under the caller's OWN session, firm and template and checks the bytes
+   * being submitted against the fingerprint the bound phone left on it, which
+   * is what lets 'phone' be established rather than merely claimed. See
+   * guardSignatureMethod in lib/template-submissions.ts.
+   */
+  signatureHandoffId?: string;
 };
 
 /**
