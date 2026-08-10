@@ -184,6 +184,9 @@ describe('the standard templates a firm can install', () => {
   it('carry no placeholder the merge cannot fill', () => {
     // installSeedTemplateAction goes through createFirmTemplateAction, so a
     // dirty seed would refuse to install until somebody acknowledged it.
+    // The floor. SEED_TEMPLATES holds one entry today, and an empty list
+    // would run this loop zero times and pass without measuring anything.
+    expect(SEED_TEMPLATES.length).toBeGreaterThan(0);
     for (const seed of SEED_TEMPLATES) {
       expect([
         seed.slug,

@@ -35,27 +35,60 @@ const source = stripComments(readFileSync(join(repoRoot, 'lib/bella.ts'), 'utf8'
 
 function firmOnlyToolNames(): string[] {
   const block = source.match(/const FIRM_ONLY:[^=]*=\s*new Set\(\[([\s\S]*?)\]\)/);
-  if (!block) return [];
-  return [...block[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  // The anchor itself. Returning [] here would have made every comparison
+  // below trivially true.
+  expect(block, 'the FIRM_ONLY set is no longer where this guard looks').toBeTruthy();
+  return [...block![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
 }
 
-// Matches both dispatch spellings in executeTool:
-//   if (name === 'x') { return await loadX(firmId!); }
-//   if (name === 'x') return await loadX(firmId!, input);
+/**
+ * Every `name === 'x'` dispatch in executeTool, with the branch that follows
+ * it, up to the next dispatch.
+ *
+ * This used to be one regex requiring `await loader(firmId!` to sit
+ * IMMEDIATELY after the condition. It matched 21 of the 37 dispatch sites, and
+ * the floors below it were set at 20 and 15, well under the real counts, so a
+ * tool dropping out of the sweep was invisible. Rewriting one dispatch as
+ * `{ const rows = await loadReferrals(firmId!, input); return rows; }` and
+ * deleting it from FIRM_ONLY took it out of the matched set and left the guard
+ * green, which is the unscoped service-role read this file exists to prevent.
+ *
+ * Reading the whole branch instead means no statement order, no formatting and
+ * no intermediate variable can hide the `firmId!`.
+ */
+function dispatchSites(): { name: string; body: string }[] {
+  const starts = [...source.matchAll(/name === '([a-z_]+)'/g)].map((m) => ({
+    name: m[1],
+    at: m.index ?? 0,
+  }));
+  return starts.map((s, i) => ({
+    name: s.name,
+    body: source.slice(s.at, i + 1 < starts.length ? starts[i + 1].at : source.length),
+  }));
+}
+
 function toolsDispatchedWithFirmId(): string[] {
-  return [
-    ...source.matchAll(
-      /name === '([a-z_]+)'\)\s*\{?\s*(?:return\s+)?await\s+\w+\(\s*firmId!/g,
-    ),
-  ].map((m) => m[1]);
+  return dispatchSites()
+    .filter((d) => /\bfirmId!/.test(d.body))
+    .map((d) => d.name);
 }
 
 describe('lib/bella.ts firm tool scoping', () => {
   it('finds the FIRM_ONLY set and the firmId dispatches at all', () => {
-    // Without this the two assertions below pass vacuously the moment
-    // someone reformats executeTool and the patterns stop matching. A guard
-    // that silently stops looking is worse than no guard.
-    expect(firmOnlyToolNames().length).toBeGreaterThan(20);
+    // Without this the assertions below pass vacuously the moment someone
+    // reformats executeTool and the patterns stop matching. A guard that
+    // silently stops looking is worse than no guard.
+    //
+    // The floors are tied to each other rather than written as two loose
+    // magic numbers: every name in FIRM_ONLY must actually be dispatched, so
+    // the sweep cannot quietly shrink below the set it is checking.
+    const firmOnly = firmOnlyToolNames();
+    const dispatched = new Set(dispatchSites().map((d) => d.name));
+    expect(firmOnly.length).toBeGreaterThan(20);
+    expect(dispatchSites().length).toBeGreaterThanOrEqual(firmOnly.length);
+    expect(firmOnly.filter((t) => !dispatched.has(t))).toEqual([]);
+    // Six FIRM_ONLY tools reach their firm context another way and never
+    // write `firmId!`, so this stays a floor rather than an equality.
     expect(toolsDispatchedWithFirmId().length).toBeGreaterThan(15);
   });
 

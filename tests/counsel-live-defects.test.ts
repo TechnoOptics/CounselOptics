@@ -126,7 +126,13 @@ describe('the counting surfaces all read from that one definition', () => {
 
   it('the Action center totals work items, not the number of rows it drew', () => {
     const tiles = read('components/counsel/CounselDashboardTiles.tsx');
-    expect(tiles).toContain('workItems');
+    // `workItems` occurs nine times in that file, so its mere presence said
+    // nothing: replacing the reducer body with `items.length` put the row
+    // count back in the headline with this assertion still green. The
+    // reduction itself is what the title is about, so that is what is read.
+    expect(tiles).toMatch(
+      /export function actionCenterWorkItems\([\s\S]{0,200}?reduce\([\s\S]{0,120}?\bi\.workItems\b/,
+    );
   });
 });
 
@@ -209,9 +215,29 @@ describe('freshness of authenticated app documents', () => {
     // The poll was a bare setInterval(90s) that restarts with every full page
     // load, so a user clicking through the workspace never reached the first
     // tick and never saw the "Advottic just updated" prompt.
-    expect(guard).toContain('checkVersion');
-    expect(guard).toContain('visibilitychange');
-    expect(guard.match(/checkVersion\(\)/g)?.length ?? 0).toBeGreaterThan(1);
+    // Counting `checkVersion()` counted the DECLARATION as one of the two, so
+    // "more than one" only ever meant "one call site exists": deleting the
+    // load-time timeout, the first half of this title, left it green. Each of
+    // the three moments is named instead.
+    expect(guard).toMatch(/setTimeout\(\s*checkVersion\b/); // on load
+    expect(guard).toMatch(/setInterval\(\s*checkVersion\b/); // on a timer
+    // On refocus. The listener is registered with a NAMED handler, so the
+    // handler is resolved from the registration rather than assumed, and it
+    // is that function's body that has to reach checkVersion.
+    // The component registers more than one visibilitychange listener, so
+    // every registered handler is resolved back to its declaration and at
+    // least one of them has to reach checkVersion. Matching the string
+    // 'visibilitychange' alone would have been answered by the other one.
+    const handlers = [
+      ...guard.matchAll(/addEventListener\(\s*'visibilitychange',\s*(\w+)\s*\)/g),
+    ].map((m) => m[1]);
+    expect(handlers, 'nothing listens for visibilitychange').not.toEqual([]);
+    const bodies = handlers.map((name) => {
+      const at = guard.indexOf(`function ${name}(`);
+      expect(at, `${name} is registered but not declared here`).toBeGreaterThan(-1);
+      return guard.slice(at, at + 400);
+    });
+    expect(bodies.some((b) => /checkVersion\(\)/.test(b))).toBe(true);
   });
 
   it('the guard is mounted once at the root, so counsel and portal inherit it', () => {
