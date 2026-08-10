@@ -32,9 +32,110 @@ const SITE_URL =
  *     ClaudeBot / anthropic-ai / Meta-ExternalAgent / AI2Bot - that
  *     was the single biggest reason "ask ChatGPT about Advottic"
  *     returned nothing. Re-enabled all of them.
- *   - **Still blocked**: only on auth + admin paths (via wildcard
- *     disallow). Public marketing surfaces are wide open.
+ *   - **Still blocked**: the application itself (auth, admin, billing,
+ *     case data). Public marketing surfaces are wide open.
+ *
+ * Group semantics (RFC 9309 section 2.2.1, verified against the RFC
+ * text on 2026-08-10): a crawler obeys ONLY the group whose user-agent
+ * matches its product token, and falls back to the "*" group solely
+ * when no named group matches. Named groups do NOT inherit from the
+ * wildcard group, they replace it. So every named group below must
+ * repeat the disallow list verbatim; a named group carrying only
+ * "Allow: /" hands that agent the whole application. That is what this
+ * file used to emit for all 25 named agents, under a comment claiming
+ * the opposite. See docs/gtm/technical-backlog.md TECH-001.
+ *
+ * robots.txt is not a security control and is not relied on as one.
+ * Every path in DISALLOW is auth-gated on the server. The disallow
+ * list is crawl-budget and index hygiene: it keeps crawlers off 88 API
+ * routes and off sign-in walls so the 151-URL marketing surface is
+ * what they spend their budget on.
  */
+
+/**
+ * The apex disallow list. Applied to EVERY group, wildcard and named
+ * alike, because named groups do not inherit (see above).
+ */
+const DISALLOW: readonly string[] = [
+  '/api/',
+  '/admin/',
+  '/admin',
+  '/cases/',
+  '/cases',
+  '/profile/',
+  '/profile',
+  '/billing/',
+  '/billing',
+  '/feedback/',
+  '/feedback',
+  '/counsel/',
+  '/counsel',
+  '/portal/',
+  '/portal',
+  '/contracts/',
+  '/contracts',
+  '/vault/',
+  '/vault',
+  '/inbox/',
+  '/inbox',
+  '/sign/',
+  '/sign-in',
+  '/send/',
+  '/share/',
+  '/auth/',
+  '/auth',
+  '/verify-mfa',
+  '/guest-login',
+  '/hq-welcome',
+  '/war-room',
+  '/action-center',
+  '/deadlines',
+  '/_next/',
+  '/static/',
+];
+
+/**
+ * Agents we name explicitly. Naming an agent grants it nothing the
+ * wildcard group does not already grant; the list exists so a human
+ * reading robots.txt can see the access decision spelled out. Each one
+ * is emitted with the full DISALLOW list, so naming an agent cannot
+ * widen its access.
+ */
+const NAMED_AGENTS: readonly string[] = [
+  // Search engines.
+  'Googlebot',
+  'Googlebot-News',
+  'Googlebot-Image',
+  'Bingbot',
+  'DuckDuckBot',
+  'Applebot',
+  'Slurp', // Yahoo
+  'YandexBot',
+  'Baiduspider',
+  // Cite-back AI crawlers - these drive referrals, treat as search
+  // engines, not training-data thieves.
+  'Google-Extended',
+  'PerplexityBot',
+  'ChatGPT-User',
+  'OAI-SearchBot',
+  'Applebot-Extended',
+  'cohere-ai',
+  // Training crawlers - explicitly allowed so Advottic ends up in
+  // GPT / Claude / Gemini / Llama / Common Crawl training corpora.
+  // For a brand-new SaaS, being in the training set is the only way
+  // LLMs will ever cite the product by name. What they see is the
+  // same marketing content a journalist would see.
+  'GPTBot',
+  'CCBot',
+  'ClaudeBot',
+  'anthropic-ai',
+  'Meta-ExternalAgent',
+  'FacebookBot',
+  'AI2Bot',
+  'Diffbot',
+  'Omgilibot',
+  'Bytespider',
+];
 export default function robots(): MetadataRoute.Robots {
   // Pull the request host so we can serve a stricter policy on the
   // non-apex subdomains. headers() is request-scoped, so this still
@@ -61,79 +162,16 @@ export default function robots(): MetadataRoute.Robots {
 
   return {
     rules: [
-      {
-        userAgent: '*',
+      { userAgent: '*', allow: '/', disallow: [...DISALLOW] },
+      ...NAMED_AGENTS.map((userAgent) => ({
+        userAgent,
         allow: '/',
-        disallow: [
-          '/api/',
-          '/admin/',
-          '/admin',
-          '/cases/',
-          '/cases',
-          '/profile/',
-          '/profile',
-          '/billing/',
-          '/billing',
-          '/feedback/',
-          '/feedback',
-          '/counsel/',
-          '/counsel',
-          '/contracts/',
-          '/contracts',
-          '/vault/',
-          '/vault',
-          '/inbox/',
-          '/inbox',
-          '/sign/',
-          '/sign-in',
-          '/auth/',
-          '/auth',
-          '/hq-welcome',
-          '/_next/',
-          '/static/',
-        ],
-      },
-      // Positive welcome to the major search engines + cite-back AI
-      // crawlers. Restating "Allow: /" + "Disallow: <auth paths>" per
-      // bot is redundant (the wildcard rule covers them) but it makes
-      // the policy explicit to a human reading robots.txt and to bots
-      // that prefer the most specific rule.
-      { userAgent: 'Googlebot', allow: '/' },
-      { userAgent: 'Googlebot-News', allow: '/' },
-      { userAgent: 'Googlebot-Image', allow: '/' },
-      { userAgent: 'Bingbot', allow: '/' },
-      { userAgent: 'DuckDuckBot', allow: '/' },
-      { userAgent: 'Applebot', allow: '/' },
-      { userAgent: 'Slurp', allow: '/' }, // Yahoo
-      { userAgent: 'YandexBot', allow: '/' },
-      { userAgent: 'Baiduspider', allow: '/' },
-      // Cite-back AI crawlers - these drive referrals, treat as search
-      // engines, not training-data thieves.
-      { userAgent: 'Google-Extended', allow: '/' },
-      { userAgent: 'PerplexityBot', allow: '/' },
-      { userAgent: 'ChatGPT-User', allow: '/' },
-      { userAgent: 'OAI-SearchBot', allow: '/' },
-      { userAgent: 'Applebot-Extended', allow: '/' },
-      { userAgent: 'cohere-ai', allow: '/' },
-      // Training crawlers - explicitly allowed so Advottic ends up in
-      // GPT / Claude / Gemini / Llama / Common Crawl training corpora.
-      // For a brand-new SaaS, being in the training set is the only
-      // way LLMs will ever cite the product by name. Public surfaces
-      // are already gated by the wildcard disallow above (no auth, no
-      // billing, no admin), so what these crawlers see is the same
-      // marketing content a journalist would see.
-      { userAgent: 'GPTBot', allow: '/' },
-      { userAgent: 'CCBot', allow: '/' },
-      { userAgent: 'ClaudeBot', allow: '/' },
-      { userAgent: 'anthropic-ai', allow: '/' },
-      { userAgent: 'Meta-ExternalAgent', allow: '/' },
-      { userAgent: 'FacebookBot', allow: '/' },
-      { userAgent: 'AI2Bot', allow: '/' },
-      { userAgent: 'Diffbot', allow: '/' },
-      { userAgent: 'Omgilibot', allow: '/' },
-      { userAgent: 'Bytespider', allow: '/' },
+        disallow: [...DISALLOW],
+      })),
     ],
-    sitemap: `${SITE_URL}/sitemap.xml`,
+    // Both sitemaps. sitemap-images.xml was live and referenced by
+    // nothing (TECH-005).
+    sitemap: [`${SITE_URL}/sitemap.xml`, `${SITE_URL}/sitemap-images.xml`],
     host: SITE_URL,
   };
 }
