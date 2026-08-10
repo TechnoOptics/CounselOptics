@@ -279,31 +279,48 @@ function SimpleCountTile({
 
 /* ----- Action center: only-renders-when-there's-something tile ----- */
 
-function ActionCenterTile({ data }: { data: DashboardTileData }) {
-  // Each row carries the number of work items behind it, and the title is
-  // their sum. The title used to count ROWS, so a tile headed "1 thing needs
-  // a human" sat directly above a row reading "5 requests need attention".
-  // The rows are kept disjoint for that sum to be honest. "New in the last
-  // 24 hours" counts arrivals in every lane, so it is NOT a work-item row of
-  // its own (it would double-count); it rides along as a clause that names
-  // itself as the separate measure it is.
-  const items: Array<{
-    label: string;
-    href: string;
-    detail: string;
-    tone: 'warn' | 'ok';
-    workItems: number;
-  }> = [];
+export type ActionCenterItem = {
+  label: string;
+  href: string;
+  detail: string;
+  tone: 'warn' | 'ok';
+  workItems: number;
+};
+
+/**
+ * The rows of the action center, as data.
+ *
+ * Exported and pure so the arithmetic and the wording can be exercised
+ * directly. Two things here are only wrong at particular counts, and both
+ * shipped: the title once counted ROWS, so a tile headed "1 thing needs a
+ * human" sat directly above a row reading "5 requests need attention"; and
+ * the labels pluralised the noun but not the verb, so at exactly one item
+ * a firm read "1 request need attention" and "1 signing request you sent
+ * are still out". A small firm sits on a count of one most days, so that
+ * was the state most users saw and the one no test covered.
+ *
+ * The rows are disjoint, which is what makes their sum honest. "New in the
+ * last 24 hours" counts arrivals in EVERY lane, so it is not a row of its
+ * own when there is anything needing attention - it would double-count -
+ * and rides along as a clause that names itself as the separate measure it
+ * is.
+ */
+export function actionCenterItems(data: DashboardTileData): ActionCenterItem[] {
+  const items: ActionCenterItem[] = [];
+  const plural = (n: number, one: string, many: string) =>
+    n === 1 ? one : many;
   if (data.intake.needsAttention > 0) {
+    const n = data.intake.needsAttention;
+    const today = data.intake.newToday;
     items.push({
-      label: `${data.intake.needsAttention} request${data.intake.needsAttention === 1 ? '' : 's'} need attention`,
+      label: `${n} ${plural(n, 'request needs', 'requests need')} attention`,
       href: '/counsel/inbox',
       detail:
-        data.intake.newToday > 0
-          ? `Untriaged or flagged, waiting on legal. Separately, ${data.intake.newToday} request${data.intake.newToday === 1 ? '' : 's'} arrived in the last 24 hours, in any lane.`
+        today > 0
+          ? `Untriaged or flagged, waiting on legal. Separately, ${today} ${plural(today, 'request', 'requests')} arrived in the last 24 hours, in any lane.`
           : 'Untriaged or flagged, waiting on legal.',
       tone: 'warn',
-      workItems: data.intake.needsAttention,
+      workItems: n,
     });
   } else if (data.intake.newToday > 0) {
     items.push({
@@ -314,25 +331,37 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
       workItems: data.intake.newToday,
     });
   }
-  if (data.signing.mineAwaiting.length > 0) {
+  const outstanding = data.signing.mineAwaiting.length;
+  if (outstanding > 0) {
     items.push({
-      label: `${data.signing.mineAwaiting.length} signing request${data.signing.mineAwaiting.length === 1 ? '' : 's'} you sent are still out`,
+      label: `${outstanding} signing ${plural(outstanding, 'request you sent is', 'requests you sent are')} still out`,
       href: '/counsel/signing',
       detail: 'Send a reminder or escalate if the deadline is close.',
       tone: 'warn',
-      workItems: data.signing.mineAwaiting.length,
+      workItems: outstanding,
     });
   }
   if (data.counts.invitations > 0 && data.isAdmin) {
+    const n = data.counts.invitations;
     items.push({
-      label: `${data.counts.invitations} pending team invitation${data.counts.invitations === 1 ? '' : 's'}`,
+      label: `${n} pending team ${plural(n, 'invitation', 'invitations')}`,
       href: '/counsel/team',
       detail: 'Members invited but not yet accepted.',
       tone: 'warn',
-      workItems: data.counts.invitations,
+      workItems: n,
     });
   }
-  const workItems = items.reduce((sum, i) => sum + i.workItems, 0);
+  return items;
+}
+
+/** The tile's headline: the work behind every row, added up. */
+export function actionCenterWorkItems(items: ActionCenterItem[]): number {
+  return items.reduce((sum, i) => sum + i.workItems, 0);
+}
+
+function ActionCenterTile({ data }: { data: DashboardTileData }) {
+  const items = actionCenterItems(data);
+  const workItems = actionCenterWorkItems(items);
 
   return (
     <TileFrame

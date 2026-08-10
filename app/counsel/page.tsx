@@ -38,16 +38,20 @@ export const metadata: Metadata = {
 /**
  * /counsel - firm-side dashboard.
  *
+ * The dashboard shape from docs/PARITY-PAGE-RULES.md: a strip of metric
+ * cards across the top, then a grid of cards, with nothing competing
+ * with the strip.
+ *
  * Layout (top to bottom):
- *   1. Welcome banner ("Welcome to {firmName}") - always shown.
+ *   1. Welcome header ("Welcome to {firmName}"), carrying the
+ *      "Customize dashboard" button as its top-right action.
  *   2. The metric strip - four headline counts, always shown. See the
  *      comment on it for which query produces each one.
  *   3. Ask Advottic search bar - always shown.
  *   4. User-selected tiles - default is Action center + Assigned to
- *      me. The "Customize" button in the header lets the user pick
- *      any combination of tiles from the catalog in
- *      lib/counsel-dashboard.ts. Preferences persist in
- *      profiles.dashboard_preferences.
+ *      me. The "Customize" button lets the user pick any combination
+ *      of tiles from the catalog in lib/counsel-dashboard.ts.
+ *      Preferences persist in profiles.dashboard_preferences.
  *
  * If the signed-in user has no firms yet, redirect to the onboarding
  * wizard. The layout already handles the not-signed-in case.
@@ -358,6 +362,16 @@ export default async function CounselDashboard() {
             <T>Pick the tiles that matter to you - hide the rest.</T>
           </>
         }
+        // Top right, which is where every other counsel page puts its
+        // actions and where this one's own copy has always said this
+        // button was. It used to sit in a right-aligned row of its own
+        // between the Ask bar and the tiles, so the dashboard pattern's
+        // "a strip of metric cards, then a grid of cards" was
+        // interrupted twice, and the empty state told the reader to
+        // click something "up top" that was directly above it.
+        action={
+          <DashboardCustomizer initialEnabled={enabled} isAdmin={isAdmin} />
+        }
       />
 
       {/*
@@ -422,13 +436,6 @@ export default async function CounselDashboard() {
 
       {/* Ask Advottic - below the strip. */}
       <AskAdvottic />
-
-      {/* Customize button - sits between the Ask bar (with its
-          suggestion chips) and the tile grid, so the user reads
-          welcome -> ask -> suggestions -> "what's on my board" -> tiles. */}
-      <div className="flex justify-end">
-        <DashboardCustomizer initialEnabled={enabled} isAdmin={isAdmin} />
-      </div>
 
       {/* User-selected tiles. Empty state gives a hint about the
           customizer when the user has hidden everything. */}
