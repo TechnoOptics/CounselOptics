@@ -191,19 +191,37 @@ export default async function FirmLeadDetailPage({
                   {new Date(lead.firmResponse.createdAt).toLocaleString()}
                 </span>
                 .
-                {lead.firmResponse.responseType === 'interested' && (
-                  <>
-                    {' '}
-                    <T>
-                      The consumer was notified. We will let you know if they
-                      accept.
-                    </T>
-                  </>
-                )}
+                {/* Only a lead with an account behind it has an inbox to
+                    notify and a person who can accept. `user_id` on
+                    firm_leads is nullable and anonymous submissions are a
+                    supported path, so this used to promise both to every
+                    firm, including on leads where neither could happen. */}
+                {lead.firmResponse.responseType === 'interested' &&
+                  (lead.hasConsumerAccount ? (
+                    <>
+                      {' '}
+                      <T>
+                        The consumer was notified. We will let you know if they
+                        accept.
+                      </T>
+                    </>
+                  ) : (
+                    <>
+                      {' '}
+                      <T>
+                        This one came in without an account behind it, so there
+                        was nobody to notify and it cannot be accepted here.
+                      </T>
+                    </>
+                  ))}
               </p>
             </PanelCard>
           ) : (
-            <LeadResponseForm firmId={ctx.firm.id} leadId={lead.id} />
+            <LeadResponseForm
+              firmId={ctx.firm.id}
+              leadId={lead.id}
+              hasConsumerAccount={lead.hasConsumerAccount}
+            />
           )}
         </aside>
       </div>
