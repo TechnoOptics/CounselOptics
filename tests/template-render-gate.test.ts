@@ -544,11 +544,12 @@ describe('POST /api/counsel/draft-template/pdf, an unsaved template draft', () =
 
   it('merges with no answers and no signer, because nobody has filled it in', async () => {
     await post(DRAFT);
-    expect(mergeTemplateDocument.mock.calls[0][0]).toMatchObject({
-      values: {},
-      signatureName: '',
-      signerEmail: '',
-    });
+    const merged = mergeTemplateDocument.mock.calls[0][0];
+    expect(merged).toMatchObject({ signatureName: '', signerEmail: '' });
+    // toEqual, not toMatchObject: an empty object is a subset of EVERY object,
+    // so `toMatchObject({ values: {} })` passes for a preview that invented an
+    // answer. It did, until a mutation that put a value in there stayed green.
+    expect(merged.values).toEqual({});
   });
 
   it('truncates the body to the length the save would store', async () => {
@@ -573,7 +574,18 @@ describe('POST /api/counsel/draft-template/pdf, an unsaved template draft', () =
     // it: a PostgREST call of any kind, on any client.
     const branch = ROUTE.slice(ROUTE.indexOf('async function renderTemplateDraft'));
     expect(branch.length).toBeGreaterThan(0);
-    for (const write of ['.insert(', '.update(', '.upsert(', '.delete(', '.from(']) {
+    // Written without the opening parenthesis on purpose: `.from?.(` is the
+    // same call and would slip past `.from(`. createAdminSupabase leads the
+    // list because it is the door, and everything else is what comes through
+    // it. None of these appears in prose in this branch.
+    for (const write of [
+      'createAdminSupabase',
+      '.from',
+      '.insert',
+      '.update',
+      '.upsert',
+      '.delete',
+    ]) {
       expect(branch).not.toContain(write);
     }
   });
