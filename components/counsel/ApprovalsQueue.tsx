@@ -10,11 +10,14 @@ import {
   confirmationLines,
   type BulkSendBackResult,
   isBulkSelectable,
-  queueViewTest,
   selectHistory,
   selectQueue,
+  settledTally,
+  viewTally,
   type ApprovalQueueParams,
   type ApprovalRow,
+  type QueueCounts,
+  type QueueTally,
   type QueueViewKey,
 } from '@/lib/approval-queue';
 import { sendBackTemplateSubmissionsAction } from '@/lib/template-submissions';
@@ -38,9 +41,14 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
  * through typing, which rows they have ticked, and the note attached to a
  * send-back, none of which should survive a reload.
  *
- * Filtering happens over the whole set on the client, which is what keeps the
- * view counts honest: each count is the length of the array that view would
- * render, from the same predicate.
+ * Searching and ordering happen on the client, over the rows the server sent.
+ * THE NUMBERS DO NOT. Every figure stated as a total here comes from `counts`,
+ * which the server took as its own uncapped count query per view; this
+ * component never filters a list and calls the length a total, because the
+ * list is a bounded read and that number would be a floor. viewTally and
+ * settledTally are the only route from rows to a stated figure, and they say
+ * when the list under a heading is shorter than the heading's number. See
+ * QueueTally in lib/approval-queue.ts for the failure this replaces.
  *
  * THE ONE BULK ACTION IS SEND BACK, AND THERE IS NO BULK APPROVE. Approving
  * here releases a finished document to a named party outside the company, so a
@@ -60,12 +68,22 @@ const VIEW_LABEL: Record<QueueViewKey, JSX.Element> = {
 
 export function ApprovalsQueue({
   rows,
+  counts,
   params,
   canApprove,
   middle,
 }: {
-  /** Every submission the firm has, narrowed to what a row shows. */
+  /**
+   * The submissions the server sent, narrowed to what a row shows. A BOUNDED
+   * page of the firm's records, never all of them, so nothing on this screen
+   * may state its length as a total.
+   */
   rows: ApprovalRow[];
+  /**
+   * How many records are really in each view. Null when the counts could not
+   * be read, which falls back to what is on the page.
+   */
+  counts: QueueCounts | null;
   params: ApprovalQueueParams;
   /**
    * The section that sits between the queue and the history, rendered
@@ -99,11 +117,16 @@ export function ApprovalsQueue({
     }, 350);
   };
 
+  // Each strip count is the view's real size, not the number of its rows that
+  // reached this page.
   const options: ViewOption[] = QUEUE_VIEW_KEYS.map((key) => ({
     key,
     label: VIEW_LABEL[key],
-    count: rows.filter(queueViewTest(key)).length,
+    count: viewTally(key, rows, counts).total,
   }));
+
+  const active = viewTally(params.view, rows, counts);
+  const settled = settledTally(rows, counts);
 
   const queue = useMemo(() => selectQueue(rows, params), [rows, params]);
   const history = useMemo(() => selectHistory(rows, params), [rows, params]);
@@ -186,13 +209,17 @@ export function ApprovalsQueue({
 
       <section className="space-y-2">
         {/* The count lives in the label because it is the thing a reviewer
-            came to find out, and it is the length of the list underneath
-            rather than a separate number that could disagree with it. */}
+            came to find out. It is the size of the view in the database, so
+            it does not shrink to whatever the page happened to fetch, and
+            BoundedNote below says plainly when the list is showing less than
+            it. A heading that states a number over a list that quietly holds
+            fewer is the whole defect this replaced. */}
         <SectionLabel>
           {VIEW_LABEL[params.view]}
           {' · '}
-          <span data-no-translate>{queue.length}</span>
+          <span data-no-translate>{active.total}</span>
         </SectionLabel>
+        <BoundedNote tally={active} />
         <div className="card overflow-hidden">
           {queue.length === 0 ? (
             <p className="px-4 py-8 text-center text-[13px] text-muted">
@@ -222,8 +249,9 @@ export function ApprovalsQueue({
         <SectionLabel>
           <T>Decision history</T>
           {' · '}
-          <span data-no-translate>{history.length}</span>
+          <span data-no-translate>{settled.total}</span>
         </SectionLabel>
+        <BoundedNote tally={settled} />
         <div className="card overflow-hidden">
           {history.length === 0 ? (
             <p className="px-4 py-8 text-center text-[13px] text-muted">
@@ -235,6 +263,32 @@ export function ApprovalsQueue({
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * The one line that keeps a bounded list from reading as a complete one.
+ *
+ * A reviewer looking at a heading that says 431 over a list of 200 rows has to
+ * be told which 200, and told it without having to count them. Rendering
+ * nothing at all when the list IS complete matters just as much: a permanent
+ * caveat under every queue is read once and then never again, and this needs
+ * to be noticed on the day it appears.
+ *
+ * The wording says "most recent" because that is the order the server read
+ * them in, submitted_at descending, on both of its row queries.
+ */
+function BoundedNote({ tally }: { tally: QueueTally }) {
+  if (!tally.bounded) return null;
+  return (
+    <p className="text-[12px] leading-relaxed text-muted">
+      <T>Showing the</T> <span data-no-translate>{tally.loaded}</span>{' '}
+      <T>most recent of</T> <span data-no-translate>{tally.total}</span>.{' '}
+      <T>
+        Older ones are counted above but are not on this page. Search finds
+        only what is listed here.
+      </T>
+    </p>
   );
 }
 

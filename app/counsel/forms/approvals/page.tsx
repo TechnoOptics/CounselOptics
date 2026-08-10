@@ -119,6 +119,10 @@ export default async function CounselFormApprovalsPage({
           them. */}
       <ApprovalsQueue
         rows={rows}
+        // The rows are a bounded read and these are not: every figure the
+        // queue states as a total is one of these counts. See the note on the
+        // action, and QueueTally in lib/approval-queue.ts.
+        counts={res.counts ?? null}
         params={params}
         canApprove={Boolean(res.canApprove)}
         middle={
