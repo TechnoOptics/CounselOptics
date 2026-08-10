@@ -19,9 +19,12 @@ export const dynamic = 'force-dynamic';
  * standard cornerstone set (home, what-is-advottic, pricing, about,
  * llms.txt, llms-full.txt, sitemap.xml).
  *
- * Wire it to a daily Vercel cron (vercel.json) once the route is
- * shipped; until then any GitHub Action or local curl that knows the
- * token can trigger a manual re-index.
+ * GET is the Vercel cron entry point, wired in vercel.json. Vercel
+ * cron only ever issues a GET, so POST alone meant the cron could not
+ * have called this route even if someone had added it; between that
+ * and the missing vercel.json entry, IndexNow had never submitted a
+ * single URL since it was built. GET carries no body and always pings
+ * the cornerstone set.
  */
 const SITE_URL = 'https://advottic.com';
 
@@ -110,6 +113,45 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/es/plantillas/aviso-de-terminacion-de-arrendamiento`,
   `${SITE_URL}/es/plantillas/demanda-de-deposito-de-seguridad`,
 ];
+
+/**
+ * GET /api/indexnow - Vercel cron only.
+ *
+ * Same protection as the other four crons in vercel.json (see
+ * app/api/cron/health/route.ts): fail closed with 503 when CRON_SECRET
+ * is unset, so a misconfigured environment can never leave an outbound
+ * ping endpoint open, then require `Authorization: Bearer <secret>`,
+ * which Vercel attaches to every cron invocation. CRON_SECRET is set in
+ * production.
+ *
+ * Deliberately does NOT accept INDEXNOW_TRIGGER_TOKEN: that token is
+ * for the manual POST path, and a token in a query string ends up in
+ * access logs. The cron uses a header.
+ *
+ * Schedule: weekly, Mondays 06:00 UTC (`0 6 * * 1` in vercel.json).
+ * IndexNow is a "this URL changed" signal and CORNERSTONES is a
+ * marketing surface that changes on the order of weeks, so a daily
+ * ping would submit the same unchanged 75 URLs seven times a week.
+ * That is the pattern IndexNow's own guidance calls out as abuse, and
+ * it earns nothing: the fast path for a page that actually changed is
+ * the manual POST, which a deploy or an editor can fire with the
+ * exact URL. Weekly is the floor that keeps the pipeline alive and
+ * proves it still works.
+ */
+export async function GET(req: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  if (!cronSecret) {
+    return new NextResponse('Server misconfigured: CRON_SECRET is not set', {
+      status: 503,
+    });
+  }
+  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+    return new NextResponse('Forbidden', { status: 403 });
+  }
+  const urls = [...CORNERSTONES];
+  const results = await pingIndexNow(urls);
+  return NextResponse.json({ ok: true, urls_pinged: urls.length, results });
+}
 
 export async function POST(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token');
