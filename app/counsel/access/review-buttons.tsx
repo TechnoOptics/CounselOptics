@@ -14,19 +14,30 @@ export function ReviewButtons({ requestId }: { requestId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [unsent, setUnsent] = useState(false);
 
   function run(kind: 'approve' | 'deny') {
     setError(null);
+    setUnsent(false);
     startTransition(async () => {
       const res =
         kind === 'approve'
           ? await runGatedAction(() => approveAccessRequestAction(requestId))
           : await denyAccessRequestAction(requestId);
-      if (res.ok) {
-        router.refresh();
-      } else {
+      if (!res.ok) {
         setError(res.error ?? t('Could not complete that.'));
+        return;
       }
+      // The decision is recorded either way. What varies is whether the
+      // person it concerns was told, and that email is the only channel
+      // they have: an external requester cannot sign in to read a screen.
+      // So when it did not go out, hold the row here with a note rather
+      // than refreshing it out of the queue as though the loop had closed.
+      if (res.notified === false) {
+        setUnsent(true);
+        return;
+      }
+      router.refresh();
     });
   }
 
@@ -53,6 +64,14 @@ export function ReviewButtons({ requestId }: { requestId: string }) {
       {error && (
         <p className="text-[11.5px] text-rose-600 dark:text-rose-300">
           {error}
+        </p>
+      )}
+      {unsent && (
+        <p className="max-w-[36ch] text-right text-[11.5px] leading-relaxed text-amber-700 dark:text-amber-300">
+          <T>
+            Your decision is saved, but we could not email it to them, so they
+            have not been told. Reach out directly.
+          </T>
         </p>
       )}
     </div>

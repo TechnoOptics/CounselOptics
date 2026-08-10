@@ -40,6 +40,8 @@ const world = {
 };
 
 const sendEmail = vi.fn().mockResolvedValue({ ok: true, id: 'email-1' });
+/** Flipped per test: a deployment with no RESEND_API_KEY cannot tell anyone. */
+const mail = { configured: true };
 
 function builder(table: string) {
   const preds: Array<(r: Row) => boolean> = [];
@@ -139,7 +141,7 @@ vi.mock('../lib/firm-authz', () => ({ requireActiveFirm: async () => undefined }
 vi.mock('../lib/notifications', () => ({ createNotification: async () => null }));
 vi.mock('../lib/email', () => ({
   sendEmail: (...a: unknown[]) => sendEmail(...a),
-  isEmailConfigured: () => true,
+  isEmailConfigured: () => mail.configured,
 }));
 
 const { removeCollaborator } = await import('../lib/storage');
@@ -150,6 +152,8 @@ const { approveAccessRequestAction, denyAccessRequestAction } = await import(
 beforeEach(() => {
   world.reset();
   sendEmail.mockClear();
+  sendEmail.mockResolvedValue({ ok: true, id: 'email-1' });
+  mail.configured = true;
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon';
   world.tables.case_collaborators.push({
@@ -247,8 +251,108 @@ describe('reviewing a request to join an organization', () => {
   it('records the reviewer when the row really moves', async () => {
     const res = await denyAccessRequestAction('req-1');
 
-    expect(res).toEqual({ ok: true });
+    expect(res).toEqual({ ok: true, notified: true });
     expect(world.tables.firm_signup_requests[0].status).toBe('denied');
     expect(world.tables.firm_signup_requests[0].reviewed_by).toBe('admin-1');
+  });
+});
+
+/**
+ * The outcome email on the OTHER branch.
+ *
+ * requestWorkspaceAccessAction tells the requester, in Advottic's name,
+ * "You will get an email once it has been reviewed", and that address is the
+ * only channel a declined external party has: no account exists, so there is
+ * no screen for them to read. The approve branch mailed them. The decline
+ * branch wrote the status, revalidated and returned, so one of the two
+ * outcomes never produced the promised mail and the person waited
+ * indefinitely for a decision that had already been made.
+ *
+ * Mutations these are meant to catch:
+ *   - delete the send from denyAccessRequestAction: "emails the requester"
+ *     goes red.
+ *   - move the send above the status claim: "sends nothing when the request
+ *     stayed pending" goes red.
+ *   - stop reading isEmailConfigured() or the send result and hardcode
+ *     `notified: true`: the two "does not claim" tests go red.
+ */
+describe('telling the requester what was decided', () => {
+  it('emails the requester when the decline is stored', async () => {
+    const res = await denyAccessRequestAction('req-1');
+
+    expect(res.notified).toBe(true);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const sent = sendEmail.mock.calls[0][0] as Record<string, string>;
+    // To the address on the request, and to nobody else.
+    expect(sent.to).toBe('joiner@acme.test');
+    expect(sent.fromName).toBe('Anderson Foundation');
+    expect(sent.html).toMatch(/access was not granted/i);
+    // It names no reviewer: who decided is the firm's business, not the
+    // declined party's.
+    expect(sent.html).not.toContain('admin-1');
+  });
+
+  it('sends nothing when the request stayed pending', async () => {
+    world.policyBlocked.add('firm_signup_requests');
+
+    const res = await denyAccessRequestAction('req-1');
+
+    expect(res.ok).toBe(false);
+    // Mail that says a decision was made must not go out unless it was
+    // stored, or the requester is told a decision the queue does not have.
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('does not claim the person was told when this deployment cannot send', async () => {
+    mail.configured = false;
+
+    const res = await denyAccessRequestAction('req-1');
+
+    // The decision still stands: it is recorded, and the reviewer is not
+    // blocked from making it by mail being down.
+    expect(res.ok).toBe(true);
+    expect(res.notified).toBe(false);
+    expect(world.tables.firm_signup_requests[0].status).toBe('denied');
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('does not claim the person was told when the send fails on the wire', async () => {
+    sendEmail.mockResolvedValue({ ok: false, error: 'domain not verified' });
+
+    const res = await denyAccessRequestAction('req-1');
+
+    expect(res.ok).toBe(true);
+    expect(res.notified).toBe(false);
+    expect(world.tables.firm_signup_requests[0].status).toBe('denied');
+  });
+
+  it('reaches the reviewer: the queue does not close the row on an unsent decision', async () => {
+    // `notified` is only worth returning if a person sees it, and the
+    // reviewer is the only one who can act on it. Read as text because the
+    // point is the branch, not a render: on `notified === false` the row is
+    // held with a note instead of being refreshed out of the pending queue
+    // as though the loop had closed.
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(
+      new URL('../app/counsel/access/review-buttons.tsx', import.meta.url),
+      'utf8',
+    );
+
+    expect(src).toContain('res.notified === false');
+    expect(src).toMatch(/have not been told/i);
+    const guardAt = src.indexOf('res.notified === false');
+    const refreshAt = src.lastIndexOf('router.refresh()');
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(refreshAt).toBeGreaterThan(guardAt);
+  });
+
+  it('reports the same way on the approve branch, which used to swallow it', async () => {
+    sendEmail.mockResolvedValue({ ok: false, error: 'domain not verified' });
+
+    const res = await approveAccessRequestAction('req-1');
+
+    expect(res.ok).toBe(true);
+    expect(res.notified).toBe(false);
+    expect(world.tables.firm_signup_requests[0].status).toBe('approved');
   });
 });

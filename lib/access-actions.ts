@@ -348,9 +348,47 @@ async function callerCanReview(
   return { ok: true, userId: user.id };
 }
 
+/**
+ * What a reviewer is told when their decision was recorded but the person it
+ * concerns could not be told about it.
+ *
+ * requestWorkspaceAccessAction promises the requester, in Advottic's name,
+ * "You will get an email once it has been reviewed", and that email is the
+ * ONLY channel a declined external party has: they cannot sign in to read a
+ * screen, and nothing else in the product reaches them. So a decision whose
+ * mail did not go out leaves someone waiting indefinitely, and the reviewer
+ * is the only person who can do anything about it.
+ */
+export type ReviewOutcome = {
+  ok: boolean;
+  error?: string;
+  /**
+   * Whether the requester was actually emailed the decision. Absent means
+   * the action did not get as far as trying.
+   */
+  notified?: boolean;
+};
+
+/** The firm's own name, for mail that reads as the firm rather than as us. */
+async function firmNameFor(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  firmId: string,
+): Promise<string> {
+  try {
+    const { data } = await admin
+      .from('firms')
+      .select('name')
+      .eq('id', firmId)
+      .maybeSingle();
+    return (data as { name?: string } | null)?.name ?? 'your organization';
+  } catch {
+    return 'your organization';
+  }
+}
+
 export async function approveAccessRequestAction(
   requestId: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<ReviewOutcome> {
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
   const { data: reqRow } = await admin
@@ -413,42 +451,40 @@ export async function approveAccessRequestAction(
     };
   }
 
-  // Tell the requester they can now sign in.
-  try {
-    const { data: firmRow } = await admin
-      .from('firms')
-      .select('name')
-      .eq('id', req.firm_id)
-      .maybeSingle();
-    const firmName = (firmRow as { name?: string } | null)?.name ?? 'your organization';
-    await sendEmail({
+  // Tell the requester they can now sign in. Reported rather than swallowed:
+  // this send used to sit in a bare try/catch that dropped its result, so a
+  // reviewer whose approval never reached the person saw the same screen as
+  // one whose did.
+  const firmName = await firmNameFor(admin, req.firm_id);
+  const notified =
+    isEmailConfigured() &&
+    (await emailTheAddress({
       to: req.email,
-      subject: `You're approved - ${firmName}`,
       fromName: firmName,
+      subject: `You're approved - ${firmName}`,
       html: `<p>Good news - your access to <strong>${escape(
         firmName,
       )}</strong> was approved.</p><p>Sign in with <strong>${escape(
         req.email,
       )}</strong> to open your hub: <a href="${siteOrigin()}/sign-in?next=/portal">${siteOrigin()}/sign-in</a></p>`,
-    });
-  } catch {
-    /* best-effort */
-  }
+    }));
   revalidatePath('/counsel/access');
-  return { ok: true };
+  return { ok: true, notified };
 }
 
 export async function denyAccessRequestAction(
   requestId: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<ReviewOutcome> {
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
+  // The address is read here because the decision has to reach it. See the
+  // send below.
   const { data: reqRow } = await admin
     .from('firm_signup_requests')
-    .select('firm_id, status')
+    .select('firm_id, status, email')
     .eq('id', requestId)
     .maybeSingle();
-  const req = reqRow as { firm_id: string; status: string } | null;
+  const req = reqRow as { firm_id: string; status: string; email: string } | null;
   if (!req) return { ok: false, error: 'Request not found.' };
   if (req.status !== 'pending') {
     return { ok: false, error: 'This request was already reviewed.' };
@@ -474,6 +510,29 @@ export async function denyAccessRequestAction(
       error: 'This request was not declined. Reload the page and try again.',
     };
   }
+
+  // Tell the requester the outcome. This path used to send nothing at all,
+  // so one of the two outcomes never produced the mail
+  // requestWorkspaceAccessAction had already promised them in Advottic's
+  // name, and a declined external party waited indefinitely for a decision
+  // that had been made.
+  //
+  // Sent AFTER the status claim, never before: mail that says a decision was
+  // made must not go out unless the decision is stored. It names no
+  // reviewer, discloses nothing the requester did not already supply, and
+  // points them at a human rather than at a screen they cannot open.
+  const firmName = await firmNameFor(admin, req.firm_id);
+  const notified =
+    isEmailConfigured() &&
+    (await emailTheAddress({
+      to: req.email,
+      fromName: firmName,
+      subject: `Your request to join ${firmName}`,
+      html: `<p>Your request to join <strong>${escape(
+        firmName,
+      )}</strong> has been reviewed, and access was not granted.</p><p>If you think that is a mistake, contact your legal team directly. There is nothing else you need to do here.</p>`,
+    }));
+
   revalidatePath('/counsel/access');
-  return { ok: true };
+  return { ok: true, notified };
 }
