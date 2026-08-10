@@ -199,6 +199,20 @@ describe('collectMarkForOwner', () => {
     expect(update.payload?.collected_at).toEqual(expect.any(String));
   });
 
+  /**
+   * The image is in flight, not at rest. Both the comment on this function and
+   * the migration justify holding a signature PNG in a column rather than a
+   * bucket on the grounds that collection nulls it, and for a while it did
+   * not: every employee signature ever handed off would have sat there with
+   * nothing to sweep it. What stays behind is the fingerprint, which is all
+   * the submission gate needs.
+   */
+  it('clears the picture in the same statement that reads it', async () => {
+    nextResult = { mark_png: PNG };
+    await collectMarkForOwner(input);
+    expect(only('update')[0].payload).toHaveProperty('mark_png', null);
+  });
+
   it('says nothing when the phone has not drawn yet', async () => {
     nextResult = null;
     expect(await collectMarkForOwner(input)).toBe(null);

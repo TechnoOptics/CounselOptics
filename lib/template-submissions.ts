@@ -256,6 +256,19 @@ function seenRevision(value: unknown): number {
  * vocabulary for every other case, and reads a caller that simply says 'phone'
  * as having said nothing.
  *
+ * WHAT THIS DOES AND DOES NOT PROVE, stated rather than left to be discovered.
+ * It proves the mark was made by a device that was handed the one-time code,
+ * burned it, and holds the cookie bound to that claim. It does NOT prove that
+ * device was a different one from the desk: the QR is rendered into the desk's
+ * own page, so the employee can decode it from their own screen and claim it
+ * from the same browser. The residual is therefore an employee satisfying
+ * their own firm's phone-only restriction without picking up a phone. No
+ * tenant or user boundary is crossed, and the same residual exists on the
+ * outside signer's handoff. It is left open deliberately: the obvious closure,
+ * refusing a claim whose user agent matches the desk, is a heuristic that
+ * would wrongly refuse real phones and strand the employee on exactly the
+ * template this whole change exists to unblock.
+ *
  * Called immediately before the write and not earlier, because verifying the
  * attestation spends it: one phone mark signs one document. Everything that
  * can refuse a submission for a reason unrelated to signing has already run by

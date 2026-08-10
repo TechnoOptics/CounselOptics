@@ -140,7 +140,13 @@ export async function collectMarkForOwner(input: {
 
   const { data } = await admin
     .from('firm_mark_handoffs')
-    .update({ collected_at: new Date().toISOString() })
+    // Cleared in the same statement that reads it. The image is in flight,
+    // not at rest: what stays behind is mark_sha256, which is all the
+    // submission gate needs. This was written as `collected_at` alone, while
+    // the comment above and 20260815_mark_handoffs.sql both said the picture
+    // was nulled here, so every employee signature ever handed off would have
+    // sat in this column indefinitely with nothing to sweep it.
+    .update({ collected_at: new Date().toISOString(), mark_png: null })
     .eq('id', input.handoffId)
     .eq('user_id', input.userId)
     .eq('firm_id', input.firmId)

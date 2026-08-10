@@ -28,7 +28,10 @@ let templateFound: Record<string, unknown> | null = {
 };
 
 vi.mock('../lib/supabase/server', () => ({
-  getRealCurrentUser: async () => user,
+  // getCurrentUser, not getRealCurrentUser: the handoff has to be owned by
+  // whoever will file the document, and lib/template-submissions.ts resolves
+  // that with the act-as-aware reader.
+  getCurrentUser: async () => user,
 }));
 vi.mock('../lib/persona', () => ({
   getWorkspacePersona: async () => persona,

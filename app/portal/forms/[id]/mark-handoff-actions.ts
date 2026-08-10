@@ -1,6 +1,6 @@
 'use server';
 
-import { getRealCurrentUser } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/supabase/server';
 import { getWorkspacePersona } from '@/lib/persona';
 import { getPortalTemplateAction } from '@/lib/firm-templates';
 import { qrSvg } from '@/lib/qr-svg';
@@ -34,10 +34,23 @@ import {
  *  them, so this is an inconvenience and the wording says so. */
 const NOT_SIGNED_IN = 'Please sign in again, then reopen this form.';
 
+/**
+ * getCurrentUser and NOT getRealCurrentUser, and the difference matters.
+ *
+ * getRealCurrentUser ignores an active "act as" overlay and reports the admin
+ * operating the browser. lib/template-submissions.ts resolves the submitting
+ * user with getCurrentUser, so under an overlay the two would disagree, the
+ * handoff would be written under one id and looked for under another, and
+ * spendPhoneMarkAttestation would find no row. It fails closed, so nothing is
+ * unsafe about that, but the employee would simply be told their phone
+ * signature had not arrived and would have no way to proceed on a phone-only
+ * template. The owner of the handoff has to be whoever is going to file the
+ * document.
+ */
 async function employeeSession(): Promise<
   { ok: true; firmId: string; userId: string } | { ok: false; error: string }
 > {
-  const user = await getRealCurrentUser();
+  const user = await getCurrentUser();
   if (!user) return { ok: false, error: NOT_SIGNED_IN };
   const persona = await getWorkspacePersona();
   // The Hub's own persona chokepoint, asked again here. The page this is
