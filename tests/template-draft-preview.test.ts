@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -14,9 +14,17 @@ import type { NextRequest } from 'next/server';
  *
  * WHY THE BYTES ARE COMPARABLE AT ALL. buildBrandedDocumentPdf is not
  * deterministic: PDFDocument.create() stamps a fresh CreationDate and ModDate
- * on every call. Those two are stripped, and nothing else is. Every other
- * difference, a margin, a band, a line of text, a watermark, survives into
- * the comparison.
+ * on every call, and formatSignedOn(new Date()) puts today's date into the
+ * page. The clock is FROZEN across the comparisons instead, so both renders
+ * see the same instant. Every other difference, a margin, a band, a line of
+ * text, a watermark, survives into the comparison.
+ *
+ * The regex strip below is kept, but it is not what makes this work and it
+ * never was: pdf-lib writes the Info dictionary into a COMPRESSED object
+ * stream, so `/CreationDate (D:...)` does not appear as plain text in the
+ * output and the replace matched nothing. That is why this comparison went
+ * red at random, roughly whenever a second ticked between the two renders. It
+ * was reproduced deliberately by putting a 1.1 second wait between them.
  *
  * WHAT IS DELIBERATELY NOT EQUAL is pinned at the bottom of this file rather
  * than smoothed over: a template preview is unsigned, so a firm that stamps
@@ -130,6 +138,15 @@ async function previewBytes(override: unknown = null) {
 }
 
 describe('the template preview and the document that gets filed', () => {
+  // Date only. Timers stay real so the awaits below still resolve.
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-04T10:00:00Z'));
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   it('are the same PDF, to the byte, once the render timestamps are removed', async () => {
     firmRecord = { name: 'Hartley and Vance LLP', accentColor: '#0f2d24' };
     const preview = await previewBytes();
