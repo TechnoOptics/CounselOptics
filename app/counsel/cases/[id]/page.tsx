@@ -25,7 +25,6 @@ import {
   MonoRef,
   PanelCard,
   relativeTime,
-  shortRef,
 } from '@/components/counsel/patterns';
 import { DraftInvoiceButton } from './draft-invoice-button';
 import { AddDeadlineForm } from './add-deadline-form';
@@ -49,6 +48,8 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { CounselGuestWorkspace } from './counsel-guest-workspace';
 import { logCaseActivity, listCaseActivity } from '@/lib/case-activity-log';
+import { ensureMatterNumber } from '@/lib/matter-numbers';
+import { displayMatterNumber } from '@/lib/ticket-numbers';
 import { CaseActivityStream } from '@/components/counsel/CaseActivityStream';
 
 export const dynamic = 'force-dynamic';
@@ -290,6 +291,7 @@ export default async function CounselCaseDetailPage({
     assigneeRes,
     caseAnalytics,
     activityEvents,
+    matterNumber,
   ] = await Promise.all([
     listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
     listFirmApproaches(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
@@ -305,6 +307,15 @@ export default async function CounselCaseDetailPage({
     canSeeActivity
       ? listCaseActivity(ctx.firm.id, params.id, 60).catch(() => [])
       : Promise.resolve([]),
+    // The firm's own reference for this matter, allocated here if the matter
+    // does not have one yet. In this wave rather than before it because a
+    // matter that already has its number costs one read, and because a
+    // reference is not worth delaying the page for: on any failure this is
+    // null and the breadcrumb shows the shortened id it always showed. The
+    // authorization for the write is inside ensureMatterNumber, on the shared
+    // lib/firm-authz.ts axis. See lib/matter-numbers.ts for why the write is
+    // on this path at all rather than at creation.
+    ensureMatterNumber(ctx.firm.id, params.id).catch(() => null),
   ]);
   const showTimeBilling = !surface.hideTimeBilling;
   const caseImages = (caseImagesRes?.ok && caseImagesRes.images) ? caseImagesRes.images : [];
@@ -459,9 +470,12 @@ export default async function CounselCaseDetailPage({
         approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
       />
 
-      {/* Breadcrumb. The mono element is the matter's id, shortened,
-          because a matter carries no reference number of its own: there
-          is no column for one. The full id is the title attribute. */}
+      {/* Breadcrumb. The mono element is the firm's own reference for
+          this matter, which is what they quote on the phone and in a
+          filing. A matter the allocator has not reached falls back to the
+          shortened id, which is what this showed before references
+          existed. The full id is the title attribute either way, because
+          it is still what the URL is keyed on. */}
       <nav
         aria-label="Breadcrumb"
         className="flex flex-wrap items-center gap-2 text-[12.5px]"
@@ -475,7 +489,9 @@ export default async function CounselCaseDetailPage({
         <span aria-hidden className="text-muted">
           /
         </span>
-        <MonoRef title={params.id}>{shortRef(params.id)}</MonoRef>
+        <MonoRef title={params.id}>
+          {displayMatterNumber({ matterNumber, id: params.id })}
+        </MonoRef>
       </nav>
 
       <header className="min-w-0">

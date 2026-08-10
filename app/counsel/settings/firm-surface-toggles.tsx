@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  updateFirmMatterPrefixAction,
   updateFirmSurfaceSettingsAction,
   updateFirmTicketPrefixAction,
 } from '@/lib/firm-settings-actions';
@@ -18,7 +19,12 @@ export function FirmSurfaceToggles({
   initial,
 }: {
   firmId: string;
-  initial: { hideSearch: boolean; hideTimeBilling: boolean; ticketPrefix: string };
+  initial: {
+    hideSearch: boolean;
+    hideTimeBilling: boolean;
+    ticketPrefix: string;
+    matterPrefix: string;
+  };
 }) {
   const t = useT();
   const router = useRouter();
@@ -79,7 +85,33 @@ export function FirmSurfaceToggles({
           </T>
         }
       />
-      <TicketPrefixField firmId={firmId} initial={initial.ticketPrefix} />
+      <PrefixField
+        fieldId="ticket-prefix"
+        initial={initial.ticketPrefix}
+        save={(next) => updateFirmTicketPrefixAction(firmId, next)}
+        label={<T>Ticket number prefix</T>}
+        description={
+          <T>
+            The letters in front of every ticket number. Changing it does not
+            renumber anything already filed.
+          </T>
+        }
+        example={<T>Documents will be numbered</T>}
+      />
+      <PrefixField
+        fieldId="matter-prefix"
+        initial={initial.matterPrefix}
+        save={(next) => updateFirmMatterPrefixAction(firmId, next)}
+        label={<T>Matter reference prefix</T>}
+        description={
+          <T>
+            The letters in front of every matter reference, the one your firm
+            quotes on the phone and in a filing. Changing it does not renumber
+            a matter that is already open.
+          </T>
+        }
+        example={<T>New matters will be numbered</T>}
+      />
       {error && (
         <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
           {error}
@@ -95,7 +127,13 @@ export function FirmSurfaceToggles({
 }
 
 /**
- * The letters in front of every ticket number the firm issues.
+ * A per-firm reference prefix: the letters in front of a series of numbers.
+ *
+ * One component for both series (tickets and matters) rather than two nearly
+ * identical ones, because they differ only in their words and in which action
+ * they save through. The label, the description and the example line are
+ * passed in already wrapped in <T> so each stays a literal string the counsel
+ * i18n pass can see.
  *
  * Saved on blur rather than on every keystroke, because this is a value the
  * firm types rather than a switch they flip, and a save per character would
@@ -103,7 +141,21 @@ export function FirmSurfaceToggles({
  * the stored form back, so the field then shows what will actually appear on
  * documents rather than what was typed.
  */
-function TicketPrefixField({ firmId, initial }: { firmId: string; initial: string }) {
+function PrefixField({
+  fieldId,
+  initial,
+  save,
+  label,
+  description,
+  example,
+}: {
+  fieldId: string;
+  initial: string;
+  save: (next: string) => Promise<{ ok: boolean; error?: string; prefix?: string }>;
+  label: React.ReactNode;
+  description: React.ReactNode;
+  example: React.ReactNode;
+}) {
   const t = useT();
   const router = useRouter();
   const [value, setValue] = useState(initial);
@@ -118,7 +170,7 @@ function TicketPrefixField({ firmId, initial }: { firmId: string; initial: strin
     setError(null);
     setOk(false);
     startTransition(async () => {
-      const res = await updateFirmTicketPrefixAction(firmId, next);
+      const res = await save(next);
       if (res.ok) {
         setValue(res.prefix ?? next);
         setSaved(res.prefix ?? next);
@@ -133,21 +185,13 @@ function TicketPrefixField({ firmId, initial }: { firmId: string; initial: strin
 
   return (
     <div className="rounded-lg ring-1 ring-edge p-3.5">
-      <label
-        htmlFor="ticket-prefix"
-        className="block text-sm font-medium text-foreground"
-      >
-        <T>Ticket number prefix</T>
+      <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">
+        {label}
       </label>
-      <p className="mt-0.5 text-[12px] text-muted leading-relaxed">
-        <T>
-          The letters in front of every ticket number. Changing it does not
-          renumber anything already filed.
-        </T>
-      </p>
+      <p className="mt-0.5 text-[12px] text-muted leading-relaxed">{description}</p>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <input
-          id="ticket-prefix"
+          id={fieldId}
           type="text"
           value={value}
           disabled={pending}
@@ -159,7 +203,7 @@ function TicketPrefixField({ firmId, initial }: { firmId: string; initial: strin
           className="w-32 rounded-lg border border-edge bg-surface px-3 py-1.5 text-sm font-mono uppercase text-foreground"
         />
         <span className="text-[12px] text-muted">
-          <T>Documents will be numbered</T>{' '}
+          {example}{' '}
           <span className="font-mono" data-no-translate>
             {`${(value.trim() || saved).toUpperCase()}-0000001`}
           </span>

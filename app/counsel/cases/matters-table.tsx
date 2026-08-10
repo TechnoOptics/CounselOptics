@@ -11,9 +11,9 @@ import {
   Toolbar,
   ViewStrip,
   relativeTime,
-  shortRef,
   type ViewOption,
 } from '@/components/counsel/patterns';
+import { displayMatterNumber } from '@/lib/ticket-numbers';
 import {
   PAGE_SIZE,
   VIEW_KEYS,
@@ -50,8 +50,11 @@ export type { MatterRow };
  * Departures from what the spec's section describes, each because
  * Advottic does not have the thing the reference is showing:
  *
- *   - The mono reference is the matter's id, shortened, because a
- *     matter has no number. See shortRef.
+ *   - The mono reference is the firm's own matter number when the
+ *     matter has one, and the shortened id when it does not, which is
+ *     what this column showed before matter numbers existed. See
+ *     displayMatterNumber. The full id stays the hover title either
+ *     way, because it is still what the URL is keyed on.
  *   - "Unassigned" is quiet rather than red. An unstaffed matter is a
  *     gap for the firm to close, not a failure to alarm them about.
  *   - The assignee and the status are editable in the row, and nothing
@@ -301,7 +304,7 @@ export function MattersTable({
                   scope="col"
                   className="px-3 py-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted"
                 >
-                  <T>Matter id</T>
+                  <T>Reference</T>
                 </th>
                 {head('status', <T>Status</T>)}
                 {head('assignee', <T>Assignee</T>)}
@@ -325,9 +328,9 @@ export function MattersTable({
                     type="search"
                     defaultValue={params.ref}
                     onChange={(e) => goSoon({ ref: e.target.value })}
-                    placeholder={t('Id')}
-                    aria-label={t('Filter by matter id')}
-                    className="input h-7 w-full min-w-[6rem] px-2 py-0"
+                    placeholder={t('Reference')}
+                    aria-label={t('Filter by matter reference')}
+                    className="input h-7 w-full min-w-[8rem] px-2 py-0"
                   />
                 </td>
                 <td className="px-3 py-1.5">
@@ -434,7 +437,7 @@ export function MattersTable({
                       </Link>
                     </td>
                     <td className="px-3 py-2.5">
-                      <MonoRef title={r.id}>{shortRef(r.id)}</MonoRef>
+                      <MonoRef title={r.id}>{displayMatterNumber(r)}</MonoRef>
                     </td>
                     <td className="px-3 py-2.5">
                       <RowStatus

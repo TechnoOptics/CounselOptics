@@ -8,6 +8,7 @@ import {
   normalizeDocumentLayout,
 } from '@/lib/document-layout';
 import { getFirmSurfaceSettings, getFirmTicketPrefix } from '@/lib/firm-settings';
+import { getFirmMatterPrefix } from '@/lib/matter-numbers';
 import { readPartnerConfig } from '@/lib/partner-config-core';
 import { SettingsForm } from './settings-form';
 import { WebhookManager } from './webhook-manager';
@@ -36,6 +37,9 @@ export default async function CounselSettingsPage() {
   // ticket_prefix arrives with a migration that is not applied, and naming it
   // in that read's column list would take the toggles down with it.
   const ticketPrefix = await getFirmTicketPrefix(ctx.firm.id);
+  // Same reasoning again for the matter prefix, which arrives with
+  // supabase/migrations/20260813_matter_number.sql.
+  const matterPrefix = await getFirmMatterPrefix(ctx.firm.id);
   const partnerConfig = readPartnerConfig(ctx.firm.metadata);
   const letterheadDesign = firmLetterheadDesign(ctx.firm.metadata);
   // Null when the firm has never configured one, which is what lets the builder
@@ -124,7 +128,10 @@ export default async function CounselSettingsPage() {
           <T>Hide entire surfaces of the workspace for everyone at your firm.
           These are off by default, so nothing changes until you turn one on.</T>
         </p>
-        <FirmSurfaceToggles firmId={ctx.firm.id} initial={{ ...surface, ticketPrefix }} />
+        <FirmSurfaceToggles
+          firmId={ctx.firm.id}
+          initial={{ ...surface, ticketPrefix, matterPrefix }}
+        />
       </PanelCard>
 
       <PanelCard title={<T>Outbound webhooks</T>}>

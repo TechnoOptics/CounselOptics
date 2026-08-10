@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { isUnknownColumnError } from './signer-view';
-import { normalizeTicketPrefix } from './ticket-numbers';
+import { normalizeMatterPrefix, normalizeTicketPrefix } from './ticket-numbers';
 
 /**
  * Owner/admin writes for the per-firm surface toggles
@@ -109,5 +109,54 @@ export async function updateFirmTicketPrefixAction(
   }
 
   revalidatePath('/counsel/settings');
+  return { ok: true, prefix: stored };
+}
+
+/**
+ * The letters in front of every matter reference this firm issues.
+ *
+ * Its own action and its own single-column upsert, for the reason the ticket
+ * prefix above has one: `matter_prefix` arrives with
+ * supabase/migrations/20260813_matter_number.sql and is not applied, and
+ * folding it into a shared write would make saving a setting that works today
+ * fail because of one that does not exist yet.
+ *
+ * Changing the prefix renumbers nothing. Every matter keeps the reference it
+ * was opened under, which is the whole point of a reference, and the series
+ * carries on from where it was rather than restarting onto numbers that are
+ * already on filings (the allocator reads the trailing digits and ignores
+ * whatever is in front of them).
+ */
+export async function updateFirmMatterPrefixAction(
+  firmId: string,
+  prefix: string,
+): Promise<{ ok: boolean; error?: string; prefix?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can change firm settings.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const stored = normalizeMatterPrefix(prefix);
+  const { error } = await admin
+    .from('firm_settings')
+    .upsert(
+      { firm_id: firmId, matter_prefix: stored, updated_at: new Date().toISOString() },
+      { onConflict: 'firm_id' },
+    );
+  if (error) {
+    if (isUnknownColumnError(error, 'matter_prefix')) {
+      return {
+        ok: false,
+        error:
+          'Matter reference numbers are not switched on yet. Ask your administrator to apply the pending database update.',
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath('/counsel/settings');
+  revalidatePath('/counsel/cases');
   return { ok: true, prefix: stored };
 }

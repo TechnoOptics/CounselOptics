@@ -30,6 +30,7 @@ const ME = 'user-me';
 
 function row(over: Partial<MatterRow> & { id: string }): MatterRow {
   return {
+    matterNumber: null,
     title: 'A matter',
     subjectName: 'A client',
     caseType: 'Employment',
@@ -272,6 +273,55 @@ describe('filterMatters', () => {
         (r) => r.title,
       ),
     ).toEqual(['Borel intake']);
+  });
+
+  /**
+   * The Ref box has to find a matter by the reference the firm was actually
+   * quoted, which is what that column now SHOWS. Matching only the id would
+   * make the one filter that exists for references useless for references.
+   */
+  it('filters the reference column on the matter number the column shows', () => {
+    const rows = [
+      row({ id: 'aaaa1111-0000-0000-0000-000000000000', title: 'Numbered', matterNumber: 'MAT-0000012' }),
+      row({ id: 'bbbb2222-0000-0000-0000-000000000000', title: 'Other', matterNumber: 'MAT-0000013' }),
+    ];
+    expect(
+      filterMatters(rows, params({ view: 'all', ref: 'MAT-0000012' }), ME, NOW).map(
+        (r) => r.title,
+      ),
+    ).toEqual(['Numbered']);
+    // Case-insensitively, and on a fragment, like every other column filter.
+    expect(
+      filterMatters(rows, params({ view: 'all', ref: 'mat-00000' }), ME, NOW),
+    ).toHaveLength(2);
+  });
+
+  /**
+   * And the id still matches. It is what the column showed before references
+   * existed, it is still the chip's hover title, and it is what a matter URL
+   * pasted into the box contains.
+   */
+  it('still finds a numbered matter by its id', () => {
+    const rows = [
+      row({ id: 'aaaa1111-0000-0000-0000-000000000000', title: 'Numbered', matterNumber: 'MAT-0000012' }),
+      row({ id: 'bbbb2222-0000-0000-0000-000000000000', title: 'Other', matterNumber: 'MAT-0000013' }),
+    ];
+    expect(
+      filterMatters(rows, params({ view: 'all', ref: 'aaaa1111' }), ME, NOW).map(
+        (r) => r.title,
+      ),
+    ).toEqual(['Numbered']);
+  });
+
+  /**
+   * An unnumbered matter is still findable by the fragment the column shows
+   * for it, so the filter matches the display in both states.
+   */
+  it('finds an unnumbered matter by the fragment its cell shows', () => {
+    const rows = [row({ id: 'cccc3333-0000-0000-0000-000000000000', title: 'No number' })];
+    expect(
+      filterMatters(rows, params({ view: 'all', ref: 'cccc3333' }), ME, NOW),
+    ).toHaveLength(1);
   });
 
   it('separates a hearing that is set, absent, imminent or past', () => {

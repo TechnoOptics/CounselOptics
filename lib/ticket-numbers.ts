@@ -45,32 +45,65 @@ export const TICKET_MAX = 9_999_999;
  */
 export const DEFAULT_TICKET_PREFIX = 'REQ';
 
+/**
+ * What a firm's MATTERS are numbered under before it chooses.
+ *
+ * A different default from the one above, and the difference is the point.
+ * The two series are separate counters over separate tables, so a firm on one
+ * shared prefix would eventually issue REQ-0000005 for an employee's document
+ * AND REQ-0000005 for a matter. A reference exists to be said out loud and
+ * looked up; one that resolves to two records of different kinds is worse than
+ * no reference at all.
+ */
+export const DEFAULT_MATTER_PREFIX = 'MAT';
+
 const PREFIX_MIN = 2;
 const PREFIX_MAX = 8;
 
 /**
- * The firm's prefix, made safe to put in front of a number.
+ * A firm's prefix, made safe to put in front of a number.
  *
  * Letters and digits only, uppercased. Punctuation is stripped rather than
  * rejected so a firm that types "N.D.A." gets NDA instead of an error, and
- * anything left outside two to eight characters falls back to the default:
+ * anything left outside two to eight characters falls back to `fallback`:
  * below two there is nothing to recognise a document by, and above eight the
  * reference stops being quotable on a phone call, which is the only reason it
  * exists.
  */
-export function normalizeTicketPrefix(raw: unknown): string {
+function normalizePrefix(raw: unknown, fallback: string): string {
   const cleaned = (typeof raw === 'string' ? raw : '')
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
   if (cleaned.length < PREFIX_MIN || cleaned.length > PREFIX_MAX) {
-    return DEFAULT_TICKET_PREFIX;
+    return fallback;
   }
   return cleaned;
 }
 
-/** `REQ-0000412`. The prefix is normalised here so no caller can widen it. */
-export function formatTicketNumber(prefix: string, seq: number): string {
-  return `${normalizeTicketPrefix(prefix)}-${String(seq).padStart(TICKET_PAD, '0')}`;
+/** The prefix in front of a ticket number. */
+export function normalizeTicketPrefix(raw: unknown): string {
+  return normalizePrefix(raw, DEFAULT_TICKET_PREFIX);
+}
+
+/** The prefix in front of a matter number. */
+export function normalizeMatterPrefix(raw: unknown): string {
+  return normalizePrefix(raw, DEFAULT_MATTER_PREFIX);
+}
+
+/**
+ * `REQ-0000412`. The prefix is normalised here so no caller can widen it.
+ *
+ * `fallback` is what an unusable prefix lands on, and it is a parameter
+ * because the matter series has a different default from the ticket series.
+ * A caller that has already normalised passes a prefix this leaves alone, so
+ * the fallback only ever decides what garbage becomes.
+ */
+export function formatTicketNumber(
+  prefix: string,
+  seq: number,
+  fallback: string = DEFAULT_TICKET_PREFIX,
+): string {
+  return `${normalizePrefix(prefix, fallback)}-${String(seq).padStart(TICKET_PAD, '0')}`;
 }
 
 /**
@@ -130,4 +163,26 @@ export function nextTicketSeq(highest: string | null): NextTicketSeq {
 export function displayTicket(row: { ticketNumber?: string | null; id: string }): string {
   const stored = (row.ticketNumber ?? '').trim();
   return stored || ticketRef(row.id);
+}
+
+/**
+ * The one place a MATTER's reference is turned into something to show.
+ *
+ * A matter that has a number shows it. A matter that has none shows the
+ * leading segment of its uuid, which is exactly what the counsel list and the
+ * matter breadcrumb showed before this existed, so nothing regresses for a
+ * matter the allocator has not reached: it keeps the reference it already had.
+ *
+ * The fallback is written out rather than imported from
+ * components/counsel/patterns.tsx `shortRef`, which is the same three words.
+ * That module is React, and this one is the pure layer both the server and the
+ * node-environment tests run. The duplication is one expression and is pinned
+ * by tests/matter-numbers.test.ts.
+ */
+export function displayMatterNumber(row: {
+  matterNumber?: string | null;
+  id: string;
+}): string {
+  const stored = (row.matterNumber ?? '').trim();
+  return stored || (row.id.split('-')[0] ?? row.id);
 }

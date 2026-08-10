@@ -11,6 +11,7 @@ import { T } from '@/components/i18n/LocaleProvider';
 import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { PILL_COLORS } from '@/components/counsel/StatusPill';
 import { parseMatterListParams, type MatterRow } from '@/lib/matter-list';
+import { listMatterNumbers } from '@/lib/matter-numbers';
 import { NewMatterButton } from './new-matter-button';
 import { MattersTable } from './matters-table';
 
@@ -42,10 +43,17 @@ export default async function CounselCasesPage({
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
-  const [allCases, members, user] = await Promise.all([
+  // The references are their own query rather than a column on the case
+  // read, for the reason lib/matter-numbers.ts gives: `matter_number`
+  // arrives with a migration that is not applied, and naming an absent
+  // column in listFirmCases' select would fail that request and empty the
+  // whole list. Unmigrated, the map is empty and every row shows the
+  // shortened id it showed before, which is exactly today's page.
+  const [allCases, members, user, matterNumbers] = await Promise.all([
     listFirmCases(ctx.firm.id),
     listFirmMembers(ctx.firm.id),
     getCurrentUser(),
+    listMatterNumbers(ctx.firm.id),
   ]);
 
   // Resolve assignee display names once (userId -> label).
@@ -56,6 +64,7 @@ export default async function CounselCasesPage({
 
   const rows: MatterRow[] = allCases.map((c) => ({
     id: c.id,
+    matterNumber: matterNumbers.get(c.id) ?? null,
     title: c.title,
     subjectName: c.subjectName,
     caseType: c.caseType,
@@ -103,7 +112,7 @@ export default async function CounselCasesPage({
           <>
             {allCases.length} <T>matters at</T>{' '}
             <span data-no-translate>{ctx.firm.name}</span>.{' '}
-            <T>Search, filter every column and sort the matter, status, assignee, hearing and updated columns; reassign a matter in its row, or several at once. The view, the filters and the page are in the address bar, so a narrowed queue can be sent to a colleague.</T>
+            <T>Every matter carries a reference your firm can quote on the phone or in a filing. Search, filter every column and sort the matter, status, assignee, hearing and updated columns; reassign a matter in its row, or several at once. The view, the filters and the page are in the address bar, so a narrowed queue can be sent to a colleague.</T>
           </>
         }
         action={

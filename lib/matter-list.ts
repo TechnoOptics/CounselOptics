@@ -20,8 +20,17 @@
  * step, so the counts still describe the whole view and not the page.
  */
 
+import { displayMatterNumber } from './ticket-numbers';
+
 export type MatterRow = {
   id: string;
+  /**
+   * The firm's own reference, e.g. 'MAT-0000001', or null for a matter the
+   * allocator has not reached. Null renders as the leading segment of the id,
+   * which is what the Ref column showed before matter numbers existed. See
+   * displayMatterNumber in lib/ticket-numbers.ts.
+   */
+  matterNumber: string | null;
   title: string;
   subjectName: string;
   caseType: string;
@@ -296,7 +305,18 @@ export function filterMatters(
       const cell = `${r.title} ${r.subjectName} ${r.caseType}`.toLowerCase();
       if (!cell.includes(matter)) return false;
     }
-    if (ref && !r.id.toLowerCase().includes(ref)) return false;
+    // The Ref filter matches what the Ref column SHOWS, and also the raw id
+    // underneath it. A firm types the reference it was quoted, so that has to
+    // find the matter; the id still matches because it is what the column
+    // showed before matter numbers existed, it is what the chip's hover title
+    // still shows, and it is what a URL pasted into the box contains.
+    if (
+      ref &&
+      !displayMatterNumber(r).toLowerCase().includes(ref) &&
+      !r.id.toLowerCase().includes(ref)
+    ) {
+      return false;
+    }
     if (!q) return true;
     return (
       r.title.toLowerCase().includes(q) ||
