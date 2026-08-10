@@ -166,6 +166,13 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   // `blurb: string` on the four matter tiles (SectionPanel, the two NavTiles,
   // ExportPacketTile). Every call site of all four passes a literal.
   'blurb',
+  // `qualifier: string` on ReportCard - the period or the sort a card's
+  // contents are taken over ("30 days", "12 weeks", "Oldest first"). Every
+  // value is a literal or a template over REPORT_WINDOW_DAYS /
+  // REPORT_WEEKS in lib/counsel-reports.ts. It is a separate prop from
+  // `title` precisely so a card cannot state a figure without stating the
+  // window it was taken over, so it is UI copy by construction.
+  'qualifier',
   // `state: string` on the dashboard metric board's MetricCell - the word
   // that carries a metric's urgency so the tone is never colour alone
   // ("Needs a decision", "Awaiting signers", "Queue clear"). Every value

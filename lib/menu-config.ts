@@ -43,6 +43,13 @@ export const DEFAULT_MENU: MenuSection[] = [
     section: 'Overview',
     items: [
       { href: '/counsel', label: 'Dashboard', hint: 'Overview' },
+      // Reports and My work sit directly under the dashboard, which is the
+      // order the reference product's OVERVIEW group uses: the firm-wide
+      // view, then the reader's own. Impact stays below them because it
+      // answers a different question - outcomes on the caseload rather than
+      // service levels on the queue.
+      { href: '/counsel/reports', label: 'Reports', hint: 'Service levels + output' },
+      { href: '/counsel/my', label: 'My work', hint: 'What is in your name' },
       { href: '/counsel/analytics', label: 'Impact', hint: 'Firm-wide case analytics' },
       { href: '/counsel/aid', label: 'Advottic Aid', hint: 'Ask about cases + law' },
       { href: '/counsel/calendar', label: 'Calendar', hint: 'Meetings, deadlines + integrations' },
