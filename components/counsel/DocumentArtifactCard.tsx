@@ -18,9 +18,10 @@ import type { ResolvedSigningArtifact } from '@/lib/signing-artifact';
  *
  * The frame is a DocumentFrame, which pins its signed URL for the life
  * of the mount. Both pages here are force-dynamic and mint a fresh
- * signed URL on every render, and writing a new one into the iframe
- * navigates it: the PDF viewer reloads to page 1 and takes focus. Pass
- * a plain iframe instead and that bug is back.
+ * signed URL on every render, and handing the viewer a new one restarts
+ * it: the document is re-fetched and re-parsed, and the reader is back
+ * at page 1 and fit width. Pass a plain iframe, or an unretained URL,
+ * and that bug is back.
  *
  * Which is why the frame is keyed on the artifact. The retainer is
  * created once per MOUNT, and a router.refresh() re-renders the server
@@ -37,10 +38,10 @@ import type { ResolvedSigningArtifact } from '@/lib/signing-artifact';
 export function DocumentArtifactCard({
   artifact,
   documentName,
-  frameClassName = 'w-full h-[70vh] border-0 bg-surface-2',
+  frameClassName = 'w-full h-[70vh]',
 }: {
   artifact: ResolvedSigningArtifact;
-  /** Used only as the iframe's accessible title, never rendered as text. */
+  /** Used only as the viewer's accessible name, never rendered as text. */
   documentName: string;
   frameClassName?: string;
 }) {
