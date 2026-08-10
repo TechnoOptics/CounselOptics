@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from '@/components/ExternalLink';
-import { useT } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
+import { Toolbar, ViewStrip } from '@/components/counsel/patterns';
 
 export type BoardEvent = {
   at: number;
@@ -118,11 +119,42 @@ export function CalendarBoard({
 
   const selectedEvents = byDay.get(selected) ?? [];
 
+  // What the agenda lists, computed once and handed to it, so the count
+  // on the view strip and the rows underneath it cannot drift apart.
+  const upcoming = useMemo(
+    () =>
+      events
+        .filter((e) => e.at >= Date.now() - 24 * 3600_000)
+        .sort((a, b) => a.at - b.at),
+    [events],
+  );
+  // The month count is read off the same day buckets the grid draws
+  // from, so it counts exactly the chips on screen - including the ones
+  // on the greyed leading and trailing days, which the grid really does
+  // render.
+  const monthCount = useMemo(
+    () => cells.reduce((n, c) => n + (byDay.get(c)?.length ?? 0), 0),
+    [cells, byDay],
+  );
+
   return (
-    <div className="card p-4 sm:p-5 space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+    <div className="space-y-3">
+      <ViewStrip
+        options={[
+          { key: 'month', label: <T>Month</T>, count: monthCount },
+          { key: 'agenda', label: <T>Agenda</T>, count: upcoming.length },
+        ]}
+        active={view}
+        onSelect={(key) => setView(key === 'agenda' ? 'agenda' : 'month')}
+        label={t('Calendar views')}
+      />
+
+      {/* Month navigation narrows what the grid shows, so it belongs in
+          the toolbar row - and only in the view it narrows. The agenda
+          runs forward from today and the month cursor does nothing to
+          it, so the row is not drawn there. */}
+      {view === 'month' && (
+        <Toolbar>
           <button
             type="button"
             onClick={() => shiftMonth(-1)}
@@ -139,7 +171,7 @@ export function CalendarBoard({
           >
             ›
           </button>
-          <p className="text-lg font-medium text-foreground ml-1 min-w-[9ch]">
+          <p className="text-[15px] font-semibold text-foreground ml-1 min-w-[9ch]">
             {monthLabel}
           </p>
           <button
@@ -147,133 +179,113 @@ export function CalendarBoard({
             onClick={goToday}
             className="text-[12px] rounded-md ring-1 ring-edge px-2.5 py-1.5 text-foreground hover:bg-surface-2"
           >
-            Today
+            <T>Today</T>
           </button>
-        </div>
-        <div
-          className="inline-flex rounded-md ring-1 ring-edge overflow-hidden text-[12px]"
-          role="group"
-          aria-label={t('Calendar view')}
-        >
-          <button
-            type="button"
-            onClick={() => setView('month')}
-            aria-pressed={view === 'month'}
-            className={`px-3 py-1.5 ${view === 'month' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-foreground'}`}
-          >
-            Month
-          </button>
-          <button
-            type="button"
-            onClick={() => setView('agenda')}
-            aria-pressed={view === 'agenda'}
-            className={`px-3 py-1.5 ${view === 'agenda' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-foreground'}`}
-          >
-            Agenda
-          </button>
-        </div>
-      </div>
-
-      {view === 'month' ? (
-        <>
-          <div className="grid grid-cols-7 gap-1">
-            {WEEKDAYS.map((w) => (
-              <div
-                key={w}
-                className="text-[10px] uppercase tracking-[0.14em] font-semibold text-muted text-center pb-1"
-              >
-                <span className="hidden sm:inline">{w}</span>
-                <span className="sm:hidden">{w[0]}</span>
-              </div>
-            ))}
-            {cells.map((cellMs) => {
-              const inMonth =
-                new Date(cellMs).getMonth() === cursorDate.getMonth();
-              const isToday = cellMs === todayKey;
-              const isSelected = cellMs === selected;
-              const dayEvents = byDay.get(cellMs) ?? [];
-              return (
-                <button
-                  key={cellMs}
-                  type="button"
-                  onClick={() => setSelected(cellMs)}
-                  className={`min-h-[68px] sm:min-h-[92px] rounded-md p-1 sm:p-1.5 text-left ring-1 transition-colors flex flex-col gap-1 ${
-                    isSelected
-                      ? 'ring-forest-900/40 dark:ring-gold-400/40 bg-surface-2'
-                      : 'ring-ink-100 dark:ring-forest-700/30 hover:bg-cream-50/60 dark:hover:bg-forest-800/25'
-                  } ${inMonth ? '' : 'opacity-40'}`}
-                >
-                  <span
-                    className={`text-[11px] font-semibold inline-flex h-5 w-5 items-center justify-center rounded-full ${
-                      isToday
-                        ? 'bg-forest-900 text-white dark:bg-gold-400 dark:text-forest-950'
-                        : 'text-foreground'
-                    }`}
-                  >
-                    {new Date(cellMs).getDate()}
-                  </span>
-                  {/* Chips on sm+, dots on mobile. */}
-                  <span className="hidden sm:flex flex-col gap-0.5">
-                    {dayEvents.slice(0, 3).map((e, i) => (
-                      <span
-                        key={i}
-                        className={`truncate text-[10px] leading-tight px-1 py-[1px] rounded ring-1 ${KIND_CHIP[e.kind]}`}
-                        title={e.title}
-                      >
-                        {e.title}
-                      </span>
-                    ))}
-                    {dayEvents.length > 3 && (
-                      <span className="text-[9px] text-muted pl-1">
-                        +{dayEvents.length - 3} more
-                      </span>
-                    )}
-                  </span>
-                  <span className="flex sm:hidden flex-wrap gap-0.5 mt-auto">
-                    {dayEvents.slice(0, 4).map((e, i) => (
-                      <span
-                        key={i}
-                        className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[e.kind]}`}
-                      />
-                    ))}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Selected-day detail */}
-          <div className="border-t border-edge pt-3">
-            <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted mb-2">
-              {new Date(selected).toLocaleDateString(undefined, {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </p>
-            {selectedEvents.length === 0 ? (
-              <p className="text-[13px] text-muted italic">
-                Nothing scheduled this day.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {selectedEvents.map((e, i) => (
-                  <EventRow key={i} e={e} />
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
-      ) : (
-        <AgendaView events={events} />
+        </Toolbar>
       )}
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-[11px] text-muted">
-        <Legend dot={KIND_DOT.meeting} label="Meeting" />
-        <Legend dot={KIND_DOT.deadline} label="Deadline" />
-        <Legend dot={KIND_DOT.reminder} label="Reminder" />
-        {hasSync && <Legend dot={KIND_DOT.synced} label="Outlook" />}
+      <div className="card p-4 sm:p-5 space-y-4">
+        {view === 'month' ? (
+          <>
+            <div className="grid grid-cols-7 gap-1">
+              {WEEKDAYS.map((w) => (
+                <div
+                  key={w}
+                  className="text-[10px] uppercase tracking-[0.14em] font-semibold text-muted text-center pb-1"
+                >
+                  <span className="hidden sm:inline">{w}</span>
+                  <span className="sm:hidden">{w[0]}</span>
+                </div>
+              ))}
+              {cells.map((cellMs) => {
+                const inMonth =
+                  new Date(cellMs).getMonth() === cursorDate.getMonth();
+                const isToday = cellMs === todayKey;
+                const isSelected = cellMs === selected;
+                const dayEvents = byDay.get(cellMs) ?? [];
+                return (
+                  <button
+                    key={cellMs}
+                    type="button"
+                    onClick={() => setSelected(cellMs)}
+                    className={`min-h-[68px] sm:min-h-[92px] rounded-md p-1 sm:p-1.5 text-left ring-1 transition-colors flex flex-col gap-1 ${
+                      isSelected
+                        ? 'ring-forest-900/40 dark:ring-gold-400/40 bg-surface-2'
+                        : 'ring-ink-100 dark:ring-forest-700/30 hover:bg-cream-50/60 dark:hover:bg-forest-800/25'
+                    } ${inMonth ? '' : 'opacity-40'}`}
+                  >
+                    <span
+                      className={`text-[11px] font-semibold inline-flex h-5 w-5 items-center justify-center rounded-full ${
+                        isToday
+                          ? 'bg-forest-900 text-white dark:bg-gold-400 dark:text-forest-950'
+                          : 'text-foreground'
+                      }`}
+                    >
+                      {new Date(cellMs).getDate()}
+                    </span>
+                    {/* Chips on sm+, dots on mobile. */}
+                    <span className="hidden sm:flex flex-col gap-0.5">
+                      {dayEvents.slice(0, 3).map((e, i) => (
+                        <span
+                          key={i}
+                          className={`truncate text-[10px] leading-tight px-1 py-[1px] rounded ring-1 ${KIND_CHIP[e.kind]}`}
+                          title={e.title}
+                        >
+                          {e.title}
+                        </span>
+                      ))}
+                      {dayEvents.length > 3 && (
+                        <span className="text-[9px] text-muted pl-1">
+                          +{dayEvents.length - 3} more
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex sm:hidden flex-wrap gap-0.5 mt-auto">
+                      {dayEvents.slice(0, 4).map((e, i) => (
+                        <span
+                          key={i}
+                          className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[e.kind]}`}
+                        />
+                      ))}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected-day detail */}
+            <div className="border-t border-edge pt-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted mb-2">
+                {new Date(selected).toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
+              {selectedEvents.length === 0 ? (
+                <p className="text-[13px] text-muted italic">
+                  Nothing scheduled this day.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {selectedEvents.map((e, i) => (
+                    <EventRow key={i} e={e} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        ) : (
+          <AgendaView events={upcoming} />
+        )}
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-[11px] text-muted">
+          <Legend dot={KIND_DOT.meeting} label="Meeting" />
+          <Legend dot={KIND_DOT.deadline} label="Deadline" />
+          <Legend dot={KIND_DOT.reminder} label="Reminder" />
+          {hasSync && <Legend dot={KIND_DOT.synced} label="Outlook" />}
+        </div>
       </div>
     </div>
   );
@@ -331,13 +343,10 @@ function EventRow({ e }: { e: BoardEvent }) {
   );
 }
 
+/** `events` is the upcoming set already, filtered and sorted by the caller. */
 function AgendaView({ events }: { events: BoardEvent[] }) {
-  const now = Date.now();
-  const upcoming = events
-    .filter((e) => e.at >= now - 24 * 3600_000)
-    .sort((a, b) => a.at - b.at);
   const groups = new Map<string, BoardEvent[]>();
-  for (const e of upcoming) {
+  for (const e of events) {
     const key = new Date(e.at).toLocaleDateString(undefined, {
       weekday: 'short',
       month: 'short',
@@ -348,7 +357,7 @@ function AgendaView({ events }: { events: BoardEvent[] }) {
     if (arr) arr.push(e);
     else groups.set(key, [e]);
   }
-  if (upcoming.length === 0) {
+  if (events.length === 0) {
     return (
       <p className="text-[13px] text-muted italic">
         Nothing upcoming. Schedule a meeting or add a deadline on a case.

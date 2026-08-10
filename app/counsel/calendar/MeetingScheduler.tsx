@@ -6,6 +6,7 @@ import { ExternalLink } from '@/components/ExternalLink';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { scheduleStandaloneMeetingAction } from '@/lib/firm-actions';
 import { runGatedAction } from '@/lib/gated-action';
+import { PanelCard } from '@/components/counsel/patterns';
 
 /**
  * Schedule a Teams/Zoom meeting straight from the shared calendar.
@@ -58,11 +59,10 @@ export function MeetingScheduler({
   }
 
   return (
-    <section className="card p-5 space-y-3">
+    <PanelCard title={<T>New meeting</T>} bodyClassName="p-5 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="eyebrow"><T>New meeting</T></p>
-          <p className="text-[12px] text-muted mt-1">
+          <p className="text-[12px] text-muted">
             <T>Set up a Teams or Zoom call. Invites go out to every
             attendee and it appears on this shared calendar.</T>
           </p>
@@ -129,10 +129,11 @@ export function MeetingScheduler({
               {connected.length === 0 ? (
                 <p className="text-[12px] text-amber-700 dark:text-amber-300">
                   <T>No meeting account is connected.</T>{' '}
-                  <a
-                    href="/counsel/meetings"
-                    className="underline font-semibold"
-                  >
+                  {/* The connectors live at the foot of THIS page. This
+                      used to point at /counsel/meetings, which has been
+                      a redirect back to here since W20, so the link
+                      reloaded the page you were already on. */}
+                  <a href="#connectors" className="underline font-semibold">
                     <T>Connect Microsoft 365 or Zoom</T>
                   </a>{' '}
                   <T>first.</T>
@@ -180,11 +181,8 @@ export function MeetingScheduler({
               {/connect/i.test(error) && (
                 <>
                   {' '}
-                  <a
-                    href="/counsel/meetings"
-                    className="underline font-semibold"
-                  >
-                    <T>Open Meetings</T>
+                  <a href="#connectors" className="underline font-semibold">
+                    <T>Go to the connections panel</T>
                   </a>
                 </>
               )}
@@ -235,6 +233,6 @@ export function MeetingScheduler({
           </div>
         </form>
       )}
-    </section>
+    </PanelCard>
   );
 }

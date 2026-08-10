@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { cleanLegalText } from '@/lib/legal-templates';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { PanelCard } from '@/components/counsel/patterns';
 
 /**
  * Submit a contract/document and get a structured breakdown: what it
@@ -81,27 +82,31 @@ export function AnalyzeStudio({
 
   return (
     <div className={embedded ? 'space-y-3' : 'grid lg:grid-cols-2 gap-6'}>
-      <div className="card p-5 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="eyebrow"><T>Document</T></p>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="text-[12px] underline text-muted"
-          >
-            <T>Upload .txt</T>
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".txt,.md,.csv,.log,text/plain"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void readFile(f);
-            }}
-          />
-        </div>
+      <PanelCard
+        title={<T>Document</T>}
+        bodyClassName="p-5 space-y-3"
+        action={
+          <>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="text-[12px] text-accent-text hover:underline"
+            >
+              <T>Upload .txt</T>
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".txt,.md,.csv,.log,text/plain"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void readFile(f);
+              }}
+            />
+          </>
+        }
+      >
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -127,10 +132,9 @@ export function AnalyzeStudio({
             {error}
           </p>
         )}
-      </div>
+      </PanelCard>
 
-      <div className="card p-5">
-        <p className="eyebrow mb-2"><T>Analysis</T></p>
+      <PanelCard title={<T>Analysis</T>} bodyClassName="p-5">
         {out ? (
           <pre className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground font-sans">
             {out}
@@ -149,7 +153,7 @@ export function AnalyzeStudio({
             <T>Analysis for licensed counsel, not advice to a consumer.</T>
           </p>
         )}
-      </div>
+      </PanelCard>
     </div>
   );
 }

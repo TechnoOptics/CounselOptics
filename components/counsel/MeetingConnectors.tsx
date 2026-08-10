@@ -74,7 +74,9 @@ export async function MeetingConnectors({
   const encryptionReady = isIntegrationEncryptionConfigured();
 
   return (
-    <section className="space-y-3">
+    // `id` is the anchor the scheduler links to when no provider is
+    // connected: the panel is at the foot of the same page.
+    <section id="connectors" className="space-y-3 scroll-mt-24">
       <div>
         <p className="eyebrow mb-1">Connections</p>
         <h2 className="text-xl font-medium tracking-[-0.01em] text-foreground">

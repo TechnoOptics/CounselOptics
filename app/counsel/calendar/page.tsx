@@ -169,13 +169,22 @@ export default async function CounselCalendarPage({
         title={<T>Calendar</T>}
         subtitle={
           <>
+            {/* The count is items.length, the set the board is handed:
+                scheduled meetings and open case deadlines from 45 days
+                back, reminders still live, and the synced Outlook
+                window. No window is quoted here because the four
+                queries do not share one. */}
+            {items.length}{' '}
             <T>
-              One calendar for everything the legal team needs to be ready for:
-              scheduled Teams/Zoom meetings, case deadlines and hearings,
-              request/contract reminders
+              items on the shared calendar: scheduled Teams and Zoom meetings,
+              case deadlines and hearings, request and contract reminders
             </T>
             {hasMicrosoft ? <T>, and your connected Outlook events</T> : ''}
-            <T>. Switch between month and agenda views.</T>
+            <T>
+              . Month view or agenda view, each with its own count; an item
+              opens the matter, the request or the join link behind it, where
+              it has one.
+            </T>
           </>
         }
       />
