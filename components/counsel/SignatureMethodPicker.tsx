@@ -84,10 +84,27 @@ export function SignatureMethodPicker({
         How this template may be signed
       </legend>
       <p className="text-[12.5px] leading-relaxed text-muted">
-        Signers are offered only the methods you leave enabled here, and a
-        signature made any other way is refused when it reaches us, not merely
-        hidden on the page. Changing this affects documents sent from now on;
-        anything already out for signature keeps the methods it was sent with.
+        Signers are offered only the methods you leave enabled here. Changing
+        this affects documents sent from now on; anything already out for
+        signature keeps the methods it was sent with.
+      </p>
+      {/* What this setting does and does not buy, said plainly.
+          A drawn mark, a typed name and an uploaded image all reach us as the
+          same image file, so for those three we record what the signer says
+          they did and cannot check it. "Sign on your phone" is different: the
+          handoff is a one-time code tied to the device that scans it, so that
+          one we can and do refuse.
+          This paragraph used to claim all four were enforced. They are not,
+          and a firm choosing what it will accept on an instrument it intends
+          to rely on is owed the real answer rather than the reassuring one. */}
+      <p className="text-[12.5px] leading-relaxed text-muted">
+        One caveat worth knowing. Turning off &ldquo;Sign on your phone&rdquo;
+        is enforced: the handoff is a one-time code tied to the device that
+        scans it, and a signature without one is refused. The other three all
+        reach us as the same image file, so we record which the signer says
+        they used and note on the record that it is their account of it rather
+        than something we verified. Treat those three as guidance to the
+        signer, not as a control.
       </p>
 
       <ul className="space-y-2">

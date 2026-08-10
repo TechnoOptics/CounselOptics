@@ -397,15 +397,31 @@ export async function recordSignature(
   // upload a scan of somebody else's signature onto an instrument that forbids
   // uploads simply posts one. This is the refusal they get.
   //
-  // The phone is decided by the server and not by the phone. A handoff
-  // produces a drawn mark, so a phone that claimed 'draw' would walk straight
-  // through a firm that had forbidden the handoff itself. input.method is
-  // ignored on that path entirely rather than merely distrusted.
+  // THE PHONE IS DECIDED BY THE SERVER, IN BOTH DIRECTIONS, and the second
+  // direction is the one that matters. A handoff produces a drawn mark, so a
+  // phone that claimed 'draw' would walk straight through a firm that had
+  // forbidden the handoff; input.method is therefore ignored on that path.
+  // But 'phone' arriving from a BROWSER is worse, and an earlier draft of this
+  // took it at face value: a template restricted to ['phone'] could then be
+  // satisfied by a POST to /api/firm/sign carrying method 'phone' and no
+  // handoff at all, which is the whole restriction defeated by one string.
+  //
+  // 'phone' is the only one of the four the server can genuinely establish,
+  // and it is the only one a firm gains anything checkable by requiring: the
+  // handoff burns a one-time token, binds a cookie to the scanning device and
+  // records that device's address and user agent on its own row. So it is
+  // written here and read nowhere else. A browser claiming it is treated as
+  // having said nothing, which a restricted request refuses and an
+  // unrestricted one records as null rather than as a fact no row backs.
   //
   // Placed after the identity gate on purpose: somebody who is not this signer
   // learns nothing here about what the firm will accept.
-  const claimedMethod: unknown =
-    input.source === 'mobile_handoff' ? 'phone' : input.method;
+  const fromHandoff = input.source === 'mobile_handoff';
+  const claimedMethod: unknown = fromHandoff
+    ? 'phone'
+    : input.method === 'phone'
+      ? null
+      : input.method;
   const methodDecision = decideSignatureMethod({
     allowed: parseAllowedSignatureMethods(request.signature_methods),
     claimed: claimedMethod,
@@ -605,6 +621,13 @@ export async function recordSignature(
       image_bytes: buffer.length,
       consent: projectSignerConsentMetadata(input.consent),
       capture_source: input.source,
+      // NOTE ON WHAT THIS CHAIN CANNOT DO, kept beside the facts it carries:
+      // it is tamper-evident, not gap-evident. It can show that this event was
+      // not altered and was not removed from the middle of the sequence. It
+      // cannot show that an event was written at all, so a signature recorded
+      // by some future path that forgot this call leaves nothing here to find.
+      // See verifySignatureChain in lib/esign-audit.ts, which says the same
+      // thing about its own return value.
       // HOW the mark was made, as decided above rather than as claimed.
       //
       // A signature's method is evidence: "drawn on a phone" and "an image
@@ -615,15 +638,21 @@ export async function recordSignature(
       //
       // Explicitly null when nothing said. A guess here would be a fact this
       // record cannot support, and null is a shorter claim than 'draw'.
-      //
-      // What this does NOT establish, stated because the chain is sold as
-      // evidence: the chain is tamper-evident, not gap-evident. It can show
-      // that this event was not altered and was not removed from the middle
-      // of the sequence. It cannot show that an event was written at all, so
-      // a signature recorded by some future path that forgot this call leaves
-      // nothing here to find. See verifySignatureChain in lib/esign-audit.ts,
-      // which says the same thing about its own return value.
       signature_method: signatureMethod,
+      // HOW MUCH THE LINE ABOVE IS WORTH, in the record itself.
+      //
+      // Draw, type and upload all arrive as one PNG data URL and the server
+      // cannot tell them apart: for those three the value is the signer's own
+      // account of what they did, and a determined signer can relabel a scan
+      // as a drawing. The handoff is different, because the server put 'phone'
+      // there itself against a row it can point at.
+      //
+      // A reader of an evidentiary record must not have to know which of those
+      // two happened, so it is written down rather than left to be inferred
+      // from capture_source by somebody who has read this file. Naming it
+      // honestly is the fix; pretending the claim is verified would be worse
+      // than not recording it.
+      signature_method_attested_by: fromHandoff ? 'server' : 'signer',
       ...(input.handoffId ? { handoff_id: input.handoffId } : {}),
     },
   });

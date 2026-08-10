@@ -365,3 +365,54 @@ describe('the uploaded image itself', () => {
     expect(world.uploads).toEqual([]);
   });
 });
+
+/**
+ * A browser cannot have signed on a phone.
+ *
+ * 'phone' is the one method the server can actually establish, and it is the
+ * only one that buys a firm anything checkable: the handoff burns a one-time
+ * token, binds a cookie to the scanning device, and records that device's IP
+ * and user agent on its own row. A web caller was able to simply claim it,
+ * which defeated a phone-only restriction outright and put a provenance in
+ * the chain that no handoff row backed.
+ *
+ * The derivation is now symmetric. The server writes 'phone' on the handoff
+ * path and refuses to read it anywhere else.
+ */
+describe('a phone claimed from a browser', () => {
+  it('cannot satisfy a phone-only restriction', async () => {
+    restrictTo(['phone']);
+    const result = await sign({ method: 'phone' });
+    expect(result.ok).toBe(false);
+    expect(world.signatures[0].signed_at).toBeNull();
+  });
+
+  it('is not written into the chain on an unrestricted request either', async () => {
+    restrictTo(null);
+    await sign({ method: 'phone' });
+    expect(signedEvent()?.metadata?.signature_method).toBeNull();
+  });
+});
+
+/**
+ * How much the recorded method is worth, said in the record itself.
+ *
+ * Draw, type and upload all produce one PNG data URL and the server cannot
+ * tell them apart, so for those three the value is the signer's own account of
+ * what they did. The handoff is different: the server puts 'phone' there
+ * itself. A reader of an evidentiary record must not have to know which of
+ * those two happened, so the record says.
+ */
+describe('the provenance of the recorded method', () => {
+  it('is attributed to the signer on the web path', async () => {
+    restrictTo(null);
+    await sign({ method: 'draw' });
+    expect(signedEvent()?.metadata?.signature_method_attested_by).toBe('signer');
+  });
+
+  it('is attributed to the server on the handoff path', async () => {
+    restrictTo(null);
+    await sign({ source: 'mobile_handoff', handoffId: 'h-1' });
+    expect(signedEvent()?.metadata?.signature_method_attested_by).toBe('server');
+  });
+});
