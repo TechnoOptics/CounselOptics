@@ -20,7 +20,7 @@ import {
   type DashboardTileData,
 } from '@/components/counsel/CounselDashboardTiles';
 import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
-import { tallyIntakeLanes } from '@/lib/intake-lanes';
+import { intakeLaneFilter, type IntakeLane } from '@/lib/intake-lanes';
 import { PageHeader, EmptyState, StatCard } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -109,36 +109,70 @@ export default async function CounselDashboard() {
   // hand-roll the map and tested for a status named `in_review` that the
   // schema has never allowed, so every conflict-cleared request landed in
   // "needs attention" and the dashboard reported 5 where the inbox showed 4.
-  const sinceMs = Date.now() - 24 * 60 * 60 * 1000;
-  const { data: intakeRows } = await supabase
-    .from('firm_matter_intakes')
-    .select(
-      'id, client_name, matter_type, status, created_at, intake_answers',
-    )
-    .eq('firm_id', ctx.firm.id)
-    .order('created_at', { ascending: false })
-    .limit(200);
-  type IntakeRow = {
+  //
+  // Every lane figure below is a COUNT, so every one of them is its own
+  // `count: 'exact'` query. They used to be tallied in JS over a read
+  // capped at 200 rows, which turned each lane into a floor the moment a
+  // firm passed its 200th request, and the action center then added those
+  // floors together and called the result "N things need a human". The
+  // shape here is the one app/counsel/billing already uses for
+  // Outstanding: the rows you draw and the total you state are two
+  // different queries, because only one of them can be bounded.
+  //
+  // The lane split is still lib/intake-lanes.ts and nothing else. See
+  // intakeLaneFilter for why "needs attention" is the complement of the
+  // other three rather than a list of its own.
+  const intakeCount = (lane: IntakeLane) => {
+    const filter = intakeLaneFilter(lane);
+    const q = supabase
+      .from('firm_matter_intakes')
+      .select('id', { count: 'exact', head: true })
+      .eq('firm_id', ctx.firm.id);
+    return filter.op === 'in'
+      ? q.in('status', filter.statuses)
+      : q.or(`status.is.null,status.not.in.(${filter.statuses.join(',')})`);
+  };
+  const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const [
+    attentionRes,
+    reviewRes,
+    acceptedRes,
+    closedRes,
+    newTodayRes,
+    recentRes,
+  ] = await Promise.all([
+    intakeCount('attention'),
+    intakeCount('review'),
+    intakeCount('accepted'),
+    intakeCount('closed'),
+    supabase
+      .from('firm_matter_intakes')
+      .select('id', { count: 'exact', head: true })
+      .eq('firm_id', ctx.firm.id)
+      .gte('created_at', sinceIso),
+    // The one intake read that is meant to be bounded, because it is a
+    // list of the five most recent and not a total of anything.
+    supabase
+      .from('firm_matter_intakes')
+      .select('id, client_name, matter_type, created_at, intake_answers')
+      .eq('firm_id', ctx.firm.id)
+      .order('created_at', { ascending: false })
+      .limit(5),
+  ]);
+  const lanes = {
+    needsAttention: attentionRes.count ?? 0,
+    inReview: reviewRes.count ?? 0,
+    accepted: acceptedRes.count ?? 0,
+    closed: closedRes.count ?? 0,
+  };
+  const newToday = newTodayRes.count ?? 0;
+  const recentNew = ((recentRes.data ?? []) as Array<{
     id: string;
     client_name: string | null;
     matter_type: string | null;
-    status: string;
     created_at: string;
     intake_answers: Record<string, unknown> | null;
-  };
-  const intakes = (intakeRows ?? []) as IntakeRow[];
-  const tally = tallyIntakeLanes(intakes.map((i) => i.status));
-  const lanes = {
-    needsAttention: tally.attention,
-    inReview: tally.review,
-    accepted: tally.accepted,
-    closed: tally.closed,
-  };
-  let newToday = 0;
-  for (const i of intakes) {
-    if (new Date(i.created_at).getTime() >= sinceMs) newToday += 1;
-  }
-  const recentNew = intakes.slice(0, 5).map((i) => ({
+  }>).map((i) => ({
     id: i.id,
     clientName: i.client_name ?? 'Unnamed matter',
     matterType: i.matter_type,
@@ -337,11 +371,13 @@ export default async function CounselDashboard() {
           Active clients    listFirmClients, status active
           Documents         listFirmDocuments
 
-        The intake lane counts are deliberately NOT here, though the
-        action-center tile below shows them: they are tallied from a
-        firm_matter_intakes read capped at 200 rows, so on a busy firm
-        the number would be a floor rather than a count. A headline
-        metric has to be the whole set.
+        The intake lane counts are exact now, so the cap that used to
+        keep them off this strip is gone. They still stay off it, for a
+        different and smaller reason: the action center card below is a
+        row of open work items headed by their sum, and "N requests need
+        attention" is its first row. A fifth metric here would be the
+        same number twice on one screen, and the dashboard pattern asks
+        that nothing compete with the strip.
       */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
