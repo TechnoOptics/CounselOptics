@@ -8,7 +8,7 @@ export const metadata = {
   openGraph: {
     title: 'Trust & Security',
     description:
-      'TLS 1.2+ in transit, AES-256 at rest, RLS-scoped per-row access, and zero-retention AI processing terms.',
+      'TLS 1.2+ in transit, AES-256 at rest, and RLS-scoped per-row access.',
     url: '/security',
     type: 'article',
   },
@@ -30,7 +30,7 @@ export default function SecurityPage() {
           language, and what we're working toward.
         </p>
         <p className="text-xs text-ink-500 dark:text-cream-100/70 mt-4 font-mono">
-          Last reviewed: 2026-04-25
+          Last reviewed: 2026-08-10
         </p>
       </header>
 
@@ -45,7 +45,7 @@ export default function SecurityPage() {
         <Promise
           icon={<KeyIcon />}
           title="Your story stays yours"
-          body="Bella and Advottic Review process your case under strict zero-retention commercial terms. Your content is never used to improve outside services."
+          body="Bella and Advottic Review send your case content to our processing partners only to produce the answer you asked for."
         />
         <Promise
           icon={<ShieldIcon />}
@@ -83,8 +83,9 @@ export default function SecurityPage() {
           </ul>
         </SubSection>
         <SubSection title="Backups & recovery">
-          Supabase performs daily automated backups with point-in-time recovery on the
-          paid plan we run on. We test restore procedures during major upgrades.
+          Supabase performs daily automated backups on the paid plan we run on.
+          Point-in-time recovery and a documented restore drill are work we intend to
+          complete; neither is in place today.
         </SubSection>
       </Section>
 
@@ -141,7 +142,7 @@ export default function SecurityPage() {
           />
           <ControlTile
             label="Delete on demand"
-            body="Permanent account deletion from your profile. We honor it within 30 days, including backups."
+            body="Permanent account deletion from your profile."
           />
         </ul>
       </Section>
@@ -161,21 +162,22 @@ export default function SecurityPage() {
           for the full list.
         </SubSection>
         <SubSection title="Assistant features">
-          Bella (your conversational assistant) and Advottic Review (case review) call a
-          natural-language processing partner under commercial terms that prohibit using your
-          inputs to improve their or any other service. Your case content is never used to
-          improve a product outside your account.
+          Bella (your conversational assistant) and Advottic Review (case review) send the
+          case content you point them at to a natural-language processing partner, which
+          returns the answer. Audio and video exhibits you ask us to transcribe are sent to
+          a separate transcription provider. Both are listed in the sub-processor table
+          below. We do not use your case content to train anything of our own.
         </SubSection>
         <SubSection title="Where it lives">
           Application: Vercel (United States, primary region: Washington, D.C.). Database and
-          storage: Supabase (United States). Natural-language processing: Anthropic (United
-          States). Billing: Stripe (United States).
+          storage: Supabase (United States). Billing: Stripe (United States). Processing
+          partners are listed with their regions in the sub-processor table below.
         </SubSection>
         <SubSection title="Retention">
-          Active cases are retained for the life of your account. On account deletion, we
-          delete case content within 30 days from primary storage and from rolling backups
-          within 35 days. Stripe transaction records are retained as required by tax and
-          financial regulation.
+          Active cases are retained for the life of your account. Deleting your account
+          deletes your case records and exhibit files from primary storage; copies can
+          remain in our providers&apos; backups until those backups rotate. Stripe
+          transaction records are retained as required by tax and financial regulation.
         </SubSection>
       </Section>
 
@@ -185,8 +187,9 @@ export default function SecurityPage() {
         title="Who we trust with what"
       >
         <p className="mb-4">
-          We keep this list short on purpose. Every party below has a contractual data-handling
-          agreement and a relevant compliance posture.
+          These are the parties that process data on our behalf, and what each one receives.
+          Where the Compliance column says a review is outstanding, that party is in use and
+          our own vendor review of it is not finished.
         </p>
         <div className="overflow-hidden rounded-xl border border-ink-200 dark:border-forest-700/60">
           <table className="w-full text-sm">
@@ -213,9 +216,15 @@ export default function SecurityPage() {
               />
               <SubProcRow
                 name="Anthropic"
-                purpose="Natural-language processing for Bella + Advottic Review"
+                purpose="Natural-language processing for Bella + Advottic Review: case titles and descriptions, exhibit text, your queries"
                 region="USA"
-                compliance="SOC 2 Type II; zero-retention commercial terms"
+                compliance="SOC 2 Type II"
+              />
+              <SubProcRow
+                name="OpenAI"
+                purpose="Transcription of audio and video exhibits: the uploaded media file itself and its filename"
+                region="USA"
+                compliance="Vendor review outstanding"
               />
               <SubProcRow
                 name="Stripe"
@@ -228,6 +237,60 @@ export default function SecurityPage() {
                 purpose="Transactional email (sign-in, invites)"
                 region="USA"
                 compliance="SOC 2 Type II"
+              />
+              <SubProcRow
+                name="Twilio"
+                purpose="Safe Witness SMS: recipient phone number, alert text, location link, verification PIN"
+                region="USA"
+                compliance="SOC 2; HIPAA-eligible"
+              />
+              <SubProcRow
+                name="Google Maps"
+                purpose="Geocoding and map images: place names drawn from case evidence, and Safe Witness coordinates"
+                region="USA"
+                compliance="Vendor review outstanding"
+              />
+              <SubProcRow
+                name="OpenStreetMap (Nominatim)"
+                purpose="Reverse geocoding: latitude and longitude only"
+                region="EU"
+                compliance="Vendor review outstanding"
+              />
+              <SubProcRow
+                name="Microsoft Graph"
+                purpose="Calendar sync for firms that connect it: meeting subjects, times, attendees"
+                region="USA"
+                compliance="Vendor review outstanding"
+              />
+              <SubProcRow
+                name="Zoom"
+                purpose="Meeting creation for firms that connect it: meeting topic and time"
+                region="USA"
+                compliance="Vendor review outstanding"
+              />
+              <SubProcRow
+                name="Cloudflare"
+                purpose="Turnstile bot check: challenge token and requesting IP address"
+                region="USA"
+                compliance="Vendor review outstanding"
+              />
+              <SubProcRow
+                name="Apple / Google / Mozilla push services"
+                purpose="Browser push notifications: routing endpoint plus an encrypted payload they cannot read"
+                region="USA"
+                compliance="Vendor review outstanding"
+              />
+              <SubProcRow
+                name="RevenueCat"
+                purpose="Mobile purchase records: user identifier and entitlement status"
+                region="USA"
+                compliance="SOC 2"
+              />
+              <SubProcRow
+                name="CourtListener"
+                purpose="Case-law lookup: the search query text only"
+                region="USA"
+                compliance="Public dataset"
               />
             </tbody>
           </table>
@@ -259,10 +322,9 @@ export default function SecurityPage() {
       {/* FAQ */}
       <Section eyebrow="Common questions" title="You have questions. We have answers.">
         <div className="space-y-2">
-          <Faq q="Is my case content used to improve any outside service?">
-            No. Our processing partner&apos;s commercial terms forbid using your inputs to
-            improve their service or any other product. Your content reaches Bella or Advottic
-            Review, returns an answer, and is not retained beyond delivering that answer.
+          <Faq q="What happens to my case content when I use Bella or Advottic Review?">
+            It is sent to the processing partner listed in the sub-processor table, which
+            returns the answer. We do not use your case content to train anything of our own.
           </Faq>
           <Faq q="Can my attorney see my case without an Advottic account?">
             Yes - invite them as a collaborator. They'll receive a magic-link invite, see only
@@ -271,8 +333,9 @@ export default function SecurityPage() {
           </Faq>
           <Faq q="What happens to my data if I cancel?">
             Your subscription downgrades at the end of the current billing period. Cases stay
-            in your account read-only. If you delete the account, all case content is purged
-            from primary storage within 30 days and from backups within 35 days.
+            in your account read-only. If you delete the account, your case records and
+            exhibit files are deleted from primary storage; copies can remain in our
+            providers&apos; backups until those backups rotate.
           </Faq>
           <Faq q="Are you SOC 2 / HIPAA / ISO 27001 certified?">
             We're not yet directly certified - we run on infrastructure (Vercel, Supabase,
@@ -280,8 +343,9 @@ export default function SecurityPage() {
             we move beyond early-stage operation.
           </Faq>
           <Faq q="Where is my data stored?">
-            United States. Application on Vercel, database + files on Supabase. We can offer
-            a Data Processing Agreement (DPA) on request.
+            United States. Application on Vercel, database + files on Supabase. One
+            sub-processor, the OpenStreetMap reverse-geocoding service, is EU-based and
+            receives coordinates only.
           </Faq>
         </div>
       </Section>

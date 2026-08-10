@@ -218,14 +218,12 @@ const FIRM_TIERS: Tier[] = [
     price: formatFirmTierPrice(FIRM_TIER_PRICING.enterprise),
     cadence: '/ month',
     blurb:
-      '100+ users, SSO, data residency on request, HIPAA BAA, 99.9% SLA. Final price scales with seats, residency, support tier, and SLA.',
+      '100+ users, SSO, 99.9% SLA. Final price scales with seats, support tier, and SLA.',
     features: [
       '100+ users, no per-seat ceiling',
       'Negotiated matter ceiling (typically uncapped)',
       '15M+ tokens / month per seat (firm pool)',
       'SAML / OIDC SSO (SCIM provisioning on the roadmap)',
-      'Data residency on request (US, EU)',
-      'HIPAA BAA available on request',
       '99.9% uptime SLA',
       'Dedicated infrastructure',
       'White-label tenant subdomain + full brand override',
