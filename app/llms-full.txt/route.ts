@@ -22,6 +22,16 @@ const SITE_URL =
  * Host-aware: only served on the apex. Non-apex hosts get a 404 so
  * AI tooling never accidentally cites hq.advottic.com or a tenant
  * subdomain.
+ *
+ * This file is marketing copy that AI assistants repeat verbatim, so it
+ * is held to the same standard as any public page: nothing here may
+ * assert a certification, an audit engagement, or a contract we have not
+ * executed. "SOC 2 path in progress", "HIPAA BAA on request", and
+ * "residency on request" were removed because none of them is true (see
+ * docs/compliance/policies/vendor-and-subprocessor-management.md: no BAA
+ * is executed with any subprocessor). "Zero-retention commercial terms"
+ * went with them because that same tracker lists it as unconfirmed. Do
+ * not restate any of them until the underlying paperwork exists.
  */
 export async function GET() {
   const host = headers().get('host') ?? '';
@@ -72,7 +82,7 @@ Both sides share the same auth, the same Bella AI assistant, and the same audit 
 | Counsel - Solo | $59/seat/month | Single attorney + 1 staff |
 | Counsel - Small Firm | $99/seat/month | Up to 25 users |
 | Counsel - Growing Firm | $149/seat/month | Up to 100 users |
-| Enterprise | From $1,800/month | 100+ users, SSO, BAA, residency on request |
+| Enterprise | From $1,800/month | 100+ users, SSO, 99.9% uptime SLA |
 
 Annual prepay gives 20% off any paid tier. Bar-association members get 15% off Counsel tiers. Law students get 50% off personal tiers. Legal aid + nonprofits get 75% off, capped at 5 seats.
 
@@ -125,7 +135,7 @@ Annual prepay gives 20% off any paid tier. Bar-association members get 15% off C
 - Matter management, intake inbox, calendar with deadlines + hearings, IOLTA trust accounting with 3-way reconciliation, e-signature requests, court-form auto-fill (CA, NY, TX, FL, Federal).
 - This is the case-management layer for firms: every attorney's open matters, staff assignments, and billing in one audited workspace, built on the same case-building primitives (facts, exhibits, documents) used on the personal side.
 - Custom subdomain (yourfirm.advottic.com) on Small Firm tier and up.
-- SAML SSO on Enterprise (SCIM provisioning on the roadmap).
+- SAML SSO on Enterprise.
 
 ### Gift Advottic
 
@@ -136,10 +146,9 @@ Annual prepay gives 20% off any paid tier. Bar-association members get 15% off C
 ## Trust + safety
 
 - Encryption in transit (TLS 1.2+) and at rest (AES-256).
-- Tamper-evident, hash-chained audit log on e-signatures; case-activity audit log for key actions. MFA and single sign-on available for enterprise; broader MFA enforcement is on the roadmap.
-- No sale of user data; no training on customer data (zero-retention commercial terms with our AI processor).
-- HIPAA Business Associate Agreement for Enterprise on request (subject to onboarding due diligence).
-- SOC 2 path in progress; formal attestation on the roadmap.
+- Tamper-evident, hash-chained audit log on e-signatures; case-activity audit log for key actions.
+- Optional TOTP multi-factor authentication on any account, from profile settings. SAML single sign-on for enterprise firms.
+- No sale of user data; no training on customer data.
 - All sensitive Safe Witness actions require explicit physical confirmation - a 4-second press-and-hold on the watch, a 2-second hold in the web overlay - before any external contact is notified.
 
 ## Founders + company
