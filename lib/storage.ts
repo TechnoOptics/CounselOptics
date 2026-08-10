@@ -1669,21 +1669,63 @@ export async function inviteCollaborator(input: {
     : null;
 
   const email = input.email.toLowerCase();
-  const { data, error } = await supabase
+  const row = {
+    case_id: input.caseId,
+    email,
+    role: input.role,
+    user_id: existingUserId,
+    invited_by: user.id,
+    accepted_at: existingUserId ? new Date().toISOString() : null,
+  };
+
+  // INSERT, not upsert, through the member client.
+  //
+  // A PostgREST upsert is INSERT ... ON CONFLICT DO UPDATE SET <every column
+  // in the payload>, and Postgres wants UPDATE privilege on every column in
+  // that SET list. Since the applied migration
+  // supabase/migrations/20260810_update_policies_collaborators_exhibits.sql,
+  // `authenticated` holds UPDATE on witness_statement and
+  // witness_statement_updated_at and nothing else, deliberately: `role` is
+  // what private.can_add_to_case reads, so a collaborator able to write it
+  // could promote themselves. Postgres tests that grant when it PLANS the
+  // statement, so the upsert was refused even for a brand new email that
+  // could never have conflicted, and every consumer invite failed.
+  //
+  // A plain insert needs only INSERT, which the member client still holds,
+  // and it keeps the owner-scoped INSERT policy on the write where the
+  // common case belongs. Widening the grant back is not an option: it would
+  // re-open the self-promotion the migration closed.
+  let { data, error } = await supabase
     .from('case_collaborators')
-    .upsert(
-      {
-        case_id: input.caseId,
-        email,
-        role: input.role,
-        user_id: existingUserId,
-        invited_by: user.id,
-        accepted_at: existingUserId ? new Date().toISOString() : null,
-      },
-      { onConflict: 'case_id,email' },
-    )
+    .insert(row)
     .select('*')
     .single();
+
+  // 23505 on case_collaborators_case_email_unique: they are already on the
+  // case and the owner is changing their role or re-sending the invite. That
+  // half genuinely cannot go through the member client any more, so it takes
+  // the service-role path the firm invite already uses. The case-ownership
+  // check above is what authorizes it, and the write is pinned to this case
+  // and this email so it cannot reach another matter's row.
+  if (error && (error as { code?: string }).code === '23505') {
+    if (!admin) {
+      throw new Error(
+        'That person is already on this case, and their role could not be updated. Nothing has changed.',
+      );
+    }
+    ({ data, error } = await admin
+      .from('case_collaborators')
+      .update({
+        role: row.role,
+        user_id: row.user_id,
+        accepted_at: row.accepted_at,
+        invited_by: row.invited_by,
+      })
+      .eq('case_id', input.caseId)
+      .eq('email', email)
+      .select('*')
+      .single());
+  }
   if (error) throw error;
 
   const emailed = admin
