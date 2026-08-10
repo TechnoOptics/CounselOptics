@@ -29,3 +29,20 @@ jobs:
         run: npm ci
       - name: Run source-invariant guards
         run: npm run test:audit-guards
+
+      # The unit and invariant suite, which until now ran ONLY on developer
+      # machines. Nothing in CI executed it, so 173 files and 2962 tests could
+      # not fail a push or a pull request, and a branch that broke them merged
+      # green. That was the largest gap of its kind in the repo: an audit that
+      # reports a clean result for input it never read.
+      #
+      # Placed AFTER the source-invariant guards on purpose. Those are seconds
+      # of pure-Node string work and catch the coarse regressions, so letting
+      # them speak first keeps the common failure legible instead of buried
+      # under a suite run.
+      #
+      # No `--coverage` and no reporter flags: this step exists to answer one
+      # question, whether the suite passes, and every extra artifact is another
+      # thing that can fail for reasons unrelated to the code.
+      - name: Run the test suite
+        run: npx vitest run
