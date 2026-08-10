@@ -4,6 +4,11 @@ import { GIFT_TIERS, formatDollars } from '@/lib/gift';
 
 export const dynamic = 'force-dynamic';
 
+// Post-checkout confirmation, keyed to a gift id in the query string.
+// noindex rather than a canonical: there is nothing here to index, and
+// the URL identifies one buyer's purchase.
+export const metadata = { robots: { index: false, follow: false } };
+
 /**
  * /gift/sent?id=<gift_id>
  *

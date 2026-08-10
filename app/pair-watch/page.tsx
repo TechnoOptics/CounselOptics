@@ -3,7 +3,12 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { PairWatchForm } from './pair-watch-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Pair Wear OS watch · Advottic' };
+// Device-pairing utility, not a page anyone should reach from search.
+// noindex rather than a canonical: there is nothing here to index.
+export const metadata = {
+  title: 'Pair Wear OS watch · Advottic',
+  robots: { index: false, follow: false },
+};
 
 /**
  * /pair-watch

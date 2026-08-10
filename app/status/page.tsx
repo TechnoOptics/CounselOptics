@@ -7,6 +7,7 @@ export const metadata = {
   title: 'Status',
   description:
     'Live operational status for Advottic. Probes Supabase, Stripe, Resend, and Anthropic in real time on every page load.',
+  alternates: { canonical: '/status' },
 };
 
 /**
