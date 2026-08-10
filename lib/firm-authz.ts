@@ -65,6 +65,28 @@ export const FIRM_POSTING_ROLES: readonly FirmRole[] = [
 ];
 
 /**
+ * Author, publish and PREVIEW a firm's own document templates.
+ *
+ * The same four roles lib/firm-templates.ts has always required in order to
+ * write a template, moved here so that the preview of an unsaved draft
+ * (app/api/counsel/draft-template/pdf) and the save of that same draft cannot
+ * come to hold two different lists. A preview draws the firm's own letterhead
+ * over text the caller supplied and hands back a finished PDF, so the set that
+ * may see one has to be the set that may save one, and two constants naming
+ * the same four roles is exactly how that stops being true.
+ *
+ * Deliberately NOT FIRM_POSTING_ROLES, which happens to name the same four
+ * roles today. That set is matter material, and a template is not a matter:
+ * widening one of these must not silently widen the other.
+ */
+export const FIRM_TEMPLATE_AUTHOR_ROLES: readonly FirmRole[] = [
+  'owner',
+  'admin',
+  'attorney',
+  'paralegal',
+];
+
+/**
  * What someone whose role does not reach matter material is told.
  *
  * One sentence, exported rather than written out at each of the four call

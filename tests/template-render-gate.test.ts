@@ -172,7 +172,14 @@ vi.mock('../lib/supabase/server', () => ({
   getCurrentUser: async () => currentUser,
   isSupabaseConfigured: () => true,
 }));
-vi.mock('../lib/supabase/admin', () => ({ createAdminSupabase: () => ({}) }));
+/**
+ * A spy, not a stub, because one of the cases below is about a branch that
+ * must never reach the database at all. The service-role client is the only
+ * way any write in this codebase happens, so "never asked for one" is a
+ * checkable statement of "wrote nothing".
+ */
+const createAdminSupabase = vi.fn(() => ({}));
+vi.mock('../lib/supabase/admin', () => ({ createAdminSupabase }));
 // Loaded for real so FIRM_MANAGE_ROLES stays the real role list; only the
 // lookup that hits the database is replaced.
 vi.mock('../lib/firm-authz', async (importOriginal) => ({
@@ -182,8 +189,15 @@ vi.mock('../lib/firm-authz', async (importOriginal) => ({
 vi.mock('../lib/portal-entitlements', () => ({
   authorizeFirmActor: async () => ({ ok: true }),
 }));
+/**
+ * The firm record, which is where a document's IDENTITY comes from on every
+ * branch but the free-text one. Mutable so a case can give the firm a
+ * letterhead of its own and then check whose letterhead reached the renderer.
+ */
+let firmRecord: Record<string, unknown> = { name: 'A Firm' };
+
 vi.mock('../lib/firm-storage', () => ({
-  getFirmByIdAdmin: async () => ({ name: 'A Firm' }),
+  getFirmByIdAdmin: async () => firmRecord,
   getActiveFirmContext: async () => activeFirm,
 }));
 vi.mock('../lib/branded-document-pdf', () => ({ buildBrandedDocumentPdf }));
@@ -206,7 +220,11 @@ const mergeTemplateDocument = vi.fn((input: Record<string, unknown>) => {
   return TEMPLATE_BODY;
 });
 
-vi.mock('../lib/firm-template-placeholders', () => ({
+vi.mock('../lib/firm-template-placeholders', async (importOriginal) => ({
+  // The real module first, so TEMPLATE_BODY_MAX is the number the SAVE path
+  // truncates to rather than a number this file made up. A preview capped at
+  // a different length would show a page that cannot be saved.
+  ...(await importOriginal<Record<string, unknown>>()),
   formatSignedOn: () => '1 January 2026',
   // The real merge is tested elsewhere. Here it stands in for "the firm's own
   // template", so an assertion on what reached the renderer can tell that
@@ -215,6 +233,15 @@ vi.mock('../lib/firm-template-placeholders', () => ({
 }));
 
 const { POST } = await import('../app/api/counsel/draft-template/pdf/route');
+
+/**
+ * The real cap, taken past the mock above. A number written out here instead
+ * would pass while the save truncated somewhere else entirely, which is the
+ * one thing the truncation case is for.
+ */
+const { TEMPLATE_BODY_MAX } = await vi.importActual<
+  typeof import('../lib/firm-template-placeholders')
+>('../lib/firm-template-placeholders');
 
 const post = (body: Record<string, unknown>) =>
   POST({ json: async () => body } as unknown as NextRequest);
@@ -380,4 +407,174 @@ describe('the route states the template mode it is rendering', () => {
       expect(mergeTemplateDocument.mock.calls[0][0]).toMatchObject({ deliveryMode: mode });
     });
   }
+});
+
+/*
+ * TEMPLATE-DRAFT MODE: the editor previewing something that has never been
+ * saved.
+ *
+ * The draft body is the caller's own unsaved work and has to come from the
+ * request; there is nowhere else it could come from. That makes two questions
+ * load-bearing, and they are the two this block asks.
+ *
+ * WHO. Rendering a draft hands back a finished PDF on the firm's letterhead,
+ * so the set who may ask for one has to be the set who may save one. The role
+ * is read off the caller's own membership and checked against
+ * FIRM_TEMPLATE_AUTHOR_ROLES, which lib/firm-templates.ts also gates its writes
+ * on. lib/firm-authz is loaded for real here so that list is the real list.
+ *
+ * WHAT ELSE THE REQUEST GETS TO DECIDE, which is nothing. The identity of the
+ * document, its letterhead and its page defaults are read off the firm record.
+ * The free-text branch above still takes letterheadUrl and logoUrl from the
+ * body, and a case below posts both to make sure this branch does not.
+ */
+describe('POST /api/counsel/draft-template/pdf, an unsaved template draft', () => {
+  const DRAFT = {
+    firmId: 'firm-1',
+    draftTemplate: {
+      name: 'Mutual NDA',
+      body: 'The parties agree to keep {{topic}} confidential.',
+      fields: [{ key: 'topic', label: 'Topic', type: 'text', required: true }],
+      deliveryMode: 'share',
+      documentLayout: null,
+    },
+  };
+
+  beforeEach(() => {
+    currentUser = { id: 'author-1', email: 'author@example.test' };
+    currentRole = 'attorney';
+    activeFirm = null;
+    firmRecord = { name: 'A Firm' };
+    buildBrandedDocumentPdf.mockClear();
+    mergeTemplateDocument.mockClear();
+    createAdminSupabase.mockClear();
+  });
+
+  it('refuses a signed-in caller who holds no role at this firm, and renders nothing', async () => {
+    currentRole = null;
+    const res = await post(DRAFT);
+    expect(res.status).toBe(403);
+    expect(res.headers.get('Content-Type')).not.toBe('application/pdf');
+    expect(buildBrandedDocumentPdf).not.toHaveBeenCalled();
+  });
+
+  it('refuses staff, who cannot save a template either', async () => {
+    currentRole = 'staff';
+    const res = await post(DRAFT);
+    expect(res.status).toBe(403);
+    expect(buildBrandedDocumentPdf).not.toHaveBeenCalled();
+  });
+
+  for (const role of ['owner', 'admin', 'attorney', 'paralegal'] as const) {
+    it(`renders for ${role}, who can save one`, async () => {
+      // Without these the refusals above would also pass on a route that
+      // refused everybody, which is a broken feature rather than a gate.
+      currentRole = role;
+      const res = await post(DRAFT);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe('application/pdf');
+      expect(buildBrandedDocumentPdf).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it('refuses an empty draft rather than returning an empty page', async () => {
+    const res = await post({ ...DRAFT, draftTemplate: { ...DRAFT.draftTemplate, body: '   ' } });
+    expect(res.status).toBe(400);
+    expect(buildBrandedDocumentPdf).not.toHaveBeenCalled();
+  });
+
+  it('takes the letterhead and the logo from the firm, never from the body', async () => {
+    firmRecord = {
+      name: 'A Firm',
+      letterheadUrl: 'https://cdn.example.test/a-firm.png',
+      logoUrl: 'https://cdn.example.test/a-firm-logo.png',
+      accentColor: '#0f2d24',
+    };
+    const res = await post({
+      ...DRAFT,
+      letterheadUrl: 'https://elsewhere.example.test/someone-elses-banner.png',
+      logoUrl: 'https://elsewhere.example.test/someone-elses-logo.png',
+      brandName: 'Someone Else LLP',
+      accent: '#ff0000',
+    });
+    expect(res.status).toBe(200);
+    const input = buildBrandedDocumentPdf.mock.calls[0][0];
+    expect(input.letterheadUrl).toBe('https://cdn.example.test/a-firm.png');
+    expect(input.logoUrl).toBe('https://cdn.example.test/a-firm-logo.png');
+    expect(input.brandName).toBe('A Firm');
+    expect(input.accent).toBe('#0f2d24');
+  });
+
+  it('renders the draft unsigned, which is what it is', async () => {
+    await post(DRAFT);
+    expect(buildBrandedDocumentPdf.mock.calls[0][0].state).toBe('unsigned');
+  });
+
+  it('lays the draft out on the firm layout with this template’s override on top', async () => {
+    firmRecord = {
+      name: 'A Firm',
+      metadata: { document_layout: { margins: { topPt: 90 } } },
+    };
+    await post({
+      ...DRAFT,
+      draftTemplate: {
+        ...DRAFT.draftTemplate,
+        documentLayout: { footer: { show: false } },
+      },
+    });
+    const layout = buildBrandedDocumentPdf.mock.calls[0][0].layout;
+    // The band the template took over.
+    expect(layout?.footer.show).toBe(false);
+    // And the band it left alone, which still follows the firm.
+    expect(layout?.margins.topPt).toBe(90);
+  });
+
+  for (const mode of ['share', 'signature']) {
+    it(`passes the draft's ${mode} mode to the merge`, async () => {
+      // The mode decides whether a counterparty field is a blank at all, so a
+      // preview that guessed it would show a different document from the one
+      // this template will produce.
+      await post({
+        ...DRAFT,
+        draftTemplate: { ...DRAFT.draftTemplate, deliveryMode: mode },
+      });
+      expect(mergeTemplateDocument.mock.calls[0][0]).toMatchObject({ deliveryMode: mode });
+    });
+  }
+
+  it('merges with no answers and no signer, because nobody has filled it in', async () => {
+    await post(DRAFT);
+    expect(mergeTemplateDocument.mock.calls[0][0]).toMatchObject({
+      values: {},
+      signatureName: '',
+      signerEmail: '',
+    });
+  });
+
+  it('truncates the body to the length the save would store', async () => {
+    const over = 'x'.repeat(TEMPLATE_BODY_MAX + 500);
+    await post({ ...DRAFT, draftTemplate: { ...DRAFT.draftTemplate, body: over } });
+    const merged = mergeTemplateDocument.mock.calls[0][0] as { body: string };
+    expect(merged.body).toHaveLength(TEMPLATE_BODY_MAX);
+  });
+
+  it('never asks for the service-role client, so a preview cannot write', async () => {
+    // The only way anything in this codebase writes past RLS. A preview that
+    // moved a template, a submission, or the revision an approval is pinned to
+    // would have to come through here first.
+    await post(DRAFT);
+    expect(buildBrandedDocumentPdf).toHaveBeenCalledTimes(1);
+    expect(createAdminSupabase).not.toHaveBeenCalled();
+  });
+
+  it('reads no table and writes none, in the branch itself', () => {
+    // The behavioural check above covers the route as it runs. This covers
+    // what a future edit could add to the branch without any request showing
+    // it: a PostgREST call of any kind, on any client.
+    const branch = ROUTE.slice(ROUTE.indexOf('async function renderTemplateDraft'));
+    expect(branch.length).toBeGreaterThan(0);
+    for (const write of ['.insert(', '.update(', '.upsert(', '.delete(', '.from(']) {
+      expect(branch).not.toContain(write);
+    }
+  });
 });

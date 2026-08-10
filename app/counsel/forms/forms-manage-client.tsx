@@ -23,6 +23,7 @@ import {
   type LetterheadAvailability,
 } from '@/components/counsel/DocumentLayoutFields';
 import { EmptyState } from '@/components/counsel/ui';
+import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
 import {
   Chip,
   MonoRef,
@@ -463,6 +464,7 @@ function TemplateEditor({
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [imported, setImported] = useState<{ notes: string[] } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   /**
    * Fill the editor from an uploaded document. NOTHING is saved: the proposal
@@ -519,6 +521,40 @@ function TemplateEditor({
         required: true,
       },
   );
+
+  /**
+   * The draft, rendered as the PDF it becomes, by the server that renders the
+   * real thing.
+   *
+   * Everything sent is what Save would write: the same body, the same derived
+   * fields, the same delivery mode and the same partial layout override. The
+   * firm's letterhead, accent and page defaults are NOT sent, because the
+   * server reads those off the firm record; a preview that carried its own
+   * branding could show a page no colleague would ever receive.
+   *
+   * Nothing is saved by asking for it. This is a render, and the Save buttons
+   * below remain the only thing that writes.
+   */
+  const buildPreviewPdf = async (): Promise<Blob> => {
+    const res = await fetch('/api/counsel/draft-template/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firmId,
+        draftTemplate: { name, body, fields, deliveryMode, documentLayout },
+      }),
+    });
+    if (!res.ok) {
+      // The server's own sentence, which says whether this was a permission,
+      // an empty draft or a failed render. A generic message here is how a
+      // preview that refused for a reason the author could fix reads as a
+      // fault in the app. Capped, because a proxy or a crash can answer with
+      // a page rather than a sentence.
+      const said = (await res.text().catch(() => '')).trim().slice(0, 300);
+      throw new Error(said || t('The preview could not be prepared. Try again in a moment.'));
+    }
+    return res.blob();
+  };
 
   const inputCls =
     'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100';
@@ -803,6 +839,45 @@ function TemplateEditor({
       </label>
 
       <div className="flex flex-wrap gap-2 border-t border-ink-100 pt-4 dark:border-forest-800/50">
+        {/* Before the Save buttons, in reading order, because that is the
+            order the decision is made in. Disabled on exactly the condition
+            the Save buttons are disabled on, so what can be previewed and
+            what can be saved are the same draft. */}
+        <button
+          type="button"
+          disabled={busy || !name.trim() || !body.trim()}
+          onClick={() => setPreviewOpen(true)}
+          className="btn-secondary text-sm disabled:opacity-50"
+        >
+          <T>Preview as PDF</T>
+        </button>
+        {previewOpen && (
+          <PdfPreviewDialog
+            title={name.trim() || 'Template'}
+            filename={`${(name.trim() || 'template').replace(/[^a-z0-9]+/gi, '-')}.pdf`}
+            buildPdf={buildPreviewPdf}
+            onClose={() => setPreviewOpen(false)}
+            note={
+              <>
+                <T>
+                  This is your template drawn by the same renderer that produces the
+                  document your colleague sends, on your firm&rsquo;s letterhead and this
+                  template&rsquo;s page layout. Two things look different here: the blanks
+                  show their labels until someone fills them in, and nothing has been
+                  signed yet, so anything your firm shows on an unsigned page is not on
+                  a signed one.
+                </T>{' '}
+                {deliveryMode === 'signature' && (
+                  <T>
+                    This template goes out for signature, so the copy that is sent also
+                    carries a block naming the recipient and a place for them to sign,
+                    added once your colleague has addressed it.
+                  </T>
+                )}
+              </>
+            }
+          />
+        )}
         <button
           type="button"
           disabled={busy || !name.trim() || !body.trim()}

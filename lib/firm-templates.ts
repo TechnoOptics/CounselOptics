@@ -10,6 +10,8 @@ import {
   type DeliveryMode,
 } from './submission-dispatch';
 import { parseTemplateFieldParty } from './counterparty-fields';
+import { FIRM_TEMPLATE_AUTHOR_ROLES } from './firm-authz';
+import { TEMPLATE_BODY_MAX } from './firm-template-placeholders';
 import { sanitizeDocumentLayoutOverride } from './document-layout';
 import {
   DOCUMENT_LAYOUT_UNSAVED_ERROR,
@@ -133,7 +135,13 @@ function toTemplate(r: Row): FirmTemplate {
   };
 }
 
-const AUTHOR_ROLES = new Set(['owner', 'admin', 'attorney', 'paralegal']);
+/**
+ * The role list itself now lives in lib/firm-authz.ts, the one authorization
+ * axis, because the PDF preview of an unsaved draft has to refuse exactly who
+ * this refuses. Read into a Set here only because that is what the lookup
+ * below wants.
+ */
+const AUTHOR_ROLES = new Set<string>(FIRM_TEMPLATE_AUTHOR_ROLES);
 
 async function requireAuthor(firmId: string) {
   const user = await getCurrentUser();
@@ -203,7 +211,7 @@ export async function createFirmTemplateAction(
   const gate = await requireAuthor(firmId);
   if ('error' in gate) return { ok: false, error: gate.error };
   const name = input.name.trim().slice(0, 120);
-  const body = input.body.trim().slice(0, 100000);
+  const body = input.body.trim().slice(0, TEMPLATE_BODY_MAX);
   if (!name || !body) return { ok: false, error: 'Give the template a name and a body.' };
   const deliveryMode = parseDeliveryMode(input.deliveryMode);
   const documentLayout = sanitizeDocumentLayoutOverride(input.documentLayout);
@@ -282,7 +290,7 @@ export async function updateFirmTemplateAction(
   if (input.name !== undefined) patch.name = input.name.trim().slice(0, 120);
   if (input.description !== undefined) patch.description = input.description.trim().slice(0, 500) || null;
   if (input.category !== undefined) patch.category = input.category.trim().slice(0, 60) || null;
-  if (input.body !== undefined) patch.body = input.body.trim().slice(0, 100000);
+  if (input.body !== undefined) patch.body = input.body.trim().slice(0, TEMPLATE_BODY_MAX);
   if (input.fields !== undefined) patch.fields = sanitizeFields(input.fields);
   if (input.status !== undefined) patch.status = input.status;
   if (input.requiresApproval !== undefined) patch.requires_approval = input.requiresApproval;
