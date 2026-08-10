@@ -199,6 +199,35 @@ export function signatureMethodFromPadMode(mode: unknown): SignatureMethod | nul
   return null;
 }
 
+/**
+ * What a surface holding a pad may claim it was handed, in one function.
+ *
+ * `padMode` is the pad's own vocabulary and is untrusted, so a caller that
+ * sends the string 'phone' there is translated to null by
+ * signatureMethodFromPadMode and has therefore said nothing. That is not an
+ * oversight to be tidied up: 'phone' is the only one of the four a server can
+ * establish for itself, and it is established by a handoff that burned a
+ * one-time token and bound a cookie to the scanning device, never by a browser
+ * asserting it. `attestedPhone` is that establishment and nothing else may set
+ * it.
+ *
+ * lib/signature-write.ts states the same rule for the outside signer, over a
+ * different vocabulary: it is handed a SignatureMethod claim rather than a pad
+ * mode, and its own `source === 'mobile_handoff'` is the attestation. The two
+ * agree on the only part that matters, which is that a browser saying 'phone'
+ * is treated as having said nothing.
+ */
+export function claimedSignatureMethod(input: {
+  /** True only when the SERVER established the mark came from a bound phone. */
+  attestedPhone: boolean;
+  /** Whatever the pad reported. Untrusted. */
+  padMode: unknown;
+}): SignatureMethod | null {
+  return input.attestedPhone
+    ? 'phone'
+    : signatureMethodFromPadMode(input.padMode);
+}
+
 /** The three modes components/SignaturePad can render, in its tab order. */
 export const PAD_MODES = ['drawn', 'typed', 'uploaded'] as const;
 export type PadMode = (typeof PAD_MODES)[number];

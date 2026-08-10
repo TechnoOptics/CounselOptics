@@ -51,6 +51,18 @@ let mutateAfterNextRead: (() => void) | null = null;
 /** Set to make storeSubmissionMark report a failed upload. */
 let uploadFails = false;
 
+/** The template's signature_methods. Undefined is a database without
+ *  20260814_signature_methods.sql, which reads as no restriction. */
+let templateSignatureMethods: string[] | null | undefined = undefined;
+
+/** What the server would conclude about a claimed phone handoff, and what it
+ *  was asked. The real function is exercised in
+ *  tests/mark-handoff-queries.test.ts; here it stands in so the WIRING can be
+ *  checked: that the gate asks at all, and asks about the caller's own
+ *  session rather than about anything in the request body. */
+let phoneAttested = false;
+const attestationAsks: Record<string, unknown>[] = [];
+
 const uploads: {
   firmId: string;
   submissionId: string;
@@ -213,8 +225,15 @@ vi.mock('../lib/template-fill', () => ({
     fields: [],
     category: templateCategory,
     deliveryMode: templateDeliveryMode,
+    signatureMethods: templateSignatureMethods,
   }),
   sanitizeTemplateValues: (_fields: unknown, values: Record<string, string>) => values,
+}));
+vi.mock('../lib/mark-handoff-queries', () => ({
+  spendPhoneMarkAttestation: async (ask: Record<string, unknown>) => {
+    attestationAsks.push(ask);
+    return phoneAttested;
+  },
 }));
 vi.mock('../lib/template-release', () => ({
   releaseApprovedSubmission: vi.fn(async () => ({ ok: true as const })),
@@ -313,6 +332,9 @@ beforeEach(() => {
   uploadFails = false;
   uploads.length = 0;
   createNotification.mockClear();
+  templateSignatureMethods = undefined;
+  phoneAttested = false;
+  attestationAsks.length = 0;
   store.row = {};
 });
 
@@ -588,5 +610,145 @@ describe('a reviewer editing the wording', () => {
     expect(res.ok).toBe(false);
     expect(store.row.signed_document_sha256).toBe(before.signed_document_sha256);
     expect(store.row.signature_image_path).toBe(before.signature_image_path);
+  });
+});
+
+/**
+ * The firm's say over how its own people sign.
+ *
+ * The employee's signature was the one in the product that ignored it: the pad
+ * offered all three modes whatever the template said and nothing on the way in
+ * looked, so a template restricted to a typed name accepted an uploaded
+ * photograph and the row recorded it without complaint.
+ *
+ * These run the real action against the fake table, so what is asserted is
+ * that the submission did not happen, not that a particular line of code is
+ * present.
+ */
+describe('the signature method the firm agreed to accept', () => {
+  it('records a mark made the way the template allows', async () => {
+    templateSignatureMethods = ['draw'];
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'drawn' }),
+    );
+
+    expect(res.ok).toBe(true);
+    expect(store.row.signature_mode).toBe('drawn');
+  });
+
+  it('refuses an uploaded image on a template that forbids one', async () => {
+    templateSignatureMethods = ['type'];
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'uploaded' }),
+    );
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('not one of the signature methods allowed');
+    // Nothing reached the queue. A refusal that still filed the document
+    // would be a message rather than a control.
+    expect(store.row).toEqual({});
+    expect(uploads).toEqual([]);
+  });
+
+  it('refuses on the resubmit path too, not only the first time', async () => {
+    templateSignatureMethods = ['type'];
+    sentBack();
+    const revisionBefore = store.row.revision;
+
+    const res = await resubmitTemplateSubmissionAction(
+      'sub-1',
+      input({ signatureMode: 'uploaded' }),
+    );
+
+    expect(res.ok).toBe(false);
+    expect(store.row.revision).toBe(revisionBefore);
+    expect(store.row.status).toBe('changes_requested');
+  });
+
+  /**
+   * The phone is the one method a browser cannot talk its way into. A page
+   * that simply said so would be a restriction one string wide.
+   */
+  it('refuses a phone-only template when the server cannot verify the handoff', async () => {
+    templateSignatureMethods = ['phone'];
+    phoneAttested = false;
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'drawn', signatureHandoffId: 'someone-elses-handoff' }),
+    );
+
+    expect(res.ok).toBe(false);
+    expect(store.row).toEqual({});
+  });
+
+  it('accepts one the server did verify', async () => {
+    templateSignatureMethods = ['phone'];
+    phoneAttested = true;
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'drawn', signatureHandoffId: 'h1' }),
+    );
+
+    expect(res.ok).toBe(true);
+    // A phone mark is a drawn mark, which is what the column stores. That it
+    // was made on a PHONE is the gate's business, not the column's.
+    expect(store.row.signature_mode).toBe('drawn');
+  });
+
+  /** And the attestation is asked about the caller, not about the body. */
+  it('checks the handoff against the caller own session, firm and template', async () => {
+    templateSignatureMethods = ['phone'];
+    phoneAttested = true;
+
+    await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'drawn', signatureHandoffId: 'h1' }),
+    );
+
+    expect(attestationAsks).toHaveLength(1);
+    expect(attestationAsks[0]).toMatchObject({
+      handoffId: 'h1',
+      userId: 'employee-1',
+      firmId: 'firm-1',
+      templateId: 'tpl-1',
+      signatureDataUrl: PNG_URL,
+    });
+  });
+
+  /** No handoff named is not a phone signature, and nothing is spent. */
+  it('does not go looking for a handoff nobody claimed', async () => {
+    templateSignatureMethods = ['draw'];
+
+    await submitTemplateForApprovalAction('firm-1', 'tpl-1', input());
+
+    expect(attestationAsks).toEqual([]);
+  });
+
+  /**
+   * A column the database does not have is not a restriction.
+   * 20260814_signature_methods.sql is unapplied, and a gate that refused
+   * everything until it lands would take the product down.
+   */
+  it('accepts anything while the column is absent', async () => {
+    templateSignatureMethods = undefined;
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'uploaded' }),
+    );
+
+    expect(res.ok).toBe(true);
   });
 });

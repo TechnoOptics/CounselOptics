@@ -70,21 +70,34 @@ export function SignaturePad({
    * component rendered, because /api/firm/sign reads a token out of a request
    * body and never sees this page at all.
    *
-   * An empty or unusable list falls back to all three rather than leaving the
-   * signer with no way to make a mark. That is the right direction HERE and
-   * only here: the server still refuses whatever the firm forbade, so the
-   * worst case is a signer offered a tab that will be declined, and the
-   * alternative is a pad with nothing on it and no explanation.
+   * OMITTED means no restriction, and all three are offered. An EMPTY LIST is
+   * a different statement and is not widened back: it is what padModesFor
+   * returns for a template restricted to the phone, and reading it as "no
+   * preference" offered every method the firm had just forbidden, on this
+   * page, in a component whose whole job here is to respect them. The same
+   * asymmetry lib/signature-methods.ts keeps between null and [] on the way
+   * in is kept here on the way out.
+   *
+   * With nothing to offer the pad says so instead of drawing a canvas. The
+   * sentence is deliberately neutral about WHY, because this component does
+   * not know: an empty list arrives both from a template restricted to the
+   * phone, where the surface below has a QR card, and from a template
+   * restricted to nothing at all, where it has an apology. Naming the phone
+   * here would be false in the second case, and each surface says the true
+   * thing beneath it.
    */
   allowedModes?: readonly SignatureMode[];
 }) {
   const ALL_MODES: readonly SignatureMode[] = ['drawn', 'typed', 'uploaded'];
-  const offered =
-    allowedModes && allowedModes.length > 0 ? allowedModes : ALL_MODES;
+  const offered = allowedModes ?? ALL_MODES;
+  const nothingOffered = offered.length === 0;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // Opens on the first mode the firm actually allows, so a template that
   // forbids drawing does not greet the signer with a pad they may not use.
-  const [mode, setMode] = useState<SignatureMode>(offered[0]);
+  // `?? 'drawn'` only for the empty case, which returns the sentence below
+  // before any of this state is reachable. A hook cannot be skipped, so the
+  // state still has to be declared with something.
+  const [mode, setMode] = useState<SignatureMode>(offered[0] ?? 'drawn');
   const [typed, setTyped] = useState(defaultTypedName ?? '');
   const [drawing, setDrawing] = useState(false);
   const [hasInk, setHasInk] = useState(false);
@@ -270,6 +283,19 @@ export function SignaturePad({
       {label}
     </button>
   );
+
+  // Nothing this pad can do is allowed here. Said plainly rather than by
+  // drawing a canvas whose every mark the server would refuse.
+  if (nothingOffered) {
+    return (
+      <div className="space-y-3">
+        {heading}
+        <p className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/40 dark:bg-forest-900/30 px-3 py-2.5 text-[13px] leading-relaxed text-ink-700 dark:text-cream-100/80">
+          This document cannot be signed on this page.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
