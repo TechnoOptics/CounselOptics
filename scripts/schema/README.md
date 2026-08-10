@@ -23,17 +23,26 @@ migration that nobody committed a fingerprint update for.
   repo secret is set (a **read-only** connection string is enough, since the
   check only reads catalog metadata).
 
-## Current status: NOT ENABLED, so the gate catches nothing
+## Current status: INERT. This gate is not protecting you.
 
-As of 2026-08-09 the `SUPABASE_DB_URL` repo secret does not exist, and the
-`Compare live schema fingerprint to committed baseline` step of the Schema
-drift workflow reports `skipped` on every run, including the most recent run
-on `main`. The job still finishes green, because skipping is not failing.
+Not "needs configuring". **Inert**, and passing. As of 2026-08-09 the
+`SUPABASE_DB_URL` repo secret does not exist, so the
+`Compare live schema fingerprint to committed baseline` step reports
+`skipped` on every run, including the most recent run on `main`
+(id `31338730362`). The job then concludes **success**, because a skipped
+step is not a failed one. A green Schema drift check currently tells you
+nothing at all about the live schema.
 
-Read that before trusting any note anywhere in this repo that says CI will
-fail on a stale fingerprint. Until the secret is added, regenerating
-`supabase/schema-fingerprint.sha256` after applying a migration is a purely
-human discipline with no automated backstop.
+This has already cost real accuracy. Two migration headers
+(`20260801_firm_trials.sql`, `20260808_trial_plan_level_and_user_trials.sql`)
+said NOT APPLIED while their columns were live in production, and were only
+caught on 2026-08-09 by querying the database by hand. Nothing flagged either
+one, and nothing will flag the next.
+
+So: do not trust any note in this repo claiming CI will fail on a stale
+fingerprint, and do not read a green check as confirmation that a migration
+was applied or that the fingerprint is current. Until the secret is added,
+both are human checks. Enabling it is the section below and takes one secret.
 
 ## Enabling the gate
 

@@ -1,11 +1,27 @@
 -- Organization trial lifecycle: expiry, seats, suspension, and an audit trail.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-01. The owner applies this and regenerates
--- supabase/schema-fingerprint.sha256 in the same change. Nothing in CI
--- will notice if they forget: the schema-drift gate skips while the
--- SUPABASE_DB_URL secret is unset. See scripts/schema/README.md,
--- "Current status".
+-- ============================== APPLIED ==================================
+-- Written 2026-08-01. APPLIED to production.
+--
+-- HOW THAT WAS ESTABLISHED, so the next reader does not have to redo it:
+-- the live schema was queried on 2026-08-09 and public.firms carries
+-- seat_limit, trial_ends_at and trial_tier. This header said NOT APPLIED
+-- until then and was wrong.
+--
+-- The source alone already implied it, which is worth knowing for the next
+-- header of this kind. app/counsel/layout.tsx and app/portal/layout.tsx call
+-- firmTrialState on every request; it selects trial_ends_at and suspended_at
+-- and THROWS on a read error, and requireFirmColumns throws on an absent
+-- column, both by explicit fail-closed design (lib/firm-trials.ts). Had this
+-- genuinely been unapplied, every counsel and portal user would have hit an
+-- error boundary. A NOT APPLIED header that would imply the product is down
+-- is a header to distrust.
+--
+-- Nothing in CI would have caught the discrepancy. The schema-drift gate is
+-- INERT, not merely unconfigured: with the SUPABASE_DB_URL secret absent its
+-- comparison step reports skipped on every run and the job still passes
+-- green. See scripts/schema/README.md, "Current status". Applied state in
+-- this repo is therefore only as good as a human checking it.
 -- =========================================================================
 --
 -- Columns on firms rather than metadata jsonb because these are read on
