@@ -12,6 +12,7 @@ import {
   counterpartyFieldsGoUnfilled,
   deliveryModeFlipped,
   isReservedFirmKey,
+  unmergedPlaceholders,
 } from '@/lib/firm-template-placeholders';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
 import {
@@ -70,6 +71,7 @@ export function FormsManageClient({
     requiresApproval: boolean;
     deliveryMode: DeliveryMode;
     documentLayout: Record<string, unknown> | null;
+    acknowledgeUnmergedPlaceholders: boolean;
   }) => {
     setBusy(true);
     setError(null);
@@ -232,6 +234,16 @@ export function TemplateCards({
           const counterparty = tpl.fields.filter(
             (f) => f.party === 'counterparty',
           ).length;
+          // TEMPLATES THAT WERE ALREADY SAVED. The save gate can only speak to
+          // the next person who edits one, and a firm may hold a template with
+          // a stray placeholder in it that nobody opens for a year while
+          // colleagues keep sending documents from it. Shown on the list so it
+          // is visible without opening anything, from the template's own
+          // stored body and fields.
+          const unmerged = unmergedPlaceholders({
+            body: tpl.body,
+            fields: tpl.fields,
+          });
           return (
             <li key={tpl.id} className="card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -298,6 +310,19 @@ export function TemplateCards({
                   <T>shared read-only</T>
                 )}
               </p>
+
+              {unmerged.length > 0 && (
+                <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] leading-relaxed text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
+                  {unmerged.length === 1 ? (
+                    <T>One placeholder in this template fills in as nothing and prints as written:</T>
+                  ) : (
+                    <T>Some placeholders in this template fill in as nothing and print as written:</T>
+                  )}{' '}
+                  <span className="font-mono" data-no-translate>
+                    {unmerged.join(' ')}
+                  </span>
+                </p>
+              )}
 
               {tpl.fields.length > 0 && (
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -394,6 +419,7 @@ function TemplateEditor({
     requiresApproval: boolean;
     deliveryMode: DeliveryMode;
     documentLayout: Record<string, unknown> | null;
+    acknowledgeUnmergedPlaceholders: boolean;
   }) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
@@ -521,6 +547,30 @@ function TemplateEditor({
         required: true,
       },
   );
+
+  /**
+   * The placeholders in this body that nothing will fill in.
+   *
+   * The fields above are derived FROM the body, so it is easy to assume this
+   * list is always empty. It is not, and the gap is the defect this exists
+   * for: extractKeys reads `{{\s*([a-zA-Z0-9_]+)\s*}}` and then LOWERCASES the
+   * key, while the merge substitutes the literal `{{key}}` exactly. So
+   * `{{ client_name }}` and `{{Client_Name}}` each produce a perfectly good
+   * field row that the author fills in, and each prints its own braces on the
+   * finished document. `{{client-name}}` produces no field at all, because a
+   * hyphen is not in the extractor's alphabet.
+   *
+   * Computed from the same function the save runs, so what is shown here and
+   * what the server refuses cannot drift apart.
+   */
+  const unmerged = unmergedPlaceholders({ body, fields });
+  // Tied to the exact list that was read. Editing the body into a NEW stray
+  // token clears the acknowledgement, because what was agreed to was those
+  // tokens and not the idea of tokens.
+  const unmergedSignature = unmerged.join(' ');
+  const [acknowledgedFor, setAcknowledgedFor] = useState<string | null>(null);
+  const placeholdersSettled =
+    unmerged.length === 0 || acknowledgedFor === unmergedSignature;
 
   /**
    * The draft, rendered as the PDF it becomes, by the server that renders the
@@ -692,6 +742,58 @@ function TemplateEditor({
         <textarea rows={14} className={`${inputCls} font-mono text-[12.5px]`} value={body} onChange={(e) => setBody(e.target.value)} />
       </label>
 
+      {/* Under the body, because that is where the text it is about is, and
+          above everything else, because it is the one thing on this page that
+          stops the Save buttons working. The tokens are quoted exactly as
+          typed: an author hunting for `{{ client_name }}` in fourteen lines of
+          agreement needs the spaces to find it. */}
+      {unmerged.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
+          <p className="text-[13px] font-semibold">
+            {unmerged.length === 1 ? (
+              <T>Nothing will fill in this placeholder</T>
+            ) : (
+              <T>Nothing will fill in these placeholders</T>
+            )}
+          </p>
+          <ul className="mt-1.5 flex flex-wrap gap-1.5" data-no-translate>
+            {unmerged.map((token) => (
+              <li
+                key={token}
+                className="rounded bg-amber-100/80 px-1.5 py-0.5 font-mono text-[11.5px] dark:bg-amber-900/40"
+              >
+                {token}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[12.5px] leading-relaxed">
+            <T>
+              The document prints these exactly as they are written here, braces
+              and all, in front of whoever receives it. A placeholder only fills
+              itself in when it matches one of the fields below character for
+              character: lower case letters, numbers and underscores, with no
+              spaces inside the braces.
+            </T>
+          </p>
+          <label className="mt-2.5 flex items-start gap-2 text-[12.5px]">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={acknowledgedFor === unmergedSignature}
+              onChange={(e) =>
+                setAcknowledgedFor(e.target.checked ? unmergedSignature : null)
+              }
+            />
+            <span>
+              <T>
+                I have read these and they are meant to print as they are. Saving
+                is off until this is ticked or the placeholders are corrected.
+              </T>
+            </span>
+          </label>
+        </div>
+      )}
+
       <div className="rounded-lg border border-ink-200 p-3.5 dark:border-forest-700/50">
         <p className="text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
           <T>Page layout</T>
@@ -859,6 +961,18 @@ function TemplateEditor({
             onClose={() => setPreviewOpen(false)}
             note={
               <>
+                {/* Said on the preview as well as in the editor, because the
+                    preview is where an author actually reads the page, and the
+                    token is sitting in the PDF behind this sentence. */}
+                {unmerged.length > 0 && (
+                  <span className="mb-1.5 block font-medium text-amber-800 dark:text-amber-200">
+                    <T>
+                      This document still has placeholders nothing will fill in.
+                      They are on the page below exactly as they are written in
+                      the body, braces and all.
+                    </T>
+                  </span>
+                )}
                 <T>
                   This is your template drawn by the same renderer that produces the
                   document your colleague sends, on your firm&rsquo;s letterhead and this
@@ -878,9 +992,13 @@ function TemplateEditor({
             }
           />
         )}
+        {/* BOTH Save buttons wait on the acknowledgement, the draft one
+            included. A draft is one click from published, and a firm that
+            could park a broken body as a draft would have moved the same
+            problem one step closer to a recipient with nothing said. */}
         <button
           type="button"
-          disabled={busy || !name.trim() || !body.trim()}
+          disabled={busy || !name.trim() || !body.trim() || !placeholdersSettled}
           onClick={() =>
             onSave({
               id: initial?.id,
@@ -891,8 +1009,9 @@ function TemplateEditor({
               fields,
               status: 'published',
               requiresApproval,
-              deliveryMode,
               documentLayout,
+              deliveryMode,
+              acknowledgeUnmergedPlaceholders: unmerged.length > 0,
             })
           }
           className="btn-primary disabled:opacity-50"
@@ -901,7 +1020,7 @@ function TemplateEditor({
         </button>
         <button
           type="button"
-          disabled={busy || !name.trim() || !body.trim()}
+          disabled={busy || !name.trim() || !body.trim() || !placeholdersSettled}
           onClick={() =>
             onSave({
               id: initial?.id,
@@ -912,8 +1031,9 @@ function TemplateEditor({
               fields,
               status: 'draft',
               requiresApproval,
-              deliveryMode,
               documentLayout,
+              deliveryMode,
+              acknowledgeUnmergedPlaceholders: unmerged.length > 0,
             })
           }
           className="btn-secondary text-sm disabled:opacity-50"

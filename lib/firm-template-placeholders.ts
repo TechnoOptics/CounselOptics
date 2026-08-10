@@ -38,6 +38,105 @@ export function isReservedFirmKey(key: string): boolean {
 }
 
 /**
+ * WHAT COUNTS AS A PLACEHOLDER, for the purpose of warning an author about one
+ * nothing will fill in.
+ *
+ * A fresh RegExp per call rather than a shared module constant, because a `/g`
+ * regex carries `lastIndex` and two callers sharing one would each start where
+ * the other stopped.
+ *
+ * IS a placeholder: a double-brace pair, closed on the same line, with between
+ * one and eighty characters between them and no further brace inside. That
+ * covers every form an author actually types and every form the merger cannot
+ * substitute: `{{ client_name }}` (spaces), `{{Client_Name}}` (capitals),
+ * `{{client-name}}` (a hyphen), `{{clinet_name}}` (a typo) and a key past the
+ * forty characters sanitizeFields keeps.
+ *
+ * Is NOT a placeholder, and this is the half that decides whether the warning
+ * survives contact with real documents:
+ *
+ *   - A single brace. `{like this}` is ordinary drafting and is never touched.
+ *   - An unclosed pair, or one closed on a later line. A `{{` at the end of a
+ *     paragraph cannot swallow the rest of the document.
+ *   - Anything with a brace inside it. Nested set notation such as
+ *     `{{1,2},{3,4}}` does not match, because the run after the opening pair
+ *     has to reach `}}` without meeting another brace on the way.
+ *   - `{{}}`, which names nothing.
+ *   - A run longer than eighty characters, which is prose that happens to sit
+ *     between two brace pairs rather than a field key.
+ *
+ * This is the pattern lib/template-proposal.ts already reasoned its way to for
+ * the same question, and it imports this one now: two definitions of "looks
+ * like a placeholder" is how the import path and the editor come to disagree
+ * about the same body.
+ */
+export function placeholderPattern(): RegExp {
+  return /\{\{([^{}\n]{1,80})\}\}/g;
+}
+
+/**
+ * The placeholders in this body that the merge will NOT substitute, as the
+ * author wrote them, distinct and in the order they first appear.
+ *
+ * WHY THIS IS CHECKED BODY-AGAINST-FIELDS AND NOT THE OTHER WAY ROUND. A
+ * field whose key no body mentions is harmless: nothing renders. A brace pair
+ * no field matches is the defect, because mergeTemplateDocument substitutes
+ * once per KNOWN key with `split('{{key}}')`, which is exact, case sensitive
+ * and whitespace intolerant. Anything it does not recognise it never touches,
+ * so the literal string survives the merge and prints on the instrument, on
+ * the firm's letterhead, in front of the other side.
+ *
+ * The comparison is deliberately as exact as `split` is. `declared.has(inner)`
+ * on the raw text between the braces is the same test the substitution makes,
+ * so this cannot say "that one is fine" about a token the merger will miss.
+ * That is the whole point: `{{ client_name }}` is reported even on a template
+ * that declares `client_name`, because the merger does not match it either.
+ *
+ * The reserved keys are counted as declared whether or not the template also
+ * declares them as fields, because the merge substitutes them on both paths:
+ * from the firm record when they are not declared, and from the field loop
+ * when they are.
+ */
+export function unmergedPlaceholders(input: {
+  body: string;
+  fields: readonly { key: string }[];
+}): string[] {
+  const declared = new Set<string>(input.fields.map((f) => f.key));
+  for (const key of RESERVED_FIRM_KEYS) declared.add(key);
+  const out: string[] = [];
+  for (const match of String(input.body ?? '').matchAll(placeholderPattern())) {
+    if (declared.has(match[1])) continue;
+    if (!out.includes(match[0])) out.push(match[0]);
+  }
+  return out;
+}
+
+/**
+ * What the author is told when a template they are saving carries one.
+ *
+ * A WARNING THEY HAVE TO ANSWER, NOT A REFUSAL. The save is refused until the
+ * author acknowledges it, which is a refusal in practice for anyone who has
+ * not read this sentence, and that is the intended weight. It is not a
+ * permanent block for three reasons: a document may legitimately contain a
+ * double brace and this rule cannot read intent; templates already stored
+ * carry these today, and a hard refusal would leave a firm unable to rename
+ * or re-file one without first rewriting its body; and a validator that
+ * refuses work people know to be fine is a validator someone eventually
+ * removes.
+ *
+ * The tokens are quoted back exactly as typed. An author looking for
+ * `{{ client_name }}` in a long body needs the spaces to find it.
+ */
+export function unmergedPlaceholderMessage(tokens: readonly string[]): string {
+  const list = tokens.join(', ');
+  return (
+    `Nothing will fill in ${tokens.length === 1 ? 'this placeholder' : 'these placeholders'}: ` +
+    `${list}. The document prints ${tokens.length === 1 ? 'it' : 'them'} exactly as written, ` +
+    'braces and all. Correct the spelling, or confirm you want to keep it as it is.'
+  );
+}
+
+/**
  * Which fields may be pre-filled with the signed-in employee's own name.
  *
  * This used to be `/name/.test(key)`, an unanchored substring test, so every
