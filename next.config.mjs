@@ -226,14 +226,17 @@ const nextConfig = {
       // origin Supabase trusts. Also stops cookie scope from splitting
       // across two hostnames (each cookie is host-scoped by default).
       //
-      // 307 (temporary) instead of 308 so we can roll this back without
-      // poisoning browser/CDN caches if anything downstream depends on
-      // www. Promote to permanent: true after a clean week.
+      // 308 (permanent). It shipped as a 307 with a note to promote it
+      // "after a clean week"; it has run far longer than that without
+      // anything downstream depending on www, so the temporary status
+      // was only telling search engines the canonical host might
+      // revert, which weakens and slows signal consolidation onto the
+      // apex. See docs/gtm/technical-backlog.md TECH-008.
       {
         source: '/:path*',
         has: [{ type: 'host', value: 'www.advottic.com' }],
         destination: 'https://advottic.com/:path*',
-        permanent: false,
+        permanent: true,
       },
     ];
   },
