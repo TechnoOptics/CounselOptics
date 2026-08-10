@@ -1,4 +1,9 @@
 import { isReservedFirmKey, placeholderPattern } from './firm-template-placeholders';
+import {
+  describeSignatureEvidence,
+  narrowKey,
+  stripExecutionRules,
+} from './template-blank-detection';
 
 /**
  * What Bella proposes after reading an uploaded document, and every check that
@@ -167,58 +172,23 @@ function isExecutionFurnitureKey(key: string): boolean {
 }
 
 /**
- * A ruled blank: six or more underscores.
+ * The ruled-blank and signature-line rules now live in
+ * lib/template-blank-detection.ts, and this module imports them.
  *
- * Six is not arbitrary. lib/template-field-boxes.ts sets its counterparty
- * marker to a run of FIVE, deliberately under the six that
- * lib/signature-anchors.ts treats as a signature line, so this threshold is the
- * one the rest of the product already draws the line at. A run this long in an
- * uploaded document is a place somebody was meant to sign or write on a rule.
+ * They were written here, for this path, and moving them cost nothing: they are
+ * pure, and every one of them is still pinned by the tests in
+ * tests/template-proposal.test.ts. What moving them BOUGHT is that the counsel
+ * template editor can run the same rules over a body somebody typed or pasted,
+ * without a file upload, without a model call and without the rate limit that
+ * guards both. An author who pastes their firm's own agreement into the body
+ * used to get an empty field list; they now get the same reading of it this
+ * path gets.
+ *
+ * They are imported rather than copied for the reason this repo keeps having to
+ * relearn: two definitions of "this is a signature line" would let the import
+ * path and the editor disagree about one document, and the disagreement would
+ * be invisible until an instrument went out.
  */
-const RULED_BLANK = /_{6,}/;
-const RULED_BLANK_ALL = /_{6,}/g;
-
-/**
- * What makes a ruled blank a place to SIGN rather than a term to fill in.
- *
- * A run of underscores is not by itself execution furniture. "The Term of this
- * Agreement is ______ months" and "the fee is $______ per month" are operative
- * blanks, and deleting them loses a term of the agreement while the note calls
- * it a signature rule, so the reviewer never goes looking. Each blank is judged
- * by its own surroundings, not by the document as a whole.
- *
- * The window is characters rather than lines on purpose: extractFileText
- * returns a PDF as ONE line, so a line-based context would be the whole
- * document on exactly the uploads that matter.
- */
-const EXECUTION_BEFORE =
-  /(?:^|[\s>*\-(])(?:by|signature|signed|sign|witness|name|title|per|its|for|printed)\s*:?\s*$/i;
-const EXECUTION_AFTER = /^\s*(?:name|title|date|printed?|print name|address|e-?mail|its|witness)\s*:/i;
-const CONTEXT_BEFORE_CHARS = 60;
-const CONTEXT_AFTER_CHARS = 40;
-
-/**
- * Remove the ruled blanks a party signs on, and only those.
- *
- * Only the rule is ever removed, never the line it sits on: "By: ______"
- * becomes "By:", which a reviewer can see and delete. Taking the line would
- * take the clause text with it.
- */
-function stripExecutionRules(text: string): { text: string; removed: number; kept: string[] } {
-  const kept: string[] = [];
-  let removed = 0;
-  const out = text.replace(RULED_BLANK_ALL, (run: string, offset: number) => {
-    const before = text.slice(Math.max(0, offset - CONTEXT_BEFORE_CHARS), offset);
-    const after = text.slice(offset + run.length, offset + run.length + CONTEXT_AFTER_CHARS);
-    if (EXECUTION_BEFORE.test(before) || EXECUTION_AFTER.test(after)) {
-      removed += 1;
-      return '';
-    }
-    kept.push(`${before.slice(-32).trimStart()}${run.slice(0, 8)}${after.slice(0, 16).trimEnd()}`);
-    return run;
-  });
-  return { text: out, removed, kept };
-}
 
 /**
  * A non-reserved key for a placeholder the model aimed at the other side.
@@ -238,58 +208,14 @@ function safeCounterpartyKey(key: string, taken: ReadonlySet<string>): string {
 }
 
 /**
- * A line of the document that IS a signature line.
+ * describeSignatureEvidence is imported from lib/template-blank-detection.ts.
  *
- * Anchored at the start of a line and required to be followed by a colon or an
- * underscore, so "Signed for Acme Ltd" in a recital does not read as an
- * execution block while "Signature: ______" does. Kept for well-formed text,
- * where it yields a line worth quoting back to the reviewer.
- *
- * It CANNOT be the only rule. extractFileText reads a PDF through unpdf with
- * `mergePages: true`, which returns the whole instrument as one line with no
- * newlines in it at all, so an anchored scan matches nothing on any real
- * uploaded agreement. That is exactly how a mutual NDA carrying two signature
- * blocks came back classified as a read-only share. The unanchored rules below
- * are what actually fire on an upload.
+ * It is called TWICE below, over the model's proposed body AND over the source
+ * text the model was given, and that is this module's own decision rather than
+ * anything the rule says: the model choosing not to emit an execution page is
+ * not evidence that the document has none. The source is the document; the
+ * reply is a claim about it.
  */
-const SIGNATURE_LINE =
-  /^[\s>*\-_]*(?:signature|signed(?:\s+by)?|authori[sz]ed\s+signator(?:y|ies)|witness(?:ed)?(?:\s+by)?)\b\s*[:_]/i;
-
-/** "Signature:" anywhere in the text, newlines or not. */
-const SIGNATURE_COLON = /\bsignatures?\s*:/i;
-
-/** The execution clause that carries no colon and is the commonest of all. */
-const WITNESS_CLAUSE = /\bin\s+witness\s+whereof\b/i;
-
-/** A document that refers to its own signature page has one. */
-const SIGNATURE_PAGE = /\bsignature page\b/i;
-
-/**
- * What in this text says the document is signed, described for the reviewer,
- * or null if nothing does.
- *
- * Run over the model's proposed body AND over the source text it was given,
- * because the model choosing not to emit an execution page is not evidence that
- * the document has none. The source is the document; the reply is a claim about
- * it.
- *
- * Erring toward signature is the fail-safe direction here, and the asymmetry is
- * the whole reason this is checked twice. A document wrongly set to signature
- * shows the reviewer a select they can change. A document wrongly set to share
- * goes out as a read-only link that renders the counterparty's blanks as
- * markers on the page the recipient reads, and nobody is asked to sign the
- * thing the firm uploaded in order to have signed.
- */
-function describeSignatureEvidence(text: string): string | null {
-  if (!text) return null;
-  const line = text.split('\n').find((l) => SIGNATURE_LINE.test(l));
-  if (line) return `a signature line ("${line.trim().slice(0, 80)}")`;
-  if (SIGNATURE_COLON.test(text)) return 'a "Signature:" line';
-  if (RULED_BLANK.test(text)) return 'a ruled blank for a signature';
-  if (WITNESS_CLAUSE.test(text)) return 'the words "in witness whereof"';
-  if (SIGNATURE_PAGE.test(text)) return 'a reference to a signature page';
-  return null;
-}
 
 /**
  * Pull the JSON object out of a model reply.
@@ -321,22 +247,6 @@ function extractJsonObject(raw: string): Record<string, unknown> | null {
     }
   }
   return null;
-}
-
-/**
- * The same narrowing `sanitizeFields` (lib/firm-templates.ts) applies on save.
- *
- * Run here as well, and not because the save is untrusted: it is run so the
- * key the reviewer is shown is the key that will be stored. A key repaired
- * only at save time would be checked against the body under one spelling and
- * written under another.
- */
-function narrowKey(raw: unknown): string {
-  return String(raw ?? '')
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 40);
 }
 
 function narrowType(raw: unknown): TemplateProposalField['type'] {
