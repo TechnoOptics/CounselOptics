@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { bellaGenerate } from '@/lib/bella';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getActiveFirmContext, isFirmSubscriptionActive } from '@/lib/firm-storage';
+import { getActiveFirmContext, firmAiGate } from '@/lib/firm-storage';
+import {
+  firmAiRefusalMessage,
+  firmAiRefusalStatus,
+} from '@/lib/firm-entitlement';
 import { getTemplate, cleanLegalText } from '@/lib/legal-templates';
 import { checkRateLimit } from '@/lib/rate-limit';
 
@@ -33,10 +37,11 @@ export async function POST(req: NextRequest) {
       { status: 403 },
     );
   }
-  if (!(await isFirmSubscriptionActive(ctx.firm))) {
+  const gate = await firmAiGate(ctx.firm);
+  if (!gate.ok) {
     return NextResponse.json(
-      { error: "This firm's subscription is inactive. Ask the firm owner to update billing." },
-      { status: 402 },
+      { error: firmAiRefusalMessage(gate.reason) },
+      { status: firmAiRefusalStatus(gate.reason) },
     );
   }
 

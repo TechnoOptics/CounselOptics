@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella } from '@/lib/bella';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getActiveFirmContext, isFirmSubscriptionActive } from '@/lib/firm-storage';
+import { getActiveFirmContext, firmAiGate } from '@/lib/firm-storage';
+import {
+  firmAiRefusalMessage,
+  firmAiRefusalStatus,
+} from '@/lib/firm-entitlement';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -28,11 +32,24 @@ export async function POST(req: NextRequest) {
     );
   }
   const ctx = await getActiveFirmContext();
-  if (ctx && !(await isFirmSubscriptionActive(ctx.firm))) {
-    return NextResponse.json(
-      { error: "This firm's subscription is inactive. Ask the firm owner to update billing." },
-      { status: 402 },
-    );
+  // `if (ctx)` and not a hard requirement, which is PRE-EXISTING and is left
+  // exactly as it was. It is worth naming rather than tidying past, because it
+  // is not the same shape as its two siblings: /draft-template and /draft-letter
+  // both 403 when there is no active firm, so a signed-in caller with no firm
+  // gets nothing from them, while here that caller skips the entitlement check
+  // altogether and the model call is billed to the app's own ANTHROPIC_API_KEY.
+  // Today the only caller is app/counsel/analyze/analyze-studio.tsx, which runs
+  // inside the counsel shell and therefore always has a firm. Closing the gap
+  // means deciding what a firmless caller should get, which is a separate
+  // decision from wiring the trial through, so it is recorded and not made here.
+  if (ctx) {
+    const gate = await firmAiGate(ctx.firm);
+    if (!gate.ok) {
+      return NextResponse.json(
+        { error: firmAiRefusalMessage(gate.reason) },
+        { status: firmAiRefusalStatus(gate.reason) },
+      );
+    }
   }
 
   let body: { text?: string };

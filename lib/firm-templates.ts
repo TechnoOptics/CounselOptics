@@ -549,11 +549,11 @@ const MAX_TEMPLATE_UPLOAD_BYTES = 10 * 1024 * 1024;
  * same gate the neighbouring template actions use; a second membership query
  * would be a third authorization axis in a codebase that deliberately has one.
  *
- * NOT gated on subscription. The comparable endpoint checks
- * isFirmSubscriptionActive and requireActiveFirm covers the access-ended state,
- * so a lapsed or export-only firm can still spend here. Left open on purpose
- * and recorded rather than added unattended: a false denial locks a paying firm
- * out of a feature with nobody watching.
+ * NOT gated on entitlement. The comparable endpoint checks firmAiGate and
+ * requireActiveFirm covers the access-ended state, so a lapsed or export-only
+ * firm can still spend here. Left open on purpose and recorded rather than added
+ * unattended: a false denial locks a paying firm out of a feature with nobody
+ * watching.
  */
 export async function importTemplateDocumentAction(
   firmId: string,

@@ -5,6 +5,7 @@ import {
   type FirmAccessInput,
   type FirmAccessState,
 } from './firm-access';
+import type { TrialGrant } from './trial-entitlement';
 
 /**
  * The only module that reads or writes trial state and the audit table.
@@ -434,6 +435,93 @@ export async function firmTrialState(
     toFirmAccessInput(data as Record<string, unknown>),
     new Date(),
   );
+}
+
+/**
+ * The two facts an ENTITLEMENT decision needs about an organization, from one
+ * read: whether it is open at all, and what plan level its trial runs at.
+ *
+ * This is the firm-side counterpart of userTrialGrant in lib/user-trials.ts,
+ * and it returns the STATE rather than a row for the same reason
+ * firmTrialState does. Property 1 at the top of this file still holds: no
+ * caller assembles a FirmAccessInput.
+ *
+ * WHY BOTH IN ONE FUNCTION rather than composing firmTrialState with a second
+ * trial-tier read. `trial_ends_at` is the input to BOTH answers: it decides the
+ * access state and it bounds the trial's plan level. Two reads could observe
+ * two different values of it, and the pair that would produce is
+ * export_only-with-a-live-level, which resolves to an entitlement for an
+ * organization that is closed. One read cannot disagree with itself.
+ *
+ * The clock is NOT read here and the level is NOT judged here. This function
+ * hands back what the row says; lib/firm-entitlement.ts holds the rule. That
+ * split is what keeps the rule unit tested, and it is why the returned grant is
+ * the raw stored slug rather than a validated one.
+ *
+ * FAIL DIRECTIONS, matching firmTrialState and firmSuspended exactly:
+ *
+ *   read error        -> throws  (fail closed)
+ *   organization gone -> throws  (fail closed)
+ *   column missing    -> throws  (fail closed, via toFirmAccessInput)
+ *   no admin client   -> active + no trial  (FAIL OPEN, and the only one)
+ *
+ * The fail-open case deserves its own note, because "active with no trial" is
+ * not obviously the safe pairing. It is the one that reproduces the behaviour
+ * this product had before the firm trial carried a level at all: the caller
+ * falls back to the paying subscription alone. Returning a LIVE trial there
+ * would hand every organization in the estate a free plan level on a missing
+ * environment variable, which is the expensive direction.
+ */
+export async function firmEntitlementInputs(
+  firmId: string,
+): Promise<{ state: FirmAccessState; trial: TrialGrant }> {
+  const admin = createAdminSupabase();
+  if (!admin) {
+    if (!loggedMissingAdminInState) {
+      loggedMissingAdminInState = true;
+      console.error(
+        'firmEntitlementInputs: no admin client, so trial and suspension enforcement is OFF for every organization until this is fixed.',
+        missingAdminReason(),
+      );
+    }
+    return { state: 'active', trial: { trialTierSlug: null, trialEndsAt: null } };
+  }
+
+  const { data, error } = await admin
+    .from('firms')
+    .select(`trial_tier, ${FIRM_ACCESS_COLUMNS}`)
+    .eq('id', firmId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('firmEntitlementInputs: read failed', error.message);
+    throw new Error(
+      'firm-trials could not determine access for this organization.',
+    );
+  }
+  if (!data) {
+    throw new Error(
+      'firm-trials was asked about an organization that does not exist.',
+    );
+  }
+
+  const row = data as Record<string, unknown>;
+  // trial_tier gets the same key-presence gate the access columns get from
+  // toFirmAccessInput below. A dropped column read as `?? null` would be a
+  // silent "no level", which reads exactly like an organization an operator
+  // never provisioned, and the operator would see the level they set sitting
+  // in HQ doing nothing. That is the defect this whole change exists to close,
+  // so it must not be reintroduced by a lenient read.
+  requireFirmColumns(row, ['trial_tier']);
+
+  // Fresh clock, every call. Never hoist this, never memoise the result.
+  return {
+    state: firmAccessState(toFirmAccessInput(row), new Date()),
+    trial: {
+      trialTierSlug: (row.trial_tier as string | null) ?? null,
+      trialEndsAt: (row.trial_ends_at as string | null) ?? null,
+    },
+  };
 }
 
 /**

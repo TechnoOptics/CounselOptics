@@ -211,7 +211,7 @@ export function TrialConsole({
                 <Th>Organization</Th>
                 <Th>Trial ends</Th>
                 <Th>Remaining</Th>
-                <Th>Plan level (recorded)</Th>
+                <Th>Plan level</Th>
                 <Th>Seats</Th>
                 <Th>State</Th>
                 <Th>Controls</Th>
@@ -234,12 +234,12 @@ export function TrialConsole({
         shown, and nothing here removes an organization's data.
       </p>
       <p className="text-[11px] text-cream-100/50 leading-relaxed max-w-3xl">
-        A plan level on an organization is RECORDED, not yet enforced. It is
-        stored, it appears in the audit trail with your name on it, and no firm
-        feature reads it today, so setting one does not change what this
-        organization can do. An organization's plan currently comes from its
-        owner's subscription. The individual-user plan level on the Users page
-        is enforced; this one is not.
+        A plan level is what the organization runs at while its trial is open,
+        and it takes effect on the next page load. It cannot touch an
+        organization whose owner has a live subscription: a paid plan always
+        beats a trial, so the level sits stored and inert until that
+        subscription lapses. A trial with no level set grants no plan at all, so
+        set one alongside the end date.
       </p>
     </div>
   );
@@ -684,15 +684,30 @@ function TierBlock({
   return (
     <Block title="Plan level" accent="neutral">
       <p className="text-[12px] text-cream-100/55 leading-relaxed">
-        Recorded, not yet enforced. Saving a level stores it and puts it in the
-        audit trail with your name on it. No firm feature reads it today, so
-        this does not change what the organization can do.
+        What the organization runs at while its trial is open. Saving a level
+        puts it in the audit trail with your name on it, and it applies on the
+        next page load. It cannot touch an organization whose owner has a live
+        subscription; a paid plan always beats a trial.
       </p>
-      {!row.trialEndsAt && (
+      {!row.trialEndsAt ? (
         <p className="text-[12px] text-cream-100/55 leading-relaxed">
           There is no end date on file, so a level would have no window to
           apply in. Restart the trial first.
         </p>
+      ) : (
+        row.trialTier === null && (
+          /*
+            The converse of the sentence above, and the one that was missing.
+            A level and an end date are two levers and a trial needs both: the
+            date opens the organization, the level decides what it can do, and
+            a date on its own leaves it open with no plan and no AI. Saying so
+            here is what stops that being discovered through a customer.
+          */
+          <p className="text-[12px] text-amber-200/85 leading-relaxed">
+            This trial has an end date but no level, so the organization has no
+            plan and cannot use drafting or analysis. Set a level to open it.
+          </p>
+        )
       )}
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1 min-w-[180px]">
