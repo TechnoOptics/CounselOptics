@@ -25,7 +25,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *   - delete the `if (error)` after the previous-event read
  *       -> "reports a previous-event read the database refused" goes red.
  *   - make any of the reports throw or rethrow
- *       -> "never throws into the submission flow" goes red.
+ *       -> the two "resolves rather than throwing" assertions go red.
+ *   - change `console.error` back to `console.warn`
+ *       -> "reaches the error channel" goes red.
  *
  * They are separate assertions on purpose. Removing only the `.select()`
  * would still leave `error` undefined and still report nothing, so a single
@@ -106,12 +108,15 @@ function makeAdmin() {
 
 const { appendWitnessEvent } = await import('../lib/witness-audit');
 
+const spyOnError = () =>
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 const spyOnWarn = () =>
   vi.spyOn(console, 'warn').mockImplementation(() => {});
+let err: ReturnType<typeof spyOnError>;
 let warn: ReturnType<typeof spyOnWarn>;
 
-/** Everything the module said on the warn channel during one call. */
-const said = () => warn.mock.calls.map((c) => String(c[0])).join('\n');
+/** Everything the module said on the error channel during one call. */
+const said = () => err.mock.calls.map((c) => String(c[0])).join('\n');
 
 beforeEach(() => {
   rec.current = {
@@ -120,10 +125,12 @@ beforeEach(() => {
     readError: null,
     insertThrows: false,
   };
+  err = spyOnError();
   warn = spyOnWarn();
 });
 
 afterEach(() => {
+  err.mockRestore();
   warn.mockRestore();
 });
 
@@ -179,7 +186,46 @@ describe('appendWitnessEvent knows whether it wrote', () => {
       submissionId: 'sub-1',
       eventType: 'submitted',
     });
+    expect(err).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('a dropped witness audit write is loud', () => {
+  /**
+   * The channel is the guard. `warn` is where this codebase puts things that
+   * are merely unusual, and platform log alerting is keyed to the error
+   * channel, so a dropped audit event reported as a warning is a hole in a
+   * record offered as evidence that nobody is paged about. This mirrors
+   * reportAuditFailure in lib/security-audit.ts, which is the established
+   * mechanism for the same problem on security_events.
+   *
+   * Mutation this is meant to catch:
+   *   - change `console.error` back to `console.warn` in
+   *     reportWitnessAuditFailure -> both assertions below go red.
+   */
+  it('reaches the error channel and not merely the warn channel', async () => {
+    rec.current.insertError = { message: 'permission denied', code: '42501' };
+    await appendWitnessEvent(admin(), {
+      submissionId: 'sub-1',
+      eventType: 'submitted',
+    });
+    expect(err).toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('names the module, the event and the reason it was dropped', async () => {
+    rec.current.insertError = { message: 'permission denied', code: '42501' };
+    await appendWitnessEvent(admin(), {
+      submissionId: 'sub-1',
+      eventType: 'purge_scheduled',
+    });
+    // A log line that says only "insert failed" cannot be triaged: the
+    // reader needs to know which record lost which event and why.
+    expect(said()).toContain('appendWitnessEvent');
+    expect(said()).toContain('purge_scheduled');
+    expect(said()).toContain('permission denied');
+    expect(said()).toContain('42501');
   });
 });
 

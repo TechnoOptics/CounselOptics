@@ -113,16 +113,41 @@ export async function appendWitnessEvent(
 }
 
 /**
- * Surface a dropped witness audit write. Kept non-throwing on purpose: a
- * witness submitting evidence must not be turned away because the event
- * log refused a row. Loud rather than silent, though, because the whole
- * value of this table is that it is believed.
+ * Surface a dropped witness audit write.
+ *
+ * Two things have to be true at once here, and only one of them was.
+ *
+ * The first is the intent already stated at the call sites: never block a
+ * submission on an audit-log write failure. The witness_submissions row is
+ * the source of truth, a witness handing over evidence is often doing it
+ * once and under pressure, and turning them away because an event log
+ * refused a row would lose the thing that actually matters to save the
+ * record of it. That stays.
+ *
+ * The second is that a failure has to be loud. An audit trail that can fail
+ * invisibly is worse than no audit trail, because it is trusted. `warn` is
+ * the channel this codebase uses for things that are merely unusual, and a
+ * dropped audit event is not unusual, it is a hole in a record offered as
+ * evidence.
+ *
+ * This is the established mechanism, not a new one: `reportAuditFailure` in
+ * lib/security-audit.ts does exactly this, for exactly this reason, for
+ * security_events. That helper is private to a `server-only` module and its
+ * signature is keyed to SecurityEventKind, so this follows the pattern
+ * rather than importing it.
+ *
+ * What this deliberately does NOT do is write the failure to the
+ * security_events table as a durable row. That would need a new
+ * SecurityEventKind, and lib/security-audit.ts records that whether the live
+ * `kind` column accepts a new value is unconfirmed and needs a probe against
+ * the running database. A durable record of dropped audit writes is worth
+ * having and is left as an owner's call.
  */
 function reportWitnessAuditFailure(
   eventType: WitnessEventType,
   reason: string,
 ): void {
-  console.warn(
+  console.error(
     `[appendWitnessEvent] failed to record witness event "${eventType}": ${reason}`,
   );
 }
