@@ -412,7 +412,21 @@ export default async function CounselLayout({
         {/* The rail runs flush against the content column: no page padding
             and no gap on this row, because both of those are what made the
             sidebar read as a floating panel. The padding moved onto <main>,
-            which is the only thing on this row that wanted it. */}
+            which is the only thing on this row that wanted it.
+
+            THIS ROW IS THE RAIL'S CONTAINING BLOCK, and that is why the
+            footer is inside it rather than after it. `position: sticky`
+            may never paint outside its containing block, so while the
+            footer was a sibling that FOLLOWED this row, the row ended one
+            footer-height above the bottom of the document. Scrolling to
+            the end of any counsel page therefore dragged the whole rail
+            upwards by exactly that much: its top slid under the sticky
+            header, taking the firm name and the collapse control with it,
+            and an equal band of dead space opened at its foot. Measured
+            at 1280x900 and 1280x620, both -54px in the harness. Keeping
+            the footer in this row extends the containing block to the end
+            of the document, so the clamp is never reached and the rail
+            holds its position for the whole scroll. */}
         <div className="flex-1 flex w-full max-w-none mx-auto">
           {active ? (
             <CounselSidebarShell>
@@ -425,50 +439,57 @@ export default async function CounselLayout({
               />
             </CounselSidebarShell>
           ) : null}
-          <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
-            {/* The Ask Advottic bar normally sits at the top of every
-                Counsel page. The dashboard at /counsel renders its own
-                welcome banner above the Ask bar and then handles its
-                own ordering, so we skip rendering it from the layout
-                for that one route. */}
-            {active &&
-            pathname !== '/counsel' &&
-            // A request detail is a two-pane workspace, so the full-width bar
-            // is suppressed rather than allowed to span both panes or steal
-            // height from either scroller. Nothing puts it back: that route
-            // has NO Ask bar. The only other mount of AskAdvottic is
-            // app/counsel/page.tsx.
-            !/^\/counsel\/intake\/[^/]+$/.test(pathname) &&
-            !surface.hideSearch ? (
-              <AskAdvottic />
-            ) : null}
-            {children}
-          </main>
+          {/* The content column: the page, then the footer under it. The
+              footer is the content's footer now, so it starts at the
+              rail's right edge instead of running underneath it. Below
+              `md` the rail is display:none and this column is the whole
+              row, so the footer spans the full width exactly as before. */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
+              {/* The Ask Advottic bar normally sits at the top of every
+                  Counsel page. The dashboard at /counsel renders its own
+                  welcome banner above the Ask bar and then handles its
+                  own ordering, so we skip rendering it from the layout
+                  for that one route. */}
+              {active &&
+              pathname !== '/counsel' &&
+              // A request detail is a two-pane workspace, so the full-width bar
+              // is suppressed rather than allowed to span both panes or steal
+              // height from either scroller. Nothing puts it back: that route
+              // has NO Ask bar. The only other mount of AskAdvottic is
+              // app/counsel/page.tsx.
+              !/^\/counsel\/intake\/[^/]+$/.test(pathname) &&
+              !surface.hideSearch ? (
+                <AskAdvottic />
+              ) : null}
+              {children}
+            </main>
+            <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
+              <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
+                <p>
+                  <span className="font-semibold text-cream-100">
+                    {String(
+                      (active?.firm.metadata as
+                        | Record<string, unknown>
+                        | undefined)?.brandName ?? '',
+                    ).trim() || 'Advottic Enterprise'}
+                  </span>{' '}
+                  &middot; Organizational legal workspace.
+                </p>
+                <p>
+                  <Link
+                    href="/about"
+                    className="underline hover:text-cream-100"
+                  >
+                    What Advottic is, and isn&rsquo;t
+                  </Link>{' '}
+                  &middot; Powered by Techno Optics
+                </p>
+              </div>
+            </footer>
+          </div>
         </div>
       </SidebarCollapseProvider>
-      <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
-        <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
-          <p>
-            <span className="font-semibold text-cream-100">
-              {String(
-                (active?.firm.metadata as
-                  | Record<string, unknown>
-                  | undefined)?.brandName ?? '',
-              ).trim() || 'Advottic Enterprise'}
-            </span>{' '}
-            &middot; Organizational legal workspace.
-          </p>
-          <p>
-            <Link
-              href="/about"
-              className="underline hover:text-cream-100"
-            >
-              What Advottic is, and isn&rsquo;t
-            </Link>{' '}
-            &middot; Powered by Techno Optics
-          </p>
-        </div>
-      </footer>
      </LocaleProvider>
     </div>
   );
