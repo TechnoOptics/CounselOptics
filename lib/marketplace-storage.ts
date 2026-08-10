@@ -51,6 +51,18 @@ export type FirmLeadForFirm = {
   /** True after the consumer accepts this firm; until then we hide
    *  the contact channels (email, phone, last name). */
   acceptedByConsumer: boolean;
+  /**
+   * Whether an Advottic account sits behind this lead. `firm_leads.user_id`
+   * is nullable and anonymous submissions are a supported path, so this is
+   * false for a real share of leads.
+   *
+   * The firm-facing screens need it because both halves of the loop hang off
+   * it: respondToLeadAction only notifies a consumer it can identify, and
+   * acceptFirmAction requires `lead.user_id === user.id`. Without it the
+   * panel told every firm "The consumer was notified" and promised an
+   * acceptance that, for an anonymous lead, nobody can give.
+   */
+  hasConsumerAccount: boolean;
   /** Only populated when acceptedByConsumer is true. */
   contactEmail?: string | null;
   contactPhone?: string | null;
@@ -239,6 +251,7 @@ export async function listFirmLeadsForFirm(
 
   type LeadRow = {
     id: string;
+    user_id: string | null;
     contact_name: string;
     contact_email: string;
     contact_phone: string | null;
@@ -251,7 +264,7 @@ export async function listFirmLeadsForFirm(
     created_at: string;
   };
   const LEAD_COLUMNS =
-    'id, contact_name, contact_email, contact_phone, jurisdiction_state, practice_areas, summary, budget, urgency, status, created_at';
+    'id, user_id, contact_name, contact_email, contact_phone, jurisdiction_state, practice_areas, summary, budget, urgency, status, created_at';
 
   // Leads in any of the firm's states.
   const { data: leadsRaw } = await admin
@@ -322,6 +335,7 @@ export async function listFirmLeadsForFirm(
           }
         : null,
       acceptedByConsumer: accepted,
+      hasConsumerAccount: Boolean(l.user_id),
       contactEmail: accepted ? l.contact_email : null,
       contactPhone: accepted ? l.contact_phone : null,
       contactName: accepted ? l.contact_name : null,

@@ -642,11 +642,30 @@ export async function withdrawTemplateSubmissionAction(
   const move = applySubmissionAction(row.status, 'withdraw');
   if (!move.ok) return { ok: false, error: move.error };
 
-  await admin
+  // Claimed on the status this page was rendered from, and read back. The
+  // `.eq('status', ...)` is the whole point of the write: it exists so a
+  // reviewer who decides between the render and the click wins. Unread, the
+  // exact race it guards against matched zero rows, came back with error
+  // null, and was reported to the employee as a withdrawal, while the
+  // document stayed in the queue for counsel to approve out to a third
+  // party. A zero-row match here is not a failure to say sorry for, it is a
+  // fact about what happened, so say that instead.
+  const { data: withdrawn, error } = await admin
     .from('firm_template_submissions')
     .update({ status: move.status, updated_at: new Date().toISOString() })
     .eq('id', submissionId)
-    .eq('status', row.status);
+    .eq('status', row.status)
+    .select('id');
+  if (error) {
+    return { ok: false, error: 'Could not withdraw that. Please try again.' };
+  }
+  if (!withdrawn || withdrawn.length === 0) {
+    return {
+      ok: false,
+      error:
+        'Somebody decided this while you were reading it, so it was not withdrawn. Reload the page to see where it stands.',
+    };
+  }
   refresh();
   return { ok: true };
 }

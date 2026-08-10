@@ -153,6 +153,7 @@ const {
   editTemplateSubmissionAction,
   getTemplateSubmissionAction,
   listFirmTemplateSubmissionsAction,
+  withdrawTemplateSubmissionAction,
 } = await import('../lib/template-submissions');
 
 const V1 = 'The supplier shall deliver on time.';
@@ -201,6 +202,65 @@ beforeEach(() => {
   releaseApprovedSubmission.mockClear();
   createNotification.mockClear();
   pending();
+});
+
+/**
+ * The other side of the same race: the employee pulling a document back
+ * while a reviewer is deciding on it.
+ *
+ * The write is `.eq('status', row.status)`, which is a compare-and-swap and
+ * the right guard. What was missing is that nobody read the result. The
+ * exact case the predicate exists to catch matched zero rows, came back
+ * with `error: null`, and the employee was told the document was out of the
+ * release queue while counsel could still approve it out to a third party.
+ *
+ * Mutations these are meant to catch:
+ *   - drop `.select('id')` and go back to reporting `{ ok: true }`: both
+ *     the race and the transport-failure cases go red.
+ *   - drop `.eq('status', row.status)`: "loses the race" goes red, because
+ *     the withdrawal then lands on top of the reviewer's approval.
+ */
+describe('withdrawing a document from review', () => {
+  it('does not report a withdrawal when a reviewer decided in the gap', async () => {
+    // The pre-check reads `pending` and allows the withdrawal. The reviewer
+    // approves in the moment before the write, so only the conditional
+    // predicate can still refuse, and only the row count can report it.
+    mutateAfterNextRead = () => {
+      store.row.status = 'approved';
+      store.row.decided_by = 'attorney-a';
+    };
+    currentUser = { id: 'employee-1', email: 'employee@example.test' };
+
+    const res = await withdrawTemplateSubmissionAction('sub-1');
+
+    expect(res.ok).toBe(false);
+    // Not a blanket apology: the true and useful sentence is that somebody
+    // decided this while they were reading.
+    expect(res.error).toMatch(/decided this while you were reading/i);
+    // The reviewer's decision stands, and the employee knows it does.
+    expect(store.row.status).toBe('approved');
+    expect(store.row.decided_by).toBe('attorney-a');
+  });
+
+  it('does not report a withdrawal the database refused', async () => {
+    failNextWrite = 'connection reset';
+    currentUser = { id: 'employee-1', email: 'employee@example.test' };
+
+    const res = await withdrawTemplateSubmissionAction('sub-1');
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/could not withdraw/i);
+    expect(store.row.status).toBe('pending');
+  });
+
+  it('withdraws, and says so, when nothing moved underneath it', async () => {
+    currentUser = { id: 'employee-1', email: 'employee@example.test' };
+
+    const res = await withdrawTemplateSubmissionAction('sub-1');
+
+    expect(res).toEqual({ ok: true });
+    expect(store.row.status).toBe('withdrawn');
+  });
 });
 
 describe('a reviewer edit', () => {

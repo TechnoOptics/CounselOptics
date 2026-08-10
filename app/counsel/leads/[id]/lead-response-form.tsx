@@ -8,9 +8,17 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
 export function LeadResponseForm({
   firmId,
   leadId,
+  hasConsumerAccount,
 }: {
   firmId: string;
   leadId: string;
+  /**
+   * Whether an account sits behind this lead. Anonymous submissions are a
+   * supported path, and for those there is no inbox and no acceptance, so
+   * the firm should know that before it writes a fee proposal rather than
+   * after.
+   */
+  hasConsumerAccount: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -42,10 +50,18 @@ export function LeadResponseForm({
       <div>
         <p className="eyebrow"><T>Respond to this lead</T></p>
         <p className="text-[13px] text-muted mt-1 leading-relaxed">
-          <T>Express interest with an optional message and proposed fee, or
-          pass. The consumer sees your response in their inbox and decides
-          whether to accept. Their contact details are revealed only after
-          they accept.</T>
+          {hasConsumerAccount ? (
+            <T>Express interest with an optional message and proposed fee, or
+            pass. The consumer sees your response in their inbox and decides
+            whether to accept. Their contact details are revealed only after
+            they accept.</T>
+          ) : (
+            <T>Express interest with an optional message and proposed fee, or
+            pass. This one came in without an account behind it, so your
+            response is recorded for your own team: there is no inbox to send
+            it to, and nobody who can accept it or release their contact
+            details.</T>
+          )}
         </p>
       </div>
 
