@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { updateHearingAction } from '@/lib/actions';
 import type { AIReview, Case, Exhibit } from '@/lib/types';
+import { formatDateTimeLong } from '@/lib/format';
 
 type Phase = 'view' | 'edit';
 
@@ -358,14 +359,7 @@ function buildCountdown(hearingAt: string | null | undefined):
 
 function formatHearingFull(hearingAt: string): string {
   const d = new Date(hearingAt);
-  return d.toLocaleString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTimeLong(d);
 }
 
 function toLocalDateTimeInput(iso: string): string {

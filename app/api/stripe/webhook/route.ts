@@ -18,6 +18,7 @@ import { applyMonthlyOverageDebit } from '@/lib/item-limits';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import type { SubscriptionStatus, Tier } from '@/lib/types';
+import { formatNumber, formatUsdFromCents } from '@/lib/format';
 
 /**
  * Best-effort admin notification: pings contact@advottic.com (or
@@ -34,7 +35,10 @@ async function notifyAdminOfRevenue(input: {
   sessionId?: string | null;
 }) {
   const to = process.env.ADMIN_NOTIFY_TO?.trim() || 'contact@advottic.com';
-  const dollars = input.amountCents != null ? `$${(input.amountCents / 100).toFixed(2)}` : '?';
+  // Grouped USD. A hand-built `.toFixed(2)` renders a firm-tier annual as
+  // `$4800.00`, which reads as a different number at a glance.
+  const dollars =
+    input.amountCents != null ? formatUsdFromCents(input.amountCents) : '?';
   const labelByKind: Record<typeof input.kind, string> = {
     subscription_created: '🎉 New subscription',
     subscription_canceled: '😟 Subscription canceled',
@@ -266,7 +270,7 @@ export async function POST(req: NextRequest) {
               kind: 'topup_purchased',
               email:
                 session.customer_details?.email ?? session.customer_email ?? null,
-              tierOrSize: `${sessionMeta.package_id} (${(result.tokens / 1_000).toLocaleString()}k tokens${
+              tierOrSize: `${sessionMeta.package_id} (${formatNumber(result.tokens / 1_000)}k tokens${
                 sessionMeta.firm_id ? ' - firm pool' : ''
               })`,
               amountCents: session.amount_total ?? null,
@@ -336,7 +340,7 @@ export async function POST(req: NextRequest) {
             await notifyAdminOfRevenue({
               kind: 'topup_purchased',
               email: session.customer_details?.email ?? session.customer_email ?? null,
-              tierOrSize: `${(topup.amount / 1000).toLocaleString()}k tokens`,
+              tierOrSize: `${formatNumber(topup.amount / 1000)}k tokens`,
               amountCents: session.amount_total ?? null,
               customerId: customerId ?? null,
               sessionId: session.id,

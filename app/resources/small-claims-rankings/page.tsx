@@ -9,6 +9,7 @@ import {
   BreadcrumbJsonLd,
 } from '@/components/seo/JsonLd';
 import { RankingsTable } from './rankings-table';
+import { formatNumber } from '@/lib/format';
 
 export const dynamic = 'force-static';
 
@@ -106,7 +107,7 @@ export default function SmallClaimsRankingsPage() {
           </p>
           <p className="mt-1 text-[13.5px] text-ink-600 dark:text-cream-100/70">
             The only two states above $20,000. National median is
-            ${r.nationalMedianLimit.toLocaleString()}.
+            ${formatNumber(r.nationalMedianLimit)}.
           </p>
         </div>
         <div className="rounded-xl ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/30 dark:bg-forest-900/40 p-5">

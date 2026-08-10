@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { LiveTracker } from './live-tracker';
+import { formatDateWith } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -177,7 +178,7 @@ export default async function SafeAlertPage({
           </h1>
           <p className="mt-1 text-xs text-[#FBF7E9]/65">
             Fired{' '}
-            {new Date(row.fired_at).toLocaleString(undefined, {
+            {formatDateWith(row.fired_at, {
               weekday: 'long',
               month: 'long',
               day: 'numeric',

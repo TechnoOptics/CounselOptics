@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ExternalLink } from '@/components/ExternalLink';
+import { formatDistanceFromMeters } from '@/lib/format';
 
 /**
  * LiveTracker - client component for /safe/alert/[id].
@@ -17,7 +18,7 @@ import { ExternalLink } from '@/components/ExternalLink';
  *
  * The watcher's position is a single point in time. The contact's
  * position updates as they move toward the watcher, so the page
- * shows a live "you are 0.8 km away" that gets smaller as they
+ * shows a live "you are 0.5 mi away" that gets smaller as they
  * approach. Future work: long-poll for updated watcher positions
  * once we ship continuous location reporting from the watch.
  */
@@ -212,12 +213,10 @@ export function LiveTracker({
     hasWatcher && contactPos
       ? haversineMeters(contactPos.lat, contactPos.lng, watcherLat!, watcherLng!)
       : null;
+  // US customary. Someone moving toward a person in distress should not
+  // have to convert kilometres in their head.
   const distanceLabel =
-    distanceM === null
-      ? null
-      : distanceM < 1000
-        ? `${Math.round(distanceM)} m`
-        : `${(distanceM / 1000).toFixed(distanceM < 10_000 ? 2 : 1)} km`;
+    distanceM === null ? null : formatDistanceFromMeters(distanceM);
 
   // Static-map URL: shows the watcher's current pin (latest ping or
   // alert-fire fallback), the breadcrumb trail of recent pings as a
@@ -314,11 +313,15 @@ export function LiveTracker({
           <p className="text-[12px] text-[#FBF7E9]/80 leading-snug mt-1">
             The pin could be off by up to{' '}
             <strong>
-              {accuracyM
-                ? accuracyM < 1000
-                  ? `${Math.round(accuracyM)} m`
-                  : `${(accuracyM / 1000).toFixed(1)} km`
-                : 'a wide radius'}
+              {accuracyM ? (
+                // Only the measurement is pinned. "a wide radius" is prose
+                // and must still translate for a contact reading in Spanish.
+                <span data-no-translate>
+                  {formatDistanceFromMeters(accuracyM)}
+                </span>
+              ) : (
+                'a wide radius'
+              )}
             </strong>
             . Treat the surrounding blocks as the search area.
           </p>
@@ -422,7 +425,16 @@ export function LiveTracker({
             <p className="text-[10px] uppercase tracking-[0.3em] text-[#FBF7E9]/55 mb-1">
               You are about
             </p>
-            <p className="text-[32px] font-semibold text-[#E6CE93]">
+            {/* data-no-translate: /safe is a consumer route, so its text
+                passes through the runtime translation layer. That layer
+                skips pure digits, but "0.50 mi" carries letters and would
+                be sent to the translator, which is free to return a comma
+                decimal separator or a reordered string. The measurement
+                itself stays put. */}
+            <p
+              className="text-[32px] font-semibold text-[#E6CE93]"
+              data-no-translate
+            >
               {distanceLabel}
             </p>
             <p className="text-[12px] text-[#FBF7E9]/75 leading-snug">

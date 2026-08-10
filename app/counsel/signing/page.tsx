@@ -32,6 +32,7 @@ import {
 } from '@/components/counsel/list-table';
 import { listHref, oneParam, sortRows, type SortDir } from '@/lib/counsel-list';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Signing · Counsel' };
@@ -408,7 +409,7 @@ export default async function CounselSigningPage({
                               ) : (
                                 <T>created</T>
                               )}{' '}
-                              {new Date(movedAt(r)).toLocaleDateString()}
+                              {formatDateNumeric(movedAt(r))}
                             </span>
                           </Link>
                         </td>

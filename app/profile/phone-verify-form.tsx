@@ -5,6 +5,7 @@ import { startPhoneVerificationAction, confirmPhoneVerificationCodeAction } from
 // Shared with the counsel account page. A pure passthrough outside a
 // LocaleProvider, so the consumer profile is unchanged.
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * Account-level phone verification (OTP via Twilio Verify). Currently
@@ -54,7 +55,7 @@ export function PhoneVerifyForm({
             the one English word between them cannot be split out without
             translating a sentence fragment. */}
         <p className="text-sm text-ink-700 dark:text-cream-100/80" data-no-translate>
-          {verifiedPhone}, verified {new Date(verifiedAt).toLocaleDateString()}
+          {verifiedPhone}, verified {formatDateNumeric(verifiedAt)}
         </p>
         <button type="button" className="btn-ghost text-sm mt-3" onClick={() => setStep('idle')}>
           <T>Verify a different number</T>

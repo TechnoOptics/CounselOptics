@@ -4,6 +4,7 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { listNotifications } from '@/lib/notifications';
 import { PushOptIn } from '@/components/PushOptIn';
 import { ShowMore } from '@/components/ShowMore';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -177,7 +178,7 @@ function Item({
           </p>
         )}
         <p className="text-[10.5px] text-ink-500 dark:text-cream-100/70 mt-1.5 font-mono tabular-nums">
-          {new Date(n.createdAt).toLocaleString()}
+          {formatDateTimeNumeric(n.createdAt)}
         </p>
       </div>
       {!n.readAt && (

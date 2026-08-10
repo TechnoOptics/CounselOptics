@@ -10,6 +10,7 @@ import { createBrowserSupabase } from '@/lib/supabase/client';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import type { FirmChannel, FirmMessage } from '@/lib/firm-types';
 import { runGatedAction } from '@/lib/gated-action';
+import { formatTime } from '@/lib/format';
 
 // Heartbeat refetch interval - the Realtime channel covers the live
 // case, this is just a safety net so a missed event (network blip,
@@ -335,10 +336,7 @@ export function ChatShell({
                   {m.body}
                 </p>
                 <p className="text-[10px] text-muted mt-0.5 font-mono tabular-nums">
-                  {new Date(m.createdAt).toLocaleTimeString([], {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
+                  {formatTime(m.createdAt)}
                 </p>
               </article>
             ))

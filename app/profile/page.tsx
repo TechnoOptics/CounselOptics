@@ -20,6 +20,7 @@ import { ShareAppButton } from '@/components/ShareAppButton';
 import { BiometricSettings } from '@/components/BiometricSettings';
 import { AppExclusiveFeatures } from '@/components/AppExclusiveFeatures';
 import { REPRESENTATION_LABEL, type RepresentationStatus } from '@/lib/types';
+import { formatDateWith } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,7 +153,7 @@ export default async function ProfilePage({
                 <p className="text-sm text-ink-600 mt-1">
                   Accepted{' '}
                   <strong>
-                    {new Date(profile.consentedAt).toLocaleString(undefined, {
+                    {formatDateWith(profile.consentedAt, {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',

@@ -12,6 +12,7 @@ import {
   type ViewOption,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Leads · Counsel' };
@@ -238,8 +239,8 @@ function LeadRow({ lead }: { lead: Lead }) {
         )}
       </td>
       <td className="px-3 py-3 align-top text-[12px] tabular-nums text-muted">
-        <span title={new Date(lead.createdAt).toLocaleString()}>
-          {received ?? new Date(lead.createdAt).toLocaleDateString()}
+        <span title={formatDateTimeNumeric(lead.createdAt)}>
+          {received ?? formatDateNumeric(lead.createdAt)}
         </span>
       </td>
     </tr>

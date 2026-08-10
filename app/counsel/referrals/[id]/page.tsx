@@ -14,6 +14,7 @@ import {
   relativeTime,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Referral · Counsel' };
@@ -144,7 +145,7 @@ export default async function ReferralDetailPage({
             {r.client_consent_at && (
               <p className="font-mono text-[12px] text-muted">
                 <T>Consent recorded</T>{' '}
-                {new Date(r.client_consent_at).toLocaleString()}
+                {formatDateTimeNumeric(r.client_consent_at)}
               </p>
             )}
             {r.client_consent_audit && (

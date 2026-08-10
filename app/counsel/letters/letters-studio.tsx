@@ -19,6 +19,7 @@ import {
   letterheadDesignLines,
   type LetterheadDesign,
 } from '@/lib/letterhead-design';
+import { formatDateLong, formatDateNumeric } from '@/lib/format';
 
 type Brand = {
   firmName: string;
@@ -57,11 +58,7 @@ export function LettersStudio({
   const [signerName, setSignerName] = useState('');
   const [signerTitle, setSignerTitle] = useState('');
   const [dateText, setDateText] = useState(
-    new Date().toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }),
+    formatDateLong(Date.now()),
   );
   const [caseId, setCaseId] = useState(initialCaseId ?? '');
   const [options, setOptions] = useState<LetterOptions>(DEFAULT_LETTER_OPTIONS);
@@ -452,7 +449,7 @@ export function LettersStudio({
                 </pre>
               </div>
               <div className="px-8 py-4 text-[10px] text-[#8a8472] border-t border-[#ece8dd]">
-                {brand.firmName} · <T>Generated</T> {new Date().toLocaleDateString()} ·{' '}
+                {brand.firmName} · <T>Generated</T> {formatDateNumeric(Date.now())} ·{' '}
                 <T>Draft for attorney review</T>
               </div>
             </article>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { T } from '@/components/i18n/LocaleProvider';
 import { CaseMap } from '@/app/cases/[id]/timeline/case-map';
 import type { CaseEvidenceAnalytics, NameCount } from '@/lib/case-analytics';
+import { formatNumber } from '@/lib/format';
 
 /* Live evidence analytics for a matter. Server-rendered from
    getCaseEvidenceAnalytics on each (force-dynamic) page load, so it reflects
@@ -308,7 +309,7 @@ export function EvidenceDashboard({ analytics: a, caseId }: { analytics: CaseEvi
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Kpi
           label={<T>Total items</T>}
-          value={a.total.toLocaleString()}
+          value={formatNumber(a.total)}
           href={base}
           sub={typeParts.map((p, i) => (
             <span key={p.label}>
@@ -317,11 +318,11 @@ export function EvidenceDashboard({ analytics: a, caseId }: { analytics: CaseEvi
             </span>
           ))}
         />
-        <Kpi label={<T>Analyzed</T>} value={a.status.done.toLocaleString()} href={q({ status: 'done' })} sub={<>{a.analyzedPct}% <T>complete</T></>} />
-        <Kpi label={<T>High relevance</T>} value={a.relevance.high.toLocaleString()} href={q({ relevance: 'high' })} sub={a.relevance.avg != null ? <><T>avg</T> {a.relevance.avg}/100</> : undefined} />
+        <Kpi label={<T>Analyzed</T>} value={formatNumber(a.status.done)} href={q({ status: 'done' })} sub={<>{a.analyzedPct}% <T>complete</T></>} />
+        <Kpi label={<T>High relevance</T>} value={formatNumber(a.relevance.high)} href={q({ relevance: 'high' })} sub={a.relevance.avg != null ? <><T>avg</T> {a.relevance.avg}/100</> : undefined} />
         <Kpi label={<T>Data volume</T>} value={fmtBytes(a.totalBytes)} href={base} sub={<>{a.duplicates} <T>duplicates</T></>} />
         <Kpi label={<T>Date span</T>} value={span > 0 ? <>{span} <span className="text-[15px] text-ink-400 dark:text-cream-100/40"><T>yrs</T></span></> : <T>No data</T>} href={q({ group: 'date' })} sub={a.earliest && a.latest ? `${yearFrom(a.earliest)} - ${yearFrom(a.latest)}` : <T>no dates yet</T>} />
-        <Kpi label={<T>People</T>} value={a.entities.people.toLocaleString()} href={base} sub={<>{a.entities.organizations} <T>orgs</T> · {a.entities.locations} <T>places</T></>} />
+        <Kpi label={<T>People</T>} value={formatNumber(a.entities.people)} href={base} sub={<>{a.entities.organizations} <T>orgs</T> · {a.entities.locations} <T>places</T></>} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

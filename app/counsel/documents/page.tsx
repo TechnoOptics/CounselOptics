@@ -37,6 +37,7 @@ import {
   type SortDir,
 } from '@/lib/counsel-list';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDate } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Documents · Counsel' };
@@ -445,11 +446,7 @@ export default async function CounselDocumentsPage({
                                     : 'text-muted'
                                 }
                               >
-                                {new Date(d.dueAt).toLocaleDateString(undefined, {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                })}
+                                {formatDate(d.dueAt)}
                               </span>
                             ) : (
                               <span className="text-muted">

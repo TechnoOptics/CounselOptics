@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { formatDateShort } from '@/lib/format';
 
 type Mode = 'stripe_trialing' | 'free_trial' | 'expired';
 
@@ -102,10 +103,7 @@ export function TrialBanner({
     try {
       const startMs = new Date(trialEndsAt).getTime() - 7 * ONE_DAY_MS;
       const startDate = new Date(startMs);
-      return `In trial since ${startDate.toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-      })}`;
+      return `In trial since ${formatDateShort(startDate)}`;
     } catch {
       return `Day ${trialDayOfSeven} of 7`;
     }

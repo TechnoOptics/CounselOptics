@@ -9,6 +9,7 @@ import { isIntegrationEncryptionConfigured } from '@/lib/integration-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { ExternalLink } from '@/components/ExternalLink';
 import { DisconnectButton } from '@/app/counsel/meetings/disconnect-button';
+import { formatDateNumeric } from '@/lib/format';
 
 type Connection = {
   provider: string;
@@ -189,7 +190,7 @@ function ConnectorCard({
             </>
           )}{' '}
           &middot;{' '}
-          {new Date(connection.connected_at).toLocaleDateString()}
+          {formatDateNumeric(connection.connected_at)}
         </p>
       )}
 

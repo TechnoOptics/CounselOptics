@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { verifyApiToken, tokenHasScope } from '@/lib/api-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
+import { formatDateWith, formatDistanceFromMeters } from '@/lib/format';
 import { sendSms, isSmsConfigured } from '@/lib/sms';
 
 export const runtime = 'nodejs';
@@ -243,7 +244,7 @@ export async function POST(req: NextRequest) {
 
   // Build + send the email. Plain HTML kept simple so it reads on a
   // phone preview without horizontal scroll.
-  const tsHuman = firedAt.toLocaleString(undefined, {
+  const tsHuman = formatDateWith(firedAt, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -257,7 +258,7 @@ export async function POST(req: NextRequest) {
   // Used to anchor the moving-target caveat: the longer it's been
   // since this timestamp, the wider the search radius the contact
   // should consider when responding.
-  const timeShort = firedAt.toLocaleString(undefined, {
+  const timeShort = formatDateWith(firedAt, {
     hour: 'numeric',
     minute: '2-digit',
     timeZoneName: 'short',
@@ -289,13 +290,11 @@ export async function POST(req: NextRequest) {
     !locationTimedOut &&
     accuracyM !== null &&
     accuracyM <= APPROX_THRESHOLD_M;
-  // Round to a human-readable label. "~30m" / "~120m" / "~0.8km".
+  // Human-readable label in US customary units: "±98 ft" / "±0.31 mi".
+  // The contact reading this is in the United States and is about to
+  // decide how far they have to travel.
   const accuracyLabel: string | null =
-    accuracyM === null
-      ? null
-      : accuracyM < 1000
-        ? `±${Math.round(accuracyM)}m`
-        : `±${(accuracyM / 1000).toFixed(1)}km`;
+    accuracyM === null ? null : `±${formatDistanceFromMeters(accuracyM)}`;
   const mapLink = hasLoc
     ? `https://www.google.com/maps?q=${lat},${lng}`
     : null;

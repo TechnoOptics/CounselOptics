@@ -12,6 +12,7 @@ import { PermissionsPrimer } from '@/components/PermissionsPrimer';
 import { WatchSync } from '@/components/WatchSync';
 import { WidgetSync } from '@/components/WidgetSync';
 import { WatchConnectCard } from '@/components/WatchConnectCard';
+import { formatDateNumeric, formatDateShort } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -303,7 +304,7 @@ function KpiRow({
   const next = upcoming[0] ?? null;
   const nextLabel = next ? hearingRelative(next.t) : 'None scheduled';
   const nextSub = next
-    ? new Date(next.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    ? formatDateShort(next.t)
     : 'add one in a case';
 
   // Count critical-soon hearings (<= 7 days)
@@ -509,7 +510,7 @@ function CaseGrid({
                 </>
               )}
               <Dot />
-              <span>Updated {new Date(c.updatedAt).toLocaleDateString()}</span>
+              <span>Updated {formatDateNumeric(c.updatedAt)}</span>
             </div>
           </Link>
         );

@@ -10,6 +10,7 @@ import {
 import type { AppNotification } from '@/lib/notifications';
 import { PushOptIn } from './PushOptIn';
 import { ensurePushSubscribed } from '@/lib/push-client';
+import { formatDateShort } from '@/lib/format';
 
 /**
  * Bell icon + dropdown for in-app notifications. Mounted once in the
@@ -249,7 +250,7 @@ function timeAgo(iso: string): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return formatDateShort(iso);
 }
 
 function BellIcon() {

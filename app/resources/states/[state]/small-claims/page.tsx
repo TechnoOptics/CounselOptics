@@ -12,6 +12,7 @@ import {
   HowToJsonLd,
   LegalServiceStateJsonLd,
 } from '@/components/seo/JsonLd';
+import { formatNumber } from '@/lib/format';
 
 /**
  * Programmatic per-state small-claims page. One route, 50 pages
@@ -43,7 +44,7 @@ export function generateMetadata({ params }: Props): Metadata {
   const s = STATES_SMALL_CLAIMS.find((x) => x.slug === params.state);
   if (!s) return { title: 'Not found' };
   const title = `Small Claims Court in ${s.name}: Limit, Forms, Process (${new Date().getFullYear()})`;
-  const description = `${s.name} small claims court: $${s.monetaryLimit.toLocaleString()} jurisdictional limit, ${s.filingFee} filing fee, attorneys ${s.attorneysAllowed.toLowerCase()}. Statute ${s.statute}. Reviewed ${SMALL_CLAIMS_REVIEWED_AT}.`;
+  const description = `${s.name} small claims court: $${formatNumber(s.monetaryLimit)} jurisdictional limit, ${s.filingFee} filing fee, attorneys ${s.attorneysAllowed.toLowerCase()}. Statute ${s.statute}. Reviewed ${SMALL_CLAIMS_REVIEWED_AT}.`;
   return {
     title,
     description,
@@ -104,7 +105,7 @@ export default function StateSmallClaimsPage({ params }: Props) {
         stateName={s.name}
         stateSlug={s.slug}
         filingFeeRange={s.filingFee}
-        monetaryCap={s.monetaryLimit.toLocaleString()}
+        monetaryCap={formatNumber(s.monetaryLimit)}
       />
       {/* FAQPage schema for the "Common questions" section below. Each
           Q/A maps to a fact people search before filing, which makes
@@ -163,7 +164,7 @@ export default function StateSmallClaimsPage({ params }: Props) {
           Reviewed {reviewed}
         </p>
         <p className="text-base sm:text-[17px] text-ink-600 dark:text-cream-100/80 leading-relaxed">
-          Suing for under ${s.monetaryLimit.toLocaleString()} in {s.name}? You
+          Suing for under ${formatNumber(s.monetaryLimit)} in {s.name}? You
           do not need a lawyer. This page covers the rules, the filing fee,
           the forms, and what to bring on hearing day - written for people
           who have never been to court.
@@ -178,7 +179,7 @@ export default function StateSmallClaimsPage({ params }: Props) {
         <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
           <Fact
             label="Jurisdictional limit"
-            value={`$${s.monetaryLimit.toLocaleString()}`}
+            value={`$${formatNumber(s.monetaryLimit)}`}
           />
           <Fact label="Filing fee" value={s.filingFee} />
           <Fact label="Court name" value={s.courtName} />
@@ -344,7 +345,7 @@ export default function StateSmallClaimsPage({ params }: Props) {
                 className="block rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/40 p-4 hover:-translate-y-0.5 hover:shadow-sm transition-all"
               >
                 <p className="text-[10.5px] font-mono uppercase tracking-[0.18em] text-ink-500 dark:text-cream-100/55">
-                  {n.abbr} &middot; ${n.monetaryLimit.toLocaleString()} limit
+                  {n.abbr} &middot; ${formatNumber(n.monetaryLimit)} limit
                 </p>
                 <p className="mt-1 font-medium text-forest-900 dark:text-cream-100 text-[14.5px]">
                   {n.name} small claims
@@ -397,7 +398,7 @@ function Fact({ label, value }: { label: string; value: string }) {
  * the visible page does not. Order = how-much, cost, lawyers, appeals.
  */
 function faqsFor(s: StateSmallClaims): Array<{ question: string; answer: string }> {
-  const limit = `$${s.monetaryLimit.toLocaleString()}`;
+  const limit = `$${formatNumber(s.monetaryLimit)}`;
   const court = s.courtName.toLowerCase();
 
   const appealAnswer =

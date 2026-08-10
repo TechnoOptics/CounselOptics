@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { TopUpModal } from './TopUpModal';
+import { formatNumber } from '@/lib/format';
 
 type Snapshot = {
   combined: number;
@@ -79,7 +80,7 @@ export function TokenBalanceGauge({
         onClick={() => setOpen(true)}
         data-hide-on-ios
         className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md ring-1 transition-colors ${tone}`}
-        title={`${snap.combined.toLocaleString()} Bella tokens left of ${grant.toLocaleString()} this period`}
+        title={`${formatNumber(snap.combined)} Bella tokens left of ${formatNumber(grant)} this period`}
       >
         <span aria-hidden className="relative inline-flex h-1.5 w-12 rounded-full bg-ink-200/60 dark:bg-forest-800/60 overflow-hidden">
           <span

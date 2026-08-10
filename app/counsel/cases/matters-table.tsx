@@ -30,6 +30,7 @@ import {
   type SortKey,
   type ViewKey,
 } from '@/lib/matter-list';
+import { formatDate } from '@/lib/format';
 
 export type { MatterRow };
 
@@ -456,11 +457,7 @@ export function MattersTable({
                     </td>
                     <td className="px-3 py-2.5 font-mono text-[11.5px] tabular-nums text-muted">
                       {r.hearingAt ? (
-                        new Date(r.hearingAt).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
+                        formatDate(r.hearingAt)
                       ) : (
                         <T>Not set</T>
                       )}

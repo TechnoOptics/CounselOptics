@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { rescanExhibitAction, transcribeExhibitAction } from '@/lib/actions';
 import type { Exhibit, ScanData } from '@/lib/types';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   parking_ticket: 'Parking ticket',
@@ -205,7 +206,7 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-ink-200/60">
           <p className="text-[10.5px] text-ink-400 font-mono">
-            Scanned {new Date(scan.scannedAt).toLocaleString()} · {scan.modelUsed}
+            Scanned {formatDateTimeNumeric(scan.scannedAt)} · {scan.modelUsed}
             {scan.isDemo && ' · demo'}
           </p>
           <div className="flex gap-2">

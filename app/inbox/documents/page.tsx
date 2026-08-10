@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getCurrentSubscription } from '@/lib/storage';
 import { listConsumerInboxDocuments } from '@/lib/firm-storage';
+import { formatDateNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -173,7 +174,7 @@ function DocCard({
             {doc.requestSentAt && (
               <span className="text-ink-500 dark:text-cream-100/70">
                 {' · '}
-                {new Date(doc.requestSentAt).toLocaleDateString()}
+                {formatDateNumeric(doc.requestSentAt)}
               </span>
             )}
           </p>
@@ -186,7 +187,7 @@ function DocCard({
           }`}
         >
           {done
-            ? `Signed ${doc.signedAt ? new Date(doc.signedAt).toLocaleDateString() : ''}`
+            ? `Signed ${doc.signedAt ? formatDateNumeric(doc.signedAt) : ''}`
             : 'Sign'}
         </span>
       </Link>

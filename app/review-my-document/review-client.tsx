@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { stripBellaMarkdown } from '@/lib/bella-markdown';
 import { SafetyAdvisory } from '@/components/SafetyAdvisory';
+import { formatNumber } from '@/lib/format';
 
 const MAX_CHARS = 30_000;
 
@@ -96,7 +97,7 @@ export function ReviewDocumentClient() {
           className="input resize-y mt-1.5 text-[13px] leading-relaxed font-mono"
         />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-500 dark:text-cream-100/55">
-          <span>{text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters</span>
+          <span>{formatNumber(text.length)} / {formatNumber(MAX_CHARS)} characters</span>
           <span className="text-emerald-700 dark:text-emerald-400">
             We do not retain or train on your text.
           </span>

@@ -5,6 +5,7 @@ import { RECEIPT_CATEGORIES } from '@/lib/contract-types';
 import { ShowMore } from '@/components/ShowMore';
 import { FolderBar } from '@/components/FolderBar';
 import { MoveToFolder } from '@/components/MoveToFolder';
+import { formatDateNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -162,9 +163,9 @@ export default async function VaultPage({
                     )}
                     <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono mt-1">
                       {r.occurred_at
-                        ? `Occurred ${new Date(r.occurred_at).toLocaleDateString()} · `
+                        ? `Occurred ${formatDateNumeric(r.occurred_at)} · `
                         : ''}
-                      added {new Date(r.created_at).toLocaleDateString()}
+                      added {formatDateNumeric(r.created_at)}
                       {r.file_size ? ` · ${fmtBytes(r.file_size)}` : ''}
                       {r.source ? ` · ${r.source}` : ''}
                     </p>

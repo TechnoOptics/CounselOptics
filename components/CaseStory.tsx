@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ShowMore } from '@/components/ShowMore';
+import { formatDate } from '@/lib/format';
 
 export type StoryItem = {
   id: string;
@@ -50,11 +51,7 @@ const KIND_ACCENT: Record<StoryItem['kind'], string> = {
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatDate(d);
 }
 
 export function CaseStory({

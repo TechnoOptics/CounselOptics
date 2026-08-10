@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured, createServerSupabase } from '@/lib/supabase/server';
 import { getContractType } from '@/lib/contract-types';
 import { ReviewPanel } from './review-panel';
+import { formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -86,7 +87,7 @@ export default async function ContractDetailPage({
           {c.custom_type ?? type?.label ?? c.contract_type}
           {c.jurisdiction && ` · ${c.jurisdiction}`}
           {' · '}
-          added {new Date(c.created_at).toLocaleDateString()}
+          added {formatDateNumeric(c.created_at)}
         </p>
       </header>
 
@@ -95,10 +96,10 @@ export default async function ContractDetailPage({
           {c.parties.length > 0 ? c.parties.join(', ') : 'None'}
         </Field>
         <Field label="Signed">
-          {c.signed_at ? new Date(c.signed_at).toLocaleDateString() : 'Not signed'}
+          {c.signed_at ? formatDateNumeric(c.signed_at) : 'Not signed'}
         </Field>
         <Field label="Expires">
-          {c.expiry_at ? new Date(c.expiry_at).toLocaleDateString() : 'Not set'}
+          {c.expiry_at ? formatDateNumeric(c.expiry_at) : 'Not set'}
         </Field>
         <Field label="Tags">
           {c.tags.length > 0 ? (
@@ -194,7 +195,7 @@ export default async function ContractDetailPage({
               </div>
             )}
             <p className="text-[11px] text-ink-500 dark:text-cream-100/55 italic pt-3 border-t border-ink-100 dark:border-forest-800/40">
-              Reviewed {new Date(c.reviewed_at).toLocaleString()}
+              Reviewed {formatDateTimeNumeric(c.reviewed_at)}
               {c.reviewed_model && ` · ${c.reviewed_model}`}. Not legal
               advice. Counsel decides what is binding in your jurisdiction.
             </p>

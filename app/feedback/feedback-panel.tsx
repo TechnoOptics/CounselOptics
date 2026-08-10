@@ -4,6 +4,7 @@ import { FeedbackForm } from './feedback-form';
 // Rendered from the counsel route too, which runs under a LocaleProvider.
 // <T> is a client component, so a server component can render it.
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateWith } from '@/lib/format';
 
 /**
  * The feedback form, the submitter's own history, and the contact
@@ -41,7 +42,7 @@ export async function FeedbackPanel() {
                       {humanStatus(f.status)}
                     </span>
                     <span className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono">
-                      {new Date(f.createdAt).toLocaleString(undefined, {
+                      {formatDateWith(f.createdAt, {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ExternalLink } from '@/components/ExternalLink';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { Toolbar, ViewStrip } from '@/components/counsel/patterns';
+import { formatDateWith, formatMonthYear, formatTime } from '@/lib/format';
 
 export type BoardEvent = {
   at: number;
@@ -83,10 +84,7 @@ export function CalendarBoard({
   }, [events]);
 
   const cursorDate = new Date(cursor);
-  const monthLabel = cursorDate.toLocaleDateString(undefined, {
-    month: 'long',
-    year: 'numeric',
-  });
+  const monthLabel = formatMonthYear(cursorDate);
 
   // Build the 6-week grid starting on the Sunday on/before the 1st.
   const gridStart = useMemo(() => {
@@ -256,7 +254,7 @@ export function CalendarBoard({
             {/* Selected-day detail */}
             <div className="border-t border-edge pt-3">
               <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted mb-2">
-                {new Date(selected).toLocaleDateString(undefined, {
+                {formatDateWith(selected, {
                   weekday: 'long',
                   month: 'long',
                   day: 'numeric',
@@ -308,10 +306,7 @@ function EventRow({ e }: { e: BoardEvent }) {
           {e.title}
         </p>
         <p className="text-[12px] text-muted mt-0.5">
-          {new Date(e.at).toLocaleTimeString([], {
-            hour: 'numeric',
-            minute: '2-digit',
-          })}{' '}
+          {formatTime(e.at)}{' '}
           · {e.sub}
         </p>
       </div>
@@ -347,7 +342,7 @@ function EventRow({ e }: { e: BoardEvent }) {
 function AgendaView({ events }: { events: BoardEvent[] }) {
   const groups = new Map<string, BoardEvent[]>();
   for (const e of events) {
-    const key = new Date(e.at).toLocaleDateString(undefined, {
+    const key = formatDateWith(e.at, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',

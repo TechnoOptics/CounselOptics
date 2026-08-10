@@ -91,6 +91,7 @@ import {
   slugifyFolderKey,
 } from './request-folders';
 import { scheduleFirmMeeting } from './firm-meetings';
+import { formatDateNumeric, formatDateTimeNumeric, formatDateWith } from './format';
 
 /**
  * Server actions powering the law-firm perspective.
@@ -2330,7 +2331,7 @@ export async function scheduleMeetingFromIntakeAction(
   // above: a person scheduled this, and it is the requester who is being
   // told. See recordIntakeDecisionEvent.
   const byName = await firmActorName(admin, user.id);
-  const when = new Date(startMs).toLocaleString();
+  const when = formatDateTimeNumeric(startMs);
   const providerLabel =
     result.provider === 'microsoft' ? 'Microsoft Teams' : 'Zoom';
   const posted = await insertIntakeMessage({
@@ -2500,7 +2501,7 @@ export async function scheduleStandaloneMeetingAction(
   const firmLogoUrl = fr?.logo_url ?? null;
   const providerLabel =
     result.provider === 'microsoft' ? 'Microsoft Teams' : 'Zoom';
-  const whenText = new Date(startMs).toLocaleString(undefined, {
+  const whenText = formatDateWith(startMs, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -5338,10 +5339,10 @@ export async function resendCounselInviteAction(
       <p>Just a friendly reminder that the Advottic Counsel workspace for <strong>${escapeHtml(g.organization_name)}</strong> is still waiting for you.</p>
       <p><a href="${escapeHtml(url)}" style="background:#0f2d24;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Activate workspace</a></p>
       <p style="font-family:monospace;font-size:13px;">${escapeHtml(url)}</p>
-      <p>Single-use link. Expires ${escapeHtml(new Date(g.expires_at).toLocaleDateString())}.</p>
+      <p>Single-use link. Expires ${escapeHtml(formatDateNumeric(g.expires_at))}.</p>
       <p>- The Advottic team</p>
     `,
-    text: `Reminder: the Advottic Counsel workspace for ${g.organization_name} is still waiting for you.\n\nActivation link:\n${url}\n\nExpires ${new Date(g.expires_at).toLocaleDateString()}.\n\n- The Advottic team`,
+    text: `Reminder: the Advottic Counsel workspace for ${g.organization_name} is still waiting for you.\n\nActivation link:\n${url}\n\nExpires ${formatDateNumeric(g.expires_at)}.\n\n- The Advottic team`,
   }).catch(() => {});
   revalidatePath('/admin/invitations');
   return { ok: true };

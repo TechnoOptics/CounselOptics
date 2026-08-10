@@ -10,6 +10,7 @@ import {
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { ViewStrip, type ViewOption } from '@/components/counsel/patterns';
 import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * The categories, with how many documents each one offers.
@@ -298,7 +299,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
               </div>
               <div className="px-8 py-4 text-[10px] text-[#8a8472] border-t border-[#ece8dd]">
                 {meta.firmName} · <T>Generated</T>{' '}
-                {new Date().toLocaleDateString()} · <T>Draft for attorney review</T>
+                {formatDateNumeric(Date.now())} · <T>Draft for attorney review</T>
               </div>
             </article>
           </>

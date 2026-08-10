@@ -24,6 +24,7 @@ import { CollabProvider } from './collab-context';
 import { SectionComments } from './section-comments';
 import { CaseChatPanel } from './case-chat-panel';
 import type { AuthorCard, CaseParticipant, ChatMessage, SectionComment } from '@/lib/case-collab-types';
+import { formatMonthYear } from '@/lib/format';
 
 /**
  * Firm-native Case Timeline. Distinct from the evidence intake (which is where
@@ -44,7 +45,7 @@ function monthKeyLabel(occurredAt: string | null): { key: string; label: string;
   const d = new Date(occurredAt);
   if (Number.isNaN(d.getTime())) return { key: '~undated', label: '', undated: true };
   const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  const label = d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+  const label = formatMonthYear(d);
   return { key, label, undated: false };
 }
 

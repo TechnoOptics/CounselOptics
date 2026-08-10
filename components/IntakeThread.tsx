@@ -6,6 +6,7 @@ import {
   postIntakeThreadMessageAction,
   type ThreadMessage,
 } from '@/lib/intake-thread';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export type Mentionable = { id: string; name: string };
 
@@ -165,7 +166,7 @@ export function IntakeThread({
                   {renderWithMentions(m.text, names)}
                 </div>
                 <p className="mt-1 text-[10px] text-ink-400 dark:text-cream-100/55">
-                  {new Date(m.at).toLocaleString()}
+                  {formatDateTimeNumeric(m.at)}
                 </p>
               </li>
             );

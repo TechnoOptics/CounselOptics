@@ -21,6 +21,7 @@ import {
   letterheadDesignWordLines,
   type LetterheadDesign,
 } from './letterhead-design';
+import { formatDateNumeric, formatDateTimeNumeric } from './format';
 
 /**
  * Word export of a Community Case's submissions, mirroring the structure
@@ -48,7 +49,7 @@ export async function generateCommunitySubmissionsDocx(input: CommunityExportDat
   children.push(metaTable([
     ['Case number', input.communityCase.caseNumber],
     ['Status', input.communityCase.status],
-    ['Exported', new Date().toLocaleString()],
+    ['Exported', formatDateTimeNumeric(Date.now())],
     ['Letters of Support', String(input.communityCase.letterCount)],
     ['Evidence / testimonials', String(input.communityCase.evidenceCount)],
   ]));
@@ -69,7 +70,7 @@ export async function generateCommunitySubmissionsDocx(input: CommunityExportDat
     new Paragraph({
       text: `${input.organizer.name} · ${input.organizer.email}${
         input.organizer.accountCreatedAt
-          ? ` · account created ${new Date(input.organizer.accountCreatedAt).toLocaleDateString()}`
+          ? ` · account created ${formatDateNumeric(input.organizer.accountCreatedAt)}`
           : ''
       }`,
     }),
@@ -191,7 +192,7 @@ async function submissionSection(
     const addr = s.mailingAddress;
     out.push(
       metaTable([
-        ['Submitted', new Date(s.createdAt).toLocaleString()],
+        ['Submitted', formatDateTimeNumeric(s.createdAt)],
         ['Type', 'Letter of Support'],
         ['Mailing address', addr ? `${addr.street}, ${addr.city}, ${addr.state} ${addr.zip}` : null],
       ]),
@@ -227,7 +228,7 @@ async function submissionSection(
 
   out.push(
     metaTable([
-      ['Submitted', new Date(s.createdAt).toLocaleString()],
+      ['Submitted', formatDateTimeNumeric(s.createdAt)],
       ['Attachment', s.evidenceFileName ?? null],
       ['File size', s.evidenceFileSize ? formatBytes(s.evidenceFileSize) : null],
     ]),

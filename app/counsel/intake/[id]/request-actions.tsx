@@ -8,6 +8,7 @@ import {
   convertIntakeToCaseAction,
 } from '@/lib/firm-actions';
 import { runGatedAction } from '@/lib/gated-action';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 /**
  * Reminder + e-signature actions for a request. The reminder is
@@ -156,7 +157,7 @@ export function RequestActions({
         {currentReminder && (
           <p className="text-[11px] text-muted">
             <T>Currently due</T>{' '}
-            {new Date(currentReminder).toLocaleString()}
+            {formatDateTimeNumeric(currentReminder)}
           </p>
         )}
         {error && (

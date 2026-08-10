@@ -14,6 +14,7 @@ import {
   shortRef,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Lead · Counsel' };
@@ -97,8 +98,8 @@ export default async function FirmLeadDetailPage({
               <span data-no-translate>{lead.budget}</span>
             </Chip>
           )}
-          <span title={new Date(lead.createdAt).toLocaleString()}>
-            <T>received</T> {received ?? new Date(lead.createdAt).toLocaleDateString()}
+          <span title={formatDateTimeNumeric(lead.createdAt)}>
+            <T>received</T> {received ?? formatDateNumeric(lead.createdAt)}
           </span>
         </div>
       </PageHeader>
@@ -188,7 +189,7 @@ export default async function FirmLeadDetailPage({
                 <strong data-no-translate>{lead.firmResponse.responseType}</strong>{' '}
                 <T>on</T>{' '}
                 <span data-no-translate>
-                  {new Date(lead.firmResponse.createdAt).toLocaleString()}
+                  {formatDateTimeNumeric(lead.firmResponse.createdAt)}
                 </span>
                 .
                 {/* Only a lead with an account behind it has an inbox to

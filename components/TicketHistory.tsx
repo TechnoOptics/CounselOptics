@@ -1,4 +1,5 @@
 import type { FeedbackRow } from '@/lib/storage';
+import { formatDateNumeric } from '@/lib/format';
 
 const CATEGORY_LABEL: Record<string, string> = {
   bug: "Something's broken",
@@ -69,7 +70,7 @@ export function TicketHistory({ tickets }: { tickets: FeedbackRow[] }) {
                   </p>
                   <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
                     {CATEGORY_LABEL[t.category] ?? t.category} ·{' '}
-                    {new Date(t.createdAt).toLocaleDateString()}
+                    {formatDateNumeric(t.createdAt)}
                   </p>
                 </div>
                 <span

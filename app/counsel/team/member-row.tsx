@@ -13,6 +13,7 @@ import { relativeTime } from '@/components/counsel/patterns';
 import { MemberRateCell } from './member-rate-cell';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 // 'owner' is excluded here on purpose: it can only change via
 // transferFirmOwnershipAction (below), which keeps firms.created_by in
@@ -177,7 +178,7 @@ export function TeamMemberRow({
       )}
       <td
         className="px-3 py-2.5 text-[12px] text-muted"
-        title={new Date(member.joinedAt).toLocaleString()}
+        title={formatDateTimeNumeric(member.joinedAt)}
         suppressHydrationWarning
       >
         {relativeTime(member.joinedAt) ?? ''}

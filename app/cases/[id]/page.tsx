@@ -36,6 +36,7 @@ import { CaseSearch, type SearchItem } from './case-search';
 import { CallALawyerCallout } from '@/components/CallALawyerCallout';
 import { hasDecisionCue } from '@/lib/decision-cues';
 import { getProfile } from '@/lib/storage';
+import { formatDateNumeric, formatDateShort, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -632,7 +633,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                                 {e.incidentDate && (
                                   <span>
                                     <span className="text-ink-400">Incident:</span>{' '}
-                                    {new Date(e.incidentDate).toLocaleDateString()}
+                                    {formatDateNumeric(e.incidentDate)}
                                   </span>
                                 )}
                                 {e.source && (
@@ -644,7 +645,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                               </div>
                               <p className="text-xs text-ink-500 mt-1">
                                 {e.fileType} · {formatBytes(e.fileSize)} · uploaded{' '}
-                                {new Date(e.uploadedAt).toLocaleString()}
+                                {formatDateTimeNumeric(e.uploadedAt)}
                               </p>
                             </div>
                             <a
@@ -795,7 +796,7 @@ function hearingShort(hearingAt: string | null | undefined): string | null {
 
 function hearingDateShort(hearingAt: string): string {
   const d = new Date(hearingAt);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return formatDateShort(d);
 }
 
 function hearingTone(

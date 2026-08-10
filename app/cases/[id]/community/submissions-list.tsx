@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { getWitnessFileSignedUrl, markSubmissionReviewedAction } from '@/lib/community-actions';
 import type { WitnessSubmission } from '@/lib/community-types';
 import { ExternalLink } from '@/components/ExternalLink';
+import { formatDateTimeNumeric } from '@/lib/format';
 
 export function SubmissionsList({
   caseId,
@@ -96,7 +97,7 @@ function SubmissionRow({ caseId, submission }: { caseId: string; submission: Wit
             {STATUS_LABEL[status]}
           </span>
           <p className="text-xs text-ink-500 dark:text-cream-100/55">
-            {new Date(submission.createdAt).toLocaleString()}
+            {formatDateTimeNumeric(submission.createdAt)}
           </p>
         </div>
       </div>
@@ -104,7 +105,7 @@ function SubmissionRow({ caseId, submission }: { caseId: string; submission: Wit
       {status === 'pending_purge' && submission.purgeScheduledAt && (
         <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
           ID photo and signature will be permanently deleted{' '}
-          {new Date(new Date(submission.purgeScheduledAt).getTime() + 48 * 60 * 60 * 1000).toLocaleString()}{' '}
+          {formatDateTimeNumeric(new Date(submission.purgeScheduledAt).getTime() + 48 * 60 * 60 * 1000)}{' '}
           unless the page is reopened before then.
         </p>
       )}

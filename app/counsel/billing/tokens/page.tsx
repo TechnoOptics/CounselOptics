@@ -6,6 +6,7 @@ import { TokenTopUpButton } from './topup-button';
 import { PageHeader } from '@/components/counsel/ui';
 import { PanelCard, relativeTime } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { formatDateNumeric, formatDateTimeNumeric, formatNumber } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Bella tokens · Counsel' };
@@ -112,7 +113,7 @@ export default async function FirmTokenPoolPage() {
           tone={balance > 1_000_000 ? 'emerald' : balance > 200_000 ? 'amber' : 'rose'}
           sub={
             firm?.token_pool_period_end
-              ? `Renews ${new Date(firm.token_pool_period_end).toLocaleDateString()}`
+              ? `Renews ${formatDateNumeric(firm.token_pool_period_end)}`
               : 'No active subscription'
           }
         />
@@ -205,7 +206,7 @@ export default async function FirmTokenPoolPage() {
                     </td>
                     <td
                       className="px-3 py-2.5 text-[12px] text-muted"
-                      title={new Date(r.occurred_at).toLocaleString()}
+                      title={formatDateTimeNumeric(r.occurred_at)}
                       suppressHydrationWarning
                     >
                       {relativeTime(r.occurred_at) ?? ''}
@@ -218,7 +219,7 @@ export default async function FirmTokenPoolPage() {
                       }`}
                     >
                       {r.delta > 0 ? '+' : ''}
-                      {r.delta.toLocaleString()}
+                      {formatNumber(r.delta)}
                     </td>
                   </tr>
                 ))}

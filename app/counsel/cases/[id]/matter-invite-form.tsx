@@ -13,6 +13,7 @@ import type { CaseGuestAccount } from '@/lib/counsel-guest';
 import type { Collaborator, CollaboratorRole } from '@/lib/types';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { formatDateNumeric } from '@/lib/format';
 
 /**
  * Firm-facing labels for the four invite roles, keyed by the underlying
@@ -297,9 +298,9 @@ export function MatterInviteForm({
                   )}
                 </div>
                 <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono tabular-nums mt-1">
-                  Invited {new Date(c.invitedAt).toLocaleDateString()}
+                  Invited {formatDateNumeric(c.invitedAt)}
                   {c.acceptedAt &&
-                    ` · joined ${new Date(c.acceptedAt).toLocaleDateString()}`}
+                    ` · joined ${formatDateNumeric(c.acceptedAt)}`}
                 </p>
               </div>
               {canManage && (
