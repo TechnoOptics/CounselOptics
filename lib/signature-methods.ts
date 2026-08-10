@@ -198,3 +198,25 @@ export function signatureMethodFromPadMode(mode: unknown): SignatureMethod | nul
   if (mode === 'uploaded') return 'upload';
   return null;
 }
+
+/** The three modes components/SignaturePad can render, in its tab order. */
+export const PAD_MODES = ['drawn', 'typed', 'uploaded'] as const;
+export type PadMode = (typeof PAD_MODES)[number];
+
+/**
+ * Which pad tabs to offer for a given restriction.
+ *
+ * The inverse of signatureMethodFromPadMode, and the only place the two
+ * vocabularies meet on this side. 'phone' is dropped rather than mapped,
+ * because it is not something the desktop pad can do: a template that allows
+ * only the phone leaves this empty on purpose, and the signer uses the QR card
+ * instead. Restoring a tab there would offer a method the firm forbade and
+ * the server would refuse.
+ */
+export function padModesFor(allowed: SignatureMethod[] | null): PadMode[] {
+  if (allowed === null) return [...PAD_MODES];
+  return PAD_MODES.filter((mode) => {
+    const method = signatureMethodFromPadMode(mode);
+    return method !== null && allowed.includes(method);
+  });
+}

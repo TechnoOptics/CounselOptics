@@ -530,6 +530,10 @@ export default async function SignPage({ params }: { params: { token: string } }
           positionX={signature.positionX}
           positionY={signature.positionY}
           copyPermitted={request.signerCanDownload}
+          /* Offered so the signer sees only the methods that will be
+             accepted. The refusal itself is lib/signature-write.ts, on the
+             server, because this page is not what a leaked link posts to. */
+          signatureMethods={request.signatureMethods}
           copyHref={`/api/firm/sign/copy/${signature.token}`}
           counterpartyFields={intake?.fields ?? []}
           fieldBoxes={intake?.boxes ?? []}

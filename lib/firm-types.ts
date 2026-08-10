@@ -1,3 +1,4 @@
+import type { SignatureMethod } from './signature-methods';
 /**
  * Type surface for the law-firm perspective ("Advottic Counsel").
  * Server boundary returns these shapes; everything inside firm-mode
@@ -376,6 +377,18 @@ export type FirmSigningRequest = {
    * E-SIGN at 15 USC 7001(a)(1) is built around retention.
    */
   signerCanDownload: boolean;
+  /**
+   * Which signature methods this request may be signed with, frozen from the
+   * dispatching template when it was created.
+   *
+   * Null means no restriction, which is what every request created before
+   * 20260814_signature_methods.sql means and what every request for a plainly
+   * uploaded document means. lib/signature-write.ts refuses a signature made
+   * any other way; the signer's page reads this only so it can offer the
+   * methods that will be accepted rather than letting somebody draw their name
+   * and then be told.
+   */
+  signatureMethods: SignatureMethod[] | null;
   /**
    * Storage path to the EXECUTED copy: the PDF with each signature and
    * its date stamped onto the signature line, produced by

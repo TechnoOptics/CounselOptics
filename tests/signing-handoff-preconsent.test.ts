@@ -155,7 +155,14 @@ describe('one card, on both steps', () => {
   it('offers it on the disclosure step and not only at capture', () => {
     const src = read(CAPTURE);
     const disclosure = src.indexOf("if (step === 'disclosure')");
-    const offered = src.indexOf('{documentPresented && mobileHandoff}');
+    // The condition gained phonePermitted when the firm was given a
+    // per-template say over the four signature methods. The card is still
+    // offered on this step; it is now also absent when the firm has not
+    // allowed the phone, which is why this looks for the guard rather than
+    // for the old literal.
+    const offered = src.indexOf(
+      '{documentPresented && phonePermitted && mobileHandoff}',
+    );
 
     expect(disclosure).toBeGreaterThan(-1);
     expect(offered).toBeGreaterThan(disclosure);

@@ -7,6 +7,7 @@ import {
   methodRefusalSentence,
   normalizeSignatureMethodSelection,
   parseAllowedSignatureMethods,
+  padModesFor,
   parseSignatureMethod,
   signatureMethodFromPadMode,
 } from '../lib/signature-methods';
@@ -209,5 +210,29 @@ describe('signatureMethodFromPadMode', () => {
     expect(signatureMethodFromPadMode('phone')).toBeNull();
     expect(signatureMethodFromPadMode('')).toBeNull();
     expect(signatureMethodFromPadMode(undefined)).toBeNull();
+  });
+});
+
+describe('padModesFor', () => {
+  it('offers all three pad modes when nothing is restricted', () => {
+    expect(padModesFor(null)).toEqual(['drawn', 'typed', 'uploaded']);
+  });
+
+  it('offers only the modes the restriction names', () => {
+    expect(padModesFor(['type', 'upload'])).toEqual(['typed', 'uploaded']);
+  });
+
+  /**
+   * 'phone' has no pad mode. A template that allows ONLY the phone leaves the
+   * desktop pad with nothing to show, and the signer is meant to use the QR
+   * card instead, so this returns an empty list rather than quietly restoring
+   * a mode the firm forbade.
+   */
+  it('returns nothing for a template that only allows the phone', () => {
+    expect(padModesFor(['phone'])).toEqual([]);
+  });
+
+  it('drops the phone from a mixed selection rather than mapping it', () => {
+    expect(padModesFor(['draw', 'phone'])).toEqual(['drawn']);
   });
 });

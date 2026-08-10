@@ -14,6 +14,7 @@ import {
   MINT_REFUSAL_DISCLOSURE,
   MINT_REFUSAL_LINK_INVALID,
   MINT_REFUSAL_ON_HOLD,
+  MINT_REFUSAL_PHONE_NOT_ALLOWED,
   MINT_REFUSAL_UNAVAILABLE,
   type MintHandoffDeps,
   type MintSignatureRow,
@@ -497,5 +498,39 @@ describe('the laptop wiring', () => {
     expect(read('supabase/migrations/20260801_signature_handoffs.sql')).toMatch(
       /desktop_consent jsonb/,
     );
+  });
+});
+
+/**
+ * The firm's per-template choice, on the laptop side.
+ *
+ * This is defence in depth and nothing more. lib/signature-write.ts refuses a
+ * mobile_handoff signature on a request that forbids the phone whatever
+ * happens here, and that refusal is what protects the instrument. Minting is
+ * still stopped, because a signer who scans a code, walks to their phone,
+ * draws their name and is only then told the firm does not accept this is
+ * being wasted twice: once by the offer and once by the refusal.
+ */
+describe('signing on a phone the firm did not allow', () => {
+  it('is refused before a code is minted', async () => {
+    const d = deps({
+      loadSignature: async () => signature({ signatureMethods: ['draw', 'type'] }),
+    });
+    const result = await mintSigningHandoff(DURABLE, CONSENT, d.deps);
+    expect(result).toEqual({ ok: false, error: MINT_REFUSAL_PHONE_NOT_ALLOWED });
+    // Nothing was written. A refusal that had already inserted a handoff row
+    // would leave a live credential behind for a ceremony that cannot happen.
+    expect(d.created).toEqual([]);
+  });
+
+  it('mints when the request names the phone', async () => {
+    const d = deps({
+      loadSignature: async () => signature({ signatureMethods: ['draw', 'phone'] }),
+    });
+    expect((await mintSigningHandoff(DURABLE, CONSENT, d.deps)).ok).toBe(true);
+  });
+
+  it('mints when the request restricts nothing, which is every request today', async () => {
+    expect((await mintSigningHandoff(DURABLE, CONSENT, deps().deps)).ok).toBe(true);
   });
 });

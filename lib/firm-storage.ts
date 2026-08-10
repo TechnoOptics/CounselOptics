@@ -1,6 +1,7 @@
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { parseSignerDownloadPermission } from './signer-view';
+import { parseAllowedSignatureMethods } from './signature-methods';
 import { callerIsFirmMember } from './firm-authz';
 import {
   isExecutedCopyPath,
@@ -206,6 +207,9 @@ type FirmSigningRequestRow = {
   document_sha256: string | null;
   /** Optional: the column may not exist yet on older schemas. */
   signer_can_download?: boolean | null;
+  /** Absent until the owner applies 20260814_signature_methods.sql, and
+   *  absent from every row created before it. Both read as no restriction. */
+  signature_methods?: unknown;
   /**
    * Optional on the row type on purpose. The column is additive (see
    * supabase/fixes/2026-05-14-signature-rendering-columns.sql) and is
@@ -230,6 +234,7 @@ function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
     createdAt: r.created_at,
     documentSha256: r.document_sha256,
     signerCanDownload: parseSignerDownloadPermission(r.signer_can_download),
+    signatureMethods: parseAllowedSignatureMethods(r.signature_methods),
     signedFilePath: r.signed_file_path ?? null,
   };
 }
