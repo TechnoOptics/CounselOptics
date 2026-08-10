@@ -2396,25 +2396,64 @@ select:focus-visible,
      /billing, /cases, /vault, /deadlines, /decoder, /gift, the 404, every
      guide and every case section. At 11px it needs 4.5:1 to pass WCAG AA,
      and text-gold-700 (#a38a55) measured 3.32:1 on white - 89 failing nodes
-     on /pricing alone (live audit 2026-08-01). #78653c is the same hue a
-     shade deeper: 5.64:1 on white, 5.26:1 on cream-100 and 4.82:1 on
-     cream-200, the darkest light surface an eyebrow renders on.
+     on /pricing alone (live audit 2026-08-01).
 
-     Dark shells keep the original gold - it already passes there, and
-     changing it would restyle the firm product. That means BOTH wrappers:
-     `.dark` (user dark mode, plus counsel / HQ / portal, which all set
-     `class="dark ..."`) and `.enterprise-shell`, which paints a near-black
-     surface WITHOUT a `.dark` class (app/enterprise/page.tsx). Missing the
-     second one would have taken /enterprise's eyebrows from 5.93:1 to
-     3.50:1 - trading one AA failure for another. `:where()` keeps the
-     override at the same specificity as `.eyebrow` itself so the many call
-     sites that recolour the eyebrow with a utility still win. */
+     THE GOLD IS NOW DERIVED, NOT PICKED, and that is the fix rather than a
+     tidy-up. Both halves used to be hand-chosen a shade at a time, and both
+     halves were wrong somewhere:
+
+       #78653c   light   fine on every light ground (4.82:1 worst, on
+                         cream-200), so it was never the complaint
+       #a38a55   dark    4.18:1 on `.counsel-shell .bg-cream-200`, and only
+                         2.38:1 on `.dark .bg-cream-200` (#2a5a47). The
+                         dark override reaches BOTH repaint families and
+                         the consumer one is green and far lighter, so a
+                         gold tuned by eye on near-black counsel failed on
+                         five consumer dark surfaces at once.
+
+     The pair below is `deriveAccentText(DEFAULT_ACCENT, tone)` from
+     lib/accent-text.ts - the same lightness pin and chroma cap that give
+     every firm's accent a contrast floor, applied to Advottic's own gold:
+
+       light  oklch(0.46 min(c, 0.075) h)  ->  #6a5521   6.12:1 worst
+       dark   oklch(0.84 min(c, 0.078) h)  ->  #e0c890   4.84:1 worst
+
+     Worst case is over every solid ground each selector can paint, both
+     repaint families included, and tests/accent-text.test.ts recomputes
+     the derivation and remeasures both, so neither literal can drift from
+     the function that produced it.
+
+     It stays a FIXED gold rather than `var(--accent-text)`. An eyebrow is
+     structural micro-type ("MATTER", "404", "CO-COUNSEL"), not the firm's
+     brand speaking, and `.eyebrow` renders on consumer marketing pages
+     where no firm accent exists at all. Same derivation, different input.
+
+     BOTH dark wrappers are needed: `.dark` (user dark mode, plus counsel /
+     HQ / portal, which all set `class="dark ..."`) and `.enterprise-shell`,
+     which paints a near-black surface WITHOUT a `.dark` class
+     (app/enterprise/page.tsx). Missing the second one would have taken
+     /enterprise's eyebrows from 5.93:1 to 3.50:1 - trading one AA failure
+     for another. `:where()` keeps the override at the same specificity as
+     `.eyebrow` itself so the many call sites that recolour the eyebrow with
+     a utility still win, and `:is()` adds the second class without raising
+     it either.
+
+     `.eyebrow-bare` is a MODIFIER, not a second eyebrow: it is worn
+     alongside `.eyebrow` and suppresses only the leading rule. The 404s
+     and the co-counsel guest headers are the first thing on the page, so a
+     rule there reads as a divider with nothing above it to divide from,
+     and that is the entire difference between the two. Written this way
+     the colour is not shared by agreement, it is shared because there is
+     only one declaration and both variants match it. The bare variant used
+     to spell its own gold instead - `text-gold-300`, #e5ce93, which
+     measured 1.34:1 on a light counsel chip, invisible rather than
+     merely low - and that is what a second spelling buys. */
   .eyebrow {
     @apply inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] font-semibold;
-    color: #78653c;
+    color: #6a5521;
   }
   :where(.dark, .enterprise-shell) .eyebrow {
-    color: #a38a55; /* gold-700 */
+    color: #e0c890;
   }
   .eyebrow::before {
     content: '';
@@ -2424,6 +2463,9 @@ select:focus-visible,
     background: currentColor;
     border-radius: 2px;
     flex: none;
+  }
+  .eyebrow-bare::before {
+    content: none;
   }
   .divider {
     @apply border-t border-ink-100 dark:border-forest-700/60;

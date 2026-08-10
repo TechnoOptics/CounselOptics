@@ -2035,8 +2035,6 @@ describe('the shared counsel primitives paint no neutral under AA on a counsel g
   const NON_NEUTRAL: Record<string, string> = {
     'accent-text':
       'the per-firm derived accent, proved on every surface for every customer hex by the blocks above',
-    'gold-300':
-      "PageHeader's `plain` eyebrow. A FIXED brand gold, not the firm accent, and it is under AA on light counsel at 1.34:1 worst. Recording it here rather than silently skipping it: replacing it needs a gold that clears the floor on light counsel AND on every dark counsel ground, and `.eyebrow`'s own pair does not (#a38a55 is 4.18:1 on the dark .bg-cream-200), so it is a colour decision and not a rename",
   };
 
   /**
@@ -2343,5 +2341,324 @@ describe('the shared counsel primitives paint no neutral under AA on a counsel g
     const colourOf = (s: string) =>
       s.split(/\s+/).filter((c) => /(?:^|:)text-(?:muted|foreground|ink-|cream-|forest-)/.test(c));
     expect(colourOf(labelVariant)).toEqual(colourOf(sectionLabel));
+  });
+
+  /* ------------- classes these files WEAR rather than spell ------------- */
+
+  /**
+   * The sweep above reads `text-*` tokens out of the tsx. A component
+   * class does not put one there: `.eyebrow` carries its colour in
+   * app/globals.css, so a file that wears it spells no colour at all and
+   * the sweep saw nothing to measure.
+   *
+   * That blind spot is not theoretical. PageHeader's `plain` eyebrow was
+   * a hand-rolled copy of `.eyebrow` painted `text-gold-300` (#e5ce93),
+   * which the light counsel layer does not repaint: 1.34:1 on a light
+   * counsel chip, invisible rather than merely low, on the two surfaces a
+   * firm sends invited outside counsel to. It was visible to the sweep
+   * only because it happened to be spelled as a utility. Folding it back
+   * onto `.eyebrow` would have FIXED the colour and simultaneously made
+   * it unmeasurable, so the guard has to be able to follow it there.
+   */
+  /**
+   * A selector list split on its TOP-LEVEL commas.
+   *
+   * Not `String.split(',')`, and the difference is not cosmetic. The
+   * invisible-text guard further up the stylesheet is one selector
+   * reading `... :is(.bg-white, ..., .card, ...) > :is(.text-cream-50,
+   * ...)`, which paints the CHILDREN of a card. Split naively it yields
+   * a fragment that is exactly `.card`, so the card appears to be
+   * painted cream on a white ground and the sweep reports 1.01:1 against
+   * a rule that does no such thing.
+   */
+  function splitSelectorList(list: string): string[] {
+    const out: string[] = [];
+    let depth = 0;
+    let current = '';
+    for (const ch of list) {
+      if (ch === '(' || ch === '[') depth += 1;
+      else if (ch === ')' || ch === ']') depth -= 1;
+      if (ch === ',' && depth === 0) {
+        out.push(current);
+        current = '';
+        continue;
+      }
+      current += ch;
+    }
+    out.push(current);
+    return out.filter((s) => s.trim());
+  }
+
+  /** Selector text with the whitespace inside its parentheses removed. */
+  function flattenSelector(sel: string): string {
+    return sel.trim().replace(/\(([^()]*)\)/g, (m) => m.replace(/\s+/g, ''));
+  }
+
+  /** A selector split into its scope and the compound it finally targets. */
+  function selectorParts(sel: string): { scope: string; tail: string } {
+    const parts = flattenSelector(sel)
+      .replace(/[>+~]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+    return {
+      scope: parts.slice(0, -1).join(' '),
+      tail: parts[parts.length - 1] ?? '',
+    };
+  }
+
+  /**
+   * Which themes a scope can paint in.
+   *
+   * `.dark` inside a `:not()` is the LIGHT counsel shell saying it is not
+   * dark, so it is stripped before the dark markers are looked for. An
+   * unscoped rule paints in both and is simply overridden in one.
+   */
+  function scopeThemes(scope: string): ('light' | 'dark')[] {
+    const withoutNot = scope.replace(/:not\(\.dark\)/g, '');
+    if (/\.dark\b|\.enterprise-shell\b|\.hq-shell\b/.test(withoutNot))
+      return ['dark'];
+    if (/:not\(\.dark\)/.test(scope)) return ['light'];
+    return ['light', 'dark'];
+  }
+
+  /** Does this selector finally target exactly `.cls`, and not a pseudo? */
+  function targetsClass(tail: string, cls: string): boolean {
+    if (tail.includes('::')) return false;
+    if (tail === `.${cls}`) return true;
+    const group = /^:is\(([^)]*)\)$/.exec(tail);
+    return group ? group[1].split(',').includes(`.${cls}`) : false;
+  }
+
+  /**
+   * The colour an `@apply`-ed token puts on the class that applies it,
+   * which is NOT the same as the colour that class name would have as a
+   * utility, and the difference is the whole reason this exists.
+   *
+   * `@apply text-ink-500` inlines `color: #71717a` into `.tab`. The
+   * repaint layers key off the UTILITY `.text-ink-500`, and `.tab` does
+   * not carry it, so none of them reach it: a palette colour applied
+   * this way is frozen at its raw value in both themes. A var-driven
+   * family is the opposite - `text-forest-900` inlines
+   * `rgb(var(--forest-900))` and every shell remaps the channels - so it
+   * still follows the theme and is resolved the ordinary way.
+   */
+  function resolveApplied(token: string, theme: 'light' | 'dark'): Paint | null {
+    const body = token.replace(/^(?:[a-z-]+:)*text-/, '');
+    const [name, alphaPart] = body.split('/');
+    if (PALETTE[name])
+      return {
+        hex: PALETTE[name],
+        alpha: alphaPart ? Number(alphaPart) / 100 : 1,
+      };
+    return resolve(token, theme);
+  }
+
+  /**
+   * What a component class paints in one theme: the last literal
+   * `color:` any rule that reaches it declares, or, failing that, the
+   * `text-*` token it hands to `@apply`.
+   *
+   * The `@apply` arm is what keeps `.card`'s `dark:text-cream-100` from
+   * being read as "declares no colour", which would be the same silence
+   * this block exists to remove.
+   */
+  function componentPaint(cls: string, theme: 'light' | 'dark'): Paint | null {
+    let found: Paint | null = null;
+    for (const [, selectors, body] of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const reaches = splitSelectorList(selectors).some((sel) => {
+        const { scope, tail } = selectorParts(sel);
+        return targetsClass(tail, cls) && scopeThemes(scope).includes(theme);
+      });
+      if (!reaches) continue;
+      const literal = /(?:^|[;\s])color:\s*([^;]+);/.exec(body);
+      if (literal) {
+        found = parseColour(literal[1]);
+        continue;
+      }
+      const applied = /@apply\s+([^;]+);/.exec(body);
+      if (!applied) continue;
+      // A bare token is inlined unconditionally and so paints in both
+      // themes; a `dark:` token compiles to `.dark .<class>` and
+      // overrides it in dark only. Anything with another variant in
+      // front (`hover:`) is a state, not the resting colour.
+      let bare: string | null = null;
+      let dark: string | null = null;
+      for (const token of applied[1].split(/\s+/)) {
+        const name = /^(dark:)?text-([a-z0-9-]+(?:\/\d+)?|\[#[0-9a-fA-F]{6}\])$/.exec(
+          token,
+        );
+        if (!name || NOT_A_COLOUR.test(name[2])) continue;
+        if (name[1]) dark = token;
+        else bare = token;
+      }
+      const token = theme === 'dark' ? (dark ?? bare) : bare;
+      if (token) found = resolveApplied(token, theme) ?? found;
+    }
+    return found;
+  }
+
+  /**
+   * Every class token these files put in a quoted CLASS LIST.
+   *
+   * A class list is a run of two or more tokens, one of which is
+   * hyphenated. That is a heuristic and it is drawn where it is because
+   * the alternative was worse in a way that was measured rather than
+   * guessed: reading every quoted lowercase word instead reported
+   * `role="tab"` on a tablist as the `.tab` component class and failed
+   * the sweep at 2.87:1 against a rule that file does not use. A guard
+   * that cries wolf gets an exemption written for it, and an exemption
+   * written for something imaginary is worse than no guard.
+   *
+   * A single-class `className="eyebrow"` is therefore not seen. That is
+   * the cost, and it is bounded by the anchor below, which fails if the
+   * one class this block exists for stops being visible.
+   */
+  function classTokensIn(rel: string): string[] {
+    const src = readFileSync(
+      fileURLToPath(new URL(`../${rel}`, import.meta.url)),
+      'utf8',
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+    const out = new Set<string>();
+    for (const [, run] of src.matchAll(/['"`]([^'"`]*)['"`]/g)) {
+      const tokens = run.split(/\s+/).filter(Boolean);
+      if (tokens.length < 2 || !tokens.some((t) => /^[a-z].*-/.test(t))) continue;
+      for (const token of tokens) {
+        // `text-*` is a Tailwind utility and belongs to the sweep above,
+        // which resolves it through the repaint layers AND honours the
+        // exemptions keyed to it. Measuring it a second time here would
+        // re-report the aria-hidden icon well as a failure, and worse,
+        // it would do it from a resolver that has no exemption list.
+        if (/^text-/.test(token)) continue;
+        if (/^[a-z][a-z0-9-]*$/.test(token)) out.add(token);
+      }
+    }
+    return [...out];
+  }
+
+  /** The ones globals.css actually paints text with. */
+  const WORN = FILES.flatMap((rel) =>
+    classTokensIn(rel)
+      .filter(
+        (cls) =>
+          componentPaint(cls, 'light') !== null ||
+          componentPaint(cls, 'dark') !== null,
+      )
+      .map((cls) => ({ rel, cls })),
+  );
+
+  it('sees the component classes these files wear, so the sweep cannot go quiet', () => {
+    // The named one. If PageHeader stops wearing `.eyebrow`, or the
+    // stylesheet stops painting it, this arm says so rather than
+    // measuring nothing and passing.
+    expect(WORN.some((w) => w.cls === 'eyebrow')).toBe(true);
+    expect(componentPaint('eyebrow', 'light')?.hex).toMatch(/^#[0-9a-f]{6}$/);
+    expect(componentPaint('eyebrow', 'dark')?.hex).toMatch(/^#[0-9a-f]{6}$/);
+    // And the resolver can tell the two themes apart, which is the whole
+    // reason it reads the scope rather than the first rule it finds.
+    expect(componentPaint('eyebrow', 'light')?.hex).not.toBe(
+      componentPaint('eyebrow', 'dark')?.hex,
+    );
+  });
+
+  it(`holds every worn class to ${AA_SMALL_TEXT}:1 on every counsel ground, both themes`, () => {
+    const GROUNDS = {
+      light: LIGHT_SURFACE_GROUPS.counselLight.surfaces as Record<string, string>,
+      dark: DARK_SURFACE_GROUPS.counsel.surfaces as Record<string, string>,
+    };
+    for (const { rel, cls } of WORN) {
+      for (const theme of ['light', 'dark'] as const) {
+        const paint = componentPaint(cls, theme);
+        if (!paint) continue;
+        for (const [surfaceName, surface] of Object.entries(GROUNDS[theme])) {
+          const ratio = contrastRatio(composite(paint, surface), surface);
+          expect(
+            ratio,
+            `${rel} wears \`${cls}\`, which paints ${composite(paint, surface)} on the ${theme} ${surfaceName} (${surface}) and measures ${ratio.toFixed(3)}:1`,
+          ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+        }
+      }
+    }
+  });
+
+  it('keeps both eyebrow variants on one colour source', () => {
+    // The drift, stated as the thing that caused it. `rule` and `plain`
+    // are the same micro-type and differ only in the leading rule, and
+    // they got here by each spelling their own gold. `plain` may keep
+    // dropping the rule; spelling a colour of its own again has to fail.
+    const ui = readFileSync(
+      fileURLToPath(new URL('../components/counsel/ui.tsx', import.meta.url)),
+      'utf8',
+    );
+    const block = /const EYEBROW_VARIANT = \{([\s\S]*?)\} as const;/.exec(ui)?.[1];
+    expect(block, 'EYEBROW_VARIANT was not found').toBeTruthy();
+    const variants = [...(block as string).matchAll(/'([^']*)'/g)].map(
+      (m) => m[1],
+    );
+    expect(variants.length).toBe(2);
+    for (const v of variants) {
+      expect(
+        v.split(/\s+/).some((c) => c === 'eyebrow'),
+        `\`${v}\` does not wear .eyebrow, so it carries a second spelling of the gold`,
+      ).toBe(true);
+      expect(
+        v.split(/\s+/).filter((c) => /(?:^|:)text-/.test(c) && !/text-\[\d/.test(c)),
+        `\`${v}\` paints its own text colour on top of .eyebrow`,
+      ).toEqual([]);
+    }
+    // And exactly one of them drops the leading rule, which is the only
+    // difference the prop is allowed to mean. Without this the two
+    // variants could share a colour by both being `.eyebrow` and lose
+    // the reason `plain` exists.
+    const bare = variants.filter((v) => v.split(/\s+/).includes('eyebrow-bare'));
+    expect(bare.length).toBe(1);
+    expect(stripped).toMatch(/\.eyebrow-bare::before\s*\{\s*content:\s*none;?\s*\}/);
+  });
+
+  it('derives the eyebrow gold rather than picking it', () => {
+    // The two literals in the stylesheet are this function's output on
+    // Advottic's own gold, so the pair cannot drift from the arithmetic
+    // that gives every other accent its floor.
+    expect(componentPaint('eyebrow', 'light')?.hex).toBe(
+      deriveAccentText(DEFAULT_ACCENT, 'light'),
+    );
+    expect(componentPaint('eyebrow', 'dark')?.hex).toBe(
+      deriveAccentText(DEFAULT_ACCENT, 'dark'),
+    );
+  });
+
+  it('states the eyebrow regression this guard exists for, as arithmetic', () => {
+    const light = Object.values(LIGHT_SURFACE_GROUPS.counselLight.surfaces);
+    const darkCounsel = Object.values(DARK_SURFACE_GROUPS.counsel.surfaces);
+    const darkConsumer = Object.values(DARK_SURFACE_GROUPS.consumer.surfaces);
+
+    // What `plain` shipped: gold-300, unrepainted by the light counsel
+    // layer. Not low contrast - absent.
+    const shipped = '#e5ce93';
+    expect(
+      Math.max(...light.map((s) => contrastRatio(shipped, s))),
+    ).toBeLessThan(1.6);
+
+    // And what `.eyebrow` itself shipped in dark, which is why copying
+    // the sibling would have moved the bug rather than fixed it. Both
+    // repaint families are reachable from `:where(.dark, ...)` and the
+    // consumer one is green, so it failed there far harder.
+    const oldDark = '#a38a55';
+    expect(
+      Math.min(...darkCounsel.map((s) => contrastRatio(oldDark, s))),
+    ).toBeLessThan(AA_SMALL_TEXT);
+    expect(
+      Math.min(...darkConsumer.map((s) => contrastRatio(oldDark, s))),
+    ).toBeLessThan(3);
+
+    // The derived pair clears the floor on every ground either half can
+    // land on, including the consumer greens the old dark gold failed.
+    const fixedLight = deriveAccentText(DEFAULT_ACCENT, 'light');
+    const fixedDark = deriveAccentText(DEFAULT_ACCENT, 'dark');
+    for (const s of light)
+      expect(contrastRatio(fixedLight, s)).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+    for (const s of [...darkCounsel, ...darkConsumer])
+      expect(contrastRatio(fixedDark, s)).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
   });
 });

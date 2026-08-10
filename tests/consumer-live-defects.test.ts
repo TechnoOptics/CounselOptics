@@ -85,9 +85,12 @@ describe('the contrast guard never repaints text that sits on its own background
   });
 });
 
-describe('.eyebrow passes WCAG AA on the light consumer surface', () => {
+describe('.eyebrow passes WCAG AA on both of its grounds', () => {
   // Measured live at 3.32:1 with 89 failing nodes on /pricing alone.
   const declared = /\.eyebrow\s*\{[^}]*?color:\s*(#[0-9a-fA-F]{6})/.exec(GLOBALS);
+  const dark = /:where\(\.dark, \.enterprise-shell\)\s+\.eyebrow\s*\{\s*color:\s*(#[0-9a-fA-F]{6})/i.exec(
+    GLOBALS,
+  );
 
   it('declares an explicit colour rather than inheriting text-gold-700', () => {
     expect(declared).not.toBeNull();
@@ -101,18 +104,33 @@ describe('.eyebrow passes WCAG AA on the light consumer surface', () => {
     expect(contrast(declared![1], '#f5edd6')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('leaves the dark shells on their existing gold so counsel is unchanged', () => {
-    expect(GLOBALS).toMatch(
-      /:where\(\.dark, \.enterprise-shell\)\s+\.eyebrow\s*\{\s*color:\s*#a38a55/i,
-    );
+  it('gives the dark shells their own gold', () => {
+    expect(dark).not.toBeNull();
+    expect(dark![1].toLowerCase()).not.toBe(declared![1].toLowerCase());
+  });
+
+  it('clears 4.5:1 on the lightest surface a dark shell paints', () => {
+    // The half that was wrong, and it was wrong because the override
+    // reaches TWO repaint families. `.dark` turns the light utilities
+    // GREEN on the consumer side and near-black under counsel, and the
+    // green is three times the luminance: `.dark .bg-cream-200` is
+    // #2a5a47. The shipped #a38a55 was tuned on the black one and
+    // measured 2.38:1 on the green - it was not marginal there, it was
+    // a fifth of the floor. Every solid surface either family paints is
+    // swept in tests/accent-text.test.ts; this is its worst.
+    expect(contrast('#a38a55', '#2a5a47')).toBeLessThan(2.5);
+    expect(contrast(dark![1], '#2a5a47')).toBeGreaterThanOrEqual(4.5);
+    // And the tightest counsel neutral, which it also missed.
+    expect(contrast('#a38a55', '#2c2c31')).toBeLessThan(4.5);
+    expect(contrast(dark![1], '#2c2c31')).toBeGreaterThanOrEqual(4.5);
   });
 
   it('covers .enterprise-shell, which paints near-black without a .dark class', () => {
     // /enterprise sets `class="enterprise-shell ..."` with no `.dark`, and
     // remaps --forest-950 to 10 10 11. The light-surface colour measures
-    // 3.50:1 there, so it must fall under the dark-shell override instead.
-    expect(contrast('#78653c', '#0a0a0b')).toBeLessThan(4.5);
-    expect(contrast('#a38a55', '#0a0a0b')).toBeGreaterThanOrEqual(4.5);
+    // 2.77:1 there, so it must fall under the dark-shell override instead.
+    expect(contrast(declared![1], '#0a0a0b')).toBeLessThan(4.5);
+    expect(contrast(dark![1], '#0a0a0b')).toBeGreaterThanOrEqual(4.5);
     const enterprise = readFileSync(join(ROOT, 'app/enterprise/page.tsx'), 'utf8');
     expect(enterprise).toMatch(/enterprise-shell/);
   });

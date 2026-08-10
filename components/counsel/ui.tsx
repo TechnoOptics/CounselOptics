@@ -53,10 +53,29 @@ const HEADER_ALIGN = {
   center: 'flex-col items-center text-center',
 } as const;
 
+/**
+ * ONE EYEBROW, WITH AND WITHOUT ITS RULE. Both variants now come from
+ * `.eyebrow` in app/globals.css, and `plain` adds only the modifier that
+ * suppresses the leading rule.
+ *
+ * They used to be two spellings of the same brand gold, and the second
+ * spelling was invisible. `plain` hand-rolled the eyebrow's type and
+ * painted it `text-gold-300` (#e5ce93), which the light counsel layer
+ * does not repaint, so it measured 1.34:1 on a light counsel chip and
+ * 1.55:1 at best anywhere in light - not low contrast, absent. It lands
+ * on the four pages that need an eyebrow with nothing above it: both
+ * 404s, and the two co-counsel guest surfaces a firm sends INVITED
+ * OUTSIDE COUNSEL to, where it was the top line of the first screen.
+ *
+ * The class carries no colour here on purpose. A variant that spells its
+ * own is a variant that can disagree with the other one again, which is
+ * exactly how this arrived; tests/accent-text.test.ts now resolves both
+ * out of the stylesheet and measures them on every counsel ground in
+ * both themes.
+ */
 const EYEBROW_VARIANT = {
   rule: 'eyebrow mb-1',
-  plain:
-    'mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-300',
+  plain: 'eyebrow eyebrow-bare mb-1',
 } as const;
 
 /**
@@ -110,10 +129,11 @@ const EYEBROW_VARIANT = {
  * is uppercase micro-type with a rule in front of it and a link there
  * would read as a label rather than as something to click.
  *
- * `eyebrowVariant="plain"` is the same micro-type in gold-300 with no
- * leading rule. The 404s and the co-counsel guest headers all hand-
- * rolled it, because the rule reads as a section divider and these are
- * the first thing on the page with nothing above them to divide from.
+ * `eyebrowVariant="plain"` is the same eyebrow with no leading rule. The
+ * 404s and the co-counsel guest headers all hand-rolled it, because the
+ * rule reads as a section divider and these are the first thing on the
+ * page with nothing above them to divide from. See EYEBROW_VARIANT for
+ * what hand-rolling it cost.
  *
  * The title and subtitle break long words because both routinely carry
  * a name somebody typed - a matter title, a document filename - and an
@@ -134,7 +154,7 @@ export function PageHeader({
   children,
 }: {
   eyebrow?: ReactNode;
-  /** `plain` drops the leading rule and runs gold-300. */
+  /** `plain` drops the leading rule. Same type, same gold. */
   eyebrowVariant?: 'rule' | 'plain';
   /** A link above the title, styled by the caller. */
   backLink?: ReactNode;
