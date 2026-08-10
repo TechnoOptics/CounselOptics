@@ -18,8 +18,16 @@ import { stripComments } from './support/strip-comments';
  * would pass for a file that renders one dialog and leaves the destructive
  * button wired straight through, which is the exact regression worth
  * catching. So instead this walks every `onClick={...}` attribute value with
- * brace matching and asserts the destructive call does not appear inside any
+ * brace matching and asserts the destructive call is not REACHABLE from any
  * of them: the action must be reached from the dialog's own handler.
+ *
+ * Reachable, not merely present. Looking only at the literal text of the
+ * handler missed one level of indirection, which is how most of these files
+ * are already written: changing app/profile/safe-contact-form.tsx from
+ * `onClick={() => setRemoving(c)}` to `onClick={() => void removeContact(c.id)}`
+ * deleted a personal-safety contact on one tap, with the ConfirmDialog still
+ * rendered and orphaned, and this file green. So every identifier a handler
+ * names is resolved to its local declaration and followed.
  *
  * WHAT IT CANNOT TELL YOU: that the dialog renders, that its copy is right, or
  * that the confirm button is reachable. It proves the destructive call is not
@@ -51,7 +59,48 @@ function onClickHandlers(src: string): string[] {
   return out;
 }
 
-/** file -> the destructive call that must not sit inside an onClick. */
+/**
+ * Local function declarations in the module, by name, so a handler that just
+ * names one can be followed into it.
+ */
+function localBodies(src: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const decl =
+    /(?:async\s+)?function\s+(\w+)\s*\(|const\s+(\w+)\s*=\s*(?:async\s*)?\(/g;
+  for (const m of src.matchAll(decl)) {
+    const name = m[1] ?? m[2];
+    const from = (m.index ?? 0) + m[0].length;
+    const open = src.indexOf('{', from);
+    if (open === -1) continue;
+    let depth = 1;
+    let i = open + 1;
+    while (i < src.length && depth > 0) {
+      if (src[i] === '{') depth += 1;
+      else if (src[i] === '}') depth -= 1;
+      i += 1;
+    }
+    if (!out.has(name)) out.set(name, src.slice(open, i));
+  }
+  return out;
+}
+
+/** Everything a handler can reach, following local calls up to three deep. */
+function reachableFrom(handler: string, bodies: Map<string, string>): string {
+  const seen = new Set<string>();
+  let text = handler;
+  for (let depth = 0; depth < 3; depth += 1) {
+    const names = [...text.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]);
+    const fresh = names.filter((n) => !seen.has(n) && bodies.has(n));
+    if (fresh.length === 0) break;
+    for (const n of fresh) {
+      seen.add(n);
+      text += '\n' + bodies.get(n);
+    }
+  }
+  return text;
+}
+
+/** file -> the destructive call that must not be reachable from an onClick. */
 const GUARDED: Array<{ file: string; call: string; what: string }> = [
   { file: 'app/profile/mfa-settings.tsx', call: 'mfa.unenroll', what: 'removes the account second factor' },
   { file: 'components/counsel/ScimSettings.tsx', call: 'revokeScimTokenAction', what: 'kills a live provisioning token' },
@@ -75,10 +124,16 @@ describe('destructive controls are not one tap from the thing they destroy', () 
       // feature was deleted is telling you nothing.
       expect(src, `${file} no longer calls ${call}`).toContain(call);
 
-      const inline = onClickHandlers(src).filter((h) => h.includes(call));
+      const handlers = onClickHandlers(src);
+      // And there has to be something to look at. A file whose controls stop
+      // being spelled `onClick={` would sweep an empty list.
+      expect(handlers.length, `${file} has no onClick handlers to examine`).toBeGreaterThan(0);
+
+      const bodies = localBodies(src);
+      const inline = handlers.filter((h) => reachableFrom(h, bodies).includes(call));
       expect(
         inline,
-        `${call} is wired straight into an onClick in ${file}. It ${what}, so it must be reached from a confirmation, not from the button.`,
+        `${call} is reachable from an onClick in ${file}. It ${what}, so it must be reached from a confirmation, not from the button.`,
       ).toEqual([]);
 
       expect(src, `${file} should render a ConfirmDialog`).toMatch(/<ConfirmDialog\b/);
