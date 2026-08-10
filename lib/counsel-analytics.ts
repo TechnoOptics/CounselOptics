@@ -9,6 +9,16 @@ import { isIntakeOpen } from './intake-lanes';
  * also filter by firm_id) and aggregates in JS so the dashboard can
  * show KPI cards, status breakdowns, and a monthly trend without a
  * pile of bespoke SQL. All money is in integer cents.
+ *
+ * WHICH READS ARE BOUNDED. Two are not, and deliberately: the invoices
+ * and the intake requests. Both produce figures that /counsel/analytics
+ * states as firm totals beside the SAME figure computed elsewhere -
+ * `billing.outstandingCents` sits under "invoiced, unpaid" next to
+ * /counsel/billing's uncapped "Outstanding", and `requests.open` is the
+ * same measure the dashboard now counts exactly. Capping either one
+ * makes two screens disagree about one number, and the capped screen is
+ * the one that looks fine. The rest keep their bounds; they feed status
+ * breakdowns, not totals.
  */
 
 export type StatusCount = { status: string; count: number };
@@ -141,8 +151,7 @@ export async function getFirmAnalytics(firmId: string): Promise<FirmAnalytics> {
     supabase
       .from('firm_matter_intakes')
       .select('status, created_at, updated_at')
-      .eq('firm_id', firmId)
-      .limit(5000),
+      .eq('firm_id', firmId),
     supabase
       .from('firm_signing_requests')
       .select('status, created_at, completed_at')
@@ -154,8 +163,7 @@ export async function getFirmAnalytics(firmId: string): Promise<FirmAnalytics> {
     supabase
       .from('firm_invoices')
       .select('status, total_cents, paid_at')
-      .eq('firm_id', firmId)
-      .limit(5000),
+      .eq('firm_id', firmId),
     supabase
       .from('firm_trust_transactions')
       .select('kind, amount_cents')
