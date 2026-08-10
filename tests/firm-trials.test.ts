@@ -16,6 +16,14 @@ type Ref = {
   firmRow: Record<string, unknown> | null;
   updates: Array<Record<string, unknown>>;
   audits: Array<Record<string, unknown>>;
+  /**
+   * What the UPDATE returns when its rows are read back. An empty array is the
+   * case this fixture exists for: PostgREST does not raise an error when an
+   * update matches nothing, so a write that touched no row comes back looking
+   * exactly like one that succeeded.
+   */
+  updateRows: Array<Record<string, unknown>>;
+  updateError: { message: string } | null;
 };
 
 const h = vi.hoisted(() => {
@@ -25,6 +33,8 @@ const h = vi.hoisted(() => {
     firmRow: null,
     updates: [],
     audits: [],
+    updateRows: [{ id: 'firm-1', suspended_at: null }],
+    updateError: null,
   };
 
   function makeAdmin() {
@@ -45,9 +55,40 @@ const h = vi.hoisted(() => {
           },
           update(patch: Record<string, unknown>) {
             return {
-              eq: async () => {
+              /**
+               * PostgREST's builder is a THENABLE, so `await update().eq()` and
+               * `await update().eq().select()` are both real spellings against
+               * the same object. Modelling both is what lets a test assert that
+               * the production code chose the second one: drop the `.select()`
+               * and the zero-row fixture below stops being visible at all.
+               */
+              eq(..._args: unknown[]) {
                 ref.updates.push(patch);
-                return { error: null };
+                return {
+                  /**
+                   * WITHOUT `.select()` THERE IS NO DATA. supabase-js resolves
+                   * an update to `{ data: null }` unless the rows are asked
+                   * for, and reproducing that is the whole point of this
+                   * fixture: a mock that handed rows back either way would let
+                   * the read-back be deleted from the production code with
+                   * every test in this file still green.
+                   */
+                  then: (
+                    resolve: (value: {
+                      data: null;
+                      error: { message: string } | null;
+                    }) => unknown,
+                    reject?: (reason: unknown) => unknown,
+                  ) =>
+                    Promise.resolve({
+                      data: null,
+                      error: ref.updateError,
+                    }).then(resolve, reject),
+                  select: async () => ({
+                    data: ref.updateRows,
+                    error: ref.updateError,
+                  }),
+                };
               },
             };
           },
@@ -96,6 +137,8 @@ beforeEach(() => {
   h.ref.firmRow = null;
   h.ref.updates = [];
   h.ref.audits = [];
+  h.ref.updateRows = [{ id: 'firm-1', suspended_at: null }];
+  h.ref.updateError = null;
 });
 
 afterEach(() => {
@@ -288,6 +331,96 @@ describe('extending a trial reads the stored end date, not a truthy one', () => 
     expect(written).toBeGreaterThanOrEqual(before + 30 * DAY_MS);
     expect(written).toBeLessThanOrEqual(after + 30 * DAY_MS);
     expect(h.ref.audits[0].previous_value).toBeNull();
+  });
+});
+
+/**
+ * THE WRITE HAS TO PROVE IT LANDED.
+ *
+ * PostgREST does not raise an error when an UPDATE matches no row, so
+ * `{ error: null }` means "the statement ran", not "the organization changed".
+ * An extension that matched nothing therefore reported success to the operator,
+ * wrote an audit row asserting a new end date, and moved no date at all.
+ */
+describe('applyTrialAction reports what actually landed', () => {
+  const lapsed = '2000-01-01T00:00:00.000Z';
+
+  function firmOnALapsedTrial(suspendedAt: string | null = null) {
+    return {
+      trial_ends_at: lapsed,
+      suspended_at: suspendedAt,
+      seat_limit: null,
+      trial_tier: null,
+    };
+  }
+
+  it('refuses when the update matched no row, instead of reporting success', async () => {
+    // The mutation this kills: drop the `.select(...)` from the update in
+    // applyTrialAction and delete the zero-row branch. The write then reports
+    // ok on a statement that changed nothing.
+    h.ref.firmRow = firmOnALapsedTrial();
+    h.ref.updateRows = [];
+    const { applyTrialAction } = await freshModule();
+
+    const result = await applyTrialAction(extend(30));
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('writes no audit row for a change that did not land', async () => {
+    // Separate from the test above on purpose. A trail that records an
+    // extension nobody received lies in the affirmative direction, which is the
+    // failure lib/firm-trials.ts already argues is the worst one available
+    // here, and it would survive a fix that only corrected the return value.
+    h.ref.firmRow = firmOnALapsedTrial();
+    h.ref.updateRows = [];
+    const { applyTrialAction } = await freshModule();
+
+    await applyTrialAction(extend(30));
+
+    expect(h.ref.audits).toHaveLength(0);
+  });
+
+  it('reports the suspension the extension did not clear', async () => {
+    // The date moves and the organization stays closed, because suspension
+    // outranks every date in lib/firm-access.ts and is meant to. What must not
+    // happen is that the operator is told only that it worked.
+    //
+    // The mutation this kills: return a bare `{ ok: true }` from the tail of
+    // applyTrialAction.
+    h.ref.firmRow = firmOnALapsedTrial('2026-07-01T00:00:00.000Z');
+    h.ref.updateRows = [{ id: 'firm-1', suspended_at: '2026-07-01T00:00:00.000Z' }];
+    const { applyTrialAction } = await freshModule();
+
+    const result = await applyTrialAction(extend(30));
+
+    expect(result).toEqual({ ok: true, suspended: true });
+  });
+
+  it('reports no suspension for an organization that is merely lapsed', async () => {
+    // The other half, so the field above cannot be hardcoded true. This is the
+    // ordinary case: an extension on a lapsed organization genuinely reopens it.
+    h.ref.firmRow = firmOnALapsedTrial();
+    h.ref.updateRows = [{ id: 'firm-1', suspended_at: null }];
+    const { applyTrialAction } = await freshModule();
+
+    const result = await applyTrialAction(extend(30));
+
+    expect(result).toEqual({ ok: true, suspended: false });
+  });
+
+  it('reads the suspension back from the row it wrote, not from the row it read first', async () => {
+    // Restoring access and extending are two separate levers, so an operator
+    // can use them in either order from two tabs. The answer that reaches them
+    // has to be the state AFTER this write, which is the only one the row
+    // read back can carry.
+    h.ref.firmRow = firmOnALapsedTrial('2026-07-01T00:00:00.000Z');
+    h.ref.updateRows = [{ id: 'firm-1', suspended_at: null }];
+    const { applyTrialAction } = await freshModule();
+
+    const result = await applyTrialAction(extend(30));
+
+    expect(result).toEqual({ ok: true, suspended: false });
   });
 });
 

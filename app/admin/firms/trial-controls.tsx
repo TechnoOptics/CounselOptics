@@ -129,17 +129,33 @@ function useTrialAction() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A change that landed and will not do what the operator expects. Kept
+   * separate from `error` because it is not a failure: the write happened, and
+   * conflating the two would either colour a real refusal as informational or
+   * tell the operator to retry something that already succeeded.
+   *
+   * It is shown HERE, beside the button, rather than left to the row above.
+   * router.refresh() does re-render that row with its own suspension caption,
+   * but the operator is looking at the panel they just clicked in, and a
+   * consequence that only appears somewhere else on the page is one they can
+   * finish the call without reading.
+   */
+  const [notice, setNotice] = useState<string | null>(null);
 
   function run(call: () => Promise<TrialActionResult>) {
     setError(null);
+    setNotice(null);
     startTransition(async () => {
       const result = await call();
-      if (result.ok) router.refresh();
-      else setError(result.error);
+      if (result.ok) {
+        setNotice(result.notice ?? null);
+        router.refresh();
+      } else setError(result.error);
     });
   }
 
-  return { pending, error, setError, run };
+  return { pending, error, notice, setError, run };
 }
 
 export function TrialConsole({
@@ -399,7 +415,7 @@ function ExtendBlock({
   note: string | null;
 }) {
   const [days, setDays] = useState(DEFAULT_DAYS);
-  const { pending, error, setError, run } = useTrialAction();
+  const { pending, error, notice, setError, run } = useTrialAction();
 
   if (!row.trialEndsAt) {
     return (
@@ -427,6 +443,14 @@ function ExtendBlock({
         Adds days to the end date already on file (
         <LocaleTime iso={row.trialEndsAt} mode="date" />
         ), not to today.
+        {/*
+          Restart has said this since it was written; extend is the routine
+          lever and said nothing, so the common case (a lapsed organization,
+          extended by a few days) went through in silence. Suspension outranks
+          every date, so the extension is real and invisible.
+        */}
+        {row.suspendedAt !== null &&
+          ' This does not reopen a suspended organization.'}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <DaysInput
@@ -446,6 +470,7 @@ function ExtendBlock({
         </button>
       </div>
       <FieldError message={error} />
+      <FieldNotice message={notice} />
     </Block>
   );
 }
@@ -474,7 +499,7 @@ function RestartBlock({
 }) {
   const [days, setDays] = useState(DEFAULT_DAYS);
   const [confirming, setConfirming] = useState(false);
-  const { pending, error, setError, run } = useTrialAction();
+  const { pending, error, notice, setError, run } = useTrialAction();
 
   const parsed = parseDays(days);
   // Both numbers are whole days measured from the same server clock, so they
@@ -564,6 +589,7 @@ function RestartBlock({
         )}
       </div>
       <FieldError message={error} />
+      <FieldNotice message={notice} />
     </Block>
   );
 }
@@ -1132,6 +1158,24 @@ function FieldError({ message }: { message: string | null }) {
     <p
       aria-live="polite"
       className="text-[11px] text-rose-200 leading-snug empty:hidden"
+    >
+      {message}
+    </p>
+  );
+}
+
+/**
+ * A change that succeeded and needs a caveat. Amber rather than rose, because
+ * rose is this console's colour for "nothing happened, try again" and this is
+ * the opposite: the write landed, and the operator needs to know it will not be
+ * visible yet. aria-live so it reaches a screen reader on the same terms the
+ * error does.
+ */
+function FieldNotice({ message }: { message: string | null }) {
+  return (
+    <p
+      aria-live="polite"
+      className="text-[11px] text-amber-200/85 leading-snug empty:hidden"
     >
       {message}
     </p>

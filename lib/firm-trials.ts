@@ -513,14 +513,19 @@ export async function firmSuspended(firmId: string): Promise<boolean> {
  * commercially meaningful.
  *
  * Neither extend nor reset clears suspended_at. A suspended organization
- * stays closed until it is explicitly restored.
+ * stays closed until it is explicitly restored. That precedence is deliberate
+ * and lives in lib/firm-access.ts; what this function owes is that it is not
+ * SILENT, which is why the success branch carries `suspended`. A date change
+ * on a suspended organization is a real write that the firm cannot see, and an
+ * operator mid-conversation with a customer has to be told which of the two
+ * they just did. lib/firm-trial-actions.ts turns this flag into that sentence.
  *
  * The days are a count and never a date string, because a date from an HQ
  * form is zone-less and firm-access would read it as local time.
  */
 export async function applyTrialAction(
   input: TrialActionInput,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; suspended: boolean } | { ok: false; error: string }> {
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Unavailable. Please try again.' };
 
@@ -649,15 +654,51 @@ export async function applyTrialAction(
     }
   }
 
-  const { error: updateErr } = await admin
+  // THE WRITE READS ITS ROW BACK, and both columns are load-bearing.
+  //
+  // `id` is the proof. PostgREST does not raise an error when an UPDATE matches
+  // nothing, so a bare `{ error: null }` says the statement ran and says nothing
+  // about whether this organization changed. Without the read-back an extension
+  // that matched no row returned ok, filed an audit row asserting a new end
+  // date, and moved nothing. That is the affirmative-direction failure the audit
+  // note further down calls the worst one available here, and it is invisible
+  // from every surface: HQ renders the stored date, which never moved.
+  //
+  // `suspended_at` is the answer to "will this be visible to the firm". It is
+  // read HERE, from the row this statement wrote, rather than reused from the
+  // `before` read above, because restoring access and extending a trial are
+  // separate levers and nothing serialises them. The state after this write is
+  // the only one worth reporting.
+  const { data: written, error: updateErr } = await admin
     .from('firms')
     .update(patch)
-    .eq('id', input.firmId);
+    .eq('id', input.firmId)
+    .select('id, suspended_at');
 
   if (updateErr) {
     console.error('applyTrialAction: update failed', updateErr.message);
     return { ok: false, error: 'Unavailable. Please try again.' };
   }
+
+  const writtenRows = (written ?? []) as Array<Record<string, unknown>>;
+  // No error and no row is the silent case. The organization was read a few
+  // lines above, so this is a row that went away underneath us rather than a
+  // wrong id, and it must not be reported as a change. Nothing is audited: an
+  // audit row here would assert an extension nobody received.
+  if (writtenRows.length === 0) {
+    console.error(
+      'applyTrialAction: the update matched no row, so nothing was written',
+      JSON.stringify({ firmId: input.firmId, action: input.action.kind }),
+    );
+    return {
+      ok: false,
+      error: 'That change did not save. Nothing was written. Try again.',
+    };
+  }
+  if (!('suspended_at' in writtenRows[0])) {
+    throw new Error('firm-trials read back a firms row without suspended_at.');
+  }
+  const suspended = writtenRows[0].suspended_at != null;
 
   const { error: auditErr } = await admin.from('firm_trial_events').insert({
     firm_id: input.firmId,
@@ -699,5 +740,5 @@ export async function applyTrialAction(
     );
   }
 
-  return { ok: true };
+  return { ok: true, suspended };
 }
