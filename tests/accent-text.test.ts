@@ -1642,6 +1642,9 @@ describe('every error and warning surface can be read on both of its grounds', (
     'app/portal/trainings/complete-button.tsx': 'counsel',
     'app/portal/trainings/page.tsx': 'counsel',
     'components/counsel/AskAdvottic.tsx': 'counsel',
+    // The dashboard metric board paints --warn-text and --danger-text as
+    // the figure and its state word, on the bare card surface.
+    'components/counsel/CounselDashboardTiles.tsx': 'counsel',
     'components/counsel/DashboardCustomizer.tsx': 'counsel',
     'components/counsel/GuestPasswordForm.tsx': 'counsel',
     'components/counsel/import/ImportPanels.tsx': 'counsel',
@@ -2095,6 +2098,10 @@ describe('the shared counsel primitives paint no neutral under AA on a counsel g
   const NON_NEUTRAL: Record<string, string> = {
     'accent-text':
       'the per-firm derived accent, proved on every surface for every customer hex by the blocks above',
+    'warn-text':
+      'a fixed status token, held to AA on both grounds of its file by "holds every banner to 4.5:1 on both of its grounds" above',
+    'danger-text':
+      'a fixed status token, held to AA on both grounds of its file by "holds every banner to 4.5:1 on both of its grounds" above',
   };
 
   /**
