@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmTemplateSubmissionsAction } from '@/lib/template-submissions';
-import { isAwaitingReview } from '@/lib/template-approval';
-import { groupByCategory } from '@/lib/document-category';
-import { PageHeader, SectionTitle } from '@/components/counsel/ui';
-import { SubmissionList } from '@/components/counsel/SubmissionList';
+import { parseApprovalQueueParams, toApprovalRow } from '@/lib/approval-queue';
+import { PageHeader } from '@/components/counsel/ui';
+import { ApprovalsQueue } from '@/components/counsel/ApprovalsQueue';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -45,15 +44,24 @@ export const metadata = { title: 'Document approvals · Counsel' };
  * The section labels sit ABOVE their cards rather than inside them, with the
  * count in the label, which is the shape the rest of this product's list
  * surfaces use.
+ *
+ * The queue itself is a client component because searching and ticking rows
+ * are things a person does between renders. It is handed ApprovalRow, which is
+ * TemplateSubmission with the document wording removed: everything a client
+ * component holds is serialized into the page, and an agreement the firm has
+ * not agreed to send has no business being there. See lib/approval-queue.ts.
  */
-export default async function CounselFormApprovalsPage() {
+export default async function CounselFormApprovalsPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
 
   const res = await listFirmTemplateSubmissionsAction(ctx.firm.id);
-  const submissions = res.submissions ?? [];
-  const waiting = submissions.filter((s) => isAwaitingReview(s.status));
-  const decided = submissions.filter((s) => !isAwaitingReview(s.status));
+  const rows = (res.submissions ?? []).map(toApprovalRow);
+  const params = parseApprovalQueueParams(searchParams);
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -76,62 +84,12 @@ export default async function CounselFormApprovalsPage() {
         </p>
       )}
 
-      <section className="space-y-2">
-        {/* The count lives in the label because it is the thing a reviewer
-            came to find out. It is the length of the list underneath, not a
-            separate number that could disagree with it. */}
-        <SectionTitle>
-          <T>Awaiting decision</T>
-          {' · '}
-          <span data-no-translate>{waiting.length}</span>
-        </SectionTitle>
-        <div className="card overflow-hidden">
-          {waiting.length === 0 ? (
-            <p className="px-4 py-8 text-center text-[13px] text-muted">
-              <T>Nothing waiting on you.</T>
-            </p>
-          ) : (
-            /**
-             * Grouped by the kind of document, so a reviewer can take all the
-             * NDAs in one sitting instead of context-switching down a mixed
-             * list. The category is the one the submission was FILED under, not
-             * the one its template carries now.
-             *
-             * Until 20260807_flow_join.sql is applied no submission has a
-             * category at all, groupByCategory returns one section, and this
-             * queue reads exactly as it reads today.
-             */
-            groupByCategory(waiting, (s) => s.category).map((group) => (
-              <div key={group.category}>
-                <p
-                  className="border-b border-edge bg-surface-2 px-4 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted"
-                  data-no-translate
-                >
-                  {group.category}
-                </p>
-                <SubmissionList items={group.rows} stamp="filed" />
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      <section className="space-y-2">
-        <SectionTitle>
-          <T>Decision history</T>
-          {' · '}
-          <span data-no-translate>{decided.length}</span>
-        </SectionTitle>
-        <div className="card overflow-hidden">
-          {decided.length === 0 ? (
-            <p className="px-4 py-8 text-center text-[13px] text-muted">
-              <T>No decisions yet.</T>
-            </p>
-          ) : (
-            <SubmissionList items={decided} stamp="decided" />
-          )}
-        </div>
-      </section>
+      {/* The category grouping this card used to carry is gone, and search has
+          it instead: a fixed grouping and a chosen order cannot both hold, and
+          the order a person clearing a queue wants is whatever has waited
+          longest. matchesQuery covers the category, so "nda" still gathers
+          them. */}
+      <ApprovalsQueue rows={rows} params={params} canApprove={Boolean(res.canApprove)} />
 
       {/* The explanation, kept and moved rather than deleted. Closed by
           default, so it costs a daily reviewer one line of the page and

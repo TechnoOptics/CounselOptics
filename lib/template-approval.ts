@@ -16,34 +16,27 @@ import { FIRM_MANAGE_ROLES } from './firm-authz';
  * the gate anywhere, and no path to release that does not run checkReleasable.
  */
 
-export type SubmissionStatus =
-  /** Waiting on the legal team. The employee cannot change it here. */
-  | 'pending'
-  /** Legal sent it back with a reason. The employee can fix and resubmit. */
-  | 'changes_requested'
-  /** Cleared for release. Nothing else clears a document for release. */
-  | 'approved'
-  /** Delivered to the recipient. Terminal. */
-  | 'sent'
-  /** The employee pulled it back before a decision. Terminal. */
-  | 'withdrawn'
-  /**
-   * Legal decided this document is not going out. Terminal, and distinct from
-   * 'changes_requested': a returned submission is still alive and the employee
-   * is expected to fix it, whereas this one is finished. Nothing reopens it,
-   * nothing resubmits it, and checkReleasable refuses it like every other
-   * non-approved status.
-   */
-  | 'declined';
+/**
+ * The status vocabulary and the three predicates over it are DEFINED in
+ * lib/template-submission-types.ts and re-exported here, so every call site
+ * that reads them from this module still does.
+ *
+ * They moved because this module imports its role list from lib/firm-authz.ts,
+ * which begins with `import 'server-only'`. That is right for the gate and
+ * wrong for a status name: a client component that only wants to know whether
+ * a row is finished would drag the server boundary into its bundle and fail
+ * the build. The union and the predicates carry no role and no I/O, so they
+ * sit on the client-safe side and the gate keeps the rules that need a role.
+ */
+export {
+  ALL_SUBMISSION_STATUSES,
+  isAwaitingReview,
+  isEditableBySubmitter,
+  isTerminal,
+  type SubmissionStatus,
+} from './template-submission-types';
 
-export const ALL_SUBMISSION_STATUSES: readonly SubmissionStatus[] = [
-  'pending',
-  'changes_requested',
-  'approved',
-  'sent',
-  'withdrawn',
-  'declined',
-];
+import type { SubmissionStatus } from './template-submission-types';
 
 export type SubmissionAction = 'resubmit' | 'withdraw' | 'mark_sent';
 
@@ -161,16 +154,6 @@ export function applySubmissionAction(
     : { ok: false, error: 'Only an approved submission can be sent to the recipient.' };
 }
 
-/** The employee may edit their own submission only after it comes back. */
-export function isEditableBySubmitter(status: SubmissionStatus): boolean {
-  return status === 'changes_requested';
-}
-
-/** A decision has been taken and nothing further will happen on its own. */
-export function isTerminal(status: SubmissionStatus): boolean {
-  return status === 'sent' || status === 'withdrawn' || status === 'declined';
-}
-
 /**
  * The longest document the reviewer may save. Over this the edit is refused
  * rather than truncated: silently cutting the end off an agreement is a worse
@@ -262,11 +245,6 @@ export function canRenderFilledTemplate(input: {
     reason:
       'This form goes to your legal team before it can be sent. Fill it in and send it for review, and they will deliver it once it is approved.',
   };
-}
-
-/** True while the legal team still owes a decision. */
-export function isAwaitingReview(status: SubmissionStatus): boolean {
-  return status === 'pending';
 }
 
 export type ReleaseCandidate = {
