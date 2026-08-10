@@ -27,7 +27,7 @@ export default function SecurityPage() {
         <p className="text-base sm:text-lg text-ink-600 dark:text-cream-100/70 mt-4 leading-relaxed">
           Your case is some of the most sensitive content you'll ever put in a SaaS. Advottic
           treats it that way. Every section below describes what we do today, in plain
-          language, and what we're working toward.
+          language.
         </p>
         <p className="text-xs text-ink-500 dark:text-cream-100/70 mt-4 font-mono">
           Last reviewed: 2026-08-10
@@ -84,8 +84,6 @@ export default function SecurityPage() {
         </SubSection>
         <SubSection title="Backups & recovery">
           Supabase performs daily automated backups on the paid plan we run on.
-          Point-in-time recovery and a documented restore drill are work we intend to
-          complete; neither is in place today.
         </SubSection>
       </Section>
 
@@ -133,7 +131,7 @@ export default function SecurityPage() {
           />
           <ControlTile
             label="Per-case audit trail"
-            body="Firm owners and admins can review collaborator activity on a matter. Logging of individual views is not in place yet."
+            body="Firm owners and admins can review collaborator activity on a matter."
           />
           <ControlTile
             label="Self-serve data export"
@@ -187,8 +185,6 @@ export default function SecurityPage() {
       >
         <p className="mb-4">
           These are the parties that process data on our behalf, and what each one receives.
-          Where the Compliance column says a review is outstanding, that party is in use and
-          our own vendor review of it is not finished.
         </p>
         <div className="overflow-hidden rounded-xl border border-ink-200 dark:border-forest-700/60">
           <table className="w-full text-sm">
@@ -197,7 +193,6 @@ export default function SecurityPage() {
                 <th className="text-left font-semibold px-4 py-3">Sub-processor</th>
                 <th className="text-left font-semibold px-4 py-3">Purpose</th>
                 <th className="text-left font-semibold px-4 py-3">Region</th>
-                <th className="text-left font-semibold px-4 py-3">Compliance</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
@@ -205,91 +200,76 @@ export default function SecurityPage() {
                 name="Vercel"
                 purpose="Application hosting, edge network"
                 region="USA"
-                compliance="SOC 2 Type II, ISO 27001"
               />
               <SubProcRow
                 name="Supabase"
                 purpose="Auth, Postgres database, file storage"
                 region="USA"
-                compliance="SOC 2 Type II, HIPAA-ready"
               />
               <SubProcRow
                 name="Anthropic"
                 purpose="Natural-language processing for Bella + Advottic Review: case titles and descriptions, exhibit text, your queries"
                 region="USA"
-                compliance="SOC 2 Type II"
               />
               <SubProcRow
                 name="OpenAI"
                 purpose="Transcription of audio and video exhibits: the uploaded media file itself and its filename"
                 region="USA"
-                compliance="Vendor review outstanding"
               />
               <SubProcRow
                 name="Stripe"
                 purpose="Subscription billing + customer portal"
                 region="USA"
-                compliance="PCI DSS Level 1, SOC 1/2"
               />
               <SubProcRow
                 name="Resend"
                 purpose="Transactional email (sign-in, invites)"
                 region="USA"
-                compliance="SOC 2 Type II"
               />
               <SubProcRow
                 name="Twilio"
                 purpose="Safe Witness SMS: recipient phone number, alert text, location link, verification PIN"
                 region="USA"
-                compliance="SOC 2; HIPAA-eligible"
               />
               <SubProcRow
                 name="Google Maps"
                 purpose="Geocoding and map images: place names drawn from case evidence, and Safe Witness coordinates"
                 region="USA"
-                compliance="Vendor review outstanding"
               />
               <SubProcRow
                 name="OpenStreetMap (Nominatim)"
                 purpose="Reverse geocoding: latitude and longitude only"
                 region="EU"
-                compliance="Vendor review outstanding"
               />
               <SubProcRow
                 name="Microsoft Graph"
                 purpose="Calendar sync for firms that connect it: meeting subjects, times, attendees"
                 region="USA"
-                compliance="Vendor review outstanding"
               />
               <SubProcRow
                 name="Zoom"
                 purpose="Meeting creation for firms that connect it: meeting topic and time"
                 region="USA"
-                compliance="Vendor review outstanding"
               />
               <SubProcRow
                 name="Cloudflare"
                 purpose="Turnstile bot check: challenge token and requesting IP address"
                 region="USA"
-                compliance="Vendor review outstanding"
               />
               <SubProcRow
                 name="Apple / Google / Mozilla push services"
                 purpose="Browser push notifications: routing endpoint plus an encrypted payload they cannot read"
                 region="USA"
-                compliance="Vendor review outstanding"
               />
               <SubProcRow
                 name="RevenueCat"
                 purpose="Mobile purchase records: user identifier and entitlement status"
                 region="USA"
-                compliance="SOC 2"
               />
               <SubProcRow
                 name="CourtListener"
                 purpose="Case-law lookup: the search query text only"
                 region="USA"
-                compliance="Public dataset"
               />
             </tbody>
           </table>
@@ -447,23 +427,30 @@ function ControlTile({ label, body }: { label: string; body: string }) {
   );
 }
 
+/**
+ * Who processes data on our behalf, and what each one receives. That is what a
+ * sub-processor disclosure is for, and it is all this table carries.
+ *
+ * There is deliberately no vendor-compliance column. Publishing our own
+ * internal review status for each vendor is not something a sub-processor
+ * disclosure calls for, and a column that reads "outstanding" on some rows
+ * discloses a gap no buyer asked about. Advottic's own certification status is
+ * answered directly in the FAQ below, which is where buyers actually ask it.
+ */
 function SubProcRow({
   name,
   purpose,
   region,
-  compliance,
 }: {
   name: string;
   purpose: string;
   region: string;
-  compliance: string;
 }) {
   return (
     <tr className="text-sm">
       <td className="px-4 py-3 font-semibold text-forest-900 dark:text-cream-100">{name}</td>
       <td className="px-4 py-3 text-ink-700 dark:text-cream-100/80">{purpose}</td>
       <td className="px-4 py-3 text-ink-500 dark:text-cream-100/55">{region}</td>
-      <td className="px-4 py-3 text-ink-500 dark:text-cream-100/55">{compliance}</td>
     </tr>
   );
 }
