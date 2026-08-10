@@ -91,10 +91,42 @@ export function isAudioBuffer(buf: Buffer): boolean {
   // gate only has to establish that the bytes are a media container.
   if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return true;
 
-  // ISO base media (m4a, and the mp4 audio brands iPhone voice memos use).
+  // ISO base media (m4a, the mp4 audio brands iPhone voice memos use, and the
+  // 3gp brands Android recorders still emit). The brand list is generous on
+  // purpose: this gate exists to establish that the bytes are a media
+  // container, not to police which one, and a container it has never heard of
+  // is a rejected recording rather than a caught attack.
   if (ascii(4, 8) === 'ftyp') {
     const brand = ascii(8, 12).trim().toLowerCase();
+    // The 3gp family is matched by its prefix, not by an enumeration. The
+    // registered brands run 3gp4 through 3gp9, 3g2a through 3g2c, and several
+    // 3ge / 3gg / 3gs variants, and a list of them would be a list somebody
+    // has to keep. A first attempt here used `3gp\d?`, which rejected 3g2a
+    // because that brand ends in a letter.
     if (/^(m4a|m4b|mp4|mp42|isom|iso2|dash|avc1|qt)$/.test(brand)) return true;
+    if (/^3g[a-z0-9]{2}$/.test(brand)) return true;
+  }
+
+  // Raw ADTS AAC, which is what a plain .aac file is. Its sync word is the
+  // same 12 set bits as MPEG audio but the layer bits differ, so the MP3 test
+  // above does NOT match it: 0xf1 & 0xe6 is 0xe0, not 0xe2. Recorders that
+  // write bare AAC were rejected until this line existed.
+  if (buf[0] === 0xff && (buf[1] & 0xf6) === 0xf0) return true;
+
+  // AMR and AMR-WB, still the default on some Android voice recorders.
+  if (ascii(0, 5) === '#!AMR') return true;
+
+  // Core Audio Format, which is what macOS and iOS write for longer captures.
+  if (ascii(0, 4) === 'caff') return true;
+
+  // ASF, the container behind .wma.
+  if (
+    buf[0] === 0x30 &&
+    buf[1] === 0x26 &&
+    buf[2] === 0xb2 &&
+    buf[3] === 0x75
+  ) {
+    return true;
   }
 
   return false;
