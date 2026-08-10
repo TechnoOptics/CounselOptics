@@ -14,7 +14,14 @@ import { FIRM_MATTER_ROLE_REFUSAL } from '../lib/firm-authz';
  * every action in lib/firm-timeline-actions.ts, lib/firm-approach-actions.ts
  * and lib/firm-legal-review-actions.ts asked only for MEMBERSHIP and then went
  * through the service-role client, where RLS does not apply. Three matter
- * mutations in lib/firm-actions.ts did the same.
+ * mutations in lib/firm-actions.ts did the same, and so did
+ * listMatterCollaboratorsAction, which was missed on the first pass and is the
+ * only READ of the seven: everything else here was a write, and a fix aimed at
+ * mutations went straight past it. What it hands back is not a list of names.
+ * lib/storage.ts listCollaboratorsAsFirm selects `*` from case_collaborators
+ * and collaboratorFromRow carries `witness_statement` onto every Collaborator
+ * it builds, so the endpoint was reading a witness's own account of a matter
+ * out to a receptionist.
  *
  * HOW THIS SUITE AVOIDS THE THREE FALSE GREENS.
  *
@@ -39,6 +46,9 @@ import { FIRM_MATTER_ROLE_REFUSAL } from '../lib/firm-authz';
  *     and the adminCalls assertion goes red.
  *   - answer the role refusal only when the matter exists: "tells a staff
  *     member nothing about whether the matter exists" goes red.
+ *   - put listMatterCollaboratorsAction back on callerIsFirmMember: "is handed
+ *     no collaborator, and no witness statement with them" goes red on the
+ *     returned list and on the collaborator read alike.
  */
 
 type Role = 'owner' | 'admin' | 'attorney' | 'paralegal' | 'staff' | null;
@@ -89,12 +99,33 @@ const h = vi.hoisted(() => {
     updated_at: '2026-08-01T00:00:00.000Z',
   };
 
+  /**
+   * One collaborator, carrying the thing this is really about. The sentinel is
+   * asserted BOTH ways: a role that may read matters gets it, so the test
+   * cannot pass by the endpoint quietly returning nothing to everybody.
+   */
+  const WITNESS_STATEMENT = 'He was already on the stairs when I came in.';
+
+  const COLLABORATOR_ROW = {
+    id: 'collab-1',
+    case_id: 'case-1',
+    user_id: 'user-9',
+    email: 'witness@example.com',
+    role: 'witness',
+    invited_by: 'user-1',
+    invited_at: '2026-08-01T00:00:00.000Z',
+    accepted_at: null,
+    witness_statement: WITNESS_STATEMENT,
+    witness_statement_updated_at: '2026-08-02T00:00:00.000Z',
+  };
+
   const READ: Record<string, unknown> = {
     case_timeline_events: [],
     case_people: [],
     case_timeline_narratives: null,
     case_approaches: [],
     case_legal_reviews: null,
+    case_collaborators: [COLLABORATOR_ROW],
     cases: { id: 'case-1', firm_id: 'firm-1', title: 'Matter', text_normalizations: null },
     firm_members: { user_id: 'user-2' },
   };
@@ -163,7 +194,7 @@ const h = vi.hoisted(() => {
     };
   }
 
-  return { s, adminCalls, makeAdmin, makeUserClient };
+  return { s, adminCalls, makeAdmin, makeUserClient, WITNESS_STATEMENT };
 });
 
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
@@ -215,8 +246,12 @@ const { listFirmApproaches, createFirmApproach } = await import(
   '../lib/firm-approach-actions'
 );
 const { getFirmLegalReview } = await import('../lib/firm-legal-review-actions');
-const { createFirmCaseAction, updateFirmCaseAction, setCaseAssigneeAction } =
-  await import('../lib/firm-actions');
+const {
+  createFirmCaseAction,
+  updateFirmCaseAction,
+  setCaseAssigneeAction,
+  listMatterCollaboratorsAction,
+} = await import('../lib/firm-actions');
 
 const CASE_INPUT = { title: 'Matter', subject: 'Someone' };
 
@@ -306,6 +341,17 @@ describe('a staff member cannot reach a matter’s privileged material', () => {
     expect(h.adminCalls).toEqual(['cases:select']);
   });
 
+  it('is handed no collaborator, and no witness statement with them', async () => {
+    const list = await listMatterCollaboratorsAction('case-1');
+    expect(list).toEqual([]);
+    // The matter row IS read first, because the argument carries no firm id
+    // and that row is the only thing that says which organization to ask
+    // about. What must not happen is the collaborator read, and its absence
+    // here is what says the gate ran before the work rather than after it.
+    expect(h.adminCalls).toEqual(['cases:select']);
+    expect(h.adminCalls).not.toContain('case_collaborators:select');
+  });
+
   it('tells a staff member nothing about whether the matter exists', async () => {
     h.s.caseExists = true;
     const real = await listFirmApproaches('firm-1', 'case-1');
@@ -350,6 +396,17 @@ describe('the roles that run matters are untouched', () => {
       h.s.role = role;
       expect((await getFirmLegalReview('firm-1', 'case-1')).ok).toBe(true);
       expect((await listFirmApproaches('firm-1', 'case-1')).ok).toBe(true);
+    });
+
+    it(`${role} still sees who is on the matter, witness statement and all`, async () => {
+      h.s.role = role;
+      const list = await listMatterCollaboratorsAction('case-1');
+      expect(list).toHaveLength(1);
+      // The sentinel proves the endpoint really is a witness-statement
+      // channel, so the staff refusal above is about something worth
+      // refusing rather than about an endpoint that returns nothing anyway.
+      expect(list[0].witnessStatement).toBe(h.WITNESS_STATEMENT);
+      expect(h.adminCalls).toContain('case_collaborators:select');
     });
   }
 });

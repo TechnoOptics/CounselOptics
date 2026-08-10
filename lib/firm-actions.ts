@@ -5917,9 +5917,28 @@ export async function removeMatterCollaboratorAction(
 
 /**
  * Server-side list of a matter's collaborators for the counsel case page.
- * Authorizes the caller as any member of the matter's firm (viewing is
- * open to the legal team; invite/remove is gated separately). Returns an
- * empty list for non-members.
+ * Returns an empty list to anyone this firm's matter material is not open to.
+ *
+ * FIRM_POSTING_ROLES, not membership. What comes back is not a list of names:
+ * lib/storage.ts listCollaboratorsAsFirm selects `*` from case_collaborators
+ * through the SERVICE-ROLE client, and collaboratorFromRow carries
+ * `witness_statement` onto every Collaborator it builds. That column is a
+ * witness's own account of what happened, written into a matter, and it is
+ * privileged work product by any reading. `staff` is described to a firm owner
+ * in writing, at the moment they send the invitation, as "read-only access to
+ * non-privileged surfaces", and supabase/migrations/20260731_staff_role_read_scope.sql
+ * is applied and already refuses that role the matter row itself; this endpoint
+ * went around it, because the service role does not consult RLS and every
+ * export of this module is a public HTTP endpoint that any signed-in user can
+ * call with a matter id of their choosing.
+ *
+ * The matter has to be read before the role is checked, because the argument
+ * carries no firm id and the row is the only thing that says which
+ * organization to ask about. That read is a `cases` lookup and nothing else;
+ * the collaborator rows are never fetched for a caller who fails the gate.
+ *
+ * Viewing stays open to the whole legal team. Inviting and removing are gated
+ * more narrowly still, by callerCanManageMatter on their own actions.
  */
 export async function listMatterCollaboratorsAction(
   caseId: string,
@@ -5934,7 +5953,7 @@ export async function listMatterCollaboratorsAction(
     .maybeSingle();
   const firmId = (caseRow as { firm_id: string | null } | null)?.firm_id ?? null;
   if (!firmId) return [];
-  if (!(await callerIsFirmMember(firmId))) return [];
+  if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) return [];
   return listCollaboratorsAsFirm(caseId, firmId);
 }
 
