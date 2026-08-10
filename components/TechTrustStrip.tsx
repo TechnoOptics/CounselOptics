@@ -8,13 +8,25 @@
  *   - Real partner integrations (Anthropic, Stripe, Supabase,
  *     Vercel) - signals "this isn't a weekend project"
  *   - Concrete security primitives (AES-256, TLS 1.3, audit log)
- *   - Compliance posture (UETA / E-SIGN)
+ *   - E-signature law (UETA / E-SIGN)
  *
  * Nothing here may assert a certification, an audit engagement, or a
  * contract we have not executed. "SOC 2 Type II in progress" was
  * removed because no CPA firm is engaged, and "HIPAA BAA on request"
  * because docs/compliance forbids counter-signing a customer BAA
  * until the upstream BAAs exist. None do.
+ *
+ * There is now no Compliance row at all. Its replacement, "Built to
+ * the SOC 2 criteria · not yet certified", was honest but it was the
+ * one hedged item in a grid of five hard facts, so it was also the one
+ * a reader remembered. Its first half is not verifiable by the reader
+ * either: docs/compliance/COMPLIANCE_READINESS.md still marks CC8.1
+ * (change management) and A1.1 (backup/DR) as gaps, so "built to the
+ * criteria" overstates. Certification status is answered directly in
+ * the /security FAQ, which this strip links to, so a buyer who asks
+ * gets a straight answer. Do not add the row back with a softer
+ * wording; either we are certified or the question belongs on
+ * /security.
  *
  * Mount on the home page just below the soft TrustBadges, and on
  * /pricing just above the firm tiers. Same component, same data,
@@ -49,10 +61,6 @@ const SECURITY = [
   {
     label: 'Tenant isolation',
     value: 'Postgres row-level security per firm and per matter',
-  },
-  {
-    label: 'Compliance',
-    value: 'Built to the SOC 2 criteria · not yet certified',
   },
   {
     label: 'E-signatures',
