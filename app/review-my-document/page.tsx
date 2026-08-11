@@ -39,7 +39,7 @@ export default function ReviewMyDocumentPage() {
             room; inline-block keeps the gradient/animation contained
             to the line.
           */}
-          <span className="inline-block bg-gold-shine bg-clip-text text-transparent gold-pan italic py-[0.12em]">
+          <span className="inline-block bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic py-[0.12em]">
             Get it in plain English.
           </span>
         </h1>

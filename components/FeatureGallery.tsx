@@ -162,7 +162,7 @@ export function FeatureGallery() {
       <header className="text-center max-w-2xl mx-auto">
         <p className="eyebrow justify-center mb-3">What Advottic actually does</p>
         <h2 className="font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Quiet tools that <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">make the work easier.</span>
+          Quiet tools that <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">make the work easier.</span>
         </h2>
         <p className="text-sm sm:text-base text-ink-600 dark:text-cream-100/70 mt-3 leading-relaxed">
           Tap any tile to see how it works. Or skip the tour and start a case file - everything below is one tap away once you sign up.
