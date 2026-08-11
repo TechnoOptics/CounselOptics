@@ -1,3 +1,5 @@
+import type { TemplateFieldType } from './template-field-formats';
+
 /**
  * Standard templates a firm can install into its own template list with one
  * click, instead of retyping a document it already uses.
@@ -36,7 +38,9 @@
 export type SeedTemplateField = {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'textarea';
+  /** Derived from the one format list, so a seed cannot name a format the
+   *  store would coerce away on read. */
+  type: TemplateFieldType;
   required: boolean;
   /**
    * Who supplies the value. Omitted means the employee, which is the shape

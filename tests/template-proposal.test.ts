@@ -419,15 +419,30 @@ describe('parseTemplateProposal: blanks that are not signature lines', () => {
 
 describe('parseTemplateProposal: field settings the renderer acts on', () => {
   it('coerces an unrecognised type to text', () => {
-    // Mutation: pass `o.type` straight through. 'currency' reaches the editor
+    // Mutation: pass `o.type` straight through. 'colour' reaches the editor
     // select, which has no such option, and the control renders with no value.
+    //
+    // 'currency' used to be the example here and is now a real format, so the
+    // example moved rather than the rule: narrowType reads the SAME whitelist
+    // the store reads (parseTemplateFieldType), which is what stops a proposal
+    // offering a format the save would silently coerce away.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'Fee: {{fee_amount}}',
+        fields: [{ key: 'fee_amount', label: 'Fee', type: 'colour' }],
+      }),
+    );
+    expect(res?.fields[0].type).toBe('text');
+  });
+
+  it('keeps a format the editor now offers, so a proposal is not narrowed for nothing', () => {
     const res = parseTemplateProposal(
       reply({
         body: 'Fee: {{fee_amount}}',
         fields: [{ key: 'fee_amount', label: 'Fee', type: 'currency' }],
       }),
     );
-    expect(res?.fields[0].type).toBe('text');
+    expect(res?.fields[0].type).toBe('currency');
   });
 
   it('keeps date and textarea, which the editor does offer', () => {
