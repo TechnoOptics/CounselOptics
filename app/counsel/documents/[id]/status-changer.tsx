@@ -79,7 +79,39 @@ export function DocumentStatusChanger({
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground transition-colors disabled:opacity-50"
       >
         {FIRM_DOCUMENT_STATUS_LABEL[currentStatus]}
-        <span aria-hidden className="text-[9px]">▾</span>
+        {/*
+          A drawn caret, not the text glyph U+25BE this used to be.
+          The reference product does append a plain arrow to a text link
+          (`Full profile ->`), so a typographic arrow is inside the
+          vocabulary - but that arrow is part of a sentence, flowing in
+          the reader's own font at the size of the words around it. This
+          is a control affordance on a button, and it has to answer to
+          the icon system instead: currentColor, one weight, round
+          joins. U+25BE cannot. It is a SOLID triangle in a set that
+          takes no fills, its shape and weight are whatever face the
+          reader's OS supplies, and it comes out a different size on
+          every platform.
+
+          3.06 on a 24 grid in a 10px box renders at 1.275px, the
+          rendered stroke of the rail set (1.7 in an 18px box). 10px is
+          about the cap height of the 12px uppercase label beside it.
+        */}
+        <svg
+          aria-hidden
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        >
+          <path
+            d="M6 9l6 6 6-6"
+            stroke="currentColor"
+            strokeWidth="3.06"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
       {open && (
           <div

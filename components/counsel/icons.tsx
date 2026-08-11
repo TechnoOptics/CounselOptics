@@ -38,12 +38,18 @@
  *    sitting at a fixed gold that made active and idle rows differ by
  *    nothing but a little opacity.
  *
- * Stroke width: 1.7 on a 24 grid renders at 1.28px in the rail's 18px
- * box. A 24-grid stroke of 2 (the common default) renders at 1.5px,
- * which blooms on near-black and closes up the counters on the denser
- * glyphs; 1.5 renders at 1.13px and goes wispy. 1.7 is the value that
- * held up when the whole set was rendered side by side at 16/18/20/24px
- * on the counsel card surface.
+ * Stroke width is a RENDERED WEIGHT, not a number: rendered = sw x box
+ * / 24. This set is the product's reference at 1.7 in an 18px box,
+ * which is 1.275px. A 24-grid stroke of 2 (the common default) renders
+ * at 1.5px, which blooms on near-black and closes up the counters on
+ * the denser glyphs; 1.5 renders at 1.13px and goes wispy. 1.7 is the
+ * value that held up when the whole set was rendered side by side at
+ * 16/18/20/24px on the counsel card surface.
+ *
+ * Any glyph drawn in a DIFFERENT box has to solve sw for that box
+ * rather than copy 1.7: 2.78 in an 11px box and 2.35 in a 13px box are
+ * the same 1.275px line, and both exist in this codebase for that
+ * reason. tests/icon-system.test.ts holds the arithmetic.
  *
  * These glyphs are decorative: every call site pairs them with a text
  * label and marks the wrapper aria-hidden, so they carry no title and
@@ -83,9 +89,49 @@ export function DashIcon() {
   );
 }
 
-// Impact / analytics. Vertical bars on an L axis. Projects uses a folder
-// rather than the horizontal bars it used to, so nothing else in the
-// rail is a bar chart.
+// Reports. A page of figures: the portrait 13x17 page this set already
+// uses for Doc, Contract and Billing, carrying three bars on the rule
+// rhythm (3.2 apart, inset 3.3). Drawn this way rather than as free
+// horizontal bars, which is what the reference product uses: rendered
+// at 18px, three stacked lines of falling length read as "align left",
+// not as data. The page is also the honest shape, because Reports is
+// the screen that prints and exports.
+export function ReportIcon() {
+  return (
+    <Icon>
+      <rect x="5.5" y="3.5" width="13" height="17" rx="1.6" />
+      <path d="M8.8 16.8v-3.2M12 16.8v-7.2M15.2 16.8v-5.2" />
+    </Icon>
+  );
+}
+
+// My work. A gauge: one person's own throughput and standing, which is
+// what this screen reports. An open dial is the only silhouette of its
+// kind here - Time is a stopwatch and Help is a full ring, and both
+// close into a disc at 16px where this one cannot.
+//
+// The arc runs 220 degrees rather than a flat 180, with both ends
+// turned down past the horizontal. Drawn as a half circle it was only
+// 8.6 units tall in an 18 unit box and read as a light arc floating
+// above empty space, visibly smaller than Dashboard and Impact either
+// side of it; the extra sweep gives it the mass its neighbours have and
+// is what a dial actually looks like. No pivot dot: at 18px it either
+// fills in as a blob or has to be a fill, and the set takes no fills.
+export function GaugeIcon() {
+  return (
+    <Icon>
+      <path d="M3.92 17.54a8.6 8.6 0 1116.16 0" />
+      <path d="M12 14.6l5.6-5.6" />
+    </Icon>
+  );
+}
+
+// Impact / analytics. Vertical bars on an L axis, and the AXIS is the
+// whole distinction: Reports two rows above also draws bars, so the one
+// that measures a caseload against a scale keeps the scale, and the one
+// that prints a document keeps the page. Projects dropped the horizontal
+// bars it used to carry, because a bar chart with no axis and no page
+// read as a paragraph of text rather than as data.
 export function ChartIcon() {
   return (
     <Icon>
@@ -250,6 +296,22 @@ export function TemplateIcon() {
     <Icon>
       <rect x="3.5" y="3.8" width="17" height="16.4" rx="1.6" />
       <path d="M3.5 10h17M9.6 10v10.2" />
+    </Icon>
+  );
+}
+
+// Document approvals: filled forms waiting for a yes. A page with the
+// check drawn large enough to cross its right edge, which is the move
+// this set already uses when a page needs telling apart from the other
+// pages - the clip on Intake, the crown on Time. A check inside a ring
+// would have been the obvious drawing and is the wrong one here: at
+// 16px it is the same disc as Help two groups down.
+export function ApprovalIcon() {
+  return (
+    <Icon>
+      <rect x="3.6" y="3.5" width="12" height="17" rx="1.6" />
+      <path d="M6.9 8.4h5.4M6.9 11.6h3.6" />
+      <path d="M10.8 16.4l2.6 2.6 6.4-6.9" />
     </Icon>
   );
 }

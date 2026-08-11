@@ -12,6 +12,7 @@ import {
 } from '@/lib/menu-config';
 import { T } from '@/components/i18n/LocaleProvider';
 import {
+  ApprovalIcon,
   BillingIcon,
   CalIcon,
   CaseIcon,
@@ -19,6 +20,7 @@ import {
   ChatIcon,
   ContractIcon,
   DocIcon,
+  GaugeIcon,
   GearIcon,
   HelpIcon,
   ImportIcon,
@@ -30,6 +32,7 @@ import {
   MailIcon,
   ProjectIcon,
   ReferralIcon,
+  ReportIcon,
   SignIcon,
   SparkIcon,
   TemplateIcon,
@@ -47,6 +50,8 @@ import {
 // truth. Unknown href -> a neutral default glyph.
 const ICONS: Record<string, React.ReactNode> = {
   '/counsel': <DashIcon />,
+  '/counsel/reports': <ReportIcon />,
+  '/counsel/my': <GaugeIcon />,
   '/counsel/analytics': <ChartIcon />,
   '/counsel/aid': <SparkIcon />,
   '/counsel/calendar': <CalIcon />,
@@ -55,6 +60,7 @@ const ICONS: Record<string, React.ReactNode> = {
   '/counsel/intake': <IntakeIcon />,
   '/counsel/templates': <TemplateIcon />,
   '/counsel/forms': <DocIcon />,
+  '/counsel/forms/approvals': <ApprovalIcon />,
   '/counsel/policies': <ContractIcon />,
   '/counsel/letters': <MailIcon />,
   '/counsel/analyze': <MagnifyIcon />,
@@ -75,6 +81,19 @@ const ICONS: Record<string, React.ReactNode> = {
   '/counsel/trust': <TrustIcon />,
   '/counsel/help': <HelpIcon />,
 };
+
+// One eyebrow, spelled once. The firm name and the group labels are the same
+// typographic object, and they used to disagree about it: 0.2em on the firm
+// name against 0.16em on the labels below it, which is a difference a reader
+// cannot name but can see. 0.14em is the tracking the reference sets 10px
+// uppercase at, and 700 is its weight - 600 at this size reads as body text
+// that happens to be capitalised.
+//
+// What separates the two is STRENGTH, not spelling. The firm name is whose
+// workspace this is and stays at full muted; the group labels are furniture
+// and sit back at 70, so they mark the groups without competing with the
+// links inside them.
+const EYEBROW = 'text-[10px] font-bold uppercase tracking-[0.14em] text-muted';
 
 // Nav row treatment. The active row carries exactly three signals:
 // background tint, a border, and a heavier weight. It used to stack a
@@ -158,7 +177,7 @@ export function CounselSidebar({
     // just the nav.
     <nav className="space-y-0.5 px-3 py-3">
       <p
-        className="px-2 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted"
+        className={`px-2 pt-1 pb-2 ${EYEBROW}`}
         data-no-translate
       >
         {firm.name}
@@ -172,7 +191,7 @@ export function CounselSidebar({
       <div className="mb-1 border-t border-edge" />
       {sections.map((sec) => (
         <div key={sec.section}>
-          <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-muted px-2 pt-2 pb-0.5">
+          <p className={`px-2 pt-2 pb-0.5 opacity-70 ${EYEBROW}`}>
             <T>{sec.section}</T>
           </p>
           {sec.items.map((item) => {
