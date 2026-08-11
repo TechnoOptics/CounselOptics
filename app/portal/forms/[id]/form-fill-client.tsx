@@ -27,6 +27,7 @@ import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { employeeFieldsOf } from '@/lib/counterparty-fields';
 import {
+  checkTemplateFieldValue,
   invalidFieldValues,
   templateFieldInputAttributes,
 } from '@/lib/template-field-formats';
@@ -140,6 +141,26 @@ export function FormFillClient({
    */
   const formatProblems = invalidFieldValues(ownFields, values);
   const problemFor = new Map(formatProblems.map((p) => [p.key, p.message]));
+
+  /**
+   * The answers AS THEY WILL BE STORED, which is what the preview beside this
+   * form has to merge.
+   *
+   * sanitizeTemplateValues normalises on the server, so a phone typed
+   * 555.123.4567 reaches the document as (555) 123-4567. Merging the raw state
+   * here would show the employee one string and send another, on the page
+   * whose whole job is to show what is being sent. An answer that does not fit
+   * its format is left exactly as typed, which is the same thing
+   * sanitizeTemplateValues does with it.
+   */
+  const normalizedValues = useMemo(() => {
+    const out: Record<string, string> = { ...values };
+    for (const f of ownFields) {
+      const checked = checkTemplateFieldValue(f.type, values[f.key] ?? '');
+      if (checked.ok && checked.value) out[f.key] = checked.value;
+    }
+    return out;
+  }, [values, ownFields]);
   const recipientOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim());
 
   // The mark that will be sent, and it is the PHONE'S OWN BYTES when there is
@@ -178,7 +199,7 @@ export function FormFillClient({
       mergeTemplateDocument({
         body: template.body,
         fields: template.fields,
-        values,
+        values: normalizedValues,
         firmName,
         signatureName: signature,
         signerEmail: employeeEmail,
@@ -190,7 +211,15 @@ export function FormFillClient({
           recipientEmail,
         }),
       }),
-    [template, values, signature, employeeEmail, firmName, recipientName, recipientEmail],
+    [
+      template,
+      normalizedValues,
+      signature,
+      employeeEmail,
+      firmName,
+      recipientName,
+      recipientEmail,
+    ],
   );
 
   // Where the mark goes, decided by the same function the PDF renderer and the

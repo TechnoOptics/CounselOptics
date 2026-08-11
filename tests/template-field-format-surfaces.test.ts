@@ -113,6 +113,25 @@ describe('the Hub form a colleague fills in', () => {
     expect(source).toContain('aria-invalid');
   });
 
+  /**
+   * The text on the page and the document that is sent are the same answers.
+   *
+   * sanitizeTemplateValues NORMALISES on the server, so a phone typed as
+   * 555.123.4567 is stored and printed as (555) 123-4567. The live preview
+   * beside the form merges the state values, so without this it showed the
+   * employee one string and sent another: a preview that is not the document
+   * is worse than no preview on a page whose whole job is to show what is
+   * being sent.
+   */
+  it('previews the answers as they will be stored, not as they were typed', () => {
+    // The ARGUMENT, not merely the name. Asserting the block mentions
+    // normalizedValues was satisfied by the dependency array alone, so a
+    // mutation that passed the raw state to mergeTemplateDocument left this
+    // green while the preview and the document disagreed again.
+    const merged = /const merged = useMemo\([\s\S]*?\n  \);/.exec(source)?.[0] ?? '';
+    expect(merged).toContain('values: normalizedValues');
+  });
+
   it('will not send an answer that does not fit', () => {
     // `ready` is the one expression the send and export buttons are disabled
     // on. A check that did not reach it would be a red sentence beside a
