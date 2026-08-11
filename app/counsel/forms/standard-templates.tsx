@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { installSeedTemplateAction } from '@/lib/seed-template-actions';
 import type { SeedTemplate } from '@/lib/seed-templates';
 import { templateNameKey } from '@/lib/template-name-match';
+import { Chip } from '@/components/counsel/patterns';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
@@ -63,15 +64,19 @@ export function StandardTemplates({
   if (templates.length === 0) return null;
 
   return (
-    <section className="rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
-      <h2 className="text-[14px] font-semibold text-forest-900 dark:text-cream-100">
+    <details
+      // Open only for a firm that has nothing of its own, where installing a
+      // standard document is the fastest thing on the page. Once the firm has
+      // its own templates, this is a way IN to a second one and belongs shut.
+      open={installedNames.length === 0}
+      className="rounded-xl border border-edge bg-surface-2 px-4 py-3"
+    >
+      <summary className="cursor-pointer text-[13px] font-medium text-foreground">
         <T>Start from a standard document</T>
-      </h2>
-      <p className="mt-1 text-[12.5px] text-ink-500 dark:text-cream-100/55">
-        <T>
-          Added as a draft in your own list, so you can read it and change the wording before
-          any employee sees it.
-        </T>
+      </summary>
+
+      <p className="mt-1 text-[12.5px] text-muted">
+        <T>Added to your list as a draft, so you can change the wording before any employee sees it.</T>
       </p>
 
       {error && (
@@ -86,28 +91,28 @@ export function StandardTemplates({
         </p>
       )}
 
-      <ul className="mt-3 space-y-3">
+      {/* Rows divided by a rule, not a bordered box each. Five bordered cards
+          inside a bordered panel read as five things to decide between; a
+          divided list reads as one list, which is what it is. The tokens are
+          the ones every other counsel surface uses, so this panel stops being
+          the only place on the page with its own palette. */}
+      <ul className="mt-3 divide-y divide-edge border-t border-edge">
         {templates.map((tpl) => {
           const already = installed.has(templateNameKey(tpl.name)) || done.includes(tpl.slug);
           return (
-            <li
-              key={tpl.slug}
-              className="rounded-lg border border-ink-100 p-3 dark:border-forest-800/50"
-            >
+            <li key={tpl.slug} className="py-3">
               <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px] font-semibold text-forest-900 dark:text-cream-100">
-                    {tpl.name}
-                    <span className="ml-2 rounded-full bg-gold-500/10 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider text-gold-700 ring-1 ring-gold-500/25 dark:text-gold-300">
-                      {tpl.category}
-                    </span>
+                  <p className="flex flex-wrap items-center gap-2 text-[13.5px] font-semibold text-foreground">
+                    <span>{tpl.name}</span>
+                    <Chip tone="accent">{tpl.category}</Chip>
                   </p>
-                  <p className="mt-0.5 text-[12.5px] text-ink-500 dark:text-cream-100/60">
+                  <p className="mt-0.5 text-[12.5px] text-muted">
                     {tpl.description}
                   </p>
                 </div>
                 {already ? (
-                  <span className="text-[12.5px] font-medium text-ink-500 dark:text-cream-100/55">
+                  <span className="text-[12.5px] font-medium text-muted">
                     <T>Added to your templates</T>
                   </span>
                 ) : (
@@ -115,14 +120,14 @@ export function StandardTemplates({
                     type="button"
                     onClick={() => install(tpl.slug)}
                     disabled={busy !== null}
-                    className="btn-primary min-h-[40px]"
+                    className="btn-secondary min-h-[40px]"
                   >
                     {busy === tpl.slug ? <T>Adding</T> : <T>Add as a draft</T>}
                   </button>
                 )}
               </div>
               {tpl.notes.length > 0 && (
-                <ul className="mt-2 space-y-1 border-t border-ink-100 pt-2 text-[12px] text-ink-500 dark:border-forest-800/50 dark:text-cream-100/55">
+                <ul className="mt-2 space-y-1 text-[12px] text-muted">
                   {tpl.notes.map((note) => (
                     <li key={note}>{note}</li>
                   ))}
@@ -132,6 +137,6 @@ export function StandardTemplates({
           );
         })}
       </ul>
-    </section>
+    </details>
   );
 }

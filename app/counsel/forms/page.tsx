@@ -44,37 +44,23 @@ export default async function CounselFormsPage() {
       <PageHeader
         eyebrow={<T>Counsel · self-service</T>}
         title={<T>Form templates</T>}
+        // How to write a placeholder is not a fact about this list, it is an
+        // instruction for the body editor, and the editor already gives it at
+        // the field it applies to (app/counsel/forms/document-tab.tsx). It was
+        // a third line of syntax on a page whose job is to show what the firm
+        // has published.
         subtitle={
-          <>
-            <T>
-              Publish configured documents (an NDA, a vendor form) and employees
-              fill, sign, and export them from their Hub without opening a
-              ticket. Use
-            </T>{' '}
-            <code className="rounded bg-surface-2 px-1 text-[12px]">
-              {'{{field_key}}'}
-            </code>{' '}
-            <T>
-              placeholders in the body; each becomes an input on the
-              employee&apos;s form.
-            </T>
-          </>
+          <T>
+            Publish configured documents (an NDA, a vendor form) and employees
+            fill, sign, and export them from their Hub without opening a ticket.
+          </T>
         }
       />
-      <StandardTemplates
-        firmId={ctx.firm.id}
-        // Only what the list needs. The body is the largest field on a seed
-        // template and would otherwise be serialized into the page for every
-        // template on every load.
-        templates={SEED_TEMPLATES.map((t) => ({
-          slug: t.slug,
-          name: t.name,
-          description: t.description,
-          category: t.category,
-          notes: t.notes,
-        }))}
-        installedNames={templates.map((t) => t.name)}
-      />
+      {/* The firm's OWN templates are what this page is a list of, so they
+          come first. The standard documents are one of the two ways to make
+          one, kept as a disclosure under the list rather than a block of
+          somebody else's paperwork above it, and open on the one occasion it
+          is the fastest thing on the screen: a firm with nothing yet. */}
       <FormsManageClient
         firmId={ctx.firm.id}
         initialTemplates={templates}
@@ -85,6 +71,22 @@ export default async function CounselFormsPage() {
           hasLogo: Boolean(ctx.firm.logoUrl),
         }}
         brandName={ctx.firm.name}
+        standardTemplates={
+          <StandardTemplates
+            firmId={ctx.firm.id}
+            // Only what the list needs. The body is the largest field on a seed
+            // template and would otherwise be serialized into the page for every
+            // template on every load.
+            templates={SEED_TEMPLATES.map((t) => ({
+              slug: t.slug,
+              name: t.name,
+              description: t.description,
+              category: t.category,
+              notes: t.notes,
+            }))}
+            installedNames={templates.map((t) => t.name)}
+          />
+        }
       />
     </div>
   );
