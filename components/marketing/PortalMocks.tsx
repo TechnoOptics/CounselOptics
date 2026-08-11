@@ -92,8 +92,14 @@ export function BrowserFrame({
       style={{
         borderColor: firm ? F.line : 'rgba(15,45,36,0.12)',
         background: firm ? F.bg : '#ffffff',
+        // The firm frame's shadow used to reach ~90px past the bottom
+        // edge at 75% black, and the section label sits 22px under it:
+        // measured, "For law firms" was reading on #bfbfbf at 3.89:1
+        // rather than on the white page at 7.16:1. The shadow is
+        // decoration and the label is content, so the shadow gives way.
+        // Pulled in and lightened; the frame still lifts off the page.
         boxShadow: firm
-          ? '0 30px 80px -20px rgba(0,0,0,0.75)'
+          ? '0 18px 44px -28px rgba(0,0,0,0.55)'
           : '0 30px 80px -24px rgba(15,45,36,0.35)',
       }}
     >
@@ -114,7 +120,10 @@ export function BrowserFrame({
           className="flex-1 truncate rounded-md px-3 py-1 text-center text-[11px] font-medium"
           style={{
             background: firm ? F.panel2 : '#ffffff',
-            color: firm ? F.dim : '#6b7b73',
+            // Measured on the rendered page: #6b7b73 is 4.46:1 on the
+            // white chip it sits on, just under AA for 11px. The URL is
+            // read, not ornament - it says which screen this is.
+            color: firm ? F.dim : '#566a61',
             border: `1px solid ${firm ? F.line : 'rgba(15,45,36,0.06)'}`,
           }}
         >

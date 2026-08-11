@@ -273,7 +273,7 @@ function Hero({
           <h1 className="mt-5 font-display text-[44px] sm:text-[60px] lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.95] text-forest-900 dark:text-cream-100">
             Big things rarely happen{' '}
             <br />
-            <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+            <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">
               {' '}all at once.
             </span>
           </h1>
@@ -1031,7 +1031,7 @@ function CommunityCaseShowcase() {
             </p>
             <h2 className="mt-4 font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
               A place for your community{' '}
-              <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+              <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">
                 to show up.
               </span>
             </h2>

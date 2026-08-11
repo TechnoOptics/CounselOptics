@@ -53,7 +53,7 @@ export default function FileExhibitsPage() {
         <p className="eyebrow mb-3 justify-center">Court e-filing directory</p>
         <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
           Filing exhibits to{' '}
-          <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+          <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">
             the right portal
           </span>
         </h1>

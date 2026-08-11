@@ -145,8 +145,26 @@ function hitsIn(rel: string): Hit[] {
 
 const HITS = sourceFiles().flatMap(hitsIn);
 
-/** The tokens that are NOT the one utility a backgroundImage key gives. */
-const NON_IMAGE_HITS = HITS.filter((h) => h.token !== `bg-${h.key}`);
+/**
+ * The tokens that are NOT the one utility a backgroundImage key gives.
+ *
+ * The VARIANT CHAIN is stripped before the comparison. `dark:bg-gold-shine`
+ * is still the `bg-` utility - Tailwind compiles it to
+ * `.dark\:bg-gold-shine:is(.dark *)` with the same `background-image`,
+ * which `isCompiled` below already knows and says so in its own comment.
+ * Comparing the whole token instead read every variant spelling as a
+ * utility that resolves through the colour palette, and demanded a
+ * `gold-shine` COLOUR that nothing needs. It passed only because no call
+ * site had written one yet; the first `dark:bg-gold-shine` failed the
+ * suite for a class that compiles correctly.
+ *
+ * The alpha suffix is deliberately NOT stripped: `bg-gold-shine/50` does
+ * resolve through the colour palette, and that is the case this guard is
+ * for.
+ */
+const NON_IMAGE_HITS = HITS.filter(
+  (h) => h.token.replace(/^(?:[a-z][a-z0-9-]*:)+/, '') !== `bg-${h.key}`,
+);
 
 /**
  * Compile exactly the swept tokens with the project's real config and

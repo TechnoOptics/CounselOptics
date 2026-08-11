@@ -38,7 +38,7 @@ export function AudienceSplit({
           Built for two audiences. Pick yours.
         </p>
         <h2 className="mt-4 font-display text-[34px] sm:text-[44px] lg:text-[52px] font-medium tracking-[-0.02em] leading-[1.02] text-forest-900 dark:text-cream-100">
-          The same calm software, sized to <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">how you work</span>.
+          The same calm software, sized to <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">how you work</span>.
         </h2>
         <p className="mt-3 sm:mt-4 text-[15px] sm:text-[16px] leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">
           Whether you&apos;re tracking a matter that just landed in your lap, or a firm running

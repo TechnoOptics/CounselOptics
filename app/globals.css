@@ -683,6 +683,101 @@ html.surface-hq body {
 .dark .hover\:text-forest-700:hover { color: rgba(245, 237, 214, 0.92); }
 .dark .hover\:text-ink-900:hover { color: #fbf7e9; }
 .dark .hover\:text-ink-700:hover { color: rgba(245, 237, 214, 0.92); }
+
+/* ============ THE SAME BLOCK'S MISSING LIGHT HALF ==================
+   Everything above answers "what does this palette class mean when the
+   page went dark". Nothing answered the other half, because the raw
+   Tailwind value WAS the light answer and was assumed to be fine. Two
+   families are not.
+
+   Measured 2026-08-10 in Chrome on the rendered pages, not read off the
+   stylesheet: 32 public consumer routes, 4163 runs of text, each one
+   sampled against the pixels actually painted behind its own glyph
+   boxes. On a light ground:
+
+     text-ink-400   #a1a1aa   2.54:1   135 runs   dates, "Learn ->",
+                                                  "Auto-scrolling", the
+                                                  testimonial disclosure,
+                                                  the footer disclosures
+     text-gold-700  #a38a55   1.77:1   102 runs   section eyebrows and
+                                                  micro-labels
+     text-gold-500  #d5bb7e   1.87:1     7 runs
+     text-gold-600  #c2a66a   2.34:1     1 run
+     text-gold-800  #7e6b41   4.42:1     1 run
+
+   All of it is content: words a reader is meant to read. None of it is
+   ornament, and none of it clears 4.5:1.
+
+   WHY THIS IS A REPAINT AND NOT A TOKEN MIGRATION. The block above says
+   to reach for a token instead of adding to it, and that is the right
+   long-run answer - but it is 237 call sites across 84 files, and every
+   one of them carries a `dark:` twin that would have to be dropped in
+   the same edit. This is the same shape of layer the light counsel
+   shell already uses further down, on the same two ramps, and it lands
+   on the SAME two values that layer chose, so nothing new is
+   introduced.
+
+   WHY THE GOLD IS A TOKEN AND THE INK IS NOT. `--accent-text` already
+   means "the accent used as words" and is already declared per theme
+   (#6a5521 light, #e0c890 dark), which is exactly what `.eyebrow`
+   further down resolved this same question with. There is no token for
+   "the quietest neutral that still reads", so `--ink-quiet` declares
+   one, per theme, right here.
+
+   DECLARED PER THEME RATHER THAN RESTORED BY SPECIFICITY, deliberately.
+   `html:not(.dark) .text-ink-400` is (0,2,1) and outranks both
+   `.dark .text-ink-400` (0,2,0) and a call site's own
+   `dark:text-cream-100/45` (0,2,0), so inside a `.dark` wrapper under a
+   LIGHT html - a portal panel, an HQ surface, a dark counsel shell on a
+   reader whose theme is light - a flat hex here would paint near-black
+   ink on a near-black panel. That is the dark-on-dark failure this file
+   has already shipped twice. A custom property inherits instead: the
+   rule is written once, and inside a `.dark` subtree the value it reads
+   is the dark one. No restore rule, no second selector to keep in step.
+   tests/consumer-light-legibility.ts asserts the dark half of
+   `--ink-quiet` still agrees with `.dark .text-ink-400` above.
+
+   Only spellings that exist at a consumer call site are listed, which is
+   the discipline the block above and the counsel layer below both keep.
+   `text-gold-100/200/300/400` are absent on purpose and must stay
+   absent: measured, all 88 of their runs sit on a DARK panel inside a
+   light page, so repainting them is the same mistake pointing the other
+   way. */
+:root {
+  --ink-quiet: #6b6b75;
+}
+html.dark,
+.dark,
+.enterprise-shell,
+.hq-shell {
+  /* The same value `.dark .text-ink-400` above paints. */
+  --ink-quiet: rgba(245, 237, 214, 0.4);
+}
+
+/* 5.27:1 on white and 4.51:1 on cream-200, the tightest of the four
+   consumer light surfaces. `.input` reaches this rule through @apply
+   cloning (`placeholder:text-ink-400` at the .input declaration), which
+   is wanted here: the same placeholder, legible. */
+html:not(.dark) .text-ink-400,
+html:not(.dark) .placeholder\:text-ink-400::placeholder {
+  color: var(--ink-quiet);
+}
+
+/* 7.16:1 on white, 6.12:1 on cream-200. One value for four stops, for
+   the reason the counsel layer gives: a light ground does not have four
+   legible golds to give, and the emphasis the ramp carries on a dark
+   ground is carried here by weight and size. The hover spellings are
+   listed because a hover state is a distinct class and would otherwise
+   take the dark ramp's value back under the cursor. */
+html:not(.dark) .text-gold-500,
+html:not(.dark) .text-gold-600,
+html:not(.dark) .text-gold-700,
+html:not(.dark) .text-gold-800,
+html:not(.dark) .hover\:text-gold-700:hover,
+html:not(.dark) .hover\:text-gold-800:hover,
+html:not(.dark) .group:hover .group-hover\:text-gold-700 {
+  color: var(--accent-text);
+}
 /* Solid light surfaces get repainted dark forest in dark mode so the
    text overrides above stay readable on them. Note: gradient stops
    (`from-cream-50`, `via-cream-50` etc.) compile to different CSS

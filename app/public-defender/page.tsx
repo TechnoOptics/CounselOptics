@@ -39,7 +39,7 @@ export default function PublicDefenderPage() {
         <p className="eyebrow mb-3 justify-center">Free legal counsel</p>
         <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
           Asking for a{' '}
-          <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+          <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">
             public defender
           </span>
         </h1>
