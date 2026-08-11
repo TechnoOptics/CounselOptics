@@ -294,18 +294,12 @@ export function EvidenceDashboard({ analytics: a, caseId }: { analytics: CaseEvi
 
   return (
     <section id="case-dashboard" className="scroll-mt-24 space-y-4 border-t border-ink-100 dark:border-forest-700/40 pt-8">
-      <div>
-        <p className="eyebrow mb-1"><T>Overview</T></p>
-        <h2 className="text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Evidence dashboard</T>
-        </h2>
-        <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">
-          <T>
-            A live read of everything on file for this matter. Select any metric or bar to open the matching evidence, filtered.
-          </T>
-        </p>
-      </div>
-
+      {/* No heading of its own. Both callers (the matter page and the
+          co-counsel workspace) mount this inside a SectionPanel that already
+          carries a title, a blurb and the item count in its header, so an
+          eyebrow, an h2 and a second blurb here meant a reader who opened the
+          panel was told what they had opened twice, in different words. The
+          tiles below say what they are. */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Kpi
           label={<T>Total items</T>}

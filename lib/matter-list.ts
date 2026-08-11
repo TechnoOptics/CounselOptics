@@ -272,8 +272,11 @@ function matchesHearing(
 /**
  * The rows a set of params selects, in order, before pagination.
  *
- * The view predicate runs first so that the count on the view strip and
- * the rows the table then shows come from one definition.
+ * The view predicate runs first, then the search, then every column filter.
+ * This docblock used to claim that made the strip count and the table's rows
+ * "one definition"; it did not, because matters-table.tsx counted the strip
+ * with the bare viewTest and never came through here. matterViewCounts below
+ * is what makes the claim true.
  */
 export function filterMatters(
   rows: MatterRow[],
@@ -325,6 +328,33 @@ export function filterMatters(
       (r.assigneeLabel ?? '').toLowerCase().includes(q)
     );
   });
+}
+
+/**
+ * How many matters each view would show, under the search and the column
+ * filters now in force.
+ *
+ * The strip used to be built in the table from `rows.filter(viewTest(key))`,
+ * which is the view and nothing else, while the table below it came from
+ * filterMatters, which is the view AND the search box AND six column filters.
+ * The two agreed only on an untouched page: narrow to a client nobody matches
+ * and "Open work 12" sat over "No matters match this view and these filters."
+ *
+ * So a count is the length of the list its own tab would render, from
+ * filterMatters itself, and `now` is threaded through so the hearing view and
+ * the updated filter read one clock across all five.
+ */
+export function matterViewCounts(
+  rows: MatterRow[],
+  params: MatterListParams,
+  meId: string | null,
+  now = Date.now(),
+): Record<ViewKey, number> {
+  const counts = {} as Record<ViewKey, number>;
+  for (const view of VIEW_KEYS) {
+    counts[view] = filterMatters(rows, { ...params, view }, meId, now).length;
+  }
+  return counts;
 }
 
 /**
