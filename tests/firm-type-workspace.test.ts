@@ -513,6 +513,47 @@ describe('the settings page shows which answer is in force', () => {
   });
 });
 
+describe('the dashboard and Reports are relevant to the kind of team reading them', () => {
+  it('calls the people on the client tile what this kind of team calls them', () => {
+    const src = read('app/counsel/page.tsx');
+    expect(src).toContain('firmVocabulary');
+    expect(src).toContain('<T>{vocab.clients}</T>');
+    expect(src, 'the hardcoded noun is the owner’s actual complaint').not.toContain(
+      '<T>Active clients</T>',
+    );
+  });
+
+  /*
+   * docs/TECHOTTIC-PARITY-ADDENDUM.md: a metric a firm cannot compute honestly
+   * does not get a tile. The money figures on both pages were already gated on
+   * hideTimeBilling, which now resolves from the type, so an in-house team gets
+   * no invoice tile rather than a tile reading zero. This asserts that gate is
+   * still the only thing standing between them.
+   */
+  it('computes no money figure for a team that has no billing surface', () => {
+    const data = read('lib/counsel-reports-data.ts');
+    for (const table of ['firm_invoices', 'firm_time_entries']) {
+      const at = data.indexOf(`.from('${table}')`);
+      expect(at).toBeGreaterThan(-1);
+      // The gate sits immediately above each of these reads.
+      expect(data.slice(Math.max(0, at - 400), at)).toContain(
+        'input.hideTimeBilling',
+      );
+    }
+  });
+
+  it('resolves the surface from the firm it already holds, not a second read', () => {
+    for (const p of [
+      'app/counsel/page.tsx',
+      'app/counsel/reports/page.tsx',
+      'app/counsel/my/page.tsx',
+      'app/counsel/settings/page.tsx',
+    ]) {
+      expect(read(p)).toContain('getFirmSurfaceSettings(ctx.firm.id, ctx.firm)');
+    }
+  });
+});
+
 describe('the counsel shell resolves the type once and hands it to both navs', () => {
   const layout = read('app/counsel/layout.tsx');
 

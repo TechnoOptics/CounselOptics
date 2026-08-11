@@ -23,6 +23,7 @@ import {
 } from '@/components/counsel/CounselDashboardTiles';
 import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
+import { firmVocabulary } from '@/lib/firm-vocabulary';
 import { AGING_DAYS } from '@/lib/approval-queue';
 import type { MatterRow } from '@/lib/matter-list';
 import {
@@ -130,8 +131,12 @@ export default async function CounselDashboard() {
     // figures open /counsel/billing, and that page redirects to /counsel
     // when the toggle is on, so under it the figures are not shown rather
     // than shown as a dead click.
-    getFirmSurfaceSettings(ctx.firm.id),
+    getFirmSurfaceSettings(ctx.firm.id, ctx.firm),
   ]);
+
+  // What this kind of legal team calls things. One lookup, at the top, rather
+  // than a type check at each tile that needs a noun.
+  const vocab = firmVocabulary(surfaces.firmType);
 
   const enabled = getCounselDashboardConfig(profileRow?.dashboard_preferences);
   const isAdmin =
@@ -627,7 +632,13 @@ export default async function CounselDashboard() {
         </StripLink>
         <StripLink href={clientsHref(clientsActive.length, 'active')}>
           <StatCard
-            label={<T>Active clients</T>}
+            // "Clients" is the wrong word for an in-house team, which is the
+            // owner's complaint verbatim: it has no clients, and the people it
+            // helps are employees. The noun comes off the vocabulary map keyed
+            // by the firm's type rather than off a ternary here, so the tile
+            // and the rail can never disagree about what these people are
+            // called.
+            label={<T>{vocab.clients}</T>}
             value={clientsActive.length}
             sub={
               <>

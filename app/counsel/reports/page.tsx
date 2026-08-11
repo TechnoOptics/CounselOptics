@@ -77,7 +77,7 @@ export default async function CounselReportsPage() {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
 
-  const surfaces = await getFirmSurfaceSettings(ctx.firm.id);
+  const surfaces = await getFirmSurfaceSettings(ctx.firm.id, ctx.firm);
   const matterMaterial = canReadMatterMaterial(ctx.membership.role);
   const f = await getFirmReportFigures({
     firmId: ctx.firm.id,

@@ -62,7 +62,7 @@ export default async function CounselMyPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/counsel/my');
 
-  const surfaces = await getFirmSurfaceSettings(ctx.firm.id);
+  const surfaces = await getFirmSurfaceSettings(ctx.firm.id, ctx.firm);
   const matterMaterial = canReadMatterMaterial(ctx.membership.role);
   const f = await getMyCounselFigures({
     firmId: ctx.firm.id,
