@@ -23,12 +23,9 @@ export default async function CounselTemplatesPage() {
         title={<T>Document templates</T>}
         subtitle={
           <>
-            <T>Generate a complete, professionally drafted contract or
-            legal document on</T>{' '}
+            <T>Draft a complete contract or legal document on</T>{' '}
             <span data-no-translate>{ctx.firm.name}</span>
-            <T>&rsquo;s letterhead.
-            Branded, clean prose (no AI tells), viewable and exportable
-            as PDF.</T>
+            <T>&rsquo;s letterhead, then read it and export it as a PDF.</T>
           </>
         }
       />

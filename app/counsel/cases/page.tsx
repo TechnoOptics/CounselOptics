@@ -108,11 +108,16 @@ export default async function CounselCasesPage({
       <PageHeader
         eyebrow={<T>Counsel · matters</T>}
         title={<T>Firm caseload</T>}
+        // Three sentences here taught the table: that every column can be
+        // filtered, which five sort, that a row reassigns, that the URL holds
+        // the view. Every one of those is a control the reader can see, and a
+        // subtitle listing the controls under it is a manual for a screen you
+        // are already looking at. What is left is what the rule asks a
+        // subtitle for: the count, and whose caseload it is.
         subtitle={
           <>
             {allCases.length} <T>matters at</T>{' '}
-            <span data-no-translate>{ctx.firm.name}</span>.{' '}
-            <T>Every matter carries a reference your firm can quote on the phone or in a filing. Search, filter every column and sort the matter, status, assignee, hearing and updated columns; reassign a matter in its row, or several at once. The view, the filters and the page are in the address bar, so a narrowed queue can be sent to a colleague.</T>
+            <span data-no-translate>{ctx.firm.name}</span>
           </>
         }
         action={

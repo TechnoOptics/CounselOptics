@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   createFirmTemplateAction,
   updateFirmTemplateAction,
@@ -11,6 +11,7 @@ import type { LetterheadAvailability } from '@/components/counsel/DocumentLayout
 import { EmptyState } from '@/components/counsel/ui';
 import { TemplateCards } from './template-cards';
 import { TemplateEditor, type TemplateDraft } from './template-editor';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * The firm's form templates: the list, and the one being edited.
@@ -28,6 +29,7 @@ export function FormsManageClient({
   firmLayout,
   letterhead,
   brandName,
+  standardTemplates,
 }: {
   firmId: string;
   initialTemplates: FirmTemplate[];
@@ -36,7 +38,15 @@ export function FormsManageClient({
   firmLayout: DocumentLayout;
   letterhead: LetterheadAvailability;
   brandName: string;
+  /**
+   * The standard documents a firm can install, rendered under the list. A
+   * prop rather than a sibling on the page so it disappears while the editor
+   * is open: it used to sit above the editor offering to install a second
+   * document while somebody was writing one.
+   */
+  standardTemplates?: ReactNode;
 }) {
+  const t = useT();
   const [templates, setTemplates] = useState(initialTemplates);
   const [editing, setEditing] = useState<FirmTemplate | 'new' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,15 +60,15 @@ export function FormsManageClient({
       : await createFirmTemplateAction(firmId, draft);
     setBusy(false);
     if (!res.ok || !res.template) {
-      setError(res.error ?? 'Could not save.');
+      setError(res.error ?? t('Could not save.'));
       return;
     }
-    const t = res.template;
+    const saved = res.template;
     setTemplates((list) => {
-      const i = list.findIndex((x) => x.id === t.id);
-      if (i === -1) return [t, ...list];
+      const i = list.findIndex((x) => x.id === saved.id);
+      if (i === -1) return [saved, ...list];
       const next = [...list];
-      next[i] = t;
+      next[i] = saved;
       return next;
     });
     setEditing(null);
@@ -69,7 +79,7 @@ export function FormsManageClient({
     const res = await updateFirmTemplateAction(firmId, id, { status: 'archived' });
     setBusy(false);
     if (res.ok) setTemplates((list) => list.filter((t) => t.id !== id));
-    else setError(res.error ?? 'Could not archive.');
+    else setError(res.error ?? t('Could not archive.'));
   };
 
   return (
@@ -94,12 +104,17 @@ export function FormsManageClient({
       ) : (
         <>
           <button type="button" onClick={() => setEditing('new')} className="btn-primary">
-            + New template
+            <T>New template</T>
           </button>
           {templates.length === 0 ? (
             <EmptyState
-              title="No templates yet"
-              sub="Create your first: an NDA is the classic starting point."
+              title={<T>No templates yet</T>}
+              sub={
+                <T>
+                  Write one, or install a standard document below and change the
+                  wording.
+                </T>
+              }
             />
           ) : (
             <TemplateCards
@@ -109,6 +124,7 @@ export function FormsManageClient({
               onArchive={(id) => void archive(id)}
             />
           )}
+          {standardTemplates}
         </>
       )}
     </div>

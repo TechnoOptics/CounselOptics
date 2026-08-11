@@ -23,12 +23,15 @@ export default async function CounselPoliciesPage() {
       <PageHeader
         eyebrow={<T>Counsel · self-service</T>}
         title={<T>Policy library</T>}
+        // What the checker returns to an employee (a confidence score, the
+        // passages a policy prohibits) is a description of a screen nobody
+        // reaches from here. What matters to the person maintaining this
+        // library is that the corpus is what gets checked.
         subtitle={
           <T>
             Paste the company&apos;s policies here. Employees check drafts and
-            questions against them from their Hub (with a confidence score and
-            the exact passages your policies prohibit or caution) before
-            anything reaches your inbox.
+            questions against them from their Hub before anything reaches your
+            inbox.
           </T>
         }
       />

@@ -23,7 +23,7 @@ import {
   nextSort,
   paginateMatters,
   sortMatters,
-  viewTest,
+  matterViewCounts,
   type MatterListParams,
   type MatterPage,
   type MatterRow,
@@ -162,16 +162,22 @@ export function MattersTable({
     all: <T>Everything</T>,
   };
 
-  const options: ViewOption[] = views.map((key) => ({
-    key,
-    label: viewLabel[key],
-    count: rows.filter(viewTest(key, meId)).length,
-  }));
-
-  const matched = useMemo(
-    () => sortMatters(filterMatters(rows, params, meId), params),
-    [rows, params, meId],
-  );
+  // Each tab states the size of the list that tab would render, search and
+  // column filters included, on the same clock the table reads. Counting the
+  // view alone here left a tab claiming 12 over an empty table.
+  const { options, matched } = useMemo(() => {
+    const now = Date.now();
+    const counts = matterViewCounts(rows, params, meId, now);
+    return {
+      options: views.map<ViewOption>((key) => ({
+        key,
+        label: viewLabel[key],
+        count: counts[key],
+      })),
+      matched: sortMatters(filterMatters(rows, params, meId, now), params),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, params, meId, views]);
   const page = useMemo(
     () => paginateMatters(matched, params.page),
     [matched, params.page],
@@ -226,13 +232,10 @@ export function MattersTable({
         label={t('Matter views')}
       />
 
-      <Toolbar
-        note={
-          <>
-            {page.total}/{rows.length} <T>matters match</T>
-          </>
-        }
-      >
+      {/* No note here. The selected tab above states how many matters match,
+          and the pager under the table states which of them is on screen.
+          This was a third copy of the same figure between the two. */}
+      <Toolbar>
         <input
           type="search"
           defaultValue={params.q}

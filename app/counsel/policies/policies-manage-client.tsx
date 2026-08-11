@@ -180,10 +180,12 @@ export function PoliciesManageClient({
                         {shortRef(p.id)}
                       </MonoRef>
                     </div>
+                    {/* One measure of length, not two. Words and characters
+                        answer the same question, and a reader comparing two
+                        policies at a glance was being handed the same fact
+                        twice in different units. */}
                     <p className="mt-2 text-[12px] text-muted">
                       {formatNumber(words)} <T>words</T>
-                      {' · '}
-                      {formatNumber(p.content.length)} <T>characters</T>
                       {' · '}
                       <T>added</T> {relativeTime(p.createdAt) ?? ''}
                     </p>

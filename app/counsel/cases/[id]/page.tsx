@@ -119,18 +119,6 @@ const STATUS_OPTIONS = Object.entries(STATUS_LABEL).map(([value, label]) => ({
   label,
 }));
 
-// The same hex per status the matter list uses, so a matter does not
-// change colour on the way from the list to its own page.
-const STATUS_COLOR: Record<string, string> = {
-  draft: PILL_COLORS.neutral,
-  open: PILL_COLORS.good,
-  under_review: PILL_COLORS.info,
-  needs_evidence: PILL_COLORS.waiting,
-  export_ready: PILL_COLORS.good,
-  closed: PILL_COLORS.neutral,
-  archived: PILL_COLORS.quiet,
-};
-
 function fmtCents(cents: number) {
   return (cents / 100).toLocaleString('en-US', {
     style: 'currency',
@@ -502,12 +490,12 @@ export default async function CounselCaseDetailPage({
         >
           {c.title}
         </h1>
-        {/* Meta chip row: the one live state as a pill, the fixed facts
-            as quiet chips, then plain provenance underneath. */}
+        {/* Meta chip row: the fixed facts as quiet chips, then plain
+            provenance underneath. The status is NOT here. It was a pill on
+            this row and a select in the action bar fifty pixels below, the
+            same word twice, one of them the control that sets it. The one
+            that can be acted on is the one that stays. */}
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <StatusPill dot color={STATUS_COLOR[c.status] ?? PILL_COLORS.neutral}>
-            {STATUS_LABEL[c.status] ?? c.status}
-          </StatusPill>
           {c.case_type && (
             <Chip>
               <span data-no-translate>{c.case_type}</span>
@@ -949,14 +937,13 @@ export default async function CounselCaseDetailPage({
           )}
         </PanelCard>
 
+        {/* Evidence Center used to lead this card. It is a tile in the case
+            menu at the top of the page, on screen at the same time and never
+            hidden, so this was a second door to the same room. Projects and
+            Draft a letter stay: neither has anywhere else to be reached from
+            when the matter has no linked project. */}
         <PanelCard title={<T>Elsewhere on this matter</T>} bodyClassName="p-3">
           <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/counsel/cases/${params.id}/evidence`}
-              className="rounded-md border border-edge px-3 py-1.5 text-[12px] text-foreground transition-colors hover:bg-surface-2"
-            >
-              <T>Evidence Center</T>
-            </Link>
             <Link
               href={`/counsel/projects?caseId=${params.id}`}
               className="rounded-md border border-edge px-3 py-1.5 text-[12px] text-foreground transition-colors hover:bg-surface-2"
