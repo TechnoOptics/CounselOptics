@@ -714,6 +714,27 @@ export async function getExhibitById(id: string): Promise<Exhibit | null> {
   return db.exhibits.find((e) => e.id === id) ?? null;
 }
 
+/**
+ * The outcome of adding an exhibit.
+ *
+ * A REFUSAL - no session, a case that is not the caller's, a file the
+ * magic-byte screen will not accept - is an expected outcome, so it travels
+ * as a value. It used to be thrown, and React strips an error's message when
+ * it crosses the Server Action boundary in a production build, so every
+ * refusal reached the person as "An error occurred in the Server Components
+ * render. The specific message is omitted in production builds...". Each of
+ * those reasons was written for someone to read, so it has to be returned.
+ *
+ * Genuine internal failures (a PostgREST error, a storage outage) still
+ * throw. Those are unexpected, they are not sentences for a person, and the
+ * error boundary already turns them into calm copy plus a support reference.
+ *
+ * Same shape, and same reason, as inviteCollaboratorAction.
+ */
+export type AddExhibitResult =
+  | { ok: true; exhibit: Exhibit }
+  | { ok: false; error: string };
+
 export async function addExhibit(input: {
   caseId: string;
   file: File;
@@ -721,10 +742,10 @@ export async function addExhibit(input: {
   incidentDate?: string | null;
   source?: string | null;
   category?: string | null;
-}): Promise<Exhibit> {
+}): Promise<AddExhibitResult> {
   if (usingSupabase()) {
     const user = await getCurrentUser();
-    if (!user) throw new Error('Not signed in.');
+    if (!user) return { ok: false, error: 'Not signed in.' };
     const supabase = createServerSupabase();
 
     // Confirm case ownership (RLS will enforce, but we want a clean error).
@@ -734,7 +755,7 @@ export async function addExhibit(input: {
       .eq('id', input.caseId)
       .maybeSingle();
     if (caseErr) throw caseErr;
-    if (!caseRow) throw new Error('Case not found.');
+    if (!caseRow) return { ok: false, error: 'Case not found.' };
 
     const { count, error: countErr } = await supabase
       .from('exhibits')
@@ -758,7 +779,7 @@ export async function addExhibit(input: {
         input.file.type || null,
         50 * 1024 * 1024,
       );
-      if (!screen.ok) throw new Error(screen.reason);
+      if (!screen.ok) return { ok: false, error: screen.reason };
     }
     const { error: uploadErr } = await supabase.storage
       .from(EXHIBITS_BUCKET)
@@ -800,13 +821,13 @@ export async function addExhibit(input: {
       .update({ updated_at: new Date().toISOString() })
       .eq('id', input.caseId);
 
-    return exhibitFromRow(data as ExhibitRow);
+    return { ok: true, exhibit: exhibitFromRow(data as ExhibitRow) };
   }
 
   const db = await readLocalDB();
   const caseRecord = db.cases.find((c) => c.id === input.caseId);
   if (!caseRecord) {
-    throw new Error('Case not found');
+    return { ok: false, error: 'Case not found.' };
   }
   const existingForCase = db.exhibits.filter((e) => e.caseId === input.caseId);
   const label = `Exhibit ${labelFor(existingForCase.length)}`;
@@ -835,7 +856,7 @@ export async function addExhibit(input: {
   db.exhibits.push(exhibit);
   caseRecord.updatedAt = exhibit.uploadedAt;
   await writeLocalDB(db);
-  return exhibit;
+  return { ok: true, exhibit };
 }
 
 export async function getLatestReview(caseId: string): Promise<AIReview | null> {
