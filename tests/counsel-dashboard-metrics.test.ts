@@ -337,6 +337,14 @@ describe('the page and the server action honour the picker', () => {
   it('filters the board and the panels through the viewer context', () => {
     expect(page).toContain('visibleMetricIds(');
     expect(page).toContain('offerablePanelIds(');
+    // And the list it DRAWS is the filtered one. Calling the helper and
+    // then rendering the raw saved list left this green, and would put an
+    // always-empty Cases panel on a staff member's dashboard.
+    const decl = /const visiblePanels = ([\s\S]*?);/.exec(page)?.[1] ?? '';
+    expect(decl, 'visiblePanels was not found').not.toBe('');
+    expect(decl, 'visiblePanels is not scoped to what the viewer can read')
+      .toContain('offerablePanels');
+    expect(page).toContain('{visiblePanels.map((id) => (');
   });
 
   it('applies the choice to the board before the board is drawn', () => {
