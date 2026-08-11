@@ -10,6 +10,7 @@ import {
 } from '@/lib/pdf';
 import { formatOccurred, KIND_LABEL, ROLE_LABEL, type TimelineMedia } from '@/lib/timeline-types';
 import { staticMapUrlServer } from '@/lib/maps';
+import { parseExhibitSheet } from '@/lib/exhibit-sheet';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -78,7 +79,20 @@ export async function GET(
       if (error || !data) return { ...base, sha256: '(file unavailable)' };
       const buf = Buffer.from(await data.arrayBuffer());
       const sha256 = createHash('sha256').update(buf).digest('hex');
-      return { ...base, sizeBytes: buf.length || base.sizeBytes, sha256, image: isJpegOrPng(buf) ? buf : null };
+      // The same parser the firm export has always run, on bytes this route
+      // already holds. Without it a .xlsx exhibit reached generateTimelineExhibitPdf
+      // with `sheet` unset and got a bare card, while the firm export of the
+      // same matter, through the same generator, printed the figures as a table.
+      // It is bounded on every axis and fail-safe: any parse problem is null,
+      // and the card then says the contents are not reproduced.
+      const sheet = await parseExhibitSheet(buf, base.name, base.mime);
+      return {
+        ...base,
+        sizeBytes: buf.length || base.sizeBytes,
+        sha256,
+        image: isJpegOrPng(buf) ? buf : null,
+        sheet,
+      };
     } catch {
       return { ...base, sha256: '(file unavailable)' };
     }

@@ -1821,13 +1821,50 @@ function attachmentKindLabel(ex: ExhibitFile): string {
 }
 
 /**
+ * What this packet is doing with one non-image exhibit, in one sentence.
+ *
+ * There is no silent branch, and that is the whole point of the function. The
+ * card used to take an optional note, and the caller passed null whenever there
+ * was nothing to reproduce, so a spreadsheet the packet could not parse got a
+ * type chip, a filename and a digest and NOTHING about its contents. A reader
+ * could not tell whether the workbook held nothing or whether the document had
+ * quietly dropped it, and the same generator, reached through the firm route,
+ * printed the figures as a table.
+ *
+ * tests/export-accounts-for-every-exhibit.test.ts states the rule this closes,
+ * from the other generator and the other direction: three PDF exhibits went out
+ * promising "Full document follows on the next pages." with nothing following.
+ * Include it, or name it and say why. Never silence.
+ *
+ * The register is neutral and the vocabulary is a court's, not a product's: no
+ * prompt text, no AI attribution, no product name. The reader of this line is
+ * often the person whose evidence it is.
+ */
+export function exhibitContentNote(ex: ExhibitFile): string {
+  if (ex.pdf) return 'reproduced in full on the pages that follow';
+  if (ex.sheet?.tabs?.length) return 'contents shown below';
+  // A digest the generator could not compute is a file it never held. Saying
+  // "not reproduced" alone would imply a choice was made about contents nobody
+  // ever read, so the two cases are named separately.
+  if (!/^[0-9a-f]{64}$/i.test(ex.sha256)) {
+    return 'file not retrieved for this packet, so its contents are not reproduced here';
+  }
+  return 'contents not reproduced here; the original file is unchanged in the case record';
+}
+
+/**
  * A prominent, authenticated exhibit card for a non-image file (PDF, spreadsheet,
  * document, video). A type chip, the filename, and a verification line (MIME ·
- * size · SHA-256), plus an optional note (e.g. that the PDF is reproduced in
- * full on the pages that follow).
+ * size · SHA-256), plus the note saying what became of its contents.
  */
 function drawAttachmentCard(doc: Doc, ex: ExhibitFile, note?: string | null) {
-  const cardH = 52;
+  // THE NOTE GETS ITS OWN ROW, and this is not a preference. It used to be
+  // appended to the verification line, and rendering a packet showed why that
+  // could not hold: a spreadsheet MIME is 66 characters before the digest is
+  // even reached, so the combined line ran past the card and the sentence
+  // saying what became of the file wrapped OUTSIDE the box it belonged to.
+  // No assertion in the suite could see it; the rendered page could.
+  const cardH = note ? 66 : 52;
   if (doc.y + cardH + 8 > BOTTOM) doc.addPage();
   const top = doc.y;
   doc.save()
@@ -1838,11 +1875,16 @@ function drawAttachmentCard(doc: Doc, ex: ExhibitFile, note?: string | null) {
     .text(attachmentKindLabel(ex), MARGIN + 14, top + 11, { characterSpacing: 1.1 });
   doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR.ink)
     .text(ex.name, MARGIN + 14, top + 21, { width: CONTENT_WIDTH - 28, lineBreak: false, ellipsis: true });
-  const meta = `${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}${
-    note ? `  ·  ${note}` : ''
-  }`;
+  const meta = `${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}`;
   doc.font('Helvetica').fontSize(8).fillColor(COLOR.muted)
     .text(meta, MARGIN + 14, top + 36, { width: CONTENT_WIDTH - 28, lineBreak: false, ellipsis: true });
+  if (note) {
+    // Darker than the verification line above it. This sentence is what the
+    // reader needs in order to know whether the file's contents are in this
+    // document, so it is not a footnote to the digest.
+    doc.font('Helvetica').fontSize(8).fillColor(COLOR.inkSoft)
+      .text(note, MARGIN + 14, top + 49, { width: CONTENT_WIDTH - 28, lineBreak: false, ellipsis: true });
+  }
   doc.y = top + cardH + 8;
 }
 
@@ -2368,12 +2410,10 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         if (nonImg.length) {
           gap(doc, 10);
           for (const ex of nonImg) {
-            const note = ex.pdf
-              ? 'reproduced in full on the pages that follow'
-              : ex.sheet
-                ? 'contents shown below'
-                : null;
-            drawAttachmentCard(doc, ex, note);
+            // Composed by exhibitContentNote rather than here, because the
+            // branch that used to produce `null` is the defect: a file with
+            // nothing to reproduce got a card that said nothing about it.
+            drawAttachmentCard(doc, ex, exhibitContentNote(ex));
             if (ex.sheet) { gap(doc, 6); drawSheetTable(doc, ex.sheet); }
           }
         }
