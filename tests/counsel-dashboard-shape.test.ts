@@ -89,11 +89,27 @@ describe('the counsel dashboard puts its action where its copy says it is', () =
   });
 
   it('keeps the empty state pointing at where the control actually is', () => {
-    // The copy a reader follows when they have hidden every tile. "up
-    // top" is only true while the control is in the header.
+    // The copy a reader follows when they have hidden everything. "up top"
+    // is only true while the control is in the header, and the NAME is only
+    // true while the button still says it - so the name is read off the
+    // button rather than written here twice. The control was called
+    // "Customize dashboard" while it could only rearrange page sections
+    // and could not hide a single figure; a rename like that has to drag
+    // this copy with it or the empty state sends people looking for a
+    // button that no longer exists.
+    const customizer = readFileSync(
+      `${root}components/counsel/DashboardCustomizer.tsx`,
+      'utf8',
+    );
+    const trigger = customizer.slice(customizer.indexOf('aria-haspopup="dialog"'));
+    const controlName = /<T>([^<{]+)<\/T>/.exec(trigger)?.[1]?.trim() ?? '';
+    expect(
+      controlName.length,
+      'could not read the control name off its own button',
+    ).toBeGreaterThan(0);
     const emptyState = /<EmptyState[\s\S]*?\/>/.exec(body)?.[0] ?? '';
     expect(emptyState, 'the dashboard empty state was not found').toContain(
-      'Customize dashboard',
+      controlName,
     );
     if (emptyState.includes('up top')) {
       expect(

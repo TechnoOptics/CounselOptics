@@ -21,7 +21,14 @@ import {
   DashboardTileRenderer,
   type DashboardTileData,
 } from '@/components/counsel/CounselDashboardTiles';
-import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
+import {
+  getCounselDashboardConfig,
+  getCounselHiddenMetrics,
+  offerableMetrics,
+  offerablePanelIds,
+  visibleMetricIds,
+  type DashboardViewerContext,
+} from '@/lib/counsel-dashboard';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { firmVocabulary } from '@/lib/firm-vocabulary';
 import { AGING_DAYS } from '@/lib/approval-queue';
@@ -138,9 +145,51 @@ export default async function CounselDashboard() {
   // than a type check at each tile that needs a noun.
   const vocab = firmVocabulary(surfaces.firmType);
 
-  const enabled = getCounselDashboardConfig(profileRow?.dashboard_preferences);
   const isAdmin =
     ctx.membership.role === 'owner' || ctx.membership.role === 'admin';
+
+  // WHO IS LOOKING, AND WHAT THIS FIRM HAS SWITCHED ON.
+  //
+  // Both halves of the dashboard are filtered through this before the
+  // user's own choice is applied, and the order matters. `staff` is refused
+  // public.cases and public.firm_documents by an applied migration, and a
+  // refused select comes back EMPTY WITH NO ERROR - so a matter or document
+  // figure would sit at a confident zero that reads as good news. It is
+  // absent for that role instead. Time and billing is the same shape one
+  // step further out: lib/firm-settings has already folded the owner's
+  // override, the legacy flag and the firm's type into one boolean, and the
+  // money figures open a page that redirects under it.
+  //
+  // A user's pick only ever selects among what is left, and a pick for
+  // something this removed is kept rather than deleted, so it comes back if
+  // the firm switches the surface on again. See lib/counsel-dashboard.ts.
+  const viewer: DashboardViewerContext = {
+    role: ctx.membership.role,
+    hideTimeBilling: surfaces.hideTimeBilling,
+  };
+  const visibleMetrics = visibleMetricIds(
+    profileRow?.dashboard_preferences,
+    viewer,
+  );
+  const metricsOn = new Set(visibleMetrics);
+  const headlineOn =
+    metricsOn.has('headline-open-matters') ||
+    metricsOn.has('headline-signatures-out') ||
+    metricsOn.has('headline-clients') ||
+    metricsOn.has('headline-documents');
+  const offerablePanels = new Set<string>(offerablePanelIds(viewer, isAdmin));
+  // The raw saved list, not the filtered one, goes to the picker: a panel
+  // this viewer cannot be offered stays in their preferences untouched
+  // rather than being dropped by the next save they make.
+  const savedPanels = getCounselDashboardConfig(
+    profileRow?.dashboard_preferences,
+  );
+  const visiblePanels = savedPanels.filter((id) => offerablePanels.has(id));
+  // The strip's client figure is named by the firm's own vocabulary, so the
+  // switch for it says the same word the card does.
+  const pickerMetrics = offerableMetrics(viewer).map((m) =>
+    m.id === 'headline-clients' ? { ...m, label: vocab.clients } : m,
+  );
 
   // ---- Matters -------------------------------------------------------
   //
@@ -476,6 +525,10 @@ export default async function CounselDashboard() {
     };
   }
 
+  // The board, then the user's own choice over it. Filtering here rather
+  // than inside buildCounselMetricBands keeps that function about what the
+  // figures ARE; a band whose every figure is switched off disappears with
+  // its heading rather than leaving a title over nothing.
   const metricBands = buildCounselMetricBands({
     matters: matterRows,
     meId: user.id,
@@ -490,7 +543,12 @@ export default async function CounselDashboard() {
       clientsInvited: clients.filter((c) => c.status === 'invited').length,
     },
     money,
-  });
+  })
+    .map((band) => ({
+      ...band,
+      metrics: band.metrics.filter((m) => metricsOn.has(m.id)),
+    }))
+    .filter((band) => band.metrics.length > 0);
 
   const data: DashboardTileData = {
     firmId: ctx.firm.id,
@@ -568,7 +626,14 @@ export default async function CounselDashboard() {
         // interrupted twice, and the empty state told the reader to
         // click something "up top" that was directly above it.
         action={
-          <DashboardCustomizer initialEnabled={enabled} isAdmin={isAdmin} />
+          <DashboardCustomizer
+            initialEnabled={savedPanels}
+            initialHiddenMetrics={getCounselHiddenMetrics(
+              profileRow?.dashboard_preferences,
+            )}
+            metrics={pickerMetrics}
+            offerablePanels={[...offerablePanels]}
+          />
         }
       />
 
@@ -600,7 +665,9 @@ export default async function CounselDashboard() {
         same number twice on one screen, and the dashboard pattern asks
         that nothing compete with the strip.
       */}
+      {headlineOn && (
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {metricsOn.has('headline-open-matters') && (
         <StripLink href="/counsel/cases">
           <StatCard
             label={<T>Open matters</T>}
@@ -613,6 +680,8 @@ export default async function CounselDashboard() {
             color="var(--accent-text)"
           />
         </StripLink>
+        )}
+        {metricsOn.has('headline-signatures-out') && (
         <StripLink href="/counsel/signing?view=out">
           <StatCard
             // "Out for signature" wrapped to a second line at strip width
@@ -630,6 +699,8 @@ export default async function CounselDashboard() {
             color={pendingSigning.length > 0 ? 'var(--warn-text)' : undefined}
           />
         </StripLink>
+        )}
+        {metricsOn.has('headline-clients') && (
         <StripLink href={clientsHref(clientsActive.length, 'active')}>
           <StatCard
             // "Clients" is the wrong word for an in-house team, which is the
@@ -647,6 +718,8 @@ export default async function CounselDashboard() {
             }
           />
         </StripLink>
+        )}
+        {metricsOn.has('headline-documents') && (
         <StripLink href="/counsel/documents">
           <StatCard
             label={<T>Documents</T>}
@@ -654,7 +727,9 @@ export default async function CounselDashboard() {
             sub={<T>held for this firm</T>}
           />
         </StripLink>
+        )}
       </section>
+      )}
 
       {/*
         The board: the rest of the operational picture, banded by whose
@@ -667,28 +742,38 @@ export default async function CounselDashboard() {
       {/* Ask Advottic - below the strip. */}
       <AskAdvottic />
 
-      {/* User-selected tiles. Empty state gives a hint about the
-          customizer when the user has hidden everything. */}
-      {enabled.length === 0 ? (
+      {/*
+        The panels the user chose, and - only when there is nothing at all
+        left - something to read instead of a void.
+
+        BOTH halves have to be empty for the empty state. It used to fire on
+        the panels alone, so a full board of figures could sit directly above
+        the words "your dashboard is empty". A page with figures on it is not
+        empty, and a page with panels on it is not empty either; the empty
+        state is for the person who switched off every one of both, and its
+        job is to name the control that brings them back and say where it is.
+      */}
+      {visiblePanels.length > 0 && (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {visiblePanels.map((id) => (
+            <DashboardTileRenderer key={id} id={id} data={data} />
+          ))}
+        </section>
+      )}
+      {visibleMetrics.length === 0 && visiblePanels.length === 0 && (
         <EmptyState
-          title={<T>Your dashboard is empty</T>}
+          title={<T>Nothing on your dashboard yet</T>}
           sub={
             <>
-              <T>Click</T>{' '}
-              <strong><T>Customize dashboard</T></strong>{' '}
+              <T>Open</T>{' '}
+              <strong><T>Choose what you see</T></strong>{' '}
               <T>
-                up top to add tiles - action center, assigned to me,
-                cases, clients, meetings, and more.
+                up top to switch figures and panels back on. Your welcome
+                banner and Ask Advottic stay put either way.
               </T>
             </>
           }
         />
-      ) : (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {enabled.map((id) => (
-            <DashboardTileRenderer key={id} id={id} data={data} />
-          ))}
-        </section>
       )}
     </div>
   );

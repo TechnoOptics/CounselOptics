@@ -1,4 +1,9 @@
 import {
+  COUNSEL_METRIC_GROUPS,
+  metricLabel,
+  type CounselMetricGroupId,
+} from './counsel-dashboard';
+import {
   filterMatters,
   parseMatterListParams,
   type MatterRow,
@@ -29,6 +34,13 @@ import {
  * in app/counsel/page.tsx and pinned to that page's source text by
  * tests/counsel-dashboard-drilldown.test.ts.
  *
+ * A FIGURE IS NAMED ONCE. Labels and band names are not written here; they
+ * are looked up from the catalog in lib/counsel-dashboard.ts, which is also
+ * what the dashboard's picker offers. A figure whose switch says one thing
+ * and whose card says another is the drift this repo has already shipped
+ * with three hand-written copies of one rectangle, so there is exactly one
+ * declaration and this module reads it.
+ *
  * SEMANTIC COLOUR IS NOT THE FIRM ACCENT. `tone` is state - clear, waiting,
  * urgent - and the renderer paints it from the fixed `--warn-text` and
  * `--danger-text` tokens, never from `firms.accent_color`. Every tone also
@@ -39,9 +51,9 @@ import {
 export type MetricTone = 'clear' | 'waiting' | 'urgent';
 
 export type CounselMetric = {
-  /** Stable, unique across the whole board. */
+  /** Stable, unique across the whole board. A catalog id. */
   id: string;
-  /** A static UI label. Never firm data. */
+  /** A static UI label, from the catalog. Never firm data. */
   label: string;
   /** The figure itself, so a test can assert on it without parsing. */
   count: number;
@@ -62,7 +74,7 @@ export type CounselMetric = {
 };
 
 export type MetricBand = {
-  id: string;
+  id: CounselMetricGroupId;
   /** Whose move it is. The band names a fact, not a category. */
   label: string;
   blurb: string;
@@ -78,7 +90,6 @@ export type MetricBand = {
  */
 export type MatterMetricSpec = {
   id: string;
-  label: string;
   /** A caseload-page query string. Empty means its default view. */
   query: string;
   hint: string;
@@ -94,7 +105,6 @@ const CASES = '/counsel/cases';
 export const MATTER_METRIC_SPECS: readonly MatterMetricSpec[] = [
   {
     id: 'matters-unassigned',
-    label: 'Unassigned matters',
     // The caseload page's Assignee column filter, NOT its `view=unassigned`
     // tab. The tab is unassigned-in-any-state, so it counts closed matters
     // that were never given an owner, and nobody owes those anything. The
@@ -109,7 +119,6 @@ export const MATTER_METRIC_SPECS: readonly MatterMetricSpec[] = [
   },
   {
     id: 'matters-hearing',
-    label: 'Hearing within 30 days',
     // Same reasoning as the assignee filter above: the `view=hearing` tab
     // does not exclude closed matters, and a hearing on a closed matter is
     // not something to prepare for.
@@ -124,7 +133,6 @@ export const MATTER_METRIC_SPECS: readonly MatterMetricSpec[] = [
     // The caseload page's default view is live matters, and `updated=older`
     // is its own "more than 30 days" step, so this is "live and untouched
     // for a month" without a second definition of either half.
-    label: 'No movement in 30 days',
     query: 'updated=older',
     hint: 'Live matters nobody has touched in a month.',
     activeState: 'Going quiet',
@@ -132,6 +140,16 @@ export const MATTER_METRIC_SPECS: readonly MatterMetricSpec[] = [
     activeTone: 'waiting',
   },
 ];
+
+/**
+ * A band's name and one-line blurb, from the same catalog the picker groups
+ * its switches by. Throws rather than drawing an unnamed band.
+ */
+function bandMeta(id: CounselMetricGroupId): { label: string; blurb: string } {
+  const g = COUNSEL_METRIC_GROUPS.find((x) => x.id === id);
+  if (!g) throw new Error(`unknown metric band: ${id}`);
+  return { label: g.label, blurb: g.blurb };
+}
 
 function qsRecord(query: string): Record<string, string> {
   return Object.fromEntries(new URLSearchParams(query).entries());
@@ -195,7 +213,7 @@ export function matterMetrics(
     const count = matterCountFor(rows, spec.query, meId, now);
     return {
       id: spec.id,
-      label: spec.label,
+      label: metricLabel(spec.id),
       count,
       value: String(count),
       hint: spec.hint,
@@ -238,7 +256,7 @@ export type CounselMetricInput = {
 };
 
 function metric(
-  m: Omit<CounselMetric, 'value' | 'state' | 'tone'> & {
+  m: Omit<CounselMetric, 'value' | 'state' | 'tone' | 'label'> & {
     value?: string;
     activeState: string;
     clearState: string;
@@ -248,6 +266,7 @@ function metric(
   const { activeState, clearState, activeTone, value, ...rest } = m;
   return {
     ...rest,
+    label: metricLabel(m.id),
     value: value ?? String(m.count),
     state: m.count > 0 ? activeState : clearState,
     tone: toneOf(m.count, activeTone),
@@ -278,12 +297,10 @@ export function buildCounselMetricBands(
   const bands: MetricBand[] = [
     {
       id: 'firm-owes',
-      label: 'Waiting on the firm',
-      blurb: 'Somebody here owes a decision on these.',
+      ...bandMeta('firm-owes'),
       metrics: [
         metric({
           id: 'approvals-waiting',
-          label: 'Awaiting approval',
           count: input.approvals.waiting,
           hint:
             input.approvals.aging > 0
@@ -296,7 +313,6 @@ export function buildCounselMetricBands(
         }),
         metric({
           id: 'signing-attention',
-          label: 'Signing needs attention',
           count: input.signing.attention,
           hint: 'Requests where a signer declined or asked for changes.',
           href: '/counsel/signing?view=attention',
@@ -306,7 +322,6 @@ export function buildCounselMetricBands(
         }),
         metric({
           id: 'documents-overdue',
-          label: 'Documents overdue',
           count: input.documents.overdue,
           hint: 'Documents past their due date and still unsigned.',
           href: '/counsel/documents?view=overdue',
@@ -319,12 +334,10 @@ export function buildCounselMetricBands(
     },
     {
       id: 'out-with-others',
-      label: 'Out with someone else',
-      blurb: 'Sent, and waiting on a reply. Chase if it has been a while.',
+      ...bandMeta('out-with-others'),
       metrics: [
         metric({
           id: 'signing-out',
-          label: 'Out for signature',
           count: input.signing.out,
           hint: 'Requests sent, partly signed, or not yet opened.',
           href: '/counsel/signing?view=out',
@@ -334,7 +347,6 @@ export function buildCounselMetricBands(
         }),
         metric({
           id: 'clients-invited',
-          label: 'Client invitations open',
           count: input.people.clientsInvited,
           hint: 'Clients invited to the portal who have not joined.',
           href: clientsHref(input.people.clientsInvited, 'invited'),
@@ -344,7 +356,6 @@ export function buildCounselMetricBands(
         }),
         metric({
           id: 'team-invitations',
-          label: 'Team invitations open',
           count: input.people.invitationsPending,
           hint: 'Colleagues invited to the firm who have not joined.',
           href: '/counsel/team',
@@ -356,14 +367,12 @@ export function buildCounselMetricBands(
     },
     {
       id: 'matter-health',
-      label: 'Matter health',
-      blurb: 'How the caseload is sitting, whoever it belongs to.',
+      ...bandMeta('matter-health'),
       metrics: [
         need('matters-hearing'),
         need('matters-stale'),
         metric({
           id: 'documents-unfiled',
-          label: 'Documents not on a matter',
           count: input.documents.unfiled,
           hint: 'Documents held for the firm but not attached to a case.',
           href: '/counsel/documents?view=unfiled',
@@ -378,12 +387,10 @@ export function buildCounselMetricBands(
   if (input.money) {
     bands.push({
       id: 'money',
-      label: 'Money',
-      blurb: 'Billed and not yet paid, and work not yet billed.',
+      ...bandMeta('money'),
       metrics: [
         metric({
           id: 'billing-outstanding',
-          label: 'Outstanding',
           count: input.money.outstandingCents,
           value: fmtCents(input.money.outstandingCents),
           hint: 'Invoiced and not yet paid, across every invoice.',
@@ -394,7 +401,6 @@ export function buildCounselMetricBands(
         }),
         metric({
           id: 'billing-unbilled',
-          label: 'Unbilled time',
           count: input.money.unbilledCents,
           value: fmtCents(input.money.unbilledCents),
           hint: 'Billable time logged and not yet on an invoice.',
