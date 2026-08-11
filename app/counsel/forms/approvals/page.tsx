@@ -8,7 +8,6 @@ import {
 } from '@/lib/template-requests';
 import { parseApprovalQueueParams, toApprovalRow } from '@/lib/approval-queue';
 import { PageHeader } from '@/components/counsel/ui';
-import { SectionLabel } from '@/components/counsel/patterns';
 import { ApprovalsQueue } from '@/components/counsel/ApprovalsQueue';
 import { AskColleagueCard } from '@/components/counsel/AskColleagueCard';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -36,21 +35,24 @@ export const metadata = { title: 'Document approvals · Counsel' };
  *
  * So the copy is kept and moved, in three directions:
  *
- *   1. What approving DOES now sits in the disclosure at the foot of this
- *      page, closed by default. A first-time reviewer finds it under a heading
- *      that says what it answers; a daily one never opens it again.
+ *   1. What approving DOES sits in the disclosure at the foot of this page,
+ *      closed by default. A first-time reviewer finds it under a heading that
+ *      says what it answers; a daily one never opens it again.
  *   2. What approving does is ALSO stated, in the words that fit the actual
  *      delivery, at the moment the reviewer commits: ReviewActions on the
  *      submission page, which already distinguishes the encrypted share from
  *      the signature request. That is the sentence that has to be right, and
  *      it was already there.
- *   3. Who may release is one line here for the member who is affected by it,
- *      and the full explanation is in the same disclosure. The detail page
- *      repeats it where a reader without release rights actually meets it.
+ *   3. Who may release is ONE line, and only for the member it affects: the
+ *      note below, shown when this reader cannot release. The disclosure used
+ *      to carry a second copy of the same rule for everybody, including the
+ *      owners it does not restrict, so that copy is gone. The detail page
+ *      states it again where a reader without release rights meets it.
  *
- * The section labels sit ABOVE their cards rather than inside them, with the
- * count in the label, which is the shape the rest of this product's list
- * surfaces use.
+ * The queue card carries no heading of its own. The selected tab in the strip
+ * names the view and states its size, and the card is what that tab selected;
+ * a label underneath repeating both was the same sentence twice. The history
+ * keeps its label, because nothing above it names that list.
  *
  * The queue itself is a client component because searching and ticking rows
  * are things a person does between renders. It is handed ApprovalRow, which is
@@ -123,16 +125,23 @@ export default async function CounselFormApprovalsPage({
         canApprove={Boolean(res.canApprove)}
         middle={
           canRequest ? (
-            <section className="space-y-2 pt-3">
-              <SectionLabel>
-                <T>Ask a colleague for a form</T>
-              </SectionLabel>
-              <AskColleagueCard
-                firmId={ctx.firm.id}
-                templates={templates}
-                colleagues={colleagues}
-              />
-            </section>
+            /* Closed by default. This is a four-control form for starting a
+               new document, and it used to sit open between the queue and the
+               history, competing with the decision the page exists to take.
+               Nothing is removed: the summary says what it does and one click
+               opens it. */
+            <details className="rounded-xl border border-edge bg-surface-2 px-4 py-3">
+              <summary className="cursor-pointer text-[12.5px] font-medium text-foreground">
+                <T>Ask a colleague to fill in a form</T>
+              </summary>
+              <div className="mt-3">
+                <AskColleagueCard
+                  firmId={ctx.firm.id}
+                  templates={templates}
+                  colleagues={colleagues}
+                />
+              </div>
+            </details>
           ) : null
         }
       />
@@ -142,26 +151,16 @@ export default async function CounselFormApprovalsPage({
           answers a first-time one in one click. */}
       <details className="rounded-xl border border-edge bg-surface-2 px-4 py-3">
         <summary className="cursor-pointer text-[12.5px] font-medium text-foreground">
-          <T>How this queue works</T>
+          <T>What approving does</T>
         </summary>
-        <div className="mt-2 space-y-2 text-[13px] leading-relaxed text-muted">
-          <p>
-            <T>
-              Approving one of these releases it: the finished document goes to the
-              outside recipient your colleague named, from the firm. Nothing here has
-              been sent yet. The other way out is to send it back with a note, which
-              keeps it alive and returns it to the person who filled it in.
-            </T>
-          </p>
-          <p>
-            <T>
-              Everyone on the legal team can follow this queue: who filled each form in,
-              who it is addressed to, and where it has got to. Releasing a document to an
-              outside party, and reading the wording of one that has not been released
-              yet, is limited to owners, admins, and attorneys.
-            </T>
-          </p>
-        </div>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted">
+          <T>
+            Approving one of these releases it: the finished document goes to the
+            outside recipient your colleague named, from the firm. Nothing here has
+            been sent yet. The other way out is to send it back with a note, which
+            keeps it alive and returns it to the person who filled it in.
+          </T>
+        </p>
       </details>
     </div>
   );

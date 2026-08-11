@@ -140,13 +140,11 @@ export function ApprovalsQueue({
         label={t('Queue views')}
       />
 
-      <Toolbar
-        note={
-          <>
-            {queue.length}/{rows.length} <T>match</T>
-          </>
-        }
-      >
+      {/* No note on the toolbar. The active tab above already states this
+          view's label and its size, and the two came from the same call, so a
+          second copy of the number here was one more thing to read and one
+          more thing that could drift. */}
+      <Toolbar>
         <input
           type="search"
           defaultValue={params.q}
@@ -193,15 +191,11 @@ export function ApprovalsQueue({
         />
       )}
 
+      {/* The queue itself, with no heading over it. The selected tab is the
+          heading: it names the view and states its size, and this card is
+          what that tab selected. A label repeating both directly underneath
+          was the same sentence twice. */}
       <section className="space-y-2">
-        {/* The count lives in the label because it is the thing a reviewer
-            came to find out, and it is the length of the list underneath
-            rather than a separate number that could disagree with it. */}
-        <SectionLabel>
-          {VIEW_LABEL[params.view]}
-          {' · '}
-          <span data-no-translate>{queue.length}</span>
-        </SectionLabel>
         <div className="card overflow-hidden">
           {queue.length === 0 ? (
             <p className="px-4 py-8 text-center text-[13px] text-muted">
