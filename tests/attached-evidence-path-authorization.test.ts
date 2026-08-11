@@ -53,6 +53,8 @@ type Scenario = {
   /** The row every read of user_receipts / user_contracts hands back. */
   receipt: { file_path: string | null; label: string | null };
   contract: { file_path: string | null; name: string | null; firm_id: string | null };
+  /** When set, addExhibit REFUSES with this reason instead of accepting. */
+  refusal?: string;
 };
 
 const h = vi.hoisted(() => {
@@ -130,8 +132,13 @@ vi.mock('../lib/supabase/server', () => ({
 vi.mock('../lib/storage', () => ({
   usingSupabase: () => true,
   createCase: async () => ({ id: 'case-new' }),
+  // addExhibit answers `{ ok, exhibit } | { ok: false, error }` so a refusal
+  // can survive the Server Action boundary as a value. `h.s.current.refusal`
+  // lets a test make it refuse without throwing.
   addExhibit: async (input: { description?: string }) => {
+    if (h.s.current.refusal) return { ok: false, error: h.s.current.refusal };
     h.calls.push(`exhibit:${input.description ?? ''}`);
+    return { ok: true, exhibit: { id: 'exhibit-1', label: 'Exhibit A' } };
   },
   getCurrentSubscription: async () => null,
   getEffectiveTrialState: async () => ({ mode: 'active' }),
@@ -205,6 +212,7 @@ beforeEach(() => {
   h.s.current = {
     receipt: { file_path: `${ME}/receipts/r1/photo.jpg`, label: 'Photo' },
     contract: { file_path: `${ME}/contracts/c1/nda.pdf`, name: 'NDA', firm_id: null },
+    refusal: undefined,
   };
 });
 
@@ -338,6 +346,20 @@ describe('telling the person what happened', () => {
     );
     // The good contract still went in.
     expect(exhibits()).toHaveLength(1);
+    expect(notifications()[0]).toMatch(/one item did not attach/i);
+  });
+
+  /**
+   * addExhibit used to signal a refused file by throwing, so the catch below
+   * it counted the item. Now that the refusal is a RETURN value, a caller that
+   * does not read `.ok` sails past it and the person is told everything
+   * attached when it did not. Mutation: delete the `if (!added.ok)` block in
+   * attachSelectedEvidence and this goes red.
+   */
+  it('counts an item addExhibit refused, even though nothing threw', async () => {
+    h.s.current.refusal = 'This file is not a valid image.';
+    await createCaseAction(null, newCaseForm([{ id: 'r-1', source: 'vault' }]));
+    expect(exhibits()).toEqual([]);
     expect(notifications()[0]).toMatch(/one item did not attach/i);
   });
 });
