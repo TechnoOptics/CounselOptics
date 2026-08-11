@@ -556,7 +556,7 @@ function TierCard({ tier }: { tier: Tier }) {
       <ul className="text-[12.5px] text-ink-700 dark:text-cream-100/85 space-y-1.5 leading-snug flex-1">
         {tier.features.map((f) => (
           <li key={f} className="flex gap-2">
-            <span className="text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden>
+            <span className="text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden>
               ✓
             </span>
             <span>{f}</span>

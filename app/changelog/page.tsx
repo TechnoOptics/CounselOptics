@@ -21,9 +21,19 @@ export const metadata: Metadata = {
   },
 };
 
+// Each tone is a tint plus the words on it, so the pair has to be read
+// together. The tint is a 10-15% wash of the ramp's mid stop, which on a
+// white page composites to a near-white chip: `text-emerald-300` measured
+// 1.39:1 on it and `text-sky-300` 1.51:1 - the 300 stops are authored for
+// the dark ground the `dark:` half names, and were carrying the light one
+// too. The 700 stops read on the tint (4.99:1 and 5.37:1) and the 300s
+// stay where they work.
 const CATEGORY_LABELS: Record<string, { label: string; tone: string }> = {
-  feature: { label: 'Feature', tone: 'bg-emerald-500/10 text-emerald-300' },
-  fix: { label: 'Fix', tone: 'bg-sky-500/10 text-sky-300' },
+  feature: {
+    label: 'Feature',
+    tone: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  },
+  fix: { label: 'Fix', tone: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' },
   security: { label: 'Security', tone: 'bg-rose-500/10 text-danger-text' },
   // The one `text-gold-metal` call site outside the counsel shell and
   // the always-dark share viewer, so it is the one that needs its own

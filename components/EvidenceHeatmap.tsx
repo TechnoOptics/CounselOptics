@@ -58,7 +58,7 @@ const HEAT: Record<
 };
 
 function gaugeColor(n: number) {
-  if (n >= 75) return 'text-emerald-600';
+  if (n >= 75) return 'text-emerald-700 dark:text-emerald-400';
   if (n >= 50) return 'text-gold-600';
   if (n >= 30) return 'text-amber-600';
   return 'text-rose-600';

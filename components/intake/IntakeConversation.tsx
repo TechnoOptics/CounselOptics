@@ -289,7 +289,7 @@ export function IntakeConversation({
           </h2>
           <span
             className={`inline-flex items-center gap-1.5 text-[11px] ${
-              live ? 'text-emerald-600 dark:text-emerald-300' : 'text-ink-400 dark:text-cream-100/40'
+              live ? 'text-emerald-700 dark:text-emerald-300' : 'text-ink-400 dark:text-cream-100/40'
             }`}
             title={live ? 'Updating live' : 'Reconnecting, messages still refresh'}
           >
