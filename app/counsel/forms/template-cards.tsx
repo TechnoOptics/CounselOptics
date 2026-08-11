@@ -4,6 +4,10 @@ import { useMemo, useState } from 'react';
 import type { FirmTemplate, TemplateField } from '@/lib/firm-templates';
 import { unmergedPlaceholders } from '@/lib/firm-template-placeholders';
 import {
+  TEMPLATE_FIELD_TYPES,
+  TEMPLATE_FIELD_TYPE_LABELS,
+} from '@/lib/template-field-formats';
+import {
   Chip,
   MonoRef,
   ViewStrip,
@@ -13,12 +17,20 @@ import {
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
-/** The three field types a template body can produce, in reading order. */
-const FIELD_TYPES: { type: TemplateField['type']; label: string }[] = [
-  { type: 'text', label: 'Short text' },
-  { type: 'textarea', label: 'Long text' },
-  { type: 'date', label: 'Date' },
-];
+/**
+ * The field formats a template body can produce, in the order the editor
+ * offers them.
+ *
+ * Taken from TEMPLATE_FIELD_TYPES rather than written out, which it used to
+ * be: the hand-written list carried three of them, so a template's email and
+ * amount fields were counted by nothing and the card understated what the
+ * template asks for.
+ */
+const FIELD_TYPES: { type: TemplateField['type']; label: string }[] =
+  TEMPLATE_FIELD_TYPES.map((type) => ({
+    type,
+    label: TEMPLATE_FIELD_TYPE_LABELS[type],
+  }));
 
 /**
  * The configuration-list pattern from PARITY-SPEC.md section 3: one

@@ -24,8 +24,12 @@ import {
 } from '@/lib/signing-intent';
 import { DocumentWithMark } from '@/components/DocumentWithMark';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
-import { T } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import { employeeFieldsOf } from '@/lib/counterparty-fields';
+import {
+  invalidFieldValues,
+  templateFieldInputAttributes,
+} from '@/lib/template-field-formats';
 import { padModesFor } from '@/lib/signature-methods';
 import { PhoneMarkHandoff } from './phone-mark-handoff';
 
@@ -61,6 +65,7 @@ export function FormFillClient({
   submission?: TemplateSubmission;
 }) {
   const router = useRouter();
+  const t = useT();
   const [values, setValues] = useState<Record<string, string>>(() => {
     if (submission) return { ...submission.fieldValues };
     const v: Record<string, string> = {};
@@ -122,6 +127,19 @@ export function FormFillClient({
   const ownFields = employeeFieldsOf(template.fields);
   const recipientFields = template.fields.filter((f) => f.party === 'counterparty');
   const missing = ownFields.filter((f) => f.required && !(values[f.key] ?? '').trim());
+  /**
+   * The answers that do not fit the kind of detail their field asks for.
+   *
+   * The same rule the server refuses on (fieldFormatRefusal, over the same
+   * module), run here so somebody is told what to fix while they are still
+   * looking at the field, rather than after a round trip. It is NOT the gate:
+   * submitTemplateForApprovalAction is a `'use server'` export and therefore a
+   * public HTTP endpoint, and it runs the rule again over whatever it is sent.
+   *
+   * Keyed by field so the sentence can sit under the input it is about.
+   */
+  const formatProblems = invalidFieldValues(ownFields, values);
+  const problemFor = new Map(formatProblems.map((p) => [p.key, p.message]));
   const recipientOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim());
 
   // The mark that will be sent, and it is the PHONE'S OWN BYTES when there is
@@ -139,6 +157,9 @@ export function FormFillClient({
   const ready =
     !busy &&
     missing.length === 0 &&
+    // An answer that will be refused by the server must not reach a button
+    // that says Send. The sentence under the field says what to fix.
+    formatProblems.length === 0 &&
     signature.trim().length > 0 &&
     hasMark &&
     intentAffirmed;
@@ -302,29 +323,62 @@ export function FormFillClient({
         <div className="space-y-4">
           <section className="space-y-3 rounded-xl border border-edge bg-surface p-4">
             <SectionTitle>Your details</SectionTitle>
-            {ownFields.map((f) => (
-              <label key={f.key} className="block">
-                <span className="mb-1 block text-[13px] font-medium text-foreground">
-                  {f.label}
-                  {f.required && <span className="text-rose-500"> *</span>}
-                </span>
-                {f.type === 'textarea' ? (
-                  <textarea
-                    rows={3}
-                    className={inputCls}
-                    value={values[f.key] ?? ''}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                  />
-                ) : (
-                  <input
-                    type={f.type === 'date' ? 'date' : 'text'}
-                    className={inputCls}
-                    value={values[f.key] ?? ''}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                  />
-                )}
-              </label>
-            ))}
+            {ownFields.map((f) => {
+              const problem = problemFor.get(f.key);
+              // The sentence's own id, so the input can point at it. A message
+              // that merely sits under an input is not part of it: a screen
+              // reader announces the label and the value and nothing else, and
+              // the person who most needs to be told what to fix is the one
+              // who is not told.
+              const problemId = `field-problem-${f.key}`;
+              const attrs = templateFieldInputAttributes(f.type);
+              const shared = {
+                className: `${inputCls} ${problem ? 'border-rose-400 focus:border-rose-400 focus:ring-rose-400/25 dark:border-rose-500/70' : ''}`,
+                value: values[f.key] ?? '',
+                'aria-invalid': problem ? (true as const) : undefined,
+                'aria-describedby': problem ? problemId : undefined,
+                onChange: (
+                  e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => setValues((v) => ({ ...v, [f.key]: e.target.value })),
+              };
+              return (
+                <label key={f.key} className="block">
+                  <span className="mb-1 block text-[13px] font-medium text-foreground">
+                    <span data-no-translate>{f.label}</span>
+                    {f.required && <span className="text-rose-500"> *</span>}
+                  </span>
+                  {f.type === 'textarea' ? (
+                    <textarea rows={3} {...shared} />
+                  ) : (
+                    <input
+                      type={attrs.type}
+                      inputMode={attrs.inputMode}
+                      autoComplete={attrs.autoComplete}
+                      {...shared}
+                    />
+                  )}
+                  {problem && (
+                    <span
+                      id={problemId}
+                      // Announced when it appears, not only when the input is
+                      // next focused. Polite, because somebody typing an email
+                      // address should not be interrupted mid-word.
+                      role="status"
+                      className="mt-1 block text-[12px] leading-relaxed text-rose-700 dark:text-rose-300"
+                    >
+                      {/* Through t() rather than <T>{...}</T>. The sentence
+                          comes out of a constant map in
+                          lib/template-field-formats.ts, so it is ours and not
+                          user data, and a braced <T> wrap is the pattern
+                          scripts/test/counsel-i18n-invariants.mjs makes
+                          somebody review. Same reasoning as the failure copy
+                          in components/PdfViewer.tsx. */}
+                      {t(problem)}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
             {recipientFields.length > 0 && (
               <p className="border-t border-edge pt-3 text-[12.5px] leading-relaxed text-muted">
                 <T>
@@ -574,6 +628,19 @@ export function FormFillClient({
           {missing.length > 0 && (
             <p className="text-[12px] text-muted">
               Fill the required fields to continue: {missing.map((f) => f.label).join(', ')}.
+            </p>
+          )}
+          {/* Beside the button that is off, as well as under the field that is
+              at fault. The fields sit above the fold on a phone and the button
+              does not, so a button disabled with nothing said next to it is a
+              page that reads as broken. */}
+          {formatProblems.length > 0 && (
+            <p className="text-[12px] text-muted">
+              <T>Check these before you continue:</T>{' '}
+              <span data-no-translate>
+                {formatProblems.map((p) => p.label).join(', ')}
+              </span>
+              .
             </p>
           )}
         </div>

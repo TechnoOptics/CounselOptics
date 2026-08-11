@@ -7,6 +7,10 @@ import {
   sanitizeCounterpartyValues,
   type CounterpartyValues,
 } from '@/lib/counterparty-fields';
+import {
+  invalidFieldValues,
+  templateFieldInputAttributes,
+} from '@/lib/template-field-formats';
 import { submitCounterpartyFieldsAction } from './counterparty-actions';
 
 /**
@@ -53,6 +57,15 @@ export function CounterpartyFields({
   const set = (key: string, value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
 
+  /**
+   * The answers that do not fit the kind of detail their blank asks for, by
+   * the same rule resolveCounterpartySubmission refuses on. Shown under the
+   * field it is about, because this signer is a stranger to the firm with
+   * nobody to ask.
+   */
+  const wrongFormat = invalidFieldValues(fields, values);
+  const problemFor = new Map(wrongFormat.map((p) => [p.key, p.message]));
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (busy) return;
@@ -62,6 +75,15 @@ export function CounterpartyFields({
     if (stillMissing.length > 0) {
       setMissing(stillMissing);
       setError('Please fill in the details marked as required.');
+      return;
+    }
+    // After the emptiness check, in the same order resolveCounterpartySubmission
+    // runs them, so a signer who left a blank empty is told it is empty rather
+    // than told their answer is the wrong shape. The server checks this again;
+    // this is here so nobody has to wait for a round trip to find out.
+    if (wrongFormat.length > 0) {
+      setMissing(wrongFormat.map((f) => f.key));
+      setError('Please check the details marked below.');
       return;
     }
     setMissing([]);
@@ -97,6 +119,12 @@ export function CounterpartyFields({
       <form onSubmit={submit} className="mt-5 space-y-4">
         {fields.map((field) => {
           const isMissing = missing.includes(field.key);
+          const problem = problemFor.get(field.key);
+          // The sentence's own id, so the input points at it. Without this the
+          // message is text that happens to sit nearby, and a signer using a
+          // screen reader is told the field is invalid without being told why.
+          const problemId = `signer-field-problem-${field.key}`;
+          const attrs = templateFieldInputAttributes(field.type);
           return (
             <label key={field.key} className="block">
               <span className="block text-[13px] font-medium text-forest-900 dark:text-cream-100">
@@ -114,17 +142,29 @@ export function CounterpartyFields({
                 )}
               </span>
               <input
-                type={field.type === 'date' ? 'date' : 'text'}
+                type={attrs.type}
+                inputMode={attrs.inputMode}
+                autoComplete={attrs.autoComplete}
                 value={values[field.key] ?? ''}
                 onChange={(e) => set(field.key, e.currentTarget.value)}
                 maxLength={200}
                 required={field.required}
-                aria-invalid={isMissing || undefined}
+                aria-invalid={isMissing || Boolean(problem) || undefined}
+                aria-describedby={problem ? problemId : undefined}
                 className={`input mt-1.5 w-full ${
-                  isMissing ? 'ring-1 ring-red-500/70' : ''
+                  isMissing || problem ? 'ring-1 ring-red-500/70' : ''
                 }`}
                 data-no-translate
               />
+              {problem && (
+                <span
+                  id={problemId}
+                  role="status"
+                  className="block text-[12px] text-red-700 dark:text-red-300 mt-1 leading-relaxed"
+                >
+                  {problem}
+                </span>
+              )}
               {field.type === 'date' && (
                 <span className="block text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
                   This is printed on the document in full, for example August 6,
