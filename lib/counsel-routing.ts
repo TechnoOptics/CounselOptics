@@ -45,10 +45,37 @@ export function tenantHref(href: string, tenantMode: boolean): string {
  *     so every other page doesn't also mark the dashboard active.
  *   - Every other item highlights when the current path is the
  *     item's path OR a descendant of it.
+ *
+ * ONLY THE LONGEST MATCH WINS, and that is what `siblings` is for.
+ *
+ * The descendant rule above is right for one item read alone and wrong
+ * for a menu, because two items can both be ancestors of one path. On
+ * /counsel/forms/approvals, `/counsel/forms` matches by the descendant
+ * rule and `/counsel/forms/approvals` matches exactly, so BOTH rows lit
+ * up and the rail claimed the reader was in two places at once. Passing
+ * the other hrefs lets the more specific one win, which is the answer a
+ * reader expects and the one every other menu in the world gives.
+ *
+ * `siblings` is optional so that a caller asking about a single item in
+ * isolation keeps the old behaviour, and so the existing callers and
+ * guards that pass two arguments are unaffected.
  */
-export function isCounselItemActive(itemHref: string, pathname: string): boolean {
-  if (itemHref === '/counsel') {
-    return pathname === '/counsel' || pathname === '/counsel/';
-  }
-  return pathname === itemHref || pathname.startsWith(itemHref + '/');
+export function isCounselItemActive(
+  itemHref: string,
+  pathname: string,
+  siblings?: readonly string[],
+): boolean {
+  const matches = (href: string) => {
+    if (href === '/counsel') {
+      return pathname === '/counsel' || pathname === '/counsel/';
+    }
+    return pathname === href || pathname.startsWith(href + '/');
+  };
+  if (!matches(itemHref)) return false;
+  if (!siblings) return true;
+  // A longer sibling that ALSO matches is the more specific answer, so
+  // this one stands down. Length is the right comparison because both
+  // are prefixes of the same pathname, so the longer is necessarily the
+  // deeper one.
+  return !siblings.some((href) => href !== itemHref && href.length > itemHref.length && matches(href));
 }

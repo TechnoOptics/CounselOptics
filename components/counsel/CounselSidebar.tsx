@@ -168,6 +168,13 @@ export function CounselSidebar({
       hideTimeBilling ? TIME_BILLING_HREFS : [],
     ),
   );
+  // Every href the rail is actually showing, so a row can tell whether a
+  // MORE SPECIFIC row also matches this path and stand down if so.
+  // Without it /counsel/forms and /counsel/forms/approvals both lit up on
+  // the approvals page. It is built from `sections` rather than from the
+  // default menu so that a firm which hid or renamed an item does not
+  // leave a hidden href winning the comparison against a visible one.
+  const visibleHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
   return (
     // No `card`. The rail is not a tile floating on the page any more:
     // it runs flush and full height on --surface, and the panel it used
@@ -195,7 +202,7 @@ export function CounselSidebar({
             <T>{sec.section}</T>
           </p>
           {sec.items.map((item) => {
-            const active = isCounselItemActive(item.href, livePathname);
+            const active = isCounselItemActive(item.href, livePathname, visibleHrefs);
             const href = tenantHref(item.href, tenantMode);
             return (
           // Audit V3 CR-28 / V5 CR-5+CR-28: prefetch={false} + the
