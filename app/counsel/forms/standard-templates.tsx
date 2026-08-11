@@ -91,8 +91,9 @@ export function StandardTemplates({
         </p>
       )}
 
-      {/* Rows divided by a rule, not a bordered box each. Five bordered cards
-          inside a bordered panel read as five things to decide between; a
+      {/* Rows divided by a rule, not a bordered box each. A bordered box
+          inside a bordered panel reads as a second decision nested in the
+          first, and it multiplies as SEED_TEMPLATES grows (one today); a
           divided list reads as one list, which is what it is. The tokens are
           the ones every other counsel surface uses, so this panel stops being
           the only place on the page with its own palette. */}
@@ -101,7 +102,12 @@ export function StandardTemplates({
           const already = installed.has(templateNameKey(tpl.name)) || done.includes(tpl.slug);
           return (
             <li key={tpl.slug} className="py-3">
-              <div className="flex flex-wrap items-start gap-3">
+              {/* Stacked until there is room for two columns. Beside the
+                  button at 375px the description wrapped to roughly one word
+                  a line, because "Add as a draft" does not shrink and
+                  flex-wrap only moves a whole child once it cannot fit at
+                  all. */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 text-[13.5px] font-semibold text-foreground">
                     <span>{tpl.name}</span>
