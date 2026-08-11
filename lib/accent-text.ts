@@ -457,6 +457,28 @@ export const LIGHT_SURFACE_GROUPS = {
 export type LightSurfaceGroup = keyof typeof LIGHT_SURFACE_GROUPS;
 
 /**
+ * The two grounds a firm's own stationery is read on.
+ *
+ * This one is not a CSS surface and that is the point of naming it. The
+ * letterhead exists in four places at once - the PDF (lib/branded-document-pdf.ts),
+ * the Word export (lib/docx-export.ts) and the two counsel studios - and none of
+ * them is a Tailwind utility that app/globals.css can repaint, so none of them is
+ * reachable by any class-based contrast guard. The paper is drawn by pdf-lib as
+ * an unpainted page, which prints white, and both studios paint the same warm
+ * stock behind their preview.
+ *
+ * The two are listed separately rather than collapsed to the tighter one because
+ * the whole defect was a preview and a document that disagreed. A ground either
+ * side has to clear is a ground both are measured on.
+ */
+export const DOCUMENT_GROUNDS = {
+  /** The printed page. pdf-lib leaves it unpainted, so it is the paper. */
+  'printed page': '#ffffff',
+  /** The letterhead stock both counsel studios paint behind their preview. */
+  'letterhead stock': '#fbfaf6',
+} as const;
+
+/**
  * Every surface each tone can land on. The dark half is the union of the
  * groups above rather than a second hand-kept list, so the two cannot
  * disagree. `--accent-text` is proved against this union because it is
@@ -473,6 +495,11 @@ export const ACCENT_TEXT_SURFACES = {
     'cream-100': '#fbf7e9',
     'cream-200': '#f5edd6',
     ...LIGHT_SURFACE_GROUPS.counselLight.surfaces,
+    // Spread rather than retyped, so the grounds the documents are proved on
+    // and the grounds the documents are drawn on are one list. Both are
+    // LIGHTER than cream-200, so the light pin does not move and every
+    // light-tone number already in tests/accent-text.test.ts still holds.
+    ...DOCUMENT_GROUNDS,
   },
 } as const;
 
@@ -509,3 +536,43 @@ export function tightestInGroup(group: DarkSurfaceGroup): string {
 
 /** The AA floor for small text. Chips in this product are 10-11px. */
 export const AA_SMALL_TEXT = 4.5;
+
+/**
+ * The firm's name, as ink on its own stationery.
+ *
+ * ONE function for four surfaces. The PDF renderer, the Word export and the two
+ * counsel studios each used to hold the accent hex directly, and a preview that
+ * decides a colour of its own is how a preview starts lying about the document.
+ * The studios are advertised as a faithful preview of the PDF, so they have to
+ * be reading the same answer, not the same intention.
+ *
+ * IT PASSES THE FIRM'S OWN COLOUR THROUGH WHEN IT CAN, and that is the whole
+ * difference between this and calling deriveAccentText unconditionally. On a
+ * dark shell there is no choice: a navy on near-black is 1.81:1 and simply
+ * cannot be read, so the derivation runs for everyone and every firm pays the
+ * hue-survives-identity-does-not cost. Paper is the opposite case. A dark accent
+ * is not merely legible on white, it is at its most exact there, and the accent
+ * a firm never chose is the platform forest #0f2d24, which measures 14.5:1. A
+ * blanket derivation would have taken every one of those firms from a crisp
+ * forest name on their letterhead to a washed-out sage, for no contrast anybody
+ * needed. So the firm's hex is kept whenever it clears the floor on BOTH grounds
+ * and derived only when it does not.
+ *
+ * The floor is the small-text one even though the firm name prints at 16pt. This
+ * is a document that goes to a client and into a court file, it will be
+ * photocopied and faxed and printed on a machine low on toner, and the same
+ * function paints the 10pt banner and the studios' 11px tracked-out brand line.
+ *
+ * The derivation itself is not re-written here. It is deriveAccentText on the
+ * light tone, whose pinned lightness and chroma cap are proved for every hex a
+ * customer can type; DOCUMENT_GROUNDS is spread into ACCENT_TEXT_SURFACES.light
+ * so that proof covers the paper too rather than being assumed to.
+ */
+export function accentTextOnDocument(accent: string | null | undefined): string {
+  const raw = (accent ?? '').trim().toLowerCase();
+  const source = /^#[0-9a-f]{6}$/.test(raw) ? raw : DEFAULT_ACCENT;
+  const legible = Object.values(DOCUMENT_GROUNDS).every(
+    (ground) => contrastRatio(source, ground) >= AA_SMALL_TEXT,
+  );
+  return legible ? source : deriveAccentText(source, 'light');
+}

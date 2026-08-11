@@ -11,6 +11,7 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
 import { ViewStrip, type ViewOption } from '@/components/counsel/patterns';
 import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
 import { formatDateNumeric } from '@/lib/format';
+import { accentTextOnDocument } from '@/lib/accent-text';
 
 /**
  * The categories, with how many documents each one offers.
@@ -280,9 +281,14 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                   />
                 ) : null}
                 <div>
+                  {/* accentTextOnDocument, not meta.accent: this strip is the
+                      letterhead stock, and the renderer draws this same banner
+                      in the same derived ink. An inline style is invisible to
+                      every class-based contrast guard, which is how the raw
+                      accent survived here at 1.79:1. */}
                   <p
                     className="text-[11px] font-bold uppercase tracking-[0.18em]"
-                    style={{ color: meta.accent }}
+                    style={{ color: accentTextOnDocument(meta.accent) }}
                   >
                     {meta.brandName}
                   </p>

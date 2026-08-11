@@ -34,6 +34,7 @@ import {
   type FieldBox,
 } from './template-field-boxes';
 import { formatDateNumeric } from './format';
+import { accentTextOnDocument } from './accent-text';
 
 /**
  * The firm-branded document PDF: letterhead (or a letterhead synthesized from
@@ -66,15 +67,31 @@ import { formatDateNumeric } from './format';
  * decide who may render before they get here. Nothing in this module asks.
  */
 
+/** The platform forest, used when a firm's accent is missing or unusable. */
+const FALLBACK_ACCENT = '#0f2d24';
+
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return { r: 0.06, g: 0.18, b: 0.14 };
+  if (!m) return hexToRgb(FALLBACK_ACCENT);
   const n = parseInt(m[1], 16);
   return {
     r: ((n >> 16) & 255) / 255,
     g: ((n >> 8) & 255) / 255,
     b: (n & 255) / 255,
   };
+}
+
+/**
+ * The firm's accent, normalized to one hex before anything reads it.
+ *
+ * Two things now derive from it and they must derive from the SAME value: the
+ * bar, which keeps the firm's exact colour, and the ink, which may not. An
+ * unusable accent that fell back to the forest for one and to Advottic gold for
+ * the other would print a green bar over a gold name.
+ */
+function accentHexOf(input: unknown): string {
+  const raw = String(input ?? '').trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(raw) ? raw : FALLBACK_ACCENT;
 }
 
 /**
@@ -195,7 +212,8 @@ export async function buildBrandedDocumentPdf(
   if (text.length < 100) return null;
   const title = String(input.title ?? 'Document').slice(0, 120);
   const brand = String(input.brandName ?? 'Advottic').slice(0, 80);
-  const accent = hexToRgb(String(input.accent ?? '#0f2d24'));
+  const accentHex = accentHexOf(input.accent);
+  const accent = hexToRgb(accentHex);
   const pdf = await PDFDocument.create();
   pdf.setTitle(title);
   pdf.setProducer(brand);
@@ -223,7 +241,25 @@ export async function buildBrandedDocumentPdf(
   /** The top edge of the letterhead band, which every offset inside it hangs
    *  from. Flush to the page top unless the firm has pushed it down. */
   const BAND_TOP = resolveLetterheadBandTop(layout, PAGE);
+  /** The bar and every other FILL: the firm's colour, exactly as it typed it. */
   const accentColor = rgb(accent.r, accent.g, accent.b);
+  /**
+   * The firm's name, as INK.
+   *
+   * A colour chosen to work as a fill is usually unreadable as text, and this
+   * page is paper: pdf-lib leaves it unpainted, so the ground is white. Drawn in
+   * the raw accent, Advottic's own gold measured 1.87:1 here and a firm gold of
+   * #c79532 measured 2.70:1, against an AA floor of 4.5:1 - on the document that
+   * goes to the client and into the court file, not on a screen anyone can zoom.
+   *
+   * accentTextOnDocument keeps the firm's exact hex whenever it already clears
+   * the floor on paper, which is most dark accents including the platform
+   * forest, and derives a legible one only when it does not. It is the same
+   * function both counsel studios call, which is what stops the preview from
+   * advertising ink the document will not use.
+   */
+  const accentInkRgb = hexToRgb(accentTextOnDocument(accentHex));
+  const accentInk = rgb(accentInkRgb.r, accentInkRgb.g, accentInkRgb.b);
   const ink = rgb(0.1, 0.1, 0.1);
 
   // Letterhead image, if any. Fetched once, embedded once, and
@@ -488,7 +524,7 @@ export async function buildBrandedDocumentPdf(
           y: lineY,
           size: line.size,
           font: lineFont,
-          color: line.bold ? accentColor : rgb(0.35, 0.35, 0.35),
+          color: line.bold ? accentInk : rgb(0.35, 0.35, 0.35),
         });
         lastY = lineY;
         lineY -= line.size + LETTERHEAD_LINE_GAP_PT;
@@ -524,7 +560,7 @@ export async function buildBrandedDocumentPdf(
         y: logoY + logo.height / 2 - 5,
         size: 13,
         font: bold,
-        color: accentColor,
+        color: accentInk,
       });
       page.drawLine({
         start: { x: M, y: logoY - 12 },
@@ -548,7 +584,7 @@ export async function buildBrandedDocumentPdf(
         y: BAND_TOP - 40,
         size: 10,
         font: bold,
-        color: accentColor,
+        color: accentInk,
       });
       page.drawText(title, {
         x: M,
@@ -597,12 +633,18 @@ export async function buildBrandedDocumentPdf(
       page: PAGE,
       textWidthPt: font.widthOfTextAtSize(line, layout.footer.sizePt),
     });
+    // 0.46 rather than 0.55, found by rendering a letter and reading the ink
+    // back out. This line carries the firm's name at 8pt, and the old grey
+    // (#8c8c8c) measured 3.363:1 on the paper against an AA floor of 4.5:1, so
+    // the firm's own name was under the floor in the footer as well as in the
+    // letterhead. #757575 is 4.58:1 and is the darkest this can be while still
+    // reading as a footer rather than as body text.
     page.drawText(line, {
       x: at.xPt,
       y: at.yPt,
       size: layout.footer.sizePt,
       font,
-      color: rgb(0.55, 0.55, 0.55),
+      color: rgb(0.46, 0.46, 0.46),
     });
   }
   function newPage() {
