@@ -34,6 +34,7 @@ import {
 } from './storage';
 import { classifyCaseType, runReview, scanDocument, transcribeMedia } from './ai';
 import { AI_UNAVAILABLE_MESSAGE, calmAiMessage } from './ai-errors';
+import { displayableDigest } from './firm-access';
 import { createServerSupabase, getCurrentUser, isCurrentUserAdmin, isSupabaseConfigured } from './supabase/server';
 import { logCaseEvent } from './activity';
 import { caseLimit, hasFeature, isFullAccessTrial } from './tier';
@@ -519,7 +520,7 @@ async function attachSelectedEvidence(caseId: string, raw: string): Promise<void
         type: mime || blob.type || 'application/octet-stream',
       });
 
-      await addExhibit({
+      const added = await addExhibit({
         caseId,
         file,
         description: `Attached from your ${
@@ -527,6 +528,19 @@ async function attachSelectedEvidence(caseId: string, raw: string): Promise<void
         }: ${title}`,
         source: item.source,
       });
+      // A refusal now arrives as a value rather than a throw, so it has to be
+      // counted here explicitly. It used to land in the catch below by virtue
+      // of being thrown; without this line a refused item would be silently
+      // counted as attached, which is the failure mode the notification
+      // beneath exists to prevent.
+      if (!added.ok) {
+        console.error(
+          '[createCaseAction] attached item refused',
+          item.id,
+          added.error,
+        );
+        missed += 1;
+      }
     } catch (err) {
       console.error('[createCaseAction] attach evidence failed', item.id, err);
       missed += 1;
@@ -566,8 +580,36 @@ export async function suggestCaseTypeAction(description: string): Promise<string
   return await classifyCaseType(description);
 }
 
-export async function uploadExhibitAction(caseId: string, formData: FormData) {
-  await assertAuthIfSupabase();
+/**
+ * The calm line shown when the upload hit something unexpected.
+ *
+ * Distinct from every refusal above it: a refusal names the file and says what
+ * to do next, whereas this covers a storage outage or a failed database write,
+ * where there is nothing the person did wrong and nothing they can correct.
+ * The support reference is appended when Next generated one, matching what
+ * app/cases/[id]/error.tsx already shows on this surface.
+ */
+const UPLOAD_INTERNAL_ERROR =
+  'That upload did not finish. Your case and everything already uploaded are safe. Please try again in a moment.';
+
+/**
+ * Add one exhibit to a personal case.
+ *
+ * Returns its refusal rather than throwing it, for the same reason
+ * rescanExhibitAction and inviteCollaboratorAction do: React strips an error's
+ * message when it crosses the Server Action boundary in a production build, so
+ * a thrown "This file is not a valid image." reached the person as "An error
+ * occurred in the Server Components render. The specific message is omitted in
+ * production builds...". Someone uploading evidence in a legal matter then had
+ * no way to learn what was wrong with their file.
+ */
+export async function uploadExhibitAction(
+  caseId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  if (usingSupabase() && !(await getCurrentUser())) {
+    return { ok: false, error: 'Please sign in again, then re-add this file.' };
+  }
   const file = formData.get('file');
   const description = String(formData.get('description') ?? '').trim();
   const incidentDateRaw = String(formData.get('incidentDate') ?? '').trim();
@@ -575,22 +617,44 @@ export async function uploadExhibitAction(caseId: string, formData: FormData) {
   const category = String(formData.get('category') ?? '').trim();
 
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error('Please choose a file to upload.');
+    return { ok: false, error: 'Please choose a file to upload.' };
   }
 
   const MAX_BYTES = 50 * 1024 * 1024;
   if (file.size > MAX_BYTES) {
-    throw new Error('File is larger than the 50MB limit.');
+    return {
+      ok: false,
+      error: 'File is larger than the 50MB limit. Please add a smaller copy.',
+    };
   }
 
-  const exhibit = await addExhibit({
-    caseId,
-    file,
-    description,
-    incidentDate: incidentDateRaw || null,
-    source: source || null,
-    category: category || null,
-  });
+  let exhibit;
+  try {
+    const added = await addExhibit({
+      caseId,
+      file,
+      description,
+      incidentDate: incidentDateRaw || null,
+      source: source || null,
+      category: category || null,
+    });
+    if (!added.ok) return { ok: false, error: added.error };
+    exhibit = added.exhibit;
+  } catch (err) {
+    // Not a refusal: a storage or database failure. The real message is a
+    // PostgREST/S3 string, so the person gets calm copy and the reference
+    // Next already logged next to the stack.
+    console.error('[uploadExhibitAction] upload failed', err);
+    const reference = displayableDigest(
+      (err as { digest?: unknown } | null)?.digest,
+    );
+    return {
+      ok: false,
+      error: reference
+        ? `${UPLOAD_INTERNAL_ERROR} Reference: ${reference}`
+        : UPLOAD_INTERNAL_ERROR,
+    };
+  }
 
   // Auto-scan images and PDFs synchronously - it takes 3-8s and gives the
   // user immediate feedback. Audio/video are bigger and Whisper can be slow,
@@ -625,6 +689,7 @@ export async function uploadExhibitAction(caseId: string, formData: FormData) {
 
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
+  return { ok: true };
 }
 
 /**
