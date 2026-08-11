@@ -211,6 +211,32 @@ export function selectQueue(
 }
 
 /**
+ * How many rows each view would render, under the search now in force.
+ *
+ * The strip used to be built in the component from `rows.filter(queueViewTest(key))`
+ * while the card underneath was built from selectQueue, which also applies the
+ * search. Two expressions, agreeing only while the search box was empty: type
+ * anything and "Awaiting decision · 3" sat over "Nothing matches that search."
+ *
+ * So a count is defined here as the length of the list its own tab would show,
+ * from selectQueue itself. Not a parallel predicate that matches it today: the
+ * same call. `now` is threaded through so all four views and the rendered list
+ * read one clock, which is what keeps the aging count from drifting a row
+ * either side of the three-day boundary mid-render.
+ */
+export function queueViewCounts(
+  rows: ApprovalRow[],
+  params: ApprovalQueueParams,
+  now = Date.now(),
+): Record<QueueViewKey, number> {
+  const counts = {} as Record<QueueViewKey, number>;
+  for (const view of QUEUE_VIEW_KEYS) {
+    counts[view] = selectQueue(rows, { ...params, view }, now).length;
+  }
+  return counts;
+}
+
+/**
  * The settled rows, narrowed by the same search.
  *
  * The view strip does not reach this card: its views are about work that is

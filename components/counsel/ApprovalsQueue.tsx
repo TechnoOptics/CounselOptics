@@ -10,7 +10,7 @@ import {
   confirmationLines,
   type BulkSendBackResult,
   isBulkSelectable,
-  queueViewTest,
+  queueViewCounts,
   selectHistory,
   selectQueue,
   type ApprovalQueueParams,
@@ -99,13 +99,22 @@ export function ApprovalsQueue({
     }, 350);
   };
 
-  const options: ViewOption[] = QUEUE_VIEW_KEYS.map((key) => ({
-    key,
-    label: VIEW_LABEL[key],
-    count: rows.filter(queueViewTest(key)).length,
-  }));
+  // Every count on this screen and the list it labels are one call, on one
+  // clock. A tab reading 3 over an empty card was two expressions that agreed
+  // only while the search box was empty: see queueViewCounts.
+  const { options, queue } = useMemo(() => {
+    const now = Date.now();
+    const counts = queueViewCounts(rows, params, now);
+    return {
+      options: QUEUE_VIEW_KEYS.map<ViewOption>((key) => ({
+        key,
+        label: VIEW_LABEL[key],
+        count: counts[key],
+      })),
+      queue: selectQueue(rows, params, now),
+    };
+  }, [rows, params]);
 
-  const queue = useMemo(() => selectQueue(rows, params), [rows, params]);
   const history = useMemo(() => selectHistory(rows, params), [rows, params]);
 
   const ticked = queue.filter((r) => selected.has(r.id) && isBulkSelectable(r));
