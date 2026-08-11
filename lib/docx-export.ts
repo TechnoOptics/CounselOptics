@@ -22,6 +22,7 @@ import {
   type LetterheadDesign,
 } from './letterhead-design';
 import { formatDateNumeric, formatDateTimeNumeric } from './format';
+import { accentTextOnDocument } from './accent-text';
 
 /**
  * Word export of a Community Case's submissions, mirroring the structure
@@ -339,7 +340,17 @@ export type LetterDocxInput = {
 export async function generateLetterDocx(
   input: LetterDocxInput,
 ): Promise<Buffer> {
-  const accent = (input.accentHex || '#0f2d24').replace(/^#/, '').slice(0, 6);
+  const accentHex = (input.accentHex || '#0f2d24').slice(0, 7);
+  const accent = accentHex.replace(/^#/, '').slice(0, 6);
+  /**
+   * The firm's name, as ink on a Word page.
+   *
+   * Same rule as the PDF and the two counsel studios, through the same function:
+   * a colour picked to work as a fill is usually unreadable as text, and a Word
+   * page is white. Advottic's own gold measured 1.87:1 here. The RULE below
+   * keeps the raw accent, because a rule is a fill.
+   */
+  const accentInk = accentTextOnDocument(accentHex).replace(/^#/, '');
   const children: Array<Paragraph | Table> = [];
 
   const design = input.letterheadDesign ?? null;
@@ -365,7 +376,7 @@ export async function generateLetterDocx(
               text: line.text,
               bold: line.bold,
               size: line.sizeHalfPoints,
-              color: line.bold ? accent : '52525B',
+              color: line.bold ? accentInk : '52525B',
             }),
           ],
         }),
@@ -377,7 +388,7 @@ export async function generateLetterDocx(
       new Paragraph({
         spacing: { after: 40 },
         children: [
-          new TextRun({ text: input.firmName, bold: true, size: 30, color: accent }),
+          new TextRun({ text: input.firmName, bold: true, size: 30, color: accentInk }),
         ],
       }),
     );

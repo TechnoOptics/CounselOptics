@@ -19,6 +19,7 @@ import {
   letterheadDesignLines,
   type LetterheadDesign,
 } from '@/lib/letterhead-design';
+import { accentTextOnDocument } from '@/lib/accent-text';
 import { formatDateLong, formatDateNumeric } from '@/lib/format';
 
 type Brand = {
@@ -427,9 +428,14 @@ export function LettersStudio({
                         className="h-9 w-auto max-w-[140px] object-contain"
                       />
                     ) : null}
+                    {/* accentTextOnDocument, not brand.accent: this strip is
+                        the letterhead stock, and the renderer draws this same
+                        name in the same derived ink. An inline style is
+                        invisible to every class-based contrast guard, which is
+                        how the raw accent survived here at 1.79:1. */}
                     <p
                       className="text-[15px] font-bold"
-                      style={{ color: brand.accent }}
+                      style={{ color: accentTextOnDocument(brand.accent) }}
                     >
                       {brand.firmName}
                     </p>
@@ -509,6 +515,10 @@ function LetterheadDesignBlock({
   accent: string;
 }) {
   const lines = letterheadDesignLines(design);
+  // Derived here rather than by the caller, so the prop stays what it says it
+  // is: the firm's accent. The renderer holds the raw accent too and derives at
+  // the same point, through the same function, for the same reason.
+  const ink = accentTextOnDocument(accent);
   return (
     <div style={{ textAlign: design.alignment === 'center' ? 'center' : 'left' }}>
       {lines.map((line, i) => (
@@ -519,7 +529,7 @@ function LetterheadDesignBlock({
             fontSize: `${line.size * LETTERHEAD_PT_TO_PX}px`,
             lineHeight: `${(line.size + LETTERHEAD_LINE_GAP_PT) * LETTERHEAD_PT_TO_PX}px`,
             fontWeight: line.bold ? 700 : 400,
-            color: line.bold ? accent : '#595959',
+            color: line.bold ? ink : '#595959',
           }}
         >
           {line.text}
