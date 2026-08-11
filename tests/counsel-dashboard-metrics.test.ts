@@ -122,11 +122,23 @@ describe('the headline strip is wired to the catalog it is listed in', () => {
   it('guards each headline figure by its own catalog id on the page', () => {
     // A headline entry the page never consults is a switch that does
     // nothing, which is the exact defect this whole change is fixing.
-    for (const m of headline) {
-      expect(page, `${m.id} is not read by the dashboard page`).toContain(
-        `'${m.id}'`,
-      );
-    }
+    //
+    // "The page mentions the id" is NOT the guard, and proving that took
+    // deleting one gate and watching this pass: the id still appeared, in
+    // the `headlineOn` expression that decides whether the strip renders at
+    // all. So the check is structural - every card in the strip is
+    // immediately gated on its own id, and the ids doing the gating are
+    // exactly the four the catalog lists.
+    const strip = page.slice(
+      page.indexOf('{headlineOn'),
+      page.indexOf('<CounselMetricBoard'),
+    );
+    expect(strip.length, 'the headline strip was not found').toBeGreaterThan(0);
+    expect(strip.split('<StripLink').length - 1).toBe(headline.length);
+    const gated = [
+      ...strip.matchAll(/\.has\('(headline-[a-z-]+)'\)\s*&&\s*\(\s*<StripLink/g),
+    ].map((m) => m[1]);
+    expect(gated.sort()).toEqual(headline.map((m) => m.id).sort());
   });
 
   it('names each headline figure on the page with the label it offers', () => {
@@ -311,8 +323,10 @@ describe('the page and the server action honour the picker', () => {
   const actions = readFileSync(`${root}lib/dashboard-actions.ts`, 'utf8');
 
   it('drops unknown metric ids on write as it already does for panels', () => {
-    expect(actions).toContain('isCounselMetricId');
-    expect(actions).toContain('isCounselTileId');
+    // The APPLICATION, not the import. Deleting the filter and leaving the
+    // name in the import list passed the first version of this.
+    expect(actions).toContain('.filter(isCounselMetricId)');
+    expect(actions).toContain('.filter(isCounselTileId)');
   });
 
   it('leaves the panel selection alone when only figures were saved', () => {
@@ -323,6 +337,27 @@ describe('the page and the server action honour the picker', () => {
   it('filters the board and the panels through the viewer context', () => {
     expect(page).toContain('visibleMetricIds(');
     expect(page).toContain('offerablePanelIds(');
+  });
+
+  it('applies the choice to the board before the board is drawn', () => {
+    // Resolving the visible set and then handing the board every figure
+    // anyway is a switch that moves nothing, and it passed everything else
+    // in this file. The band drop is the second half: a band whose every
+    // figure is off has to go with its heading, not leave a title over an
+    // empty row.
+    const build = page.slice(
+      page.indexOf('const metricBands ='),
+      page.indexOf('const data:'),
+    );
+    expect(build.length, 'the board build was not found').toBeGreaterThan(0);
+    expect(
+      /metrics: band\.metrics\.filter\(\(\w+\) => metricsOn\.has\(/.test(build),
+      'the board is handed figures the user switched off',
+    ).toBe(true);
+    expect(
+      /\.filter\(\(band\) => band\.metrics\.length > 0\)/.test(build),
+      'an emptied band keeps its heading',
+    ).toBe(true);
   });
 
   it('says something rather than nothing when everything is hidden', () => {
