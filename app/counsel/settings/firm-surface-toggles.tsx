@@ -4,15 +4,34 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   updateFirmMatterPrefixAction,
+  updateFirmSurfaceOverrideAction,
   updateFirmSurfaceSettingsAction,
+  updateFirmTypeAction,
   updateFirmTicketPrefixAction,
 } from '@/lib/firm-settings-actions';
+import { FIRM_TYPES, FIRM_TYPE_DESCRIPTION, FIRM_TYPE_LABEL, type FirmType } from '@/lib/firm-types';
+import type { SurfaceSource, WorkspaceSurface } from '@/lib/firm-workspace';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
+type SurfaceChoice = 'default' | 'show' | 'hide';
+
+/** The stored answer, turned back into the control's three states. */
+function choiceFor(source: SurfaceSource, hidden: boolean): SurfaceChoice {
+  if (source !== 'override') return 'default';
+  return hidden ? 'hide' : 'show';
+}
+
 /**
- * Owner/admin toggles for hiding whole Counsel surfaces the firm does
- * not use. Saves immediately on change (optimistic) and refreshes so
- * the sidebar + search reflect the choice without a manual reload.
+ * Owner/admin controls for the shape of the workspace: what kind of legal team
+ * this is, and which surfaces that team has.
+ *
+ * The type sets the DEFAULTS. Each surface then has three states rather than a
+ * checkbox, because "hidden" and "hidden because that is the default for an
+ * in-house team" are different facts and an owner has to be able to tell them
+ * apart before deciding whether to change anything.
+ *
+ * Saves immediately on change (optimistic) and refreshes so the rail, the
+ * search box and the vocabulary reflect the choice without a manual reload.
  */
 export function FirmSurfaceToggles({
   firmId,
@@ -21,7 +40,10 @@ export function FirmSurfaceToggles({
   firmId: string;
   initial: {
     hideSearch: boolean;
+    firmType: FirmType;
     hideTimeBilling: boolean;
+    hideGrowth: boolean;
+    source: Record<WorkspaceSurface, SurfaceSource>;
     ticketPrefix: string;
     matterPrefix: string;
   };
@@ -29,12 +51,11 @@ export function FirmSurfaceToggles({
   const t = useT();
   const router = useRouter();
   const [hideSearch, setHideSearch] = useState(initial.hideSearch);
-  const [hideTimeBilling, setHideTimeBilling] = useState(initial.hideTimeBilling);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
-  function save(next: { hideSearch: boolean; hideTimeBilling: boolean }) {
+  function save(next: { hideSearch: boolean }) {
     setError(null);
     setOk(false);
     startTransition(async () => {
@@ -45,7 +66,6 @@ export function FirmSurfaceToggles({
       } else {
         // Roll back the optimistic UI on failure.
         setHideSearch(initial.hideSearch);
-        setHideTimeBilling(initial.hideTimeBilling);
         setError(res.error ?? t('Could not save.'));
       }
     });
@@ -54,34 +74,47 @@ export function FirmSurfaceToggles({
   return (
     /* No card: the settings page wraps this in a PanelCard. */
     <div className="space-y-4">
+      <FirmTypeField firmId={firmId} initial={initial.firmType} />
+      <SurfaceChoiceField
+        firmId={firmId}
+        surface="timeBilling"
+        firmType={initial.firmType}
+        hidden={initial.hideTimeBilling}
+        source={initial.source.timeBilling}
+        title={<T>Time, billing and trust</T>}
+        description={
+          <T>
+            Time entries, invoices and the trust ledger. A legal team that does
+            not invoice anyone has no use for these.
+          </T>
+        }
+      />
+      <SurfaceChoiceField
+        firmId={firmId}
+        surface="growth"
+        firmType={initial.firmType}
+        hidden={initial.hideGrowth}
+        source={initial.source.growth}
+        title={<T>Leads and referrals</T>}
+        description={
+          <T>
+            Inbound work from the Advottic directory, and co-counsel referrals
+            with fee splits.
+          </T>
+        }
+      />
       <Toggle
         checked={hideSearch}
         disabled={pending}
         onChange={(v) => {
           setHideSearch(v);
-          save({ hideSearch: v, hideTimeBilling });
+          save({ hideSearch: v });
         }}
         title={<T>Hide the global search</T>}
         description={
           <T>
             Removes the Ask Advottic search box from the top of every
             Counsel page for everyone in your workspace.
-          </T>
-        }
-      />
-      <Toggle
-        checked={hideTimeBilling}
-        disabled={pending}
-        onChange={(v) => {
-          setHideTimeBilling(v);
-          save({ hideSearch, hideTimeBilling: v });
-        }}
-        title={<T>Hide Time &amp; Billing</T>}
-        description={
-          <T>
-            Hides Time, Billing, and Trust from the sidebar and blocks
-            those pages. Turn this on if your firm handles billing
-            elsewhere.
           </T>
         }
       />
@@ -121,6 +154,189 @@ export function FirmSurfaceToggles({
         <p className="text-[12.5px] text-emerald-700 dark:text-emerald-300">
           <T>Saved.</T>
         </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What kind of legal team this is.
+ *
+ * It was asked once, at onboarding, and then never again, so a workspace that
+ * was set up wrong stayed wrong. Changing it here re-derives the defaults and
+ * the vocabulary across the whole workspace on the next render.
+ */
+function FirmTypeField({
+  firmId,
+  initial,
+}: {
+  firmId: string;
+  initial: FirmType;
+}) {
+  const t = useT();
+  const router = useRouter();
+  const [value, setValue] = useState<FirmType>(initial);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+
+  function commit(next: FirmType) {
+    if (next === value) return;
+    const previous = value;
+    setValue(next);
+    setError(null);
+    setOk(false);
+    startTransition(async () => {
+      const res = await updateFirmTypeAction(firmId, next);
+      if (res.ok) {
+        setOk(true);
+        router.refresh();
+      } else {
+        setValue(previous);
+        setError(res.error ?? t('Could not save.'));
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-lg ring-1 ring-edge p-3.5">
+      <label
+        htmlFor="firm-type"
+        className="block text-sm font-medium text-foreground"
+      >
+        <T>What kind of legal team this is</T>
+      </label>
+      <p className="mt-0.5 text-[12px] text-muted leading-relaxed">
+        <T>
+          This sets the starting point for which surfaces your workspace has and
+          what things are called. Every one of them can be changed below.
+          Changing the type never removes anything you have filed.
+        </T>
+      </p>
+      <select
+        id="firm-type"
+        value={value}
+        disabled={pending}
+        onChange={(e) => commit(e.target.value as FirmType)}
+        className="mt-2 w-full max-w-sm rounded-lg border border-edge bg-surface px-3 py-1.5 text-sm text-foreground"
+      >
+        {FIRM_TYPES.map((ft) => (
+          <option key={ft} value={ft}>
+            {t(FIRM_TYPE_LABEL[ft])}
+          </option>
+        ))}
+      </select>
+      <p className="mt-2 max-w-xl text-[12px] text-muted leading-relaxed">
+        {t(FIRM_TYPE_DESCRIPTION[value])}
+      </p>
+      {error && (
+        <p className="mt-2 text-[12.5px] text-rose-700 dark:text-rose-300">{error}</p>
+      )}
+      {ok && !error && (
+        <p className="mt-2 text-[12.5px] text-emerald-700 dark:text-emerald-300">
+          <T>Saved.</T>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One surface group, in three states.
+ *
+ * Not a checkbox, deliberately. A checkbox can say hidden or shown; it cannot
+ * say WHY, and the why is the whole point of deriving a default from the type.
+ * An owner needs to see "hidden, because that is the default for an in-house
+ * team" and be able to answer "no, we do bill some matters" without that
+ * answer being lost the next time the default changes.
+ */
+function SurfaceChoiceField({
+  firmId,
+  surface,
+  firmType,
+  hidden,
+  source,
+  title,
+  description,
+}: {
+  firmId: string;
+  surface: WorkspaceSurface;
+  firmType: FirmType;
+  hidden: boolean;
+  source: SurfaceSource;
+  title: React.ReactNode;
+  description: React.ReactNode;
+}) {
+  const t = useT();
+  const router = useRouter();
+  const [value, setValue] = useState<SurfaceChoice>(choiceFor(source, hidden));
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const fieldId = `surface-${surface}`;
+
+  function commit(next: SurfaceChoice) {
+    if (next === value) return;
+    const previous = value;
+    setValue(next);
+    setError(null);
+    startTransition(async () => {
+      const res = await updateFirmSurfaceOverrideAction(firmId, surface, next);
+      if (res.ok) router.refresh();
+      else {
+        setValue(previous);
+        setError(res.error ?? t('Could not save.'));
+      }
+    });
+  }
+
+  // The default for THIS type, stated plainly, so the "Workspace default"
+  // option is not a choice made blind.
+  const defaultIsHidden = firmType === 'corporate' || firmType === 'government';
+
+  return (
+    <div className="rounded-lg ring-1 ring-edge p-3.5">
+      <label htmlFor={fieldId} className="block text-sm font-medium text-foreground">
+        {title}
+      </label>
+      <p className="mt-0.5 text-[12px] text-muted leading-relaxed">{description}</p>
+      <select
+        id={fieldId}
+        value={value}
+        disabled={pending}
+        onChange={(e) => commit(e.target.value as SurfaceChoice)}
+        className="mt-2 w-full max-w-sm rounded-lg border border-edge bg-surface px-3 py-1.5 text-sm text-foreground"
+      >
+        <option value="default">
+          {defaultIsHidden
+            ? t('Workspace default (hidden)')
+            : t('Workspace default (shown)')}
+        </option>
+        <option value="show">{t('Always show')}</option>
+        <option value="hide">{t('Always hide')}</option>
+      </select>
+      <p className="mt-2 text-[12px] text-muted leading-relaxed">
+        {source === 'override' ? (
+          <T>You set this yourself, so it stays whatever the workspace type is.</T>
+        ) : source === 'legacy' ? (
+          <T>
+            Currently hidden by the older Time &amp; Billing switch. Choose the
+            workspace default or Always show to clear it.
+          </T>
+        ) : hidden ? (
+          <T>Hidden, because that is the default for this kind of legal team.</T>
+        ) : (
+          <T>Shown, because that is the default for this kind of legal team.</T>
+        )}
+      </p>
+      <p className="mt-1 text-[12px] text-muted leading-relaxed">
+        <T>
+          Hiding a surface hides it and refuses its pages. It does not delete
+          anything already filed there, and showing it again brings all of it
+          back.
+        </T>
+      </p>
+      {error && (
+        <p className="mt-2 text-[12.5px] text-rose-700 dark:text-rose-300">{error}</p>
       )}
     </div>
   );

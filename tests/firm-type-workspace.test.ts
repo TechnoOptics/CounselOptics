@@ -412,6 +412,107 @@ describe('hiding is not cosmetic: the server refuses too', () => {
   });
 });
 
+describe('the type can be changed after onboarding, by an owner or admin', () => {
+  const actions = read('lib/firm-settings-actions.ts');
+
+  it('has a write for it at all, which is the whole defect', () => {
+    expect(actions).toContain('export async function updateFirmTypeAction');
+  });
+
+  it('is gated on owner/admin, not merely on being signed in', () => {
+    const body = actions
+      .slice(actions.indexOf('export async function updateFirmTypeAction'))
+      .split('\nexport ')[0];
+    expect(body).toContain('callerIsFirmAdmin');
+    expect(body).toContain('requireUser');
+  });
+
+  it('refuses a value the production CHECK constraint would refuse', () => {
+    const body = actions
+      .slice(actions.indexOf('export async function updateFirmTypeAction'))
+      .split('\nexport ')[0];
+    expect(body).toContain('FIRM_TYPES.includes');
+  });
+
+  it('busts the whole shell, because the type decides the rail and the words', () => {
+    const body = actions
+      .slice(actions.indexOf('export async function updateFirmTypeAction'))
+      .split('\nexport ')[0];
+    expect(body).toContain("revalidatePath('/counsel', 'layout')");
+  });
+
+  it('never touches a row of firm data: it writes firm_type and nothing else', () => {
+    const body = actions
+      .slice(actions.indexOf('export async function updateFirmTypeAction'))
+      .split('\nexport ')[0];
+    expect(body).not.toMatch(/\.delete\(\)/);
+    expect(body).toMatch(/from\('firms'\)/);
+    for (const table of [
+      'firm_invoices',
+      'firm_time_entries',
+      'firm_trust_transactions',
+      'firm_leads',
+      'cocounsel_referrals',
+    ]) {
+      expect(body, `changing type must not touch ${table}`).not.toContain(table);
+    }
+  });
+});
+
+describe('the override write', () => {
+  const actions = read('lib/firm-settings-actions.ts');
+  const body = actions
+    .slice(actions.indexOf('export async function updateFirmSurfaceOverrideAction'))
+    .split('\nexport ')[0];
+
+  it('exists and is owner/admin gated', () => {
+    expect(body).toContain('callerIsFirmAdmin');
+  });
+
+  it('validates the surface name and the choice, both caller-supplied', () => {
+    expect(body).toContain('WORKSPACE_SURFACES.includes');
+    expect(body).toMatch(/choice !== 'show' && choice !== 'hide' && choice !== 'default'/);
+  });
+
+  it('clears the legacy latch when the owner asks for the default back', () => {
+    // Otherwise "workspace default" would be selected and the surface would
+    // stay hidden, which is the control lying about what it did.
+    expect(body).toContain('hide_time_billing: false');
+  });
+
+  it('leaves the surface toggle action writing only hide_search', () => {
+    const legacy = actions
+      .slice(actions.indexOf('export async function updateFirmSurfaceSettingsAction'))
+      .split('\nexport ')[0];
+    expect(legacy).toContain('hide_search');
+    expect(
+      legacy,
+      'two writers for one column is how the checkbox and the override drift apart',
+    ).not.toContain('hide_time_billing:');
+  });
+});
+
+describe('the settings page shows which answer is in force', () => {
+  it('hands the control the type, both surfaces, and where each came from', () => {
+    const ui = read('app/counsel/settings/firm-surface-toggles.tsx');
+    expect(ui).toContain('firmType');
+    expect(ui).toContain('hideGrowth');
+    expect(ui).toContain('SurfaceSource');
+    // Three states, not a checkbox: "hidden" and "hidden because that is the
+    // default for an in-house team" are different facts.
+    expect(ui).toMatch(/value="default"/);
+    expect(ui).toMatch(/value="show"/);
+    expect(ui).toMatch(/value="hide"/);
+  });
+
+  it('says out loud that hiding a surface deletes nothing', () => {
+    const ui = read('app/counsel/settings/firm-surface-toggles.tsx');
+    expect(ui.replace(/\s+/g, ' ')).toMatch(
+      /does not delete anything already filed there/,
+    );
+  });
+});
+
 describe('the counsel shell resolves the type once and hands it to both navs', () => {
   const layout = read('app/counsel/layout.tsx');
 
