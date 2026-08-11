@@ -5,6 +5,13 @@ import { createServerSupabase, getCurrentUser, requireUser } from './supabase/se
 import { createAdminSupabase } from './supabase/admin';
 import { isUnknownColumnError } from './signer-view';
 import { normalizeMatterPrefix, normalizeTicketPrefix } from './ticket-numbers';
+import { FIRM_TYPES, type FirmType } from './firm-types';
+import {
+  WORKSPACE_SURFACES,
+  readSurfaceOverrides,
+  type SurfaceOverride,
+  type WorkspaceSurface,
+} from './firm-workspace';
 
 /**
  * Owner/admin writes for the per-firm surface toggles
@@ -31,9 +38,18 @@ async function callerIsFirmAdmin(firmId: string): Promise<boolean> {
   return role === 'owner' || role === 'admin';
 }
 
+/**
+ * The global-search toggle, and only that.
+ *
+ * It used to write hide_time_billing too. Time & Billing now has a THREE-state
+ * control (workspace default / always show / always hide) because its default
+ * is derived from the firm's type, and two writers for one fact is how the
+ * checkbox and the override would come to disagree. That column is written by
+ * updateFirmSurfaceOverrideAction alone now.
+ */
 export async function updateFirmSurfaceSettingsAction(
   firmId: string,
-  input: { hideSearch: boolean; hideTimeBilling: boolean },
+  input: { hideSearch: boolean },
 ): Promise<{ ok: boolean; error?: string }> {
   await requireUser();
   if (!(await callerIsFirmAdmin(firmId))) {
@@ -48,7 +64,6 @@ export async function updateFirmSurfaceSettingsAction(
       {
         firm_id: firmId,
         hide_search: Boolean(input.hideSearch),
-        hide_time_billing: Boolean(input.hideTimeBilling),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'firm_id' },
@@ -57,6 +72,136 @@ export async function updateFirmSurfaceSettingsAction(
 
   // These flags change the chrome the whole workspace renders, so bust
   // the counsel layout + settings caches.
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+/** Read a firm's metadata for a read-modify-write. Not exported: every
+ *  export in a 'use server' module is a public HTTP endpoint. */
+async function readFirmMetadataForWrite(
+  firmId: string,
+): Promise<Record<string, unknown>> {
+  const admin = createAdminSupabase();
+  if (!admin) return {};
+  const { data } = await admin
+    .from('firms')
+    .select('metadata')
+    .eq('id', firmId)
+    .maybeSingle();
+  const m = (data as { metadata: unknown } | null)?.metadata;
+  return m && typeof m === 'object' && !Array.isArray(m)
+    ? (m as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * What kind of legal team this is.
+ *
+ * Set at onboarding and, until now, never again - which is why in-house teams
+ * were sitting in workspaces built for law firms. Firms are misclassified at
+ * signup and firms change, so this has to be editable, and the settings page is
+ * where every other decision about the shape of the workspace already lives.
+ *
+ * Changing it DESTROYS NOTHING. It changes which surfaces are shown by default
+ * and what things are called. Invoices, time entries, trust ledgers, leads and
+ * referrals stay exactly where they are; if the new type's default hides the
+ * surface they live on, an owner sets that surface to "Always show" and it
+ * comes back with every row still in it.
+ */
+export async function updateFirmTypeAction(
+  firmId: string,
+  firmType: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can change firm settings.' };
+  }
+  // Validated against the same list the production CHECK constraint holds
+  // (supabase/fixes/2026-07-04-token-economy-schema.sql). An unrecognized value
+  // would be refused by the database anyway; refusing it here means the person
+  // gets a sentence rather than a constraint violation.
+  if (!FIRM_TYPES.includes(firmType as FirmType)) {
+    return { ok: false, error: 'That is not a workspace type we recognize.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const { error } = await admin
+    .from('firms')
+    .update({ firm_type: firmType, updated_at: new Date().toISOString() })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+
+  // The type decides the rail, the vocabulary and which routes answer, so the
+  // whole shell's cache has to go, not just this page's.
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+/**
+ * Override one surface group against its type default, or clear the override
+ * and go back to the default.
+ *
+ * Stored in firms.metadata.surfaceOverrides beside menuConfig. No migration is
+ * owed for two optional strings, and the firms table already carries this
+ * firm's other display configuration in that exact field.
+ *
+ * Clearing an override for timeBilling also clears the legacy
+ * firm_settings.hide_time_billing, because leaving it set would keep hiding the
+ * surface and the person would have asked for the default and not got it.
+ */
+export async function updateFirmSurfaceOverrideAction(
+  firmId: string,
+  surface: string,
+  choice: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can change firm settings.' };
+  }
+  if (!WORKSPACE_SURFACES.includes(surface as WorkspaceSurface)) {
+    return { ok: false, error: 'That is not a surface we recognize.' };
+  }
+  if (choice !== 'show' && choice !== 'hide' && choice !== 'default') {
+    return { ok: false, error: 'Choose show, hide, or the workspace default.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const metadata = await readFirmMetadataForWrite(firmId);
+  const overrides = readSurfaceOverrides(metadata);
+  if (choice === 'default') {
+    delete overrides[surface as WorkspaceSurface];
+  } else {
+    overrides[surface as WorkspaceSurface] = choice as SurfaceOverride;
+  }
+
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: { ...metadata, surfaceOverrides: overrides },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+
+  if (surface === 'timeBilling' && choice === 'default') {
+    // Best effort. The override is the authority now; a firm with no
+    // firm_settings row has nothing to clear, and a failure here leaves the
+    // surface hidden rather than exposing one that was asked to be hidden.
+    await admin
+      .from('firm_settings')
+      .upsert(
+        {
+          firm_id: firmId,
+          hide_time_billing: false,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'firm_id' },
+      );
+  }
+
   revalidatePath('/counsel', 'layout');
   revalidatePath('/counsel/settings');
   return { ok: true };

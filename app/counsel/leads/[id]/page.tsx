@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { getFirmLeadForFirm } from '@/lib/marketplace-storage';
 import { LeadResponseForm } from './lead-response-form';
 import { OpenMatterButton } from './open-matter-button';
@@ -46,6 +47,12 @@ export default async function FirmLeadDetailPage({
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+  // Leads and referrals are one surface, and a workspace that does not have
+  // it does not have this page. Same shape as the Time / Billing / Trust
+  // guards: the rail dropping the link is a courtesy, this is the refusal.
+  if ((await getFirmSurfaceSettings(ctx.firm.id)).hideGrowth) {
+    redirect('/counsel');
+  }
   const lead = await getFirmLeadForFirm(ctx.firm.id, params.id);
   if (!lead) notFound();
 

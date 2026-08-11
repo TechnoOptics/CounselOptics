@@ -32,7 +32,7 @@ export default async function CounselSettingsPage() {
   // Load webhooks server-side so the manager mounts with real state
   // and the operator never sees the empty-list flicker.
   const webhooksResult = await listFirmWebhooksAction(ctx.firm.id);
-  const surface = await getFirmSurfaceSettings(ctx.firm.id);
+  const surface = await getFirmSurfaceSettings(ctx.firm.id, ctx.firm);
   // Read separately from the surface toggles above. See getFirmTicketPrefix:
   // ticket_prefix arrives with a migration that is not applied, and naming it
   // in that read's column list would take the toggles down with it.
@@ -122,11 +122,14 @@ export default async function CounselSettingsPage() {
 
       <PanelCard title={<T>Workspace surfaces</T>}>
         <p className="text-[13.5px] font-semibold text-foreground">
-          <T>Turn off what you don&rsquo;t use</T>
+          <T>What kind of legal team you are, and what you use</T>
         </p>
         <p className="mb-4 mt-1 max-w-2xl text-sm leading-relaxed text-muted">
-          <T>Hide entire surfaces of the workspace for everyone at your firm.
-          These are off by default, so nothing changes until you turn one on.</T>
+          <T>Your workspace type sets sensible starting points: an in-house team
+          is not shown billing, invoices or a referral marketplace, and the
+          people it advises are called employees rather than clients. Every one
+          of those starting points can be overridden here, and an override always
+          wins. Nothing you have already filed is ever removed.</T>
         </p>
         <FirmSurfaceToggles
           firmId={ctx.firm.id}

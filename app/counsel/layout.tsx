@@ -12,6 +12,7 @@ import {
   DEFAULT_FIRM_SURFACE_SETTINGS,
 } from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
+import { readMenuConfig, withTypeDefaults } from '@/lib/menu-config';
 import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
 import { CounselTrialBanner } from '@/components/counsel/CounselTrialBanner';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
@@ -352,8 +353,38 @@ export default async function CounselLayout({
   // the Time & Billing group. Read once here and thread down to the
   // header (mobile nav), the sidebar, and the Ask Advottic bar.
   const surface = active
-    ? await getFirmSurfaceSettings(active.firm.id)
+    ? await getFirmSurfaceSettings(active.firm.id, active.firm)
     : DEFAULT_FIRM_SURFACE_SETTINGS;
+
+  // The firm's TYPE, resolved into the menu config the rail and the mobile nav
+  // both read off `firm.metadata`.
+  //
+  // Resolved ONCE, here, and handed to both, rather than threaded down as two
+  // more props: CounselSidebar and CounselHeader each build their menu with
+  // `readMenuConfig(firm.metadata)`, so this is the single point where the two
+  // cannot disagree about what an in-house workspace contains. It folds in the
+  // hidden surface groups and the type's vocabulary; a label the firm chose for
+  // itself still wins over the derived one.
+  //
+  // The settings page's menu editor reads the firm's OWN metadata from its own
+  // context, not this copy, so an owner editing the menu still sees what they
+  // set rather than what the type derived.
+  const shellFirm = active
+    ? {
+        ...active.firm,
+        metadata: {
+          ...(active.firm.metadata as Record<string, unknown>),
+          menuConfig: withTypeDefaults(
+            readMenuConfig(active.firm.metadata),
+            surface.firmType,
+            {
+              timeBilling: surface.hideTimeBilling,
+              growth: surface.hideGrowth,
+            },
+          ),
+        },
+      }
+    : null;
 
   // If we resolved a context, expose it to children via the wrapper.
   // The "dark" class forces dark Tailwind variants throughout the
@@ -400,7 +431,7 @@ export default async function CounselLayout({
         />
       ) : null}
       <CounselHeader
-        firm={active?.firm ?? null}
+        firm={shellFirm}
         membership={active?.membership ?? null}
         memberships={myFirms}
         tenantMode={isTenantSubdomain}
@@ -431,7 +462,7 @@ export default async function CounselLayout({
           {active ? (
             <CounselSidebarShell>
               <CounselSidebar
-                firm={active.firm}
+                firm={shellFirm ?? active.firm}
                 membership={active.membership}
                 pathname={pathname}
                 tenantMode={isTenantSubdomain}

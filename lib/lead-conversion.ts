@@ -9,6 +9,7 @@ import {
   requireActiveFirm,
 } from './firm-authz';
 import { readLeadCaseLink } from './marketplace-storage';
+import { surfaceRefusal } from './firm-surface-guard';
 
 /**
  * Open a matter from a marketplace lead the consumer accepted this firm on.
@@ -34,6 +35,12 @@ export async function convertLeadToCaseAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   if (!firmId || !leadId) return { ok: false, error: 'Lead not found.' };
+
+  // A firm whose workspace has no Leads surface cannot open a matter from one.
+  // The page is gone from the rail and redirects, but this export is a public
+  // HTTP endpoint either way.
+  const refused = await surfaceRefusal(firmId, 'growth');
+  if (refused) return refused;
 
   // AuthZ through lib/firm-authz.ts, the one firm axis. Posting roles, the
   // same set convertIntakeToCaseAction allows, because this creates a matter.

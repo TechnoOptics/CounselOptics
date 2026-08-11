@@ -13,6 +13,10 @@
  * back into this very editor, so it always shows for owner/admin.
  */
 
+import type { FirmType } from './firm-types';
+import { menuLabelsForType } from './firm-vocabulary';
+import { GROWTH_HREFS } from './firm-workspace';
+
 export type MenuItem = { href: string; label: string; hint: string };
 export type MenuSection = { section: string; items: MenuItem[] };
 
@@ -36,6 +40,47 @@ export function withHiddenHrefs(
 ): MenuConfig {
   if (hrefs.length === 0) return config;
   return { ...config, hidden: [...config.hidden, ...hrefs] };
+}
+
+/**
+ * Fold a firm's TYPE into its menu config: hide the surface groups its type
+ * (or its owner's override) resolved to hidden, and apply the type's
+ * vocabulary to the labels.
+ *
+ * This is the seam that makes firms.firm_type reach the rail. Both the sidebar
+ * and the header's mobile nav build their menu from
+ * `readMenuConfig(firm.metadata)`, so `app/counsel/layout.tsx` resolves the
+ * config ONCE and hands both of them a firm whose metadata already carries it.
+ * The alternative was a second prop threaded through two components and every
+ * future one, and a third place for the two to disagree.
+ *
+ * The firm's OWN label always wins. A type-derived label is a better default
+ * than "Clients" for an in-house team; it is not better than the word that
+ * team typed into the menu customizer. `hidden` is a union rather than an
+ * override because both entries mean the same thing - do not show this.
+ *
+ * The settings page's menu editor reads `readMenuConfig(ctx.firm.metadata)`
+ * from its own context, NOT from this resolved copy, so an owner editing the
+ * menu still sees what they themselves set.
+ */
+export function withTypeDefaults(
+  config: MenuConfig,
+  firmType: FirmType,
+  hiddenSurfaces: { timeBilling: boolean; growth: boolean },
+): MenuConfig {
+  const extraHidden = [
+    ...(hiddenSurfaces.timeBilling ? TIME_BILLING_HREFS : []),
+    ...(hiddenSurfaces.growth ? GROWTH_HREFS : []),
+  ];
+  const derived = menuLabelsForType(firmType);
+  if (extraHidden.length === 0 && Object.keys(derived).length === 0) {
+    return config;
+  }
+  return {
+    ...config,
+    hidden: [...config.hidden, ...extraHidden],
+    labels: { ...derived, ...config.labels },
+  };
 }
 
 export const DEFAULT_MENU: MenuSection[] = [

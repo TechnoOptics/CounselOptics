@@ -180,6 +180,20 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   // lib/counsel-metrics.ts; nothing on that board is firm data, and the
   // figures themselves are rendered outside <T>.
   'state',
+  // The per-type vocabulary (lib/firm-vocabulary.ts). `vocab` is a lookup into
+  // FIRM_VOCABULARY, a frozen constant map of six literal-valued records keyed
+  // by FirmType - the noun a workspace of that type uses for a concept
+  // ("Clients" or "Employees", "New intake" or "New request"). It is UI copy
+  // chosen by a stored enum, never firm data: no name, title, amount or status
+  // can reach it, because nothing writes into that map at runtime. A
+  // FirmVocabulary field is exactly the same kind of value as the `state`
+  // literals above, arrived at the same way.
+  'vocab.clients',
+  'vocab.client',
+  'vocab.intake',
+  'vocab.practiceAreas',
+  'vocab.caseload',
+  'vocab.directory',
   // static-array .map() params
   'l',
   's',

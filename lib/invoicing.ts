@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { surfaceRefusal } from './firm-surface-guard';
 import {
   createInvoicePaymentLink,
   deactivatePaymentLink,
@@ -105,6 +106,15 @@ export async function buildDraftInvoiceAction(
   warning?: string;
   unratedCount?: number;
 }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
@@ -424,6 +434,19 @@ export async function sendInvoiceAction(
   // buildDraftInvoiceAction.
   const sendAuth = await assertInvoicePoster(supabase, invoice.firm_id, user.id);
   if (!sendAuth.ok) return sendAuth;
+  // Sending an invoice puts a demand for money in front of a client in the
+  // firm's name, which is the one thing a workspace with no billing surface
+  // must not be able to do. The firm comes off the ROW rather than off the
+  // caller, because this action takes only an invoice id.
+  //
+  // markInvoicePaidAction is deliberately NOT guarded, for the reason
+  // applyStripeInvoicePayment is not: money that has already arrived has to be
+  // recordable, and refusing that write would leave a receivable open forever
+  // on a firm that switched the surface off after sending.
+  {
+    const refused = await surfaceRefusal(invoice.firm_id, 'timeBilling');
+    if (refused) return refused;
+  }
   if (invoice.status !== 'draft') {
     return {
       ok: false,
@@ -754,6 +777,15 @@ export async function voidInvoiceAction(
   firmId: string,
   invoiceId: string,
 ): Promise<{ ok: boolean; error?: string; releasedEntries?: boolean }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
@@ -859,6 +891,15 @@ export async function deleteDraftInvoiceAction(
   firmId: string,
   invoiceId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();

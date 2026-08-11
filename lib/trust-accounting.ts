@@ -11,6 +11,7 @@ import {
   TRUST_SESSION_MESSAGE,
 } from './trust-errors';
 import { US_STATE_CODES } from './trust-amount';
+import { surfaceRefusal } from './firm-surface-guard';
 
 /**
  * Server actions that mutate the firm's trust ledger. Read-only
@@ -55,6 +56,15 @@ export async function createTrustAccountAction(
     isIolta?: boolean;
   },
 ): Promise<{ ok: boolean; error?: string; accountId?: string }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: TRUST_SESSION_MESSAGE };
 
@@ -118,6 +128,15 @@ export async function recordTrustTransactionAction(
     reference?: string | null;
   },
 ): Promise<{ ok: boolean; error?: string; transactionId?: string }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: TRUST_SESSION_MESSAGE };
   // Reject NaN / Infinity / fractional cents here: `NaN <= 0` is false,
@@ -181,6 +200,15 @@ export async function createTrustReconciliationAction(
     note?: string | null;
   },
 ): Promise<{ ok: boolean; error?: string; reconciliationId?: string }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: TRUST_SESSION_MESSAGE };
   if (!input.statementDate || Number.isNaN(Date.parse(input.statementDate))) {

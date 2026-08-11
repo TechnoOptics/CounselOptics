@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ProposeReferralForm } from './propose-referral-form';
 import { PageHeader } from '@/components/counsel/ui';
@@ -12,6 +13,12 @@ export const metadata = { title: 'New referral · Counsel' };
 export default async function NewReferralPage() {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+  // Leads and referrals are one surface, and a workspace that does not have
+  // it does not have this page. Same shape as the Time / Billing / Trust
+  // guards: the rail dropping the link is a courtesy, this is the refusal.
+  if ((await getFirmSurfaceSettings(ctx.firm.id)).hideGrowth) {
+    redirect('/counsel');
+  }
   const supabase = createServerSupabase();
   const { data: firmsRaw } = await supabase
     .from('firms')
