@@ -6,6 +6,7 @@ import { parseDeliveryMode } from './submission-dispatch';
 import { employeeFieldsOf } from './counterparty-fields';
 import { sanitizeDocumentLayoutOverride } from './document-layout';
 import { parseAllowedSignatureMethods } from './signature-methods';
+import { checkTemplateFieldValue } from './template-field-formats';
 
 /**
  * Reading a published firm template on the server, for the two places that
@@ -87,7 +88,16 @@ export function sanitizeTemplateValues(
   // answers live on their own signature row and arrive later.
   for (const f of employeeFieldsOf(fields)) {
     const v = String((values ?? {})[f.key] ?? '').trim().slice(0, 5000);
-    if (v) out[f.key] = v;
+    if (!v) continue;
+    // NORMALISED, so what is stored is what the document prints and one
+    // instrument carries one shape of a phone number however it was typed.
+    // An answer that does NOT fit its format is kept exactly as it was typed:
+    // dropping it would turn a mistyped answer into a missing one, and the
+    // employee would be told to fill in a field they can see they filled in.
+    // The refusal is fieldFormatRefusal's, in lib/template-submissions.ts, and
+    // it names the field.
+    const checked = checkTemplateFieldValue(f.type, v);
+    out[f.key] = checked.ok ? checked.value : v;
   }
   return out;
 }

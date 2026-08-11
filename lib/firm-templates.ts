@@ -12,6 +12,10 @@ import {
   type DeliveryMode,
 } from './submission-dispatch';
 import { parseTemplateFieldParty } from './counterparty-fields';
+import {
+  parseTemplateFieldType,
+  type TemplateFieldType,
+} from './template-field-formats';
 import { FIRM_TEMPLATE_AUTHOR_ROLES } from './firm-authz';
 import {
   TEMPLATE_BODY_MAX,
@@ -62,7 +66,14 @@ export type TemplateFieldParty = 'employee' | 'counterparty';
 export type TemplateField = {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'textarea';
+  /**
+   * The shape of the answer. Derived from TEMPLATE_FIELD_TYPES rather than
+   * written out here, because sanitizeFields below and parseTemplateFields in
+   * lib/counterparty-fields.ts both coerce a stored value against that list
+   * and anything off it becomes 'text' in silence. A type spelled out in a
+   * third place is a type a firm can pick and never get back.
+   */
+  type: TemplateFieldType;
   required: boolean;
   party?: TemplateFieldParty;
 };
@@ -201,7 +212,11 @@ function sanitizeFields(fields: unknown): TemplateField[] {
     out.push({
       key,
       label: String(o.label ?? key).slice(0, 80),
-      type: o.type === 'date' || o.type === 'textarea' ? o.type : 'text',
+      // The ONE whitelist, shared with the read side (parseTemplateFields).
+      // It used to be this literal, and a format added to the union without
+      // widening the literal was a format a firm could configure, save, and
+      // get back as a plain text box with nothing said.
+      type: parseTemplateFieldType(o.type),
       required: Boolean(o.required),
       // Anything unrecognised coerces to 'employee', the same fail-safe
       // direction the type above uses. The safe direction here is the

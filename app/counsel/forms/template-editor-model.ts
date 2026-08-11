@@ -134,6 +134,52 @@ export function blankIdentity(b: DetectedBlank): string {
   return `${b.kind}|${b.key ?? b.label ?? ''}|${b.context}`;
 }
 
+/**
+ * The exact request the Preview section posts for a draft, as a string.
+ *
+ * ONE STRING, TWO JOBS, and that is the point. It is the fetch body AND the
+ * key the rendered blob is cached under, so a cached page cannot belong to a
+ * draft other than the one that produced it. Two expressions that "obviously
+ * agree" is how a cache starts answering for the wrong document, and the
+ * document here is one an author is about to publish.
+ *
+ * WHY THERE IS A CACHE AT ALL. The route this posts to reads the caller's
+ * membership row and the firm record, fetches the letterhead and logo images
+ * if the firm has them, and renders a PDF. No model call, no paid API and no
+ * rate limit, so it is a server round trip rather than money; but it is not
+ * free, and the section now renders on open rather than on a button. Cached
+ * per request, the cost is one render per version of the draft, and moving
+ * between sections costs nothing.
+ *
+ * The firm id is in here because the letterhead, accent and page defaults are
+ * read off the firm record on the server, so the same draft under a different
+ * firm is a different page.
+ *
+ * NOTHING ABOUT THE FIRM'S OWN BRANDING IS SENT. The server reads that itself.
+ * See renderTemplateDraft in app/api/counsel/draft-template/pdf/route.ts.
+ */
+export function draftPreviewRequestBody(
+  firmId: string,
+  draft: {
+    name: string;
+    body: string;
+    fields: TemplateField[];
+    deliveryMode: string;
+    documentLayout: Record<string, unknown> | null;
+  },
+): string {
+  return JSON.stringify({
+    firmId,
+    draftTemplate: {
+      name: draft.name,
+      body: draft.body,
+      fields: draft.fields,
+      deliveryMode: draft.deliveryMode,
+      documentLayout: draft.documentLayout,
+    },
+  });
+}
+
 /** The editor's shared input skin, so four panels cannot drift apart. */
 export const INPUT_CLS =
   'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100';

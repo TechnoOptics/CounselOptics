@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   importTemplateDocumentAction,
   type FirmTemplate,
@@ -31,6 +31,7 @@ import {
   LAYOUT_BANDS,
   blankIdentity,
   deriveFields,
+  draftPreviewRequestBody,
   layoutOverride,
   type EditorTabId,
   type LayoutBand,
@@ -98,6 +99,8 @@ export function TemplateEditor({
    * until React has committed the section it lives in.
    */
   const [jumpToAck, setJumpToAck] = useState(0);
+  /** The last preview drawn, and the request that drew it. See buildPreviewPdf. */
+  const previewCache = useRef<{ payload: string; blob: Blob } | null>(null);
   useEffect(() => {
     if (jumpToAck === 0) return;
     const box = document.getElementById('unmerged-ack');
@@ -340,13 +343,30 @@ export function TemplateEditor({
    * below remain the only thing that writes.
    */
   const buildPreviewPdf = async (): Promise<Blob> => {
+    const payload = draftPreviewRequestBody(firmId, {
+      name,
+      body,
+      fields,
+      deliveryMode,
+      documentLayout,
+    });
+    // The page already drawn for THIS draft, if it is still this draft.
+    //
+    // The Preview section renders on open now rather than behind a button, so
+    // without this every visit to it would cost another render: two database
+    // reads, the letterhead and logo fetches, and a pdf-lib pass. Keyed by the
+    // request itself, so a draft that has changed by one character misses and
+    // is drawn again, and a cached page can never belong to a different draft.
+    //
+    // Held in a ref rather than state because reading it must not re-render,
+    // and it deliberately does NOT survive the editor closing: a preview is a
+    // render of unsaved work, and unsaved work does not outlive the editor.
+    const cached = previewCache.current;
+    if (cached && cached.payload === payload) return cached.blob;
     const res = await fetch('/api/counsel/draft-template/pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        firmId,
-        draftTemplate: { name, body, fields, deliveryMode, documentLayout },
-      }),
+      body: payload,
     });
     if (!res.ok) {
       // The server's own sentence, which says whether this was a permission,
@@ -357,7 +377,9 @@ export function TemplateEditor({
       const said = (await res.text().catch(() => '')).trim().slice(0, 300);
       throw new Error(said || t('The preview could not be prepared. Try again in a moment.'));
     }
-    return res.blob();
+    const blob = await res.blob();
+    previewCache.current = { payload, blob };
+    return blob;
   };
 
   const draft = (status: 'draft' | 'published'): TemplateDraft => ({

@@ -1,5 +1,9 @@
 import { isReservedFirmKey, placeholderPattern } from './firm-template-placeholders';
 import {
+  parseTemplateFieldType,
+  type TemplateFieldType,
+} from './template-field-formats';
+import {
   describeSignatureEvidence,
   narrowKey,
   stripExecutionRules,
@@ -37,6 +41,12 @@ import {
  * is structurally identical, so a proposal assigns straight into the editor's
  * `TemplateField[]` with no conversion and no cast.
  *
+ * Its TYPE, though, is imported, from the pure lib/template-field-formats.ts.
+ * The same reasoning as `isReservedFirmKey` above: a second copy of the format
+ * list drifts the first time one of them is edited, and a proposal offering a
+ * format the store then coerces away is a field the reviewer approves and the
+ * firm never gets.
+ *
  * WHERE A SIGNATURE GOES IS ALREADY SETTLED
  * -----------------------------------------
  * A firm template does not carry a signature line in its body. A template
@@ -65,7 +75,7 @@ import {
 export type TemplateProposalField = {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'textarea';
+  type: TemplateFieldType;
   required: boolean;
   party?: 'employee' | 'counterparty';
 };
@@ -250,7 +260,7 @@ function extractJsonObject(raw: string): Record<string, unknown> | null {
 }
 
 function narrowType(raw: unknown): TemplateProposalField['type'] {
-  return raw === 'date' || raw === 'textarea' ? raw : 'text';
+  return parseTemplateFieldType(raw);
 }
 
 /**

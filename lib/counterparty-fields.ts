@@ -1,5 +1,10 @@
 import type { TemplateField } from './firm-templates';
 import { fieldBoxKeys, type FieldBox } from './template-field-boxes';
+import {
+  checkTemplateFieldValue,
+  invalidFieldValues,
+  parseTemplateFieldType,
+} from './template-field-formats';
 
 /**
  * What the other side of an agreement is allowed to write into it, and what
@@ -229,7 +234,11 @@ export function parseTemplateFields(raw: unknown): TemplateField[] {
     out.push({
       key,
       label: (typeof o.label === 'string' ? o.label : key).slice(0, 80),
-      type: o.type === 'date' || o.type === 'textarea' ? o.type : 'text',
+      // The same whitelist the write side runs (sanitizeFields in
+      // lib/firm-templates.ts). Both were this literal, twice, and a format
+      // added to one and not the other is a field stored as an email and read
+      // back as a text box.
+      type: parseTemplateFieldType(o.type),
       required: o.required === true,
       party: parseTemplateFieldParty(o.party),
     });
@@ -283,7 +292,14 @@ export function sanitizeCounterpartyValues(
       .replace(/\s{2,}/g, ' ')
       .trim()
       .slice(0, COUNTERPARTY_VALUE_MAX);
-    if (cleaned) out[f.key] = cleaned;
+    if (!cleaned) continue;
+    // Normalised to the shape the document prints, so a phone number typed
+    // with dots and one typed with dashes are the same line on the page. An
+    // answer that does not fit its format is kept as it was typed rather than
+    // dropped: resolveCounterpartySubmission refuses it by name, and a value
+    // dropped here would be reported to the signer as missing instead.
+    const checked = checkTemplateFieldValue(f.type, cleaned);
+    out[f.key] = checked.ok ? checked.value : cleaned;
   }
   return out;
 }
@@ -382,6 +398,8 @@ export type CounterpartySubmissionRefusal =
   | 'nothing-to-fill'
   /** A required blank is empty. */
   | 'incomplete'
+  /** An answer does not fit the kind of detail its blank asks for. */
+  | 'wrong-format'
   /** A value uses characters the document's font cannot draw. */
   | 'unsupported-characters';
 
@@ -452,6 +470,14 @@ export function resolveCounterpartySubmission(input: {
   const values = sanitizeCounterpartyValues(fields, input.values);
   const missing = missingCounterpartyFields(fields, values);
   if (missing.length > 0) return { ok: false, reason: 'incomplete', missing };
+  // AFTER the emptiness check, so somebody who left a blank empty is told it
+  // is empty rather than told their answer is the wrong shape. The page checks
+  // this too; this is the gate, because this surface is public and the action
+  // that reaches it is a `'use server'` export callable with any values.
+  const wrongFormat = invalidFieldValues(fields, values);
+  if (wrongFormat.length > 0) {
+    return { ok: false, reason: 'wrong-format', missing: wrongFormat.map((f) => f.key) };
+  }
   // Refused here rather than at the stamp. A value the document's font cannot
   // draw is a thrown error in the middle of producing the executed copy, hours
   // after the only person who could have retyped it has gone.
@@ -480,6 +506,12 @@ export const COUNTERPARTY_REFUSAL_COPY: Record<CounterpartySubmissionRefusal, st
     'Enter the access code from your email to reach this document.',
   'nothing-to-fill': 'This document does not ask you for any details.',
   incomplete: 'Please fill in the details marked as required before you continue.',
+  // Says which kind of thing is wrong without repeating seven format rules at
+  // somebody. The page marks the fields it names and shows each one's own
+  // sentence underneath it.
+  'wrong-format':
+    'One of the details below does not match what the document asks for ' +
+    'there. Check the ones marked and try again.',
   // Says what to do, and does not blame the signer for their own alphabet.
   'unsupported-characters':
     'One of your answers uses characters this document cannot print. Please ' +

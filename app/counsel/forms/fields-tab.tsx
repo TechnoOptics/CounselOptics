@@ -4,7 +4,12 @@ import type { TemplateField } from '@/lib/firm-templates';
 import type { DetectedBlank } from '@/lib/template-blank-detection';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
 import { counterpartyFieldsGoUnfilled } from '@/lib/firm-template-placeholders';
-import { T } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
+import {
+  TEMPLATE_FIELD_TYPES,
+  TEMPLATE_FIELD_TYPE_LABELS,
+  parseTemplateFieldType,
+} from '@/lib/template-field-formats';
 import { INPUT_CLS, blankIdentity } from './template-editor-model';
 
 /**
@@ -49,6 +54,7 @@ export function FieldsTab({
   onAccept: (b: DetectedBlank) => void;
   onDismiss: (b: DetectedBlank) => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-4">
       {hasBody && (
@@ -231,16 +237,33 @@ export function FieldsTab({
                   value={f.label}
                   onChange={(e) => setFieldMeta((m) => ({ ...m, [f.key]: { ...f, label: e.target.value } }))}
                 />
+                {/* THE FORMAT. Options come from TEMPLATE_FIELD_TYPES rather
+                    than being written out here, because the store coerces a
+                    stored type against that same list: a format offered here
+                    and missing there is a choice the author makes and never
+                    gets back, and a format added there and missing here is one
+                    nobody can pick. The label text is looked up through t()
+                    rather than wrapped in <T>, which is how every other
+                    constant-map label in this surface reaches the dictionary.
+                    Read back through parseTemplateFieldType, so what this
+                    control can produce and what the save will keep are the
+                    same set. */}
                 <select
-                  className={`${INPUT_CLS} !w-32`}
+                  className={`${INPUT_CLS} !w-44`}
                   value={f.type}
+                  aria-label={`${t('Format of')} ${f.label}`}
                   onChange={(e) =>
-                    setFieldMeta((m) => ({ ...m, [f.key]: { ...f, type: e.target.value as TemplateField['type'] } }))
+                    setFieldMeta((m) => ({
+                      ...m,
+                      [f.key]: { ...f, type: parseTemplateFieldType(e.target.value) },
+                    }))
                   }
                 >
-                  <option value="text">Text</option>
-                  <option value="date">Date</option>
-                  <option value="textarea">Paragraph</option>
+                  {TEMPLATE_FIELD_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {t(TEMPLATE_FIELD_TYPE_LABELS[type])}
+                    </option>
+                  ))}
                 </select>
                 {/* Who fills this in. Only the legal team decides this, which
                     is why the control is here and nowhere else: the employee
@@ -276,6 +299,21 @@ export function FieldsTab({
               </div>
             ))}
           </div>
+
+          {/* WHY THERE IS NO SIGNATURE FORMAT, said where an author goes
+              looking for one. Without this the only signal is a missing
+              option, which reads as a feature that has not been built.
+              A signature already has three mechanisms here and none of them is
+              a field: the places detected in the body, the methods on the
+              Signature section, and the mark the signer makes. A fourth would
+              be a text box somebody types a signature into. */}
+          <p className="mt-3 border-t border-edge pt-3 text-[12px] leading-relaxed text-muted">
+            <T>
+              Signing is not one of these formats. The signature block is added
+              to this document for you, and the Signature section decides how it
+              may be signed.
+            </T>
+          </p>
         </div>
       ) : (
         // A section that would otherwise be empty says what would put

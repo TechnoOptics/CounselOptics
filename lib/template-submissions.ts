@@ -34,6 +34,7 @@ import {
 } from './signature-methods';
 import { spendPhoneMarkAttestation } from './mark-handoff-queries';
 import { employeeFieldsOf } from './counterparty-fields';
+import { fieldFormatRefusal } from './template-field-formats';
 import { releaseApprovedSubmission } from './template-release';
 import {
   checkDispatchable,
@@ -505,6 +506,12 @@ export async function submitTemplateForApprovalAction(
   if (missing.length > 0) {
     return { ok: false, error: `Fill these in first: ${missing.join(', ')}.` };
   }
+  // AFTER the emptiness check, so a blank required answer is reported as blank
+  // rather than as the wrong shape. This is the gate: the fill page runs the
+  // same rule to say what to fix without a round trip, but this export is a
+  // public HTTP endpoint and a pattern in a browser is a hint.
+  const wrongFormat = fieldFormatRefusal(employeeFieldsOf(template.fields), values);
+  if (wrongFormat) return { ok: false, error: wrongFormat };
 
   const people = await hydratePeople(admin, [user.id]);
   const submitterName = people.get(user.id)?.name ?? user.email ?? null;
@@ -643,6 +650,12 @@ export async function resubmitTemplateSubmissionAction(
   if (missing.length > 0) {
     return { ok: false, error: `Fill these in first: ${missing.join(', ')}.` };
   }
+  // AFTER the emptiness check, so a blank required answer is reported as blank
+  // rather than as the wrong shape. This is the gate: the fill page runs the
+  // same rule to say what to fix without a round trip, but this export is a
+  // public HTTP endpoint and a pattern in a browser is a hint.
+  const wrongFormat = fieldFormatRefusal(employeeFieldsOf(template.fields), values);
+  if (wrongFormat) return { ok: false, error: wrongFormat };
 
   const recipientName = trimTo(input.recipientName, 160) || null;
   const documentText = await buildDocument(
