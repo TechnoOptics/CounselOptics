@@ -5,6 +5,7 @@ import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { callerIsFirmMember } from './firm-authz';
 import { routedLeadForFirm } from './marketplace-storage';
+import { surfaceRefusal } from './firm-surface-guard';
 
 /**
  * Marketplace lead submission. The consumer (signed in or not)
@@ -177,6 +178,12 @@ export async function respondToLeadAction(
 
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server is not fully configured.' };
+
+  // The FIRM's own Leads surface. submitFirmLeadAction above is deliberately
+  // not guarded: that is a member of the public filing a request, and a firm's
+  // display choice must not break somebody else's form.
+  const refused = await surfaceRefusal(firmId, 'growth');
+  if (refused) return refused;
 
   if (!(await callerIsFirmMember(firmId))) {
     return { ok: false, error: 'You are not a member of that firm.' };

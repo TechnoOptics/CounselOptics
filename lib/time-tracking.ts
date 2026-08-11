@@ -10,6 +10,7 @@ import {
   requireActiveFirm,
 } from './firm-authz';
 import { isStorableRateCents, rateRangeError } from './billing-rates';
+import { surfaceRefusal } from './firm-surface-guard';
 
 export type TimeEntry = {
   id: string;
@@ -119,6 +120,15 @@ export async function setFirmMemberRateAction(
   rateCents: number | null,
   opts: { applyToUnbilled?: boolean } = {},
 ): Promise<{ ok: boolean; error?: string; repricedEntries?: number }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   if (!(await callerIsFirmAdmin(firmId))) {
@@ -248,6 +258,15 @@ export async function startTimerAction(
     source?: TimeEntry['source'];
   } = {},
 ): Promise<{ ok: boolean; error?: string; entryId?: string }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   // Before anything is written. Bella reaches this too, and a refusal that
@@ -303,6 +322,15 @@ export async function startTimerAction(
 export async function stopTimerAction(
   firmId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
@@ -349,6 +377,15 @@ export async function logManualEntryAction(
     rateCents?: number | null;
   },
 ): Promise<{ ok: boolean; error?: string; entryId?: string }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   // Same requirement as the timer, for the same reason: this is the other way
@@ -426,6 +463,15 @@ export async function assignTimeEntryToCaseAction(
   entryId: string,
   caseId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Time, billing and trust are one surface. When a workspace does not have
+  // it - because of its type or because its owner switched it off - this write
+  // is refused here and not merely absent from the rail: the export stays a
+  // public HTTP endpoint whatever the sidebar renders. Reads are deliberately
+  // left open, so a firm that switches type keeps every row it had.
+  {
+    const refused = await surfaceRefusal(firmId, 'timeBilling');
+    if (refused) return refused;
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   if (!firmId || !entryId || !caseId) {

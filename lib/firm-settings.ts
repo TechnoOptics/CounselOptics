@@ -1,13 +1,32 @@
 import 'server-only';
 import { createServerSupabase } from './supabase/server';
 import { readTicketPrefix } from './ticket-allocator';
+import { FIRM_TYPES, type Firm, type FirmType } from './firm-types';
+import {
+  readSurfaceOverrides,
+  surfaceDecision,
+  type SurfaceSource,
+  type WorkspaceSurface,
+} from './firm-workspace';
 
 /**
- * Per-firm surface toggles (firm_settings.hide_search /
- * hide_time_billing). These let an owner/admin hide whole surfaces of
- * the Counsel workspace they don't use - the global search box and the
- * Time & Billing group. Both default OFF, so a firm with no row (or an
- * older row from before these columns existed) sees everything.
+ * Which surfaces of the Counsel workspace this firm has.
+ *
+ * Three inputs, resolved here into one answer:
+ *
+ *   - the firm's TYPE (firms.firm_type). An in-house or government legal team
+ *     does not invoice a client, hold client funds, or buy inbound work, so
+ *     Time/Billing/Trust and Leads/Referrals default to hidden for those two.
+ *     Every other type keeps today's workspace exactly.
+ *   - the owner's OVERRIDE (firms.metadata.surfaceOverrides), which beats the
+ *     type default in either direction.
+ *   - the legacy per-firm toggles (firm_settings.hide_search /
+ *     hide_time_billing). hide_search is still a plain boolean and is nobody
+ *     else's business; hide_time_billing is now a hide-only latch so that
+ *     every firm that already switched Time & Billing off keeps it off.
+ *
+ * The precedence lives in lib/firm-workspace.ts, which is pure, so the
+ * settings UI and the tests read the same table this does.
  *
  * Reads go through the user-scoped client: the firm_settings
  * member-select policy lets any member read their own firm's flags,
@@ -17,31 +36,98 @@ import { readTicketPrefix } from './ticket-allocator';
 
 export type FirmSurfaceSettings = {
   hideSearch: boolean;
+  /**
+   * EFFECTIVE, not stored. Resolved from the firm's type, its owner's
+   * override, and the legacy hide_time_billing column, in that order of
+   * precedence. See lib/firm-workspace.ts.
+   */
   hideTimeBilling: boolean;
+  /** Effective, same resolution: Leads + Referrals. */
+  hideGrowth: boolean;
+  /** What kind of legal team this is, for vocabulary and for the rail. */
+  firmType: FirmType;
+  /** Which of the three answers won, per surface, for the settings page. */
+  source: Record<WorkspaceSurface, SurfaceSource>;
 };
 
 export const DEFAULT_FIRM_SURFACE_SETTINGS: FirmSurfaceSettings = {
   hideSearch: false,
   hideTimeBilling: false,
+  hideGrowth: false,
+  firmType: 'firm',
+  source: { timeBilling: 'type', growth: 'type' },
 };
 
-/** Read a firm's surface toggles (defaults to all-visible). */
+/**
+ * Read a firm's EFFECTIVE surface state.
+ *
+ * This is the one resolver. Every consumer - the three Time/Billing/Trust
+ * route guards, the five Growth ones, the dashboard, Reports, My work, the
+ * matter page, the header, the sidebar and the settings page - reads the
+ * answer here rather than deciding for itself, which is why making the type
+ * count required no edit at any of them.
+ *
+ * `firm` is optional and is a pure optimization: a caller that already holds
+ * the Firm (the counsel layout does) passes it and saves a round trip. A
+ * caller that passes only an id gets one extra select. Both produce the same
+ * answer; nothing may depend on which path was taken.
+ */
 export async function getFirmSurfaceSettings(
   firmId: string,
+  firm?: Pick<Firm, 'firmType' | 'metadata'>,
 ): Promise<FirmSurfaceSettings> {
   try {
     const supabase = createServerSupabase();
-    const { data } = await supabase
-      .from('firm_settings')
-      .select('hide_search, hide_time_billing')
-      .eq('firm_id', firmId)
-      .maybeSingle();
-    const r = data as
+    const [settingsRes, firmRow] = await Promise.all([
+      supabase
+        .from('firm_settings')
+        .select('hide_search, hide_time_billing')
+        .eq('firm_id', firmId)
+        .maybeSingle(),
+      firm
+        ? Promise.resolve(null)
+        : supabase
+            .from('firms')
+            .select('firm_type, metadata')
+            .eq('id', firmId)
+            .maybeSingle()
+            .then((r) => r.data as { firm_type: string | null; metadata: unknown } | null),
+    ]);
+    const r = settingsRes.data as
       | { hide_search: boolean | null; hide_time_billing: boolean | null }
       | null;
+    const legacyHideTimeBilling = Boolean(r?.hide_time_billing);
+
+    // An unrecognized stored type falls back to 'firm', which is the
+    // everything-shown row. A workspace whose type we cannot read must not
+    // lose surfaces over it.
+    const rawType = firm ? firm.firmType : firmRow?.firm_type;
+    const firmType: FirmType = FIRM_TYPES.includes(rawType as FirmType)
+      ? (rawType as FirmType)
+      : 'firm';
+    const overrides = readSurfaceOverrides(
+      firm ? firm.metadata : firmRow?.metadata,
+    );
+
+    const timeBilling = surfaceDecision(
+      'timeBilling',
+      firmType,
+      overrides,
+      legacyHideTimeBilling,
+    );
+    const growth = surfaceDecision(
+      'growth',
+      firmType,
+      overrides,
+      legacyHideTimeBilling,
+    );
+
     return {
       hideSearch: Boolean(r?.hide_search),
-      hideTimeBilling: Boolean(r?.hide_time_billing),
+      hideTimeBilling: timeBilling.hidden,
+      hideGrowth: growth.hidden,
+      firmType,
+      source: { timeBilling: timeBilling.source, growth: growth.source },
     };
   } catch {
     // Never let a settings-read hiccup break the whole Counsel shell.

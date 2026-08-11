@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { callerHasFirmRole, FIRM_MANAGE_ROLES } from './firm-authz';
+import { surfaceRefusal } from './firm-surface-guard';
 
 /**
  * Co-counsel referral actions. The proposing firm files a referral
@@ -30,6 +31,10 @@ export async function proposeReferralAction(
 ): Promise<{ ok: boolean; error?: string; referralId?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  // The REFERRING firm's own surface. A workspace with no Referrals surface
+  // does not file fee splits, whatever the rail is currently rendering.
+  const refused = await surfaceRefusal(referringFirmId, 'growth');
+  if (refused) return refused;
   if (
     input.proposedSplitPercent < 0 ||
     input.proposedSplitPercent > 100
@@ -112,6 +117,8 @@ export async function respondToReferralAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  const refused = await surfaceRefusal(firmId, 'growth');
+  if (refused) return refused;
   // The referral RLS policy admits an owner/admin/attorney of EITHER firm, so
   // matching the row's referred_firm_id against a caller-supplied firmId is not
   // enough on its own: without this check an attorney at the referring firm
@@ -208,6 +215,8 @@ export async function recordReferralPaymentAction(
   }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  const refused = await surfaceRefusal(firmId, 'growth');
+  if (refused) return refused;
   // firmId is caller-supplied and was previously only compared against the
   // referral row, never against the caller's own memberships. Because the RLS
   // policy admits either firm's owner/admin/attorney, that let one side record
