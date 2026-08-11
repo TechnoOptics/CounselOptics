@@ -13,12 +13,24 @@ export function UploadForm({ caseId }: { caseId: string }) {
   function onSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
+      // The refusal arrives as a value. It used to be thrown, and React strips
+      // an error's message crossing the Server Action boundary in a production
+      // build, so reading err.message here showed the person "An error occurred
+      // in the Server Components render..." instead of what was wrong with
+      // their file. The catch below is kept for a dropped connection only, and
+      // deliberately does NOT read a message off the rejection.
       try {
-        await uploadExhibitAction(caseId, formData);
+        const res = await uploadExhibitAction(caseId, formData);
+        if (!res.ok) {
+          setError(res.error ?? 'Upload failed.');
+          return;
+        }
         formRef.current?.reset();
         setFileLabel('');
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Upload failed.');
+      } catch {
+        setError(
+          'That upload did not reach us. Check your connection and try again.',
+        );
       }
     });
   }
