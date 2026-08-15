@@ -153,12 +153,12 @@ export default async function HomePage() {
         <TechTrustStrip />
       </div>
       <div className="cv-auto">
-        <AboutTeaser
-          photo={{
-            src: '/marketing/team-in-a-working-meeting.webp',
-            alt: 'Five colleagues around a table mid-discussion, papers and a tablet between them.',
-          }}
-        />
+        {/* No photograph. The one that was here showed a generic office
+            brainstorm with invented pie charts, which is the stock-photo
+            cliché a lawyer evaluating vendors has already seen a hundred
+            times, and it said nothing true about Advottic. See
+            docs/DESIGN_SYSTEM.md on when a photograph earns its place. */}
+        <AboutTeaser />
       </div>
       <div className="cv-auto">
         <Faq />
@@ -1013,16 +1013,14 @@ function CommunityCaseShowcase() {
   return (
     <section className="relative">
       <div className="rounded-3xl bg-white ring-1 ring-ink-200 dark:bg-forest-900/40 dark:ring-forest-700/40 px-6 sm:px-10 py-10 sm:py-14 relative overflow-hidden">
-        {/* A wide, shallow crop so this frames the section rather than
-            becoming the section. The product screenshots below are still
-            the thing being sold. */}
-        <SectionPhoto
-          src="/marketing/volunteers-distributing-food.webp"
-          alt="Volunteers in a community kitchen packing hot meals into containers to hand out."
-          aspect="aspect-[21/6]"
-          sizes="(min-width: 1280px) 1100px, (min-width: 1024px) 68vw, 92vw"
-          className="mb-10 sm:mb-12"
-        />
+        {/* No photograph, and the reason is the subject rather than the
+            style. The one here showed a food bank: volunteer shirts, meal
+            containers, a grill. A Community Case is a legal-support
+            campaign, so a reader arriving at this section had to work out
+            what a soup kitchen has to do with a court case. The product
+            screenshots below were always the thing being sold, and they
+            now open the section instead of following an image that
+            contradicted it. */}
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-14 items-center relative">
           <div className="lg:col-span-6 lg:order-2">
             <p className="inline-flex items-center gap-2 text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-600 dark:text-gold-300">

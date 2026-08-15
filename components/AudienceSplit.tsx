@@ -118,17 +118,26 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
       )}
 
       <div className="relative z-10">
-        {/* One photograph per audience, above the pitch rather than behind
-            it. The card already carries a gold halo and a glowing strip;
-            a picture underneath the type would fight both and could not be
-            held to a contrast floor. */}
-        <SectionPhoto
-          src={config.photo.src}
-          alt={config.photo.alt}
-          aspect="aspect-[16/7]"
-          sizes="(min-width: 1024px) 42vw, 92vw"
-          className="mb-6"
-        />
+        {/* A photograph above the pitch rather than behind it. The card
+            already carries a gold halo and a glowing strip; a picture
+            underneath the type would fight both and could not be held to a
+            contrast floor.
+
+            OPTIONAL, and only one audience has one. The personal side used
+            to show a woman running a cafe, which is warm but is the wrong
+            story: somebody reaching Advottic on their own is in the middle
+            of a dispute, a deposit or a dismissal, not a good day at work.
+            An absent photograph says less than a photograph about the wrong
+            subject. */}
+        {config.photo && (
+          <SectionPhoto
+            src={config.photo.src}
+            alt={config.photo.alt}
+            aspect="aspect-[16/7]"
+            sizes="(min-width: 1024px) 42vw, 92vw"
+            className="mb-6"
+          />
+        )}
         <div className="flex items-center justify-between mb-5">
           <p
             className={`inline-flex items-center gap-2.5 text-[10px] tracking-[0.28em] uppercase font-semibold ${
@@ -290,10 +299,10 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
 }
 
 const PERSONAL = {
-  photo: {
-    src: '/marketing/person-working-at-laptop.webp',
-    alt: 'A woman working at a laptop on the counter of the cafe she runs.',
-  },
+  // No photograph. See the render above for why, and DESIGN_SYSTEM.md for
+  // the rule: a photograph has to be of the subject, and there is no honest
+  // stock image of somebody's own legal trouble.
+  photo: null,
   eyebrow: 'For one person',
   headline: "When it's just you, your evidence, and the date on the calendar.",
   subhead:

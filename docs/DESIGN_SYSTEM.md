@@ -789,9 +789,34 @@ Things that break the Advottic feel:
   `1px`, cards by `2px`. Anything more reads as a video game.
 - **Animations faster than 200ms or longer than 700ms.** Everything in
   between feels intentional. Outside that band feels twitchy or sluggish.
-- **Stock photography.** Use in-house SVG iconography (the SVGs in
-  `/components` are all hand-drawn 24x24 strokes). Stock photos read as
-  generic; SVGs read as "they thought about this."
+- **A photograph that is not of the subject.** This rule used to read
+  "stock photography, never" and the code stopped agreeing with it, which
+  is worse than either answer. The narrowed version, settled 2026-08-10
+  after looking at all four photographs the marketing pages carried:
+
+  A photograph may stay when it depicts **the work the product is
+  actually about**. `people-reviewing-documents` survives on that test:
+  three people reading documents closely is what a matter looks like.
+
+  Three were cut, and the subject was the reason each time, not the
+  style. A food bank on the Community Case section, where the feature is
+  a legal-support campaign. An office brainstorm with invented pie charts
+  on the home page. A woman running a cafe on the personal audience card,
+  where the reader is in the middle of a dispute, a deposit or a
+  dismissal, not having a good day at work.
+
+  **Prefer a product screenshot to any photograph.** `case-detail-hero`,
+  `community-case-page` and `community-case-letter` are real renders of a
+  real product. Nobody else can show your screens, and that is the whole
+  of the "they thought about this" argument. A stock photograph is
+  available to every competitor at the same price.
+
+  **An absent photograph says less than a photograph about the wrong
+  subject.** Cutting one is not a gap to fill later.
+
+  Iconography is unchanged and remains in-house: the SVGs in
+  `/components` are hand-drawn strokes on a 24 grid at one rendered
+  weight. See `components/counsel/icons.tsx`, which is the reference set.
 - **Emoji in product copy.** Emojis read as casual; the brand reads as
   calm-professional. The one exception is the live-dot's emerald color
   serving as a non-emoji "active" indicator.
