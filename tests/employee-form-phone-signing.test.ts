@@ -30,6 +30,7 @@ vi.mock('../app/portal/forms/[id]/mark-handoff-actions', () => ({
 }));
 
 const { FormFillClient } = await import('../app/portal/forms/[id]/form-fill-client');
+const { PhoneMarkHandoff } = await import('../app/portal/forms/[id]/phone-mark-handoff');
 
 function page(signatureMethods: unknown, phoneHandoffAvailable = true): string {
   const html = renderToStaticMarkup(
@@ -170,6 +171,37 @@ describe('a phone-only form where the phone handoff is not provisioned', () => {
 
   it('does not ask anyone to affirm intent about a mark that cannot exist', () => {
     expect(html).not.toContain('intend that the mark above be my signature');
+  });
+});
+
+/**
+ * The card itself, said a second time.
+ *
+ * The form does not render this when the handoff is unavailable, so this path
+ * is not reached today. It is asserted anyway because `available` was a
+ * hardcoded `true` here, and a hardcoded true is what let the form offer a
+ * route it could not honour in the first place. A future caller that renders
+ * the card optimistically gets a disabled button rather than one that fails on
+ * tapping.
+ */
+describe('the phone card itself, told it cannot work', () => {
+  const card = (available: boolean) =>
+    renderToStaticMarkup(
+      createElement(PhoneMarkHandoff as never, {
+        templateId: 't1',
+        available,
+        onMark: () => {},
+      }),
+    );
+
+  it('disables its own button rather than trusting the caller', () => {
+    expect(card(false)).toContain('disabled=""');
+    expect(card(false)).toContain('not available yet');
+  });
+
+  it('is live when it can work', () => {
+    expect(card(true)).not.toContain('disabled=""');
+    expect(card(true)).toContain('Prefer to sign with your finger');
   });
 });
 
