@@ -214,6 +214,9 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   'data.copy.assignedRosterEmpty',
   'data.copy.assignedCasesEmpty',
   'data.copy.assignedNothing',
+  'copy.inviteHeading',
+  'copy.intakeEyebrow',
+  'copy.intakeBlurb',
   // static-array .map() params
   'l',
   's',

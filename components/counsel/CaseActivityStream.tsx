@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import type { FirmVocabulary } from '@/lib/firm-vocabulary';
 import type { CaseActivityEvent } from '@/lib/case-activity-log';
 // Shared with the request thread. The local relativeTime() this replaced read
 // the wall clock and toLocaleDateString(undefined, ...) inside a component
@@ -43,14 +44,29 @@ const ACTION_META: Record<
   },
 };
 
-const KIND_LABEL: Record<string, string> = {
-  guest: 'Co-counsel',
-  client: 'Client',
-  firm: 'Firm',
-  other: 'Visitor',
-};
+/**
+ * Who did the thing. `client` is the only row a workspace's type renames: an
+ * in-house team's matters are raised by employees, and the other three read
+ * the same everywhere.
+ */
+function kindLabels(vocab: FirmVocabulary): Record<string, string> {
+  return {
+    guest: 'Co-counsel',
+    client: vocab.client,
+    firm: 'Firm',
+    other: 'Visitor',
+  };
+}
 
-export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) {
+export function CaseActivityStream({
+  events,
+  vocab,
+}: {
+  events: CaseActivityEvent[];
+  /** Resolved by the page from the firm's type. See lib/firm-vocabulary.ts. */
+  vocab: FirmVocabulary;
+}) {
+  const KIND_LABEL = kindLabels(vocab);
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? events : events.slice(0, 12);
 

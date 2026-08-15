@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
+import { firmCopy } from '@/lib/firm-vocabulary';
 import { ACCESS_ENDED_PATH, counselAccessRedirect } from '@/lib/firm-access';
 import { firmTrialState, readTrialSnapshot } from '@/lib/firm-trials';
 import { FIRM_ADMIN_ROLES } from '@/lib/firm-authz';
@@ -491,7 +492,7 @@ export default async function CounselLayout({
               // app/counsel/page.tsx.
               !/^\/counsel\/intake\/[^/]+$/.test(pathname) &&
               !surface.hideSearch ? (
-                <AskAdvottic />
+                <AskAdvottic copy={firmCopy(active.firm.firmType)} />
               ) : null}
               {children}
             </main>

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { firmVocabulary } from '@/lib/firm-vocabulary';
 import { listFirmWebhooksAction } from '@/lib/firm-actions';
 import { readMenuConfig } from '@/lib/menu-config';
 import { firmLetterheadDesign } from '@/lib/letterhead-design';
@@ -67,6 +68,7 @@ export default async function CounselSettingsPage() {
       <PanelCard title={<T>Identity and brand</T>}>
       <SettingsForm
         firmId={ctx.firm.id}
+        vocab={firmVocabulary(ctx.firm.firmType)}
         letterheadDesign={letterheadDesign}
         defaultValues={{
           name: ctx.firm.name,

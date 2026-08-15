@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext, listFirmMembers } from '@/lib/firm-storage';
+import { firmCopy, firmVocabulary } from '@/lib/firm-vocabulary';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { getOrCreateMatterChannelAction } from '@/lib/firm-actions';
 import { CaseAssigneePicker, type AssigneeOption } from './assignee-picker';
@@ -767,6 +768,7 @@ export default async function CounselCaseDetailPage({
 
       {/* People on this matter - firm invites client/co-counsel/contributor/viewer */}
       <CaseInvitePanel
+        copy={firmCopy(ctx.firm.firmType)}
         caseId={params.id}
         firmId={ctx.firm.id}
         canManage={['owner', 'admin', 'attorney'].includes(ctx.membership.role)}
@@ -775,7 +777,12 @@ export default async function CounselCaseDetailPage({
 
       {/* Activity stream: firm-leadership-only view of who's been on the
           matter (guest logins, section opens, comments, downloads). */}
-      {canSeeActivity && <CaseActivityStream events={activityEvents} />}
+      {canSeeActivity && (
+        <CaseActivityStream
+          events={activityEvents}
+          vocab={firmVocabulary(ctx.firm.firmType)}
+        />
+      )}
 
       {showTimeBilling && (
        <>

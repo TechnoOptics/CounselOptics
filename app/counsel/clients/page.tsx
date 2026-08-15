@@ -112,7 +112,7 @@ export default async function CounselClientsPage({
         }
       />
 
-      {canInvite && <InviteClientForm firmId={ctx.firm.id} />}
+      {canInvite && <InviteClientForm firmId={ctx.firm.id} copy={copy} />}
 
       {clients.length === 0 ? (
         <EmptyState

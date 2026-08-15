@@ -747,7 +747,7 @@ export default async function CounselDashboard() {
       <CounselMetricBoard bands={metricBands} />
 
       {/* Ask Advottic - below the strip. */}
-      <AskAdvottic />
+      <AskAdvottic copy={copy} />
 
       {/*
         The panels the user chose, and - only when there is nothing at all

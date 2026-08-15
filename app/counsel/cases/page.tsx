@@ -12,6 +12,7 @@ import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { PILL_COLORS } from '@/components/counsel/StatusPill';
 import { parseMatterListParams, type MatterRow } from '@/lib/matter-list';
 import { listMatterNumbers } from '@/lib/matter-numbers';
+import { firmCopy } from '@/lib/firm-vocabulary';
 import { NewMatterButton } from './new-matter-button';
 import { MattersTable } from './matters-table';
 
@@ -158,6 +159,7 @@ export default async function CounselCasesPage({
             label: STATUS_LABEL[s] ?? s,
           }))}
           meId={user?.id ?? null}
+          copy={firmCopy(ctx.firm.firmType)}
         />
       )}
     </div>

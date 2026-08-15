@@ -5,8 +5,16 @@ import { useRouter } from 'next/navigation';
 import { inviteFirmClientAction } from '@/lib/firm-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { runGatedAction } from '@/lib/gated-action';
+import type { FirmCopy } from '@/lib/firm-vocabulary';
 
-export function InviteClientForm({ firmId }: { firmId: string }) {
+export function InviteClientForm({
+  firmId,
+  copy,
+}: {
+  firmId: string;
+  /** Resolved by the page from the firm's type. See lib/firm-vocabulary.ts. */
+  copy: FirmCopy;
+}) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -22,20 +30,20 @@ export function InviteClientForm({ firmId }: { firmId: string }) {
         setOk(true);
         router.refresh();
       } else {
-        setError(res.error ?? t('Could not invite client.'));
+        setError(res.error ?? t(copy.inviteFailed));
       }
     });
   }
 
   return (
     <form action={submit} className="card p-5 sm:p-6 space-y-3">
-      <p className="eyebrow"><T>Invite a client</T></p>
+      <p className="eyebrow"><T>{copy.inviteHeading}</T></p>
       <div className="grid sm:grid-cols-3 gap-3">
         <input
           name="email"
           type="email"
           required
-          placeholder="client@example.com"
+          placeholder={copy.inviteEmailExample}
           className="input sm:col-span-2"
           disabled={pending}
         />

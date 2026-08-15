@@ -6,6 +6,7 @@ import { updateFirmAction } from '@/lib/firm-actions';
 import { LogoUploader } from './logo-uploader';
 import { LetterheadUploader } from './letterhead-uploader';
 import { LetterheadDesigner } from './letterhead-designer';
+import type { FirmVocabulary } from '@/lib/firm-vocabulary';
 import type { LetterheadDesign } from '@/lib/letterhead-design';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
@@ -13,8 +14,15 @@ export function SettingsForm({
   firmId,
   letterheadDesign,
   defaultValues,
+  vocab,
 }: {
   firmId: string;
+  /**
+   * Resolved by the page from the firm's type. This is the page where the
+   * type is CHANGED, so the field it renames is the one a person is looking
+   * at when they change it. See lib/firm-vocabulary.ts.
+   */
+  vocab: FirmVocabulary;
   /** The designed letterhead, already normalized on the server. */
   letterheadDesign: LetterheadDesign | null;
   defaultValues: {
@@ -198,7 +206,7 @@ export function SettingsForm({
         </div>
         <div>
           <label className="label" htmlFor="practiceAreas">
-            <T>Practice areas</T>{' '}
+            <T>{vocab.practiceAreas}</T>{' '}
             <span className="text-muted font-normal">
               <T>(comma-separated)</T>
             </span>

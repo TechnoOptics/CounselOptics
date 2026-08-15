@@ -9,6 +9,7 @@ import {
   FIRM_TYPE_DESCRIPTION,
   type FirmType,
 } from '@/lib/firm-types';
+import { firmCopy, firmVocabulary } from '@/lib/firm-vocabulary';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const ACCENTS = [
@@ -152,13 +153,15 @@ export function OnboardingWizard({
 
   const canStep2 = name.trim().length > 0;
 
-  // Most types use "practice areas" but corporate + government swap
-  // it for type-specific terminology.
-  const usesPracticeAreas =
-    firmType === 'individual' ||
-    firmType === 'firm' ||
-    firmType === 'legal_aid' ||
-    firmType === 'other';
+  // This used to gate the field OFF for corporate and government, under a
+  // comment saying those types "swap it for type-specific terminology". They
+  // did not: nothing rendered in its place, so an in-house team was simply
+  // never asked what work it covers, and firms.practice_areas stayed empty for
+  // exactly the workspaces whose dashboard groups by it. The terminology the
+  // comment promised now exists in lib/firm-vocabulary.ts, so the field is
+  // shown to everyone and named for the type.
+  const vocab = firmVocabulary(firmType);
+  const copy = firmCopy(firmType);
 
   function buildMetadata(): Record<string, unknown> {
     switch (firmType) {
@@ -680,17 +683,15 @@ export function OnboardingWizard({
             setInput={setJurisdictionInput}
             suggestions={SUGGESTED_JURISDICTIONS}
           />
-          {usesPracticeAreas && (
-            <Chips
-              label={t('Practice areas')}
-              placeholder={t('e.g., Family, Estate planning')}
-              value={practiceAreas}
-              onChange={setPracticeAreas}
-              input={practiceInput}
-              setInput={setPracticeInput}
-              suggestions={SUGGESTED_PRACTICE_AREAS}
-            />
-          )}
+          <Chips
+            label={t(vocab.practiceAreas)}
+            placeholder={t(copy.areasExample)}
+            value={practiceAreas}
+            onChange={setPracticeAreas}
+            input={practiceInput}
+            setInput={setPracticeInput}
+            suggestions={SUGGESTED_PRACTICE_AREAS}
+          />
 
           {error && (
             <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">

@@ -5,7 +5,14 @@ import {
   DashboardTileRenderer,
   type DashboardTileData,
 } from '../components/counsel/CounselDashboardTiles';
-import { firmCopy, firmVocabulary } from '../lib/firm-vocabulary';
+import { CaseActivityStream } from '../components/counsel/CaseActivityStream';
+import type { CaseActivityEvent } from '../lib/case-activity-log';
+import {
+  FIRM_COPY,
+  FIRM_VOCABULARY,
+  firmCopy,
+  firmVocabulary,
+} from '../lib/firm-vocabulary';
 import { FIRM_TYPES, type FirmType } from '../lib/firm-types';
 
 /**
@@ -195,5 +202,104 @@ describe('the dashboard uses the team\'s own word for the people it helps', () =
       );
     }
     expect(dashboardText('corporate')).not.toBe(base);
+  });
+});
+
+/**
+ * The per-matter activity feed labels each row with the actor's capacity. Three
+ * of the four capacities are attorney-side and read the same at any firm; the
+ * fourth is the person the matter is FOR, which is the one word a type changes.
+ */
+const ACTIVITY: CaseActivityEvent[] = [
+  {
+    id: 'a1',
+    action: 'section_open',
+    actorKind: 'client',
+    actorLabel: 'Ana Reyes',
+    actorEmail: 'ana@example.com',
+    detail: {},
+    createdAt: '2026-08-01T09:00:00.000Z',
+  },
+  {
+    id: 'a2',
+    action: 'section_open',
+    actorKind: 'guest',
+    actorLabel: 'Outside counsel',
+    actorEmail: 'oc@example.com',
+    detail: {},
+    createdAt: '2026-08-01T10:00:00.000Z',
+  },
+];
+
+function activityText(firmType: FirmType): string {
+  return visibleText(
+    renderToStaticMarkup(
+      createElement(CaseActivityStream, {
+        events: ACTIVITY,
+        vocab: firmVocabulary(firmType),
+      }),
+    ),
+  );
+}
+
+describe('the matter activity feed names the actor in the team\'s own words', () => {
+  it('an in-house feed says Employee, never Client', () => {
+    const html = activityText('corporate');
+    expect(html).toContain('Employee');
+    expect(html).not.toMatch(/\bClient\b/);
+    // The attorney-side capacity is untouched, so this is a rename of one row
+    // rather than of the whole legend.
+    expect(html).toContain('Co-counsel');
+  });
+
+  it("a law firm's feed is unchanged", () => {
+    const html = activityText('firm');
+    expect(html).toContain('Client');
+    expect(html).toContain('Co-counsel');
+    expect(html).not.toMatch(/\bEmployee\b/);
+  });
+});
+
+describe('the copy deck has no field that nothing reads', () => {
+  /**
+   * A copy deck rots in one direction: a key is added, the call site is
+   * forgotten, and the deck grows entries that describe a screen nobody sees.
+   * The render tests above cover the surfaces that can be driven headlessly;
+   * this covers the rest by asking, of every key, whether ANY module outside
+   * lib/firm-vocabulary.ts names it.
+   *
+   * It proves wiring exists, not that the wiring is correct. That is why it
+   * sits BESIDE the render tests rather than instead of them.
+   */
+  it('every FirmCopy and FirmVocabulary field is read by something', async () => {
+    const { readFileSync, readdirSync, statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        if (entry === 'node_modules' || entry === '.next' || entry.startsWith('.')) continue;
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (/\.(ts|tsx)$/.test(full)) {
+          // lib/firm-vocabulary.ts is scanned too, deliberately. The `.field`
+          // pattern below matches only a READ: a definition is
+          // `directory: 'Employees',` and the type is `directory: string;`,
+          // neither with a leading dot. Excluding the module hid
+          // menuLabelsForType, which is the real (and only) consumer of
+          // `directory` and `caseload` and is what puts them in the rail.
+          sources.push(readFileSync(full, 'utf8'));
+        }
+      }
+    };
+    for (const dir of ['app', 'components', 'lib']) walk(dir);
+    const haystack = sources.join('\n');
+
+    const fields = [
+      ...Object.keys(FIRM_COPY.firm),
+      ...Object.keys(FIRM_VOCABULARY.firm),
+    ];
+    const orphans = fields.filter((f) => !haystack.includes(`.${f}`));
+    expect(orphans, `copy fields nothing reads: ${orphans.join(', ')}`).toEqual([]);
   });
 });

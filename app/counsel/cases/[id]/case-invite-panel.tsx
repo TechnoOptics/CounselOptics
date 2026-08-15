@@ -1,6 +1,7 @@
 import { listCollaboratorsAsFirm } from '@/lib/storage';
 import { listCaseGuestAccounts } from '@/lib/counsel-guest';
 import { MatterInviteForm } from './matter-invite-form';
+import type { FirmCopy } from '@/lib/firm-vocabulary';
 
 /**
  * Server-rendered "People on this matter" panel for the counsel case
@@ -16,12 +17,15 @@ export async function CaseInvitePanel({
   firmId,
   canManage,
   canProvisionGuests = false,
+  copy,
 }: {
   caseId: string;
   firmId: string;
   canManage: boolean;
   /** Owner/admin only: create + deactivate firm-provisioned guest accounts. */
   canProvisionGuests?: boolean;
+  /** Resolved by the page from the firm's type. See lib/firm-vocabulary.ts. */
+  copy: FirmCopy;
 }) {
   const [collaborators, guestAccounts] = await Promise.all([
     listCollaboratorsAsFirm(caseId, firmId).catch(() => []),
@@ -36,6 +40,7 @@ export async function CaseInvitePanel({
       canManage={canManage}
       canProvisionGuests={canProvisionGuests}
       guestAccounts={guestAccounts}
+      copy={copy}
     />
   );
 }

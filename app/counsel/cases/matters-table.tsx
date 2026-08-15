@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { assignTo } from './assign-to';
 import { setStatus } from './set-status';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import type { FirmCopy } from '@/lib/firm-vocabulary';
 import {
   MonoRef,
   Toolbar,
@@ -99,6 +100,7 @@ export function MattersTable({
   members,
   statusOptions,
   meId,
+  copy,
   pathname = '/counsel/cases',
 }: {
   rows: MatterRow[];
@@ -111,6 +113,12 @@ export function MattersTable({
   statusOptions: { value: string; label: string }[];
   /** The signed-in member, or null when the session has no user id. */
   meId: string | null;
+  /**
+   * Resolved by the page from the firm's type. Only the two search hints use
+   * it: they name what is searchable, and for an in-house team that column
+   * holds an employee. See lib/firm-vocabulary.ts.
+   */
+  copy: FirmCopy;
   /**
    * The route this list lives at, which every link it writes points
    * back to. A prop rather than a constant so the table can be mounted
@@ -240,7 +248,7 @@ export function MattersTable({
           type="search"
           defaultValue={params.q}
           onChange={(e) => goSoon({ q: e.target.value })}
-          placeholder={t('Search title, client, matter type, assignee')}
+          placeholder={t(copy.searchMattersHint)}
           aria-label={t('Search matters')}
           className="input h-9 w-full max-w-xs py-1"
         />
@@ -322,7 +330,7 @@ export function MattersTable({
                     type="search"
                     defaultValue={params.matter}
                     onChange={(e) => goSoon({ matter: e.target.value })}
-                    placeholder={t('Title or client')}
+                    placeholder={t(copy.searchTitleHint)}
                     aria-label={t('Filter by matter')}
                     className="input h-7 w-full min-w-[9rem] px-2 py-0"
                   />

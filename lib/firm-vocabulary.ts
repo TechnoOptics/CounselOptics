@@ -148,6 +148,35 @@ export type FirmCopy = {
   assignedCasesEmpty: string;
   /** "Assigned to me" when the person has nothing at all. */
   assignedNothing: string;
+  /** The invite form above the roster: its heading, its error, its example. */
+  inviteHeading: string;
+  inviteFailed: string;
+  inviteEmailExample: string;
+  /** The intake page's eyebrow and subtitle. The subtitle names what the
+   *  conflict check runs over, which differs by type. */
+  intakeEyebrow: string;
+  intakeBlurb: string;
+  /** The matter-collaborator role for the person the matter is FOR. */
+  matterRoleLabel: string;
+  matterRoleBlurb: string;
+  /** The prompt over an empty collaborator list. */
+  matterInviteHint: string;
+  /** Ask Advottic: the suggestion and the placeholder that name a person. */
+  askSuggestion: string;
+  askPlaceholder: string;
+  /** The matter list's two search boxes. */
+  searchMattersHint: string;
+  searchTitleHint: string;
+  /*
+   * NO documentSignedBy. The document status table already distinguishes
+   * `signed_client` ("Signed by client") from `signed_employee` ("Signed by
+   * firm employee (internal HR)"). Renaming the first to "Signed by employee"
+   * for an in-house team would collide with the second and make two distinct
+   * states read identically, so that word stays put on every type. An outside
+   * client signing an in-house team's contract is still a client.
+   */
+  /** The example under the practice/business areas field. */
+  areasExample: string;
 };
 
 const BASE_COPY: FirmCopy = {
@@ -167,6 +196,21 @@ const BASE_COPY: FirmCopy = {
   assignedCasesEmpty: 'No cases tied to your clients yet.',
   assignedNothing:
     "When you're set as the primary attorney on a client or case, it'll show up here for quick access.",
+  inviteHeading: 'Invite a client',
+  inviteFailed: 'Could not invite client.',
+  inviteEmailExample: 'client@example.com',
+  intakeEyebrow: 'Counsel · intake',
+  intakeBlurb:
+    'Open a new request for everything legal handles - outside-client matters, contracts, internal reviews, document safekeeping, trademark/IP, NDAs, compliance, and more. Pick a request type, capture the parties, and the conflict check runs across your prior matters and client list.',
+  matterRoleLabel: 'Represented party (client)',
+  matterRoleBlurb:
+    'Your client. Can view the matter and contribute their own evidence and statements.',
+  matterInviteHint: 'Invite your client, co-counsel, or a contributor.',
+  askSuggestion: 'What did we last discuss with this client?',
+  askPlaceholder: 'Ask Advottic anything - a law, a case, a clause, a client, a meeting…',
+  searchMattersHint: 'Search title, client, matter type, assignee',
+  searchTitleHint: 'Title or client',
+  areasExample: 'e.g., Family, Estate planning',
 };
 
 /**
@@ -194,6 +238,25 @@ const CORPORATE_COPY: FirmCopy = {
   assignedCasesEmpty: 'No matters tied to your employees yet.',
   assignedNothing:
     "When an employee or a matter is assigned to you, it'll show up here for quick access.",
+  inviteHeading: 'Invite an employee',
+  inviteFailed: 'Could not invite that employee.',
+  inviteEmailExample: 'employee@company.com',
+  // "outside-client matters" survives, and deliberately. An in-house team does
+  // occasionally open one, the request-type dropdown still offers it, and the
+  // conflict check does run over prior matters. What changes is that the list
+  // it runs over is the employee roster, not a client list.
+  intakeEyebrow: 'Legal · requests',
+  intakeBlurb:
+    'Open a new request for everything legal handles - contracts, internal reviews, document safekeeping, trademark/IP, NDAs, compliance, outside-client matters, and more. Pick a request type, capture the parties, and the conflict check runs across your prior matters and employee roster.',
+  matterRoleLabel: 'Represented party (employee)',
+  matterRoleBlurb:
+    'The employee this matter is for. Can view it and contribute their own evidence and statements.',
+  matterInviteHint: 'Invite the employee, co-counsel, or a contributor.',
+  askSuggestion: 'What did we last discuss with this employee?',
+  askPlaceholder: 'Ask Advottic anything - a law, a matter, a clause, an employee, a meeting…',
+  searchMattersHint: 'Search title, employee, matter type, assignee',
+  searchTitleHint: 'Title or employee',
+  areasExample: 'e.g., Employment, Commercial, IP',
 };
 
 export const FIRM_COPY: Record<FirmType, FirmCopy> = {

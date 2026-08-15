@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { cleanLegalText } from '@/lib/legal-templates';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import type { FirmCopy } from '@/lib/firm-vocabulary';
 
 /**
  * The big "Ask Advottic" bar at the top of the Counsel workspace.
@@ -30,7 +31,14 @@ type Turn = {
   busy: boolean;
 };
 
-export function AskAdvottic() {
+export function AskAdvottic({ copy }: {
+  /**
+   * Resolved by the caller from the firm's type. REQUIRED on purpose: this bar
+   * renders on the dashboard and in the shell layout, and a default would have
+   * quietly said "client" on every page but one. See lib/firm-vocabulary.ts.
+   */
+  copy: FirmCopy;
+}) {
   const t = useT();
   const [q, setQ] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -146,7 +154,7 @@ export function AskAdvottic() {
   const SUGGESTIONS = [
     'Statute of limitations for a breach of contract claim in our state',
     'Summarize the risk across my open matters',
-    'What did we last discuss with this client?',
+    copy.askSuggestion,
     'Draft talking points for an NDA negotiation',
   ];
 
@@ -175,7 +183,7 @@ export function AskAdvottic() {
             placeholder={
               turns.length > 0
                 ? t('Ask a follow-up…')
-                : t('Ask Advottic anything - a law, a case, a clause, a client, a meeting…')
+                : t(copy.askPlaceholder)
             }
             className="flex-1 bg-transparent outline-none text-[15px] text-cream-100 placeholder:text-cream-100/60"
             aria-label={t('Ask Advottic')}

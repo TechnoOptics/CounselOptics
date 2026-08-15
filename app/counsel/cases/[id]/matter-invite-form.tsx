@@ -14,6 +14,7 @@ import type { Collaborator, CollaboratorRole } from '@/lib/types';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { formatDateNumeric } from '@/lib/format';
+import type { FirmCopy } from '@/lib/firm-vocabulary';
 
 /**
  * Firm-facing labels for the four invite roles, keyed by the underlying
@@ -29,16 +30,23 @@ const FIRM_ROLE_LABEL: Record<CollaboratorRole, string> = {
   witness: 'Witness',
 };
 
-/** The picker options - the `value` is the firm-facing key the server maps. */
-const INVITE_ROLES: Array<{
+/**
+ * The picker options - the `value` is the firm-facing key the server maps.
+ *
+ * A function rather than a const because the first row names the person the
+ * matter is FOR, and that is the one word a workspace's type changes. The
+ * other three are attorney-side roles and read the same everywhere.
+ */
+function inviteRoles(copy: FirmCopy): Array<{
   value: string;
   label: string;
   blurb: string;
-}> = [
+}> {
+  return [
   {
     value: 'represented',
-    label: 'Represented party (client)',
-    blurb: 'Your client. Can view the matter and contribute their own evidence and statements.',
+    label: copy.matterRoleLabel,
+    blurb: copy.matterRoleBlurb,
   },
   {
     value: 'co_counsel',
@@ -55,7 +63,8 @@ const INVITE_ROLES: Array<{
     label: 'Viewer',
     blurb: 'Read-only access to the matter.',
   },
-];
+  ];
+}
 
 export function MatterInviteForm({
   caseId,
@@ -63,13 +72,17 @@ export function MatterInviteForm({
   canManage,
   canProvisionGuests = false,
   guestAccounts = [],
+  copy,
 }: {
   caseId: string;
   collaborators: Collaborator[];
   canManage: boolean;
   canProvisionGuests?: boolean;
   guestAccounts?: CaseGuestAccount[];
+  /** Resolved by the page from the firm's type. See lib/firm-vocabulary.ts. */
+  copy: FirmCopy;
 }) {
+  const roles = inviteRoles(copy);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -143,7 +156,7 @@ export function MatterInviteForm({
     });
   }
 
-  const activeRoleBlurb = INVITE_ROLES.find((r) => r.value === role)?.blurb;
+  const activeRoleBlurb = roles.find((r) => r.value === role)?.blurb;
 
   return (
     <section className="space-y-3">
@@ -154,7 +167,7 @@ export function MatterInviteForm({
           </h2>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
             {collaborators.length === 0
-              ? 'Invite your client, co-counsel, or a contributor.'
+              ? copy.matterInviteHint
               : `${collaborators.length} ${collaborators.length === 1 ? 'person' : 'people'} invited`}
           </p>
         </div>
@@ -249,7 +262,7 @@ export function MatterInviteForm({
                 onChange={(e) => setRole(e.target.value)}
                 className="input"
               >
-                {INVITE_ROLES.map((r) => (
+                {roles.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
                   </option>

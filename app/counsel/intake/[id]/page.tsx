@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext, listFirmMembers } from '@/lib/firm-storage';
+import { firmVocabulary } from '@/lib/firm-vocabulary';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
 import { IntakeConversation } from '@/components/intake/IntakeConversation';
@@ -72,6 +73,9 @@ export default async function IntakeDetailPage({
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+  // The aside heads the requester's details. For an in-house team the person
+  // who filed the request is an employee, not a client.
+  const vocab = firmVocabulary(ctx.firm.firmType);
   const supabase = createServerSupabase();
   const { data } = await supabase
     .from('firm_matter_intakes')
@@ -455,7 +459,7 @@ export default async function IntakeDetailPage({
             track either, and a column of borrowed telemetry would be worse
             than a shorter column. */}
         <aside className="space-y-4">
-          <PanelCard title={<T>Client</T>}>
+          <PanelCard title={<T>{vocab.client}</T>}>
             <p
               data-no-translate
               className="text-[14px] font-semibold text-foreground"
