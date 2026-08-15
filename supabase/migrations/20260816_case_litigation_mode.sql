@@ -1,14 +1,21 @@
 -- Two modes for a firm matter: a request, or a court case.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-10. NOT run against production. Applying it, and then
--- regenerating supabase/schema-fingerprint.sha256, are the owner's steps.
+-- ========================= APPLIED TO PRODUCTION ==========================
+-- Applied 2026-08-10 to project hpmtlhpyvbreyfimftgt (Advottic), and VERIFIED
+-- against the live catalog rather than trusted from a success flag.
 --
--- This banner is the only record of applied state right now: the CI schema
--- drift gate self-skips while the SUPABASE_DB_URL repo secret is unset, so a
--- stale fingerprint and a wrong header both pass green. Seven headers in this
--- repo have claimed the wrong thing. Whoever runs this corrects the banner in
--- the same commit as the regenerated fingerprint.
+-- What the backfill actually did, counted after it ran: 8 firm matters, of
+-- which 3 were opened (they carry a hearing date, approaches or timeline
+-- events) and 5 were left to resolve simple. 0 consumer cases were touched,
+-- which is the firm_id predicate doing its job.
+--
+-- supabase/schema-fingerprint.sha256 was regenerated in the same change:
+--   a0b9a98d -> 4caf11a4
+--
+-- The banner previously said NOT APPLIED, which was true when written.
+-- Correcting it is part of applying a migration: the CI drift gate self-skips
+-- while SUPABASE_DB_URL is unset, so a gate that reports success without
+-- executing cannot contradict a stale header.
 --
 -- The application does NOT require this migration to deploy. lib/case-file.ts
 -- selects litigation_mode and, on PostgREST error 42703 (undefined_column),
