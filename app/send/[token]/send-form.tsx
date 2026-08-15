@@ -73,7 +73,7 @@ export function SendForm({ token, remaining }: { token: string; remaining: numbe
             setError(null);
           }}
         />
-        <span className="flex justify-center text-forest-900/40 dark:text-cream-50/40" aria-hidden>
+        <span className="flex justify-center text-forest-900/65 dark:text-cream-50/40" aria-hidden>
           <ClipIcon size={26} />
         </span>
         <span className="mt-2 block text-[14px] font-medium text-forest-900 dark:text-cream-100">

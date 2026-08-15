@@ -248,7 +248,7 @@ export function TimelineBuilder({
                 : 'border-forest-900/20 bg-white/60 dark:border-cream-50/15 dark:bg-cream-50/5'
             }`}
           >
-            <div className="flex justify-center text-forest-900/40 dark:text-cream-50/40">
+            <div className="flex justify-center text-forest-900/65 dark:text-cream-50/40">
               <ArchiveIcon size={30} />
             </div>
             <p className="mt-2 font-medium text-forest-900 dark:text-cream-100">
@@ -581,7 +581,7 @@ function EventCard({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {thumb ? <img src={thumb} alt="" data-no-translate className="h-20 w-20 object-cover" />
-              : <div className="grid h-20 w-20 place-items-center bg-forest-900/5 text-forest-900/40 dark:bg-cream-50/10 dark:text-cream-50/40"><KindIcon kind="photo" className="h-7 w-7" /></div>}
+              : <div className="grid h-20 w-20 place-items-center bg-forest-900/5 text-forest-900/65 dark:bg-cream-50/10 dark:text-cream-50/40"><KindIcon kind="photo" className="h-7 w-7" /></div>}
           </button>
         )}
         {!firstImage && event.media.length > 0 && (
@@ -589,7 +589,7 @@ function EventCard({
             type="button"
             onClick={() => setViewing(event.media[0])}
             title="Open attachment"
-            className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-forest-900/50 transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10 dark:text-cream-50/50"
+            className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-forest-900/65 transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10 dark:text-cream-50/50"
           >
             <MediaIcon m={event.media[0]} />
           </button>
@@ -1076,8 +1076,12 @@ function CalendarView({
                 }`}
               >
                 <span className={`${isToday ? 'grid h-6 w-6 place-items-center rounded-full bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950' : 'text-forest-900 dark:text-cream-100'}`}>{d}</span>
+                {/* Dark label on the gold fill in BOTH themes. White on
+                    gold-600 is 2.34:1; forest-950 is 7.32:1 here and 9.19:1
+                    on the gold-500 the dark theme swaps in, so the one value
+                    covers both fills. */}
                 {count > 0 && (
-                  <span className="absolute bottom-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-gold-600 px-1 text-[9px] font-semibold text-white dark:bg-gold-500 dark:text-forest-950">{count}</span>
+                  <span className="absolute bottom-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-gold-600 px-1 text-[9px] font-semibold text-forest-950 dark:bg-gold-500">{count}</span>
                 )}
               </button>
             );

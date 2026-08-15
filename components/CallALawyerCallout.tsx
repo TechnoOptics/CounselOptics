@@ -117,8 +117,12 @@ export function CallALawyerCallout({
           {/* Show extra labels for any other cues that fired so the
               user knows everything we noticed - one passing reference
               that triggered the headline, plus any others. */}
+          {/* Both quiet tiers below are /80 rather than /65 and /55. On this
+              callout's amber-50 fill /65 is 3.63:1 and /55 is 2.86:1; /80 is
+              5.23:1 and still reads a step quieter than the /85 body above,
+              so the tiers survive. */}
           {hits.length > 1 && (
-            <p className="mt-2.5 text-[11.5px] text-amber-900/65 dark:text-amber-100/65 leading-relaxed">
+            <p className="mt-2.5 text-[11.5px] text-amber-900/80 dark:text-amber-100/65 leading-relaxed">
               We also noticed:{' '}
               {hits
                 .slice(1)
@@ -133,7 +137,7 @@ export function CallALawyerCallout({
             </p>
           )}
 
-          <p className="mt-2.5 text-[11px] text-amber-900/55 dark:text-amber-100/55">
+          <p className="mt-2.5 text-[11px] text-amber-900/80 dark:text-amber-100/55">
             Heads-up only - if this does not apply, hide this notice and keep going.
           </p>
         </div>

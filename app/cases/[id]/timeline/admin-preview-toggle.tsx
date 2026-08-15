@@ -34,7 +34,10 @@ export function AdminPreviewToggle({ current }: { current: Mode }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs dark:border-amber-500/30 dark:bg-amber-500/10">
       <span className="font-semibold text-amber-800 dark:text-amber-300">Admin preview</span>
-      <span className="text-amber-700/80 dark:text-amber-200/70">viewing timeline as</span>
+      {/* `text-warn-text`, not a faded amber-700: /80 is 3.54:1 and /70 is
+          2.95:1 on this banner's amber-50 fill. The token is 6.84:1 there and
+          is what the rest of the product uses for warning words. */}
+      <span className="text-warn-text dark:text-amber-200/70">viewing timeline as</span>
       <div className="inline-flex overflow-hidden rounded-lg border border-amber-300/60 dark:border-amber-500/40">
         {MODES.map((m) => (
           <button
@@ -54,7 +57,7 @@ export function AdminPreviewToggle({ current }: { current: Mode }) {
         ))}
       </div>
       {current !== 'firm' && (
-        <span className="text-amber-700/70 dark:text-amber-200/60">Only you (admin) see this; real users are unaffected.</span>
+        <span className="text-warn-text dark:text-amber-200/60">Only you (admin) see this; real users are unaffected.</span>
       )}
     </div>
   );

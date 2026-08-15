@@ -113,14 +113,19 @@ export function HumanCheck({ onToken }: { onToken: (token: string | null) => voi
           <span className="block text-[13px] font-semibold text-forest-900 dark:text-cream-50">
             {state === 'verified' ? 'Verified: you are human' : state === 'verifying' ? 'Verifying…' : 'Confirm you are human'}
           </span>
-          <span className="block text-[11px] text-forest-400 dark:text-cream-100/40">
+          {/* forest-500, not forest-400. Confirmed in a browser: this tile is
+              a white button on a white card on the #fafaf8 share page, so the
+              light half of these pairs really does land on white, where
+              forest-400 is 3.89:1 and forest-300 2.13:1. forest-500 is 6.52:1
+              and is the stop the share page already uses for this tier. */}
+          <span className="block text-[11px] text-forest-500 dark:text-cream-100/40">
             {state === 'error'
               ? 'Verification failed. Tap to try again.'
               : 'Advottic Secure Access · required to decrypt'}
           </span>
         </span>
         {/* Gold shield */}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className={state === 'verified' ? 'text-gold-500' : 'text-forest-300 dark:text-cream-100/25'}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className={state === 'verified' ? 'text-gold-500' : 'text-forest-500 dark:text-cream-100/25'}>
           <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
           <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

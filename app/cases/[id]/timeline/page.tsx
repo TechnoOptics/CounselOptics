@@ -99,7 +99,7 @@ export default async function TimelinePage({
           />
         ) : (
           <div className="rounded-2xl border border-forest-900/10 bg-white p-10 text-center dark:border-cream-50/10 dark:bg-forest-900/40">
-            <div className="flex justify-center text-forest-900/40 dark:text-cream-50/40">
+            <div className="flex justify-center text-forest-900/65 dark:text-cream-50/40">
             <ArchiveIcon size={30} />
           </div>
             <h1 className="mt-2 font-display text-2xl font-semibold text-forest-900 dark:text-cream-50">
