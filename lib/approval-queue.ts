@@ -17,7 +17,11 @@
  * happens.
  */
 
-import { isTerminal, type SubmissionStatus } from './template-submission-types';
+import {
+  ALL_SUBMISSION_STATUSES,
+  isTerminal,
+  type SubmissionStatus,
+} from './template-submission-types';
 import { displayTicket } from './ticket-numbers';
 import type { TemplateSubmission } from './template-submission-types';
 
@@ -87,6 +91,80 @@ export type ApprovalQueueParams = {
 };
 
 /**
+ * The finished statuses and the unfinished ones, derived from isTerminal rather
+ * than spelled again, so a seventh status added to the union lands in exactly
+ * one of these two lists without anybody remembering to come here.
+ */
+export const SETTLED_STATUSES: SubmissionStatus[] =
+  ALL_SUBMISSION_STATUSES.filter(isTerminal);
+
+export const UNSETTLED_STATUSES: SubmissionStatus[] =
+  ALL_SUBMISSION_STATUSES.filter((s) => !isTerminal(s));
+
+/**
+ * A view, described as a set of rows rather than as a predicate over rows the
+ * page happens to be holding.
+ *
+ * THIS EXISTS BECAUSE A VIEW HAS TO BE COUNTED IN THE DATABASE AND FILTERED IN
+ * THE BROWSER, and those are two spellings of one definition. The queue reads a
+ * bounded page of rows, so the number beside a view name cannot come from that
+ * page: `listFirmTemplateSubmissionsAction` turns each of these into an exact
+ * `count` query with no row cap, and `queueFilterTest` turns the same value
+ * into the predicate the client filters with. Neither side gets to write the
+ * rule for itself, which is what keeps a strip count from disagreeing with the
+ * list under it, and both from disagreeing with the dashboard tile that links
+ * here.
+ *
+ * Modelled on intakeLaneFilter in lib/intake-lanes.ts, for the same reason and
+ * with the same `exclude` convention: a view meaning "not finished" is the
+ * complement of the finished statuses, so a status nobody has heard of yet
+ * surfaces in front of a person instead of vanishing from every view.
+ */
+export type QueueViewFilter = {
+  /** The statuses this view admits, or the ones it refuses when `exclude`. */
+  statuses: SubmissionStatus[];
+  exclude?: boolean;
+  /** Only rows filed at or before this instant. The aging cut-off. */
+  filedAtOrBefore?: string;
+  /** Only rows carrying a delivery error, which '' is not. */
+  failedDelivery?: boolean;
+};
+
+export function queueViewFilter(view: QueueViewKey, now = Date.now()): QueueViewFilter {
+  switch (view) {
+    case 'aging':
+      return {
+        statuses: ['pending'],
+        filedAtOrBefore: new Date(now - AGING_DAYS * 86_400_000).toISOString(),
+      };
+    case 'failed':
+      return { statuses: ['approved'], failedDelivery: true };
+    case 'open':
+      return { statuses: SETTLED_STATUSES, exclude: true };
+    default:
+      return { statuses: ['pending'] };
+  }
+}
+
+/** The same filter, as a predicate over a row the page is holding. */
+export function queueFilterTest(f: QueueViewFilter): (r: ApprovalRow) => boolean {
+  const cutoff = f.filedAtOrBefore ? Date.parse(f.filedAtOrBefore) : null;
+  return (r) => {
+    const named = f.statuses.includes(r.status);
+    if (f.exclude ? named : !named) return false;
+    if (f.failedDelivery && !r.releaseError) return false;
+    if (cutoff !== null) {
+      const at = Date.parse(r.submittedAt);
+      // A date that will not parse has waited no time at all, so it is not
+      // aging. Excluding it also matches the database side, where a null
+      // submitted_at cannot satisfy `<=` either.
+      if (Number.isNaN(at) || at > cutoff) return false;
+    }
+    return true;
+  };
+}
+
+/**
  * The predicate behind a view.
  *
  * `now` is a parameter rather than a call to Date.now() inside, so the aging
@@ -96,23 +174,7 @@ export function queueViewTest(
   view: QueueViewKey,
   now = Date.now(),
 ): (r: ApprovalRow) => boolean {
-  switch (view) {
-    case 'aging':
-      return (r) => r.status === 'pending' && waitedDays(r.submittedAt, now) >= AGING_DAYS;
-    case 'failed':
-      return (r) => r.status === 'approved' && Boolean(r.releaseError);
-    case 'open':
-      return (r) => !isTerminal(r.status);
-    default:
-      return (r) => r.status === 'pending';
-  }
-}
-
-/** Days since a submission was filed, or 0 for a date that will not parse. */
-export function waitedDays(iso: string, now = Date.now()): number {
-  const at = Date.parse(iso);
-  if (Number.isNaN(at)) return 0;
-  return Math.max(0, (now - at) / 86_400_000);
+  return queueFilterTest(queueViewFilter(view, now));
 }
 
 /**
@@ -247,6 +309,109 @@ export function queueViewCounts(
  */
 export function selectHistory(rows: ApprovalRow[], params: ApprovalQueueParams): ApprovalRow[] {
   return rows.filter((r) => isSettled(r) && matchesQuery(r, params.q));
+}
+
+/**
+ * How many records are in each view, and in the history, across the whole
+ * firm rather than across the page of rows the queue was handed.
+ *
+ * A null is "the database did not answer", not zero. The tally helpers below
+ * fall back to what is on the page for a null, because a figure that is short
+ * is still better than a figure that is invented.
+ */
+export type QueueCounts = { [K in QueueViewKey]: number | null } & {
+  settled: number | null;
+};
+
+/**
+ * What a section states, and whether the list under it is the whole of it.
+ *
+ * THE POINT OF THE `bounded` FLAG. The queue renders a bounded page of rows,
+ * and a bounded page under a heading that states a total is the shape this
+ * whole file exists to prevent: /counsel/forms/approvals used to read the 200
+ * most recent submissions of every status and take its "Awaiting decision"
+ * figure from that, so a firm past its 200th document read a FLOOR labelled as
+ * a count, and pending documents older than the cap appeared nowhere and were
+ * announced nowhere. The dashboard's own "Awaiting approval" tile counts the
+ * same set exactly, in the database, so the tile legitimately read a bigger
+ * number than the page it opened.
+ *
+ * So the number is the count and the list says when it is showing less than
+ * the number. Following app/counsel/billing/page.tsx, which draws Outstanding
+ * from its own uncapped query and tells the reader the invoice table beneath
+ * it is the 100 most recent.
+ */
+export type QueueTally = {
+  /** Rows in this section that the page is actually holding. */
+  loaded: number;
+  /** Records in it across the firm. What the heading states. */
+  total: number;
+  /** True when the list is short of the total and must say so. */
+  bounded: boolean;
+};
+
+function tally(loaded: number, counted: number | null): QueueTally {
+  const total = counted ?? loaded;
+  // A count below what we are already holding is not a reason to state a
+  // number smaller than the rows on the page. It can happen honestly: the
+  // count and the rows are separate round trips and a colleague can decide
+  // something between them.
+  return { loaded, total: Math.max(total, loaded), bounded: total > loaded };
+}
+
+/**
+ * A view's tally. The ONE way this queue turns a view into a number: the
+ * component must not filter and count for itself, because then the number
+ * beside a view name is the length of a page again.
+ */
+export function viewTally(
+  view: QueueViewKey,
+  rows: ApprovalRow[],
+  counts: QueueCounts | null,
+  now = Date.now(),
+): QueueTally {
+  return tally(rows.filter(queueViewTest(view, now)).length, counts?.[view] ?? null);
+}
+
+/** The same, for the decision history, which is its own bounded read. */
+export function settledTally(rows: ApprovalRow[], counts: QueueCounts | null): QueueTally {
+  return tally(rows.filter(isSettled).length, counts?.settled ?? null);
+}
+
+/**
+ * A view's tally WITH the reviewer's search applied. The one the screen uses.
+ *
+ * Two separate defects met here and each fix would have undone the other, so
+ * neither viewTally nor a plain filter is correct on its own.
+ *
+ * viewTally states the view's size in the DATABASE, which is what fixed a
+ * heading that reported the size of its own page. But it does not know about
+ * the search box, and a tab that ignores the search while the card beneath it
+ * obeys it is exactly the "3 items waiting" over an empty card that was
+ * reported from the live app.
+ *
+ * So the server's count is used only where it is actually describing what is
+ * on screen: the unsearched view. The moment a reviewer types, the count has
+ * to come from the same expression that produces the list, because the
+ * server counted a set the reviewer is no longer looking at.
+ *
+ * `bounded` still tells the truth while searching. If the unsearched view is
+ * larger than the rows this page holds, then the page was capped, and a search
+ * over a capped page can only find what was fetched. Saying so is the
+ * difference between "no results" and "no results in what we loaded".
+ */
+export function searchedViewTally(
+  view: QueueViewKey,
+  rows: ApprovalRow[],
+  params: ApprovalQueueParams,
+  counts: QueueCounts | null,
+  now = Date.now(),
+): QueueTally {
+  const shown = selectQueue(rows, { ...params, view }, now).length;
+  if (!params.q?.trim()) return viewTally(view, rows, counts, now);
+  const onPage = rows.filter(queueViewTest(view, now)).length;
+  const inDatabase = counts?.[view] ?? onPage;
+  return { loaded: shown, total: shown, bounded: inDatabase > onPage };
 }
 
 /**

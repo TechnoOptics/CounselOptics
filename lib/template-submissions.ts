@@ -7,7 +7,15 @@ import { createAdminSupabase } from './supabase/admin';
 import { authorizeFirmActor } from './portal-entitlements';
 import { callerFirmRole, FIRM_MANAGE_ROLES } from './firm-authz';
 import type { FirmRole } from './firm-types';
-import { MAX_BULK_SEND_BACK, type BulkSendBackResult } from './approval-queue';
+import {
+  MAX_BULK_SEND_BACK,
+  QUEUE_VIEW_KEYS,
+  SETTLED_STATUSES,
+  queueViewFilter,
+  type BulkSendBackResult,
+  type QueueCounts,
+  type QueueViewFilter,
+} from './approval-queue';
 import { getFirmByIdAdmin } from './firm-storage';
 import { hydratePeople } from './intake-notify';
 import { createNotification } from './notifications';
@@ -785,9 +793,57 @@ export async function withdrawTemplateSubmissionAction(
 // ── Legal side ────────────────────────────────────────────────────────────
 
 /**
+ * How many rows the queue is willing to serialize into the page, split by
+ * whether the firm still owes the document anything.
+ *
+ * THE SPLIT IS THE POINT, not the numbers. One capped read across every status
+ * makes the queue's work compete for slots with documents that are finished
+ * with, and a firm's history outgrows its open work permanently: past the cap,
+ * the oldest pending submissions were the first to fall out of a queue whose
+ * whole job is to surface them, and the page said nothing about it. Read
+ * separately, the open work is bounded only by other open work, which is the
+ * set a legal team is actually clearing.
+ *
+ * Both are still bounds, so neither list may state a total. That comes from
+ * the count queries below.
+ */
+const OPEN_ROW_LIMIT = 200;
+const SETTLED_ROW_LIMIT = 100;
+
+/**
+ * The exact size of a set, asked of the database.
+ *
+ * `head: true` fetches no rows at all, and there is deliberately no `.limit()`
+ * anywhere on this chain: a capped count is the bug this replaces wearing a
+ * different hat. The filter is lib/approval-queue.ts's own description of the
+ * view, so this query and the client-side predicate cannot drift apart.
+ */
+function countInView(admin: Admin, firmId: string, filter: QueueViewFilter) {
+  let q = admin
+    .from('firm_template_submissions')
+    .select('id', { count: 'exact', head: true })
+    .eq('firm_id', firmId);
+  q = filter.exclude
+    ? q.not('status', 'in', `(${filter.statuses.join(',')})`)
+    : q.in('status', filter.statuses);
+  if (filter.filedAtOrBefore) q = q.lte('submitted_at', filter.filedAtOrBefore);
+  // Two conditions, because the row predicate reads '' as no error and a bare
+  // `is not null` would count a row the list does not show.
+  if (filter.failedDelivery) q = q.not('release_error', 'is', null).neq('release_error', '');
+  return q;
+}
+
+/**
  * The firm's review queue. Any member may read the queue; the wording of a
  * document that has not been cleared for release is narrower than that, see
  * canReadSubmissionDocument.
+ *
+ * THE ROWS ARE BOUNDED AND THE FIGURES ARE NOT, and they are different queries
+ * for that reason. Everything the page states as a total comes from `counts`,
+ * which is one exact count per view plus one for the history, taken over the
+ * whole firm. The rows are two capped reads that fill the lists. A view whose
+ * list is shorter than its count says so on the page rather than quietly
+ * presenting a floor; see QueueTally in lib/approval-queue.ts.
  */
 export async function listFirmTemplateSubmissionsAction(
   firmId: string,
@@ -795,6 +851,7 @@ export async function listFirmTemplateSubmissionsAction(
   ok: boolean;
   error?: string;
   submissions?: TemplateSubmission[];
+  counts?: QueueCounts;
   canApprove?: boolean;
 }> {
   const role = await callerFirmRole(firmId);
@@ -802,18 +859,53 @@ export async function listFirmTemplateSubmissionsAction(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
-  const { data } = await admin
-    .from('firm_template_submissions')
-    .select(SUBMISSION_COLS)
-    .eq('firm_id', firmId)
-    .order('submitted_at', { ascending: false })
-    .limit(200);
-  const rows = (data ?? []) as SubmissionRow[];
+  // One clock for the aging cut-off, so the aging count and the aging rows
+  // cannot land on opposite sides of a three-day boundary.
+  const now = Date.now();
+  const [openRes, settledRes, viewCounts, settledCount] = await Promise.all([
+    admin
+      .from('firm_template_submissions')
+      .select(SUBMISSION_COLS)
+      .eq('firm_id', firmId)
+      .not('status', 'in', `(${SETTLED_STATUSES.join(',')})`)
+      .order('submitted_at', { ascending: false })
+      .limit(OPEN_ROW_LIMIT),
+    admin
+      .from('firm_template_submissions')
+      .select(SUBMISSION_COLS)
+      .eq('firm_id', firmId)
+      .in('status', SETTLED_STATUSES)
+      .order('submitted_at', { ascending: false })
+      .limit(SETTLED_ROW_LIMIT),
+    Promise.all(
+      QUEUE_VIEW_KEYS.map((view) =>
+        countInView(admin, firmId, queueViewFilter(view, now)),
+      ),
+    ),
+    countInView(admin, firmId, { statuses: SETTLED_STATUSES }),
+  ]);
+
+  const rows = [
+    ...((openRes.data ?? []) as SubmissionRow[]),
+    ...((settledRes.data ?? []) as SubmissionRow[]),
+  ];
   const people = await hydratePeople(admin, namedIn(rows));
   const user = await getCurrentUser();
+
+  // A count that did not come back is null and not 0. Reporting a failed
+  // count as an empty queue is the one wrong answer here: it tells a legal
+  // team there is nothing waiting on them.
+  const counts = {
+    settled: settledCount.count ?? null,
+  } as QueueCounts;
+  QUEUE_VIEW_KEYS.forEach((view, i) => {
+    counts[view] = viewCounts[i]?.count ?? null;
+  });
+
   return {
     ok: true,
     canApprove: canApproveSubmissions(role),
+    counts,
     submissions: rows.map((r) =>
       rowToSubmission(
         r,

@@ -115,8 +115,12 @@ describe('the queue component states no figure it works out for itself', () => {
     'utf8',
   );
 
-  it('builds the strip from queueViewCounts, not from its own filter', () => {
-    expect(source).toContain('queueViewCounts');
+  it('builds the strip from a shared tally, not from its own filter', () => {
+    // Was queueViewCounts. searchedViewTally supersedes it: it keeps the
+    // one-clock, search-aware counting this test was written for AND states
+    // the view's real size rather than the size of the page, which
+    // queueViewCounts could not do because it only ever saw the loaded rows.
+    expect(source).toContain('searchedViewTally');
     // The shape of the defect: counting a filtered copy of `rows` in the
     // component, which is a second expression by construction.
     expect(source).not.toMatch(/rows\s*\.filter\([^)]*\)\s*\.length/);

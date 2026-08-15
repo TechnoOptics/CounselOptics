@@ -49,9 +49,15 @@ let mutateAfterNextRead: (() => void) | null = null;
 let failNextWrite: string | null = null;
 
 /**
- * One table, one row, and `.eq()` predicates that actually decide whether an
- * update lands. That is the only database behaviour these tests depend on, and
- * it is the behaviour a compare-and-swap is built out of.
+ * One table, one row, and predicates that actually decide whether an update
+ * lands or a read returns. That is the only database behaviour these tests
+ * depend on, and it is the behaviour a compare-and-swap is built out of.
+ *
+ * `.in()` and `.not()` are here for the queue read, which is two status-filtered
+ * queries rather than one read of everything. They filter for real, so a test
+ * that puts the row in a settled status sees it come back from the settled
+ * query and NOT from the open one. Left as no-ops they would have returned the
+ * same row from both and quietly doubled every queue assertion.
  *
  * `.maybeSingle()` / `.single()` yield the row; awaiting the builder directly
  * yields an array, the way PostgREST itself does.
@@ -60,9 +66,9 @@ function makeAdmin() {
   return {
     from() {
       let patch: Row | null = null;
-      const preds: [string, unknown][] = [];
+      const preds: ((row: Row) => boolean)[] = [];
       const run = (asList: boolean) => {
-        const matches = preds.every(([col, val]) => store.row[col] === val);
+        const matches = preds.every((p) => p(store.row));
         if (!matches) return { data: asList ? [] : null, error: null };
         if (patch) {
           if (failNextWrite) {
@@ -89,11 +95,34 @@ function makeAdmin() {
         },
         insert: () => api,
         eq: (col: string, val: unknown) => {
-          preds.push([col, val]);
+          preds.push((r) => r[col] === val);
           return api;
         },
         is: (col: string, val: unknown) => {
-          preds.push([col, val]);
+          preds.push((r) => r[col] === val);
+          return api;
+        },
+        neq: (col: string, val: unknown) => {
+          preds.push((r) => r[col] !== val);
+          return api;
+        },
+        lte: (col: string, val: unknown) => {
+          preds.push((r) => String(r[col] ?? '') <= String(val));
+          return api;
+        },
+        in: (col: string, vals: unknown[]) => {
+          preds.push((r) => vals.includes(r[col]));
+          return api;
+        },
+        // `.not(col, 'in', '(a,b,c)')` and `.not(col, 'is', null)`, the two
+        // forms the queue read and the failed-delivery count use.
+        not: (col: string, op: string, val: unknown) => {
+          if (op === 'in') {
+            const list = String(val).replace(/^\(|\)$/g, '').split(',');
+            preds.push((r) => !list.includes(String(r[col])));
+          } else {
+            preds.push((r) => r[col] !== val);
+          }
           return api;
         },
         order: () => api,
