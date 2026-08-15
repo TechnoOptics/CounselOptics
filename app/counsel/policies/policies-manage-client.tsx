@@ -7,6 +7,7 @@ import {
   type FirmPolicy,
 } from '@/lib/firm-policies';
 import { EmptyState } from '@/components/counsel/ui';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MonoRef, relativeTime, shortRef } from '@/components/counsel/patterns';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { formatNumber } from '@/lib/format';
@@ -75,10 +76,21 @@ export function PoliciesManageClient({
     setEditing(null);
   };
 
+  // The policy a person has asked to delete, held until they confirm.
+  //
+  // Deleting went straight from one click to gone: no confirmation, and the
+  // action has no undo, so a mis-tap on a touch device removed a firm's
+  // written policy with nothing to recover it from. The row is kept here
+  // rather than just its id so the question can NAME the policy, which is the
+  // difference between "Delete this policy?" and a question somebody can
+  // actually check before answering.
+  const [pendingDelete, setPendingDelete] = useState<FirmPolicy | null>(null);
+
   const remove = async (id: string) => {
     setBusy(true);
     const res = await deleteFirmPolicyAction(firmId, id);
     setBusy(false);
+    setPendingDelete(null);
     if (res.ok) setPolicies((list) => list.filter((p) => p.id !== id));
     else setError(res.error ?? t('Could not delete.'));
   };
@@ -200,7 +212,7 @@ export function PoliciesManageClient({
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => void remove(p.id)}
+                        onClick={() => setPendingDelete(p)}
                         className="text-[13px] text-muted hover:text-danger-text"
                       >
                         <T>Delete</T>
@@ -212,6 +224,18 @@ export function PoliciesManageClient({
             </ul>
           )}
         </>
+      )}
+      {/* Named, so the question can be checked before it is answered. The
+          action has no undo: the row is gone and the text with it. */}
+      {pendingDelete && (
+        <ConfirmDialog
+          question={`Delete “${pendingDelete.name}”?`}
+          detail="This removes the policy and its text. It cannot be undone."
+          confirmLabel="Delete"
+          busy={busy}
+          onConfirm={() => void remove(pendingDelete.id)}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </div>
   );
