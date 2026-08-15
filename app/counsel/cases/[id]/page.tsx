@@ -51,6 +51,8 @@ import { logCaseActivity, listCaseActivity } from '@/lib/case-activity-log';
 import { ensureMatterNumber } from '@/lib/matter-numbers';
 import { displayMatterNumber } from '@/lib/ticket-numbers';
 import { CaseActivityStream } from '@/components/counsel/CaseActivityStream';
+import { caseFileIsOpen, getCaseFileState } from '@/lib/case-file';
+import { CaseFilePanel } from './case-file-panel';
 import { formatDate, formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -145,6 +147,27 @@ export default async function CounselCaseDetailPage({
     // constructed on this path.
     const guestView = await getGuestCaseSummary(params.id);
     if (guestView) {
+      // The guest WORKSPACE is the litigation workspace: approaches, evidence,
+      // timeline, export. On a matter the firm is handling as a request there
+      // is nothing in it, and every action it offers already refuses through
+      // the five shared gates - so without this the co-counsel would get a
+      // full set of tools that all answer "the case file is not open".
+      //
+      // This is the fail-closed branch rather than the expected one: a guest
+      // exists because the firm deliberately invited outside counsel onto the
+      // matter, which is in practice an act of building a case.
+      if (!(await caseFileIsOpen(params.id))) {
+        return (
+          <div className="animate-fade-up p-6">
+            <p className="text-[13px] leading-relaxed text-muted">
+              <T>
+                The case file is not open on this matter. The firm handling it
+                can open it, and the case tools return when they do.
+              </T>
+            </p>
+          </div>
+        );
+      }
       const gFirmId = guestView.guest.firmId;
       const admin = createAdminSupabase();
       const [gApproachesRes, gAnalytics, gCaseRow, gImagesRow, gDisplayName] = await Promise.all([
@@ -281,6 +304,7 @@ export default async function CounselCaseDetailPage({
     caseAnalytics,
     activityEvents,
     matterNumber,
+    caseFile,
   ] = await Promise.all([
     listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
     listFirmApproaches(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
@@ -305,8 +329,34 @@ export default async function CounselCaseDetailPage({
     // lib/firm-authz.ts axis. See lib/matter-numbers.ts for why the write is
     // on this path at all rather than at creation.
     ensureMatterNumber(ctx.firm.id, params.id).catch(() => null),
+    // Is this matter a court case, or a request? In the wave because it costs
+    // one read and decides four of the sections below. It fails CLOSED on its
+    // own (lib/case-file.ts), which is why there is no .catch here: a catch
+    // that swallowed the failure into `undefined` would make the page render
+    // the workbench on a read it could not perform.
+    getCaseFileState(params.id),
   ]);
   const showTimeBilling = !surface.hideTimeBilling;
+  /*
+   * The gate the owner asked for.
+   *
+   *   "Please only use this screen if there is a court case, or the firm has
+   *    selected build a case. This is not how normal employee requests should
+   *    appear. This is only the court case view."
+   *
+   * Simple is the DETAIL pattern of docs/PARITY-PAGE-RULES.md, which this page
+   * already mostly was: breadcrumb with the mono reference, title, meta chips,
+   * an action bar in its own bordered card, two columns of cards, an aside.
+   * What comes off it in simple mode is the four things that made it a fifth
+   * page shape - the case menu, the dashboard metric strip the parity rules say
+   * nothing may compete with, the second dashboard nested in a collapsible
+   * tile, and the AI console.
+   *
+   * Litigation mode stays a workbench, on purpose. A firm that opens a case
+   * file has asked for one. What changes is that a routine request no longer
+   * gets it by default.
+   */
+  const litigation = caseFile.mode === 'litigation';
   const caseImages = (caseImagesRes?.ok && caseImagesRes.images) ? caseImagesRes.images : [];
   const approaches =
     ('approaches' in approachesRes ? approachesRes.approaches : null) ?? [];
@@ -454,10 +504,16 @@ export default async function CounselCaseDetailPage({
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <CaseMenu
-        caseId={params.id}
-        approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
-      />
+      {/* The case menu is four court surfaces (Case Timeline, Evidence
+          Center, Case approach, Export). A matter being handled as a request
+          has none of them, and each target refuses on its own server side as
+          well - see lib/case-file.ts. */}
+      {litigation && (
+        <CaseMenu
+          caseId={params.id}
+          approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
+        />
+      )}
 
       {/* Breadcrumb. The mono element is the firm's own reference for
           this matter, which is what they quote on the phone and in a
@@ -633,8 +689,17 @@ export default async function CounselCaseDetailPage({
         </EditMatterForm>
       </div>
 
-      {/* Top stats (Time & Billing) - hidden when the firm turns the surface off */}
-      {showTimeBilling && (
+      {/* Top stats (Time & Billing) - hidden when the firm turns the surface
+          off, and hidden on a matter handled as a request.
+          docs/PARITY-PAGE-RULES.md:32 says nothing on a page may compete with
+          a metric strip, which is exactly what this one was doing to the
+          matter's own content. The four figures are not lost in simple mode:
+          they read as one quiet line inside the sections that own them, which
+          is where the DETAIL pattern wants them. No server-side refusal is
+          owed for this one and none is claimed - it is a sum over
+          firm_time_entries and the trust ledger, rows the sections further
+          down this same page already list. */}
+      {showTimeBilling && litigation && (
       <section className="grid gap-3 sm:grid-cols-4">
         <Stat label="Time logged" value={fmtHours(totalSeconds)} />
         <Stat label="Billable hours" value={fmtHours(billableSeconds)} />
@@ -662,7 +727,7 @@ export default async function CounselCaseDetailPage({
           we just need the aggregate to be present. The component self-hides
           when nothing has been uploaded yet. Server-rendered from the
           admin-scoped aggregate, so it is always current on load. */}
-      {caseAnalytics ? (
+      {litigation && caseAnalytics ? (
         <SectionPanel
           title="Evidence analytics"
           blurb="Volume, coverage, relevance, and the year-by-year read of the evidence."
@@ -682,9 +747,11 @@ export default async function CounselCaseDetailPage({
           cited exhibits + supporting timeline out. Rendered UNCONDITIONALLY (it
           shows its own "add credits" state when AI is off) so the "Case
           approach" tab's #case-approaches anchor always has a target. */}
-      <div id="case-approaches" className="scroll-mt-24 border-t border-ink-100 dark:border-forest-700/40 pt-8">
-        <ApproachBuilder firmId={ctx.firm.id} caseId={params.id} initial={approaches} />
-      </div>
+      {litigation && (
+        <div id="case-approaches" className="scroll-mt-24 border-t border-ink-100 dark:border-forest-700/40 pt-8">
+          <ApproachBuilder firmId={ctx.firm.id} caseId={params.id} initial={approaches} />
+        </div>
+      )}
 
       {/* Matter room - idempotent: getOrCreate ensures one channel
           per case_id (the unique index on firm_channels.case_id
@@ -729,6 +796,30 @@ export default async function CounselCaseDetailPage({
         >
           <T>Time on this matter</T>
         </SectionTitle>
+        {/* The figures the metric strip carried, on the section that owns
+            them, when there is no strip. One quiet line rather than three
+            cards: a DETAIL page states a number, a DASHBOARD displays it. */}
+        {!litigation && (
+          <p className="text-[12.5px] text-muted">
+            <T>Time logged</T>{' '}
+            <span className="font-mono tabular-nums text-foreground" data-no-translate>
+              {fmtHours(totalSeconds)}
+            </span>
+            {' · '}
+            <T>billable</T>{' '}
+            <span className="font-mono tabular-nums text-foreground" data-no-translate>
+              {fmtHours(billableSeconds)}
+            </span>
+            {' · '}
+            <T>unbilled</T>{' '}
+            <span
+              className={`font-mono tabular-nums ${unbilledCents > 0 ? 'text-amber-600 dark:text-amber-300/85' : 'text-foreground'}`}
+              data-no-translate
+            >
+              {fmtCents(unbilledCents)}
+            </span>
+          </p>
+        )}
         {time.length === 0 ? (
           <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
             <T>No time entries yet. Start the timer in the action bar above.</T>
@@ -794,6 +885,18 @@ export default async function CounselCaseDetailPage({
           <SectionTitle variant="display">
             <T>Trust ledger (this matter)</T>
           </SectionTitle>
+          {/* The strip's fourth figure, on the ledger it is a total of. */}
+          {!litigation && (
+            <p className="text-[12.5px] text-muted">
+              <T>Balance</T>{' '}
+              <span
+                className={`font-mono tabular-nums ${trustBalance < 0 ? 'text-rose-600 dark:text-rose-300/85' : 'text-foreground'}`}
+                data-no-translate
+              >
+                {fmtCents(trustBalance)}
+              </span>
+            </p>
+          )}
           <ul className="space-y-1.5">
             {trustEntries.slice(0, 10).map((t) => (
               <li
@@ -831,6 +934,18 @@ export default async function CounselCaseDetailPage({
       </div>
 
       <aside className="min-w-0 space-y-4 lg:sticky lg:top-24">
+        {/* First in the aside, in BOTH modes. It is the one control that
+            changes what the rest of the page is, and on a simple matter it is
+            the only way to the case tools at all. */}
+        <CaseFilePanel
+          firmId={ctx.firm.id}
+          caseId={params.id}
+          open={litigation}
+          source={caseFile.source}
+          storable={caseFile.storable}
+          canManage={['owner', 'admin', 'attorney'].includes(ctx.membership.role)}
+        />
+
         <PanelCard
           title={<T>Deadlines</T>}
           bodyClassName="p-3 space-y-2"

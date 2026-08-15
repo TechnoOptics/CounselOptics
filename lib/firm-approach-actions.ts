@@ -17,6 +17,7 @@ import { AI_UNAVAILABLE_MESSAGE } from './ai-errors';
 import { toNormRules, normalizeDeep } from './text-normalize';
 import { getFirmCaseTimeline } from './case-evidence-actions';
 import { guestCanReadCase } from './counsel-guest';
+import { caseFileRefusal } from './case-file';
 import { exhibitLabel, fuzzyTitleMatch, mediaCategory, type TimelineEvent } from './timeline-types';
 
 /**
@@ -119,7 +120,7 @@ const toApproach = (r: Row): Approach => ({
  * The role is answered BEFORE the matter lookup, so a caller whose role cannot
  * reach matters learns nothing about whether the id they passed is real.
  */
-async function assertFirmCase(
+async function assertFirmCaseAccess(
   firmId: string,
   caseId: string,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
@@ -152,6 +153,29 @@ async function assertFirmCase(
   // guest can never reach another matter or firm through this path.
   if (await guestCanReadCase(caseId, firmId)) return { ok: true, userId: user.id };
   return { ok: false, error: 'You do not have access to this matter.' };
+}
+
+/**
+ * Access, and then the CASE FILE.
+ *
+ * An approach is the theory of a court case. A matter the firm is handling as
+ * a request has no case file open, so the Case Theory Console is not rendered
+ * on it - and a surface that is not rendered is not gated, it is merely
+ * undiscoverable, which is a much weaker thing. Every export below is a public
+ * HTTP endpoint that stays callable whatever the page draws.
+ *
+ * The order is the point. `caseFileRefusal` reads a row by id, so asking it
+ * FIRST would answer differently for a real matter than for an invented one
+ * and hand back exactly the disclosure assertFirmCaseAccess is arranged to
+ * withhold. It is asked last, of a caller already proven to have access.
+ */
+async function assertFirmCase(
+  firmId: string,
+  caseId: string,
+): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const gate = await assertFirmCaseAccess(firmId, caseId);
+  if (!gate.ok) return gate;
+  return (await caseFileRefusal(caseId)) ?? gate;
 }
 
 const SELECT =

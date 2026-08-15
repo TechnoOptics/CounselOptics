@@ -16,6 +16,7 @@ import { readEvidenceFolderRegistry } from '@/lib/evidence-folders';
 import { CaseMenu } from '@/components/counsel/CaseMenu';
 import { PageHeader } from '@/components/counsel/ui';
 import { listFirmApproaches } from '@/lib/firm-approach-actions';
+import { caseFileIsOpen } from '@/lib/case-file';
 
 export const dynamic = 'force-dynamic';
 // A heavy matter (hundreds of evidence rows) can push the assemble past the
@@ -47,6 +48,13 @@ export default async function CaseEvidencePage({
     firmId = summary.guest.firmId;
     isGuest = true;
   }
+
+  // The Evidence Center is a court surface: exhibit numbers, folders, packet
+  // selection. A matter the firm is handling as a request does not have it.
+  // Back to the matter, not notFound() - the matter is real and readable, this
+  // one surface is not open on it. Every uploaded item and its file stay
+  // exactly where they are and come back with the case file.
+  if (!(await caseFileIsOpen(params.id))) redirect(`/counsel/cases/${params.id}`);
 
   const supabase = createServerSupabase();
   // A guest is not a firm member, so RLS returns nothing on the user client -

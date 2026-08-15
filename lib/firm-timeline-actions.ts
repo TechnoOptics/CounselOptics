@@ -10,6 +10,7 @@ import {
   FIRM_POSTING_ROLES,
 } from './firm-authz';
 import { safeStorageUpload } from './upload-safety';
+import { caseFileRefusal } from './case-file';
 import { buildNarrative, aiConfigured } from './timeline-ai';
 import { toNormRules, normalizeString } from './text-normalize';
 import { resolveTimelineAccess } from './timeline-entitlement';
@@ -108,7 +109,7 @@ function safeName(name: string): string {
  * afterwards would tell a caller whose role cannot reach matters whether the
  * id they guessed is a real matter in this firm.
  */
-async function assertFirmCase(
+async function assertFirmCaseAccess(
   firmId: string,
   caseId: string,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
@@ -130,6 +131,30 @@ async function assertFirmCase(
   const { guestCanReadCase } = await import('./counsel-guest');
   if (await guestCanReadCase(caseId, firmId)) return { ok: true, userId: user.id };
   return { ok: false, error: 'You do not have access to this matter.' };
+}
+
+/**
+ * Access, and then the CASE FILE.
+ *
+ * A timeline of events is a court exhibit. On a matter the firm is handling as
+ * a request the builder page turns a reader away, but five of this module's
+ * seven exports have no UI caller at all today and are live public endpoints
+ * regardless of what any page renders. This is the gate for them.
+ *
+ * Nothing is deleted by refusing: `case_timeline_events.on_timeline`,
+ * `case_people` and `case_timeline_narratives` are untouched, and opening the
+ * case file again restores the timeline as it was, narrative included.
+ *
+ * Asked last, of a caller already proven to have access, so the refusal cannot
+ * report whether a guessed matter id is real.
+ */
+async function assertFirmCase(
+  firmId: string,
+  caseId: string,
+): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const gate = await assertFirmCaseAccess(firmId, caseId);
+  if (!gate.ok) return gate;
+  return (await caseFileRefusal(caseId)) ?? gate;
 }
 
 function revalidateFirm(caseId: string) {

@@ -39,6 +39,13 @@ type Shape = {
   matterNumber: string | null;
   /** True stands in for a database that has not run the migration. */
   columnMissing?: boolean;
+  /**
+   * Whether the firm has opened the CASE FILE on this matter
+   * (cases.litigation_mode). A court packet only exists for a matter that is a
+   * court case; defaulted open here so the reference tests are about the
+   * reference, and exercised closed in its own block at the bottom.
+   */
+  caseFileOpen?: boolean;
 };
 
 /** The error PostgREST returns for a column that is not there. */
@@ -138,6 +145,19 @@ async function runExport(which: 'matter' | 'approach', shape: Shape): Promise<Ru
             ? { data: null, error: MISSING_COLUMN }
             : { data: { matter_number: shape.matterNumber }, error: null },
         );
+      }
+      // The case-file read (lib/case-file.ts) is its own request too, and for
+      // the same reason: cases.litigation_mode arrives with 20260816 and
+      // PostgREST fails the whole request over an absent column.
+      if (columns.includes('litigation_mode')) {
+        return chain({
+          data: {
+            litigation_mode: shape.caseFileOpen !== false,
+            hearing_at: null,
+            hearing_location: null,
+          },
+          error: null,
+        });
       }
       return chain({
         data: {
@@ -280,6 +300,53 @@ describe('the CASE REFERENCE printed on a counsel export', () => {
           `matter_number was folded into a wider select (${columns}), which fails the whole request on a database without the migration`,
         ).toBe('matter_number');
       }
+    }, 30_000);
+  }
+});
+
+/*
+ * A court packet only exists for a court case.
+ *
+ * The owner: "Please only use this screen if there is a court case, or the
+ * firm has selected build a case." A route handler renders no layout and no
+ * page, so hiding the export control on the matter page stops nobody: the URL
+ * is still there and still answers. These run the REAL handlers with every
+ * other gate held open - signed in, firm member, matter in the firm, admin
+ * client available - and the only thing left to refuse is the mode.
+ *
+ * The 403 is asserted TOGETHER with the absence of a document, because a
+ * handler that built the packet and then discarded it would return the same
+ * status while having read the whole matter to do it.
+ *
+ * Mutations, each verified red:
+ *   - delete the caseFileRefusal block from either export route: that route's
+ *     refusal goes red.
+ *   - make lib/case-file.ts fail OPEN on an unreadable row: "an unreadable
+ *     matter is refused, not exported" goes red.
+ */
+describe('a matter handled as a request has no court packet', () => {
+  for (const which of ['matter', 'approach'] as const) {
+    it(`refuses the ${which} packet when the case file is closed`, async () => {
+      const run = await runExport(which, {
+        matterNumber: REFERENCE,
+        caseFileOpen: false,
+      });
+      expect(run.status).toBe(403);
+      expect(run.error).toMatch(/case file is not open/i);
+      // Nothing was rendered. A 403 over a built document would still be a
+      // leak of the work, and of the tokens spent making it.
+      expect(run.text).toBeNull();
+    }, 30_000);
+
+    it(`still builds the ${which} packet once the firm opens the case file`, async () => {
+      // The other half of the claim, so the test above cannot pass because the
+      // handler is broken for everybody.
+      const run = await runExport(which, {
+        matterNumber: REFERENCE,
+        caseFileOpen: true,
+      });
+      expect(run.status).toBe(200);
+      expect(run.squished).toContain(`CASEREFERENCE${REFERENCE}`);
     }, 30_000);
   }
 });

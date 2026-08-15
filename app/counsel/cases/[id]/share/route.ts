@@ -14,6 +14,7 @@ import {
 import { GET as matterExportGET } from '../export/route';
 import { GET as approachExportGET } from '../approach/[approachId]/export/route';
 import { GET as evidenceDownloadGET } from '../evidence/download/route';
+import { caseFileRefusal } from '@/lib/case-file';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -58,6 +59,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     .maybeSingle();
   const c = caseRow as { id: string; title: string; firm_id: string | null } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // Sharing rebuilds the document through the export handlers below, which
+  // refuse a closed case file themselves - and this is stated again here on
+  // purpose. A share is the one control on this page that puts a matter's
+  // contents into somebody else's inbox, and "it is safe because the thing it
+  // calls is safe" is a claim that quietly stops being true the first time a
+  // new branch is added to the dispatch.
+  const caseFileClosed = await caseFileRefusal(params.id);
+  if (caseFileClosed) {
+    return NextResponse.json({ error: caseFileClosed.error }, { status: 403 });
+  }
 
   const body = (await req.json().catch(() => ({}))) as {
     recipientEmail?: string;

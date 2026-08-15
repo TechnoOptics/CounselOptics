@@ -7,6 +7,7 @@ import { aiConfigured } from './timeline-ai';
 import { resolveTimelineAccess } from './timeline-entitlement';
 import { loadCaseContext, computeEventAnalysis, mergeStickyExtracted } from './case-evidence';
 import { getFirmFaceSetting } from './face-settings';
+import { caseFileRefusal } from './case-file';
 import type { AiExtracted, TimelineMedia, TimelineKind } from './timeline-types';
 
 /**
@@ -32,7 +33,7 @@ import type { AiExtracted, TimelineMedia, TimelineKind } from './timeline-types'
 const MAX_BATCH = 12;
 
 /** The current user is a member of `firmId` AND `caseId` belongs to that firm. */
-async function assertFirmCase(
+async function assertFirmCaseAccess(
   firmId: string,
   caseId: string,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
@@ -54,6 +55,23 @@ async function assertFirmCase(
     .maybeSingle();
   if (!kase) return { ok: false, error: 'That matter is not in this firm.' };
   return { ok: true, userId: user.id };
+}
+
+/**
+ * Access, and then the CASE FILE.
+ *
+ * Re-analysing a matter's whole evidence set is an Evidence Center control and
+ * spends the firm's tokens. Both exports below are public HTTP endpoints, so a
+ * matter handled as a request refuses here, not only by not drawing a button.
+ * Asked last, of a caller already proven to have access.
+ */
+async function assertFirmCase(
+  firmId: string,
+  caseId: string,
+): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const gate = await assertFirmCaseAccess(firmId, caseId);
+  if (!gate.ok) return gate;
+  return (await caseFileRefusal(caseId)) ?? gate;
 }
 
 /**
