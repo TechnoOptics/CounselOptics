@@ -102,6 +102,40 @@ export async function verifyApiToken(
   if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
     return null;
   }
+  // A FIRM-BOUND TOKEN IS ONLY GOOD IF ITS HOLDER IS STILL IN THAT FIRM.
+  //
+  // Everything below this line in the request is scoped by `firm_id` alone,
+  // through the service-role client, which answers to no RLS. So the row's
+  // firm_id is the whole authorization, and until this check existed the row
+  // was simply believed.
+  //
+  // That mattered because the row was not only written by us. `api_tokens`
+  // carried an RLS policy, `api_tokens_owner_write`, that was `for all to
+  // authenticated` with the check `user_id = auth.uid() OR <owner/admin of
+  // firm_id>`. The OR is the defect: naming yourself in user_id satisfies it
+  // and leaves firm_id and scopes unconstrained, so any signed-in person could
+  // insert a row pointing at ANY firm with scopes ['admin'] and then present
+  // the plaintext whose hash they had just stored. The policy was dropped from
+  // production on 2026-08-15; this check is here so that dropping it is not
+  // the only thing standing between a forged row and another firm's evidence.
+  //
+  // It also closes the ordinary case the policy had nothing to do with: a
+  // person who leaves a firm, or is removed from it, keeps any token they
+  // minted while they were a member. The credential outlived the membership.
+  if (row.firm_id) {
+    // Belt to the lookup's braces: `user_id = NULL` is never true in SQL, so
+    // the query below would refuse a holder-less row anyway. Said explicitly
+    // rather than left to rest on that.
+    if (!row.user_id) return null;
+    const { data: member } = await admin
+      .from('firm_members')
+      .select('user_id')
+      .eq('firm_id', row.firm_id)
+      .eq('user_id', row.user_id)
+      .maybeSingle();
+    if (!member) return null;
+  }
+
   // Touch last_used_at (best-effort; do not block the request).
   admin
     .from('api_tokens')
