@@ -409,6 +409,24 @@ export async function loadBoundMarkHandoff(
  * write is conditional on mark_at still being null and read back, so a phone
  * cannot replace a mark the desk has already collected.
  */
+/** What the phone is told when it posts a mark with no affirmation. */
+export const MARK_INTENT_REQUIRED =
+  'Please affirm your intent to sign before submitting.';
+
+/**
+ * Did the caller actually affirm, and is what it sent a real instant?
+ *
+ * A bare `typeof x === 'string'` accepted '' and 'banana' alike, which made
+ * the field a boolean wearing a timestamp's clothes. Parsing is not enough
+ * either: `new Date('garbage')` is an Invalid Date whose every comparison is
+ * false, so a check written as a comparison would pass it. getTime() is
+ * asserted against NaN directly for that reason.
+ */
+export function affirmedAt(value: unknown): boolean {
+  if (typeof value !== 'string' || value.trim() === '') return false;
+  return !Number.isNaN(new Date(value).getTime());
+}
+
 export async function storeMarkForHandoff(input: {
   rawToken: string;
   presentedSessionSecret: string | null;
@@ -424,6 +442,23 @@ export async function storeMarkForHandoff(input: {
   const decoded = decodeSignaturePng(input.signatureDataUrl);
   if (!decoded.ok) return { ok: false, error: decoded.error };
 
+  // No affirmation, no signature.
+  //
+  // The pad on the phone will not let anybody submit without ticking the box,
+  // but the pad is not the gate: this endpoint is reachable by anything
+  // holding the cookie, so the browser's check protects nobody who did not
+  // want protecting. Until now an absent field stored null and the mark landed
+  // anyway, which produced a signature carrying no affirmation of intent at
+  // all - the definitional element of an electronic signature under 15 USC
+  // 7006(5) and UETA 2(8).
+  //
+  // Refused BEFORE the update, so a request without it does not consume the
+  // handoff. Otherwise a malformed client would burn the code and the person
+  // would have to go back to the desk and mint another.
+  if (!affirmedAt(input.intentAffirmedAt)) {
+    return { ok: false, error: MARK_INTENT_REQUIRED };
+  }
+
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, state: 'consumed' };
 
@@ -437,8 +472,10 @@ export async function storeMarkForHandoff(input: {
       mark_png: typeof input.signatureDataUrl === 'string' ? input.signatureDataUrl : null,
       mark_sha256: markFingerprint(decoded.bytes),
       mark_at: new Date().toISOString(),
-      mark_intent_at:
-        typeof input.intentAffirmedAt === 'string' ? new Date().toISOString() : null,
+      // Server time, not the phone's. The client's clock is unverifiable and
+      // this column is evidence; what the client's timestamp is FOR is proving
+      // it affirmed at all, which affirmedAt above has already established.
+      mark_intent_at: new Date().toISOString(),
     })
     .eq('id', found.id)
     .is('mark_at', null)
