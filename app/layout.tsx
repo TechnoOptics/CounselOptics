@@ -281,7 +281,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // to tell people where they are; it must keep working in the reader's
   // own language. Only the chrome is dropped.
   const isOverlayRoute = pathname === '/safe' || pathname.startsWith('/safe/');
-  const showSiteChrome = !isShellMode && !isOverlayRoute;
+  // A document somebody was sent to sign, and nothing else on the page.
+  //
+  // /sign is not in APP_ROUTE_PREFIXES, so it was treated as a MARKETING page
+  // and served the full consumer header and footer. Fetched from a real build
+  // on 2026-08-15, an outside counterparty opening a signing link was handed a
+  // sticky header carrying "Sign in" and "Pricing", a footer, and this nav:
+  //
+  //   Features, Cases, New case, Find counsel, Public defender, File exhibits,
+  //   Review my document, Pricing, About Advottic, Glossary, Guides,
+  //   Free templates
+  //
+  // On a phone the sticky header overlaps the signing card, which is what was
+  // reported. But the layout is the smaller half. Somebody who received a link
+  // to execute an NDA is being shown "New case" and invited to sign up for the
+  // product, on the page where they are binding themselves. A signing surface
+  // belongs to the FIRM that sent it, not to Advottic's funnel.
+  //
+  // Separate from isOverlayRoute rather than folded into it: /safe drops its
+  // chrome because a full-screen panel is painted over it, which is a
+  // different reason with a different lifetime. Separate from isShellMode too,
+  // because that flag also turns off consumer AutoTranslate and /sign wraps
+  // its own (see the AutoTranslate gate below, which already excludes /sign).
+  // Only the chrome goes.
+  const isBareDocumentRoute = pathname === '/sign' || pathname.startsWith('/sign/');
+  const showSiteChrome = !isShellMode && !isOverlayRoute && !isBareDocumentRoute;
 
   // Which way `<html>` is painted on THIS route. Counsel and the employee
   // portal carry their own theme, and `.dark` on <html> is what every
