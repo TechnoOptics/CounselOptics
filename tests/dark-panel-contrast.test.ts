@@ -114,29 +114,27 @@ function gradientStops(config: string, key: string): string[] {
  *
  * The sweep is scripts/test/rendered-contrast-audit.mjs (`npm run
  * audit:contrast`), which renders each page twice and samples the real ground
- * under every glyph. It needs a browser and a running server, so it is opt-in
- * and NOT in CI.
+ * under every glyph. It needs a browser, so it is opt-in and not in CI.
  *
- * Run on 2026-08-15 against this branch, 14 public routes:
+ * Run 2026-08-15 against PRODUCTION, 14 public routes:
  *
- *     2942 runs measured, 372 below the AA floor
- *     /safe                                     0 below floor
+ *     3083 runs measured, 0 below the AA floor
  *
- * So these 18 tests were green while 372 runs were below the floor. They are
- * not lying and they are not useless: they hold the things that were fixed.
- * They simply answer a narrower question than "is the surface legible", and
- * anybody adding to this file should keep that boundary in mind.
+ * A CORRECTION LIVES HERE, because an earlier version of this comment
+ * recorded "372 below the AA floor" and that number was wrong. It was measured
+ * against `next dev`, whose served stylesheet does not carry the
+ * `html:not(.dark)` repaint layer from app/globals.css. Without that layer
+ * every `text-ink-400` and `text-gold-700` renders its raw Tailwind value, so
+ * the audit measured 2.56:1 and 3.32:1 and reported a site-wide regression
+ * that does not exist. The same sweep against production the same hour found
+ * nothing. Roughly 250 call-site edits were prepared to "fix" it and were
+ * thrown away.
  *
- * The 372 cluster into a small number of token decisions rather than a long
- * tail, which is why they are one deliberate change and not this file's job:
- *
- *     103 runs   worst 1.75:1   gold-700 ink
- *      81 runs   worst  3.7:1   emerald-600 ink, /pricing
- *      83 runs   worst 2.56:1   ink-400 (zinc-400) body grey
- *      17 runs   worst 1.07:1   bg-clip-text gold gradient headlines
- *
- * Changing any of those four changes the look of the public site, so it is the
- * owner's call, not a sweep-and-fix.
+ * The audit now refuses to run against a build missing that layer rather than
+ * measuring it, so this particular false alarm cannot recur. The general
+ * lesson is the one this repository keeps relearning: establish whether a
+ * tool's failure is loud or silent BEFORE believing its output. A measurement
+ * against the wrong build is not a measurement.
  */
 
 describe('the gold-shine ramp is legible on the ground it is for', () => {

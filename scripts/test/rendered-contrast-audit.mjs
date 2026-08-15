@@ -69,7 +69,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { decodePng } from './lib/png-reader.mjs';
 
 const require = createRequire(import.meta.url);
-const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+const APP_URL = (process.env.APP_URL || 'https://advottic.com').replace(/\/$/, '');
 const ONLY = process.env.ONLY || '';
 const WIDTH = 1280;
 
@@ -421,6 +421,62 @@ try {
       await warm.goto(APP_URL + route, { waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
     }
     await warm.close();
+  }
+
+  // ---------------------------------------------------------------------
+  // PRECONDITION: is the light-ground contrast layer even in this build?
+  //
+  // This exists because the audit produced a 372-finding false alarm on
+  // 2026-08-15. It was pointed at `next dev`, whose served stylesheet does not
+  // carry the `html:not(.dark)` repaint layer from app/globals.css. Every
+  // `text-ink-400` and `text-gold-700` therefore rendered its raw Tailwind
+  // value, the audit dutifully measured 2.56:1 and 3.32:1, and the report read
+  // as a real regression on the public site. The same sweep against production
+  // the same hour: 3083 runs, 0 below the floor.
+  //
+  // A measurement tool that cannot tell "the site is broken" from "the build I
+  // was given is not the site" is worse than no tool, because it is believed.
+  // So the layer is checked FIRST and a build without it is refused outright
+  // rather than measured. Loud, not silent.
+  {
+    const check = await browser.newPage();
+    await check.goto(APP_URL + '/', { waitUntil: 'networkidle2', timeout: 60000 });
+    const layer = await check.evaluate(() => {
+      let css = '';
+      const walk = (rules) => {
+        for (const r of rules) { css += r.cssText || ''; if (r.cssRules) walk(r.cssRules); }
+      };
+      for (const sheet of document.styleSheets) {
+        try { walk(sheet.cssRules); } catch { /* cross-origin, skip */ }
+      }
+      const root = getComputedStyle(document.documentElement);
+      return {
+        inkRule: css.includes('html:not(.dark) .text-ink-400'),
+        goldRule: css.includes('html:not(.dark) .text-gold-700'),
+        inkQuiet: root.getPropertyValue('--ink-quiet').trim(),
+        accentText: root.getPropertyValue('--accent-text').trim(),
+      };
+    });
+    await check.close();
+    const missing = [];
+    if (!layer.inkRule) missing.push('html:not(.dark) .text-ink-400');
+    if (!layer.goldRule) missing.push('html:not(.dark) .text-gold-700');
+    if (!layer.inkQuiet) missing.push('--ink-quiet');
+    if (!layer.accentText) missing.push('--accent-text');
+    if (missing.length) {
+      die(
+        `The light-ground contrast layer is ABSENT from the build at ${APP_URL}.\n` +
+        `  missing: ${missing.join(', ')}\n` +
+        `\n` +
+        `Refusing to measure. Every text-ink-400 and text-gold-700 would report\n` +
+        `its raw Tailwind value and the run would look like a site-wide\n` +
+        `regression that is not there. This is what \`next dev\` does.\n` +
+        `\n` +
+        `Point APP_URL at a production build:\n` +
+        `  APP_URL=https://advottic.com node scripts/test/rendered-contrast-audit.mjs\n` +
+        `or serve one locally:  npm run build && npm start`,
+      );
+    }
   }
 
   for (const route of ROUTES) {
