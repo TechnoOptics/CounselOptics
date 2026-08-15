@@ -9,6 +9,7 @@ import {
 } from '@/lib/signing-handoff';
 import { markHandoffState } from '@/lib/mark-handoff';
 import { decodeSignaturePng } from '@/lib/template-signature';
+import { isUnknownTableError } from '@/lib/signer-view';
 
 /**
  * The only module that reads or writes firm_mark_handoffs.
@@ -30,13 +31,83 @@ import { decodeSignaturePng } from '@/lib/template-signature';
  * the way out is the only thing that distinguishes "updated" from "the filter
  * matched nothing". Two of the guards in this file are exactly that filter.
  *
- * A missing table reads as a missing handoff throughout.
- * 20260815_mark_handoffs.sql is unapplied, and until it is, every function
- * here returns the same thing it would for a code that never existed. The
- * employee's form then shows no phone card and is otherwise untouched.
+ * A missing table reads as a missing handoff throughout: every read here
+ * finds nothing and the one write reports failure. That is NOT the same as
+ * the feature degrading, and this header used to say it was. Reading as "no
+ * handoff" is what happens AFTER an employee has been offered the phone,
+ * fetched it, and tapped the button. Not offering it in the first place is
+ * markHandoffFeatureAvailable below, and it is the only thing here that
+ * answers "does this feature exist" rather than "is there a handoff".
  */
 
 export const MARK_HANDOFF_COOKIE = 'adv_mark_handoff';
+
+/** Named once. It appears in the probe's statement and in the error message
+ *  the probe classifies, and those two must be the same string. */
+const MARK_HANDOFF_TABLE = 'firm_mark_handoffs';
+
+/**
+ * Does this database have the phone handoff at all?
+ *
+ * WHY THIS EXISTS AS A SEPARATE QUESTION.
+ *
+ * The employee's form used to decide whether to offer the phone entirely from
+ * firm_templates.signature_methods. Null there means "no restriction
+ * recorded", which is correct and deliberately fail-open: a database without
+ * 20260814_signature_methods.sql must not thereby refuse every method. But
+ * 20260815_mark_handoffs.sql is unapplied too, so that fail-open default was
+ * answering a question it knows nothing about, and the form offered a route
+ * whose table does not exist. The employee tapped it and was told the feature
+ * was unavailable, after being invited to reach for their phone.
+ *
+ * So the two questions are asked separately and of the right authority. The
+ * firm's setting says whether the phone is ALLOWED. This says whether it is
+ * POSSIBLE. An offer needs both.
+ *
+ * FAIL CLOSED, on purpose and in the cheap direction. Anything other than a
+ * clean answer means this cannot establish the offer can be honoured, so it
+ * is not made. Nothing is lost by being wrong that way: the pad is on the
+ * same page, and the mint would have refused anyway.
+ *
+ * Not cached. One narrow select per form render is not worth a cache that
+ * would keep answering "no" for the life of the process after the owner
+ * applies the migration, which is exactly the moment somebody is watching to
+ * see whether it worked.
+ */
+export async function markHandoffFeatureAvailable(): Promise<boolean> {
+  const admin = createAdminSupabase();
+  if (!admin) {
+    console.error(
+      '[mark-handoff] no service-role client, so signing on a phone cannot be offered.',
+    );
+    return false;
+  }
+
+  try {
+    const { error } = await admin.from(MARK_HANDOFF_TABLE).select('id').limit(1);
+    if (!error) return true;
+
+    // The expected state until the owner applies the migration. Named so an
+    // operator reading this line knows what to run rather than what to debug.
+    if (isUnknownTableError(error, MARK_HANDOFF_TABLE)) {
+      console.error(
+        `[mark-handoff] ${MARK_HANDOFF_TABLE} is absent (${error.code}), so signing on a phone is not offered. Apply supabase/migrations/20260815_mark_handoffs.sql and regenerate supabase/schema-fingerprint.sha256.`,
+      );
+      return false;
+    }
+
+    console.error(
+      `[mark-handoff] could not establish whether ${MARK_HANDOFF_TABLE} exists (${error.code ?? 'no code'}: ${error.message ?? 'no message'}), so signing on a phone is not offered.`,
+    );
+    return false;
+  } catch (e) {
+    console.error(
+      `[mark-handoff] the ${MARK_HANDOFF_TABLE} probe threw, so signing on a phone is not offered:`,
+      e,
+    );
+    return false;
+  }
+}
 
 /** The columns every read below needs, in one place. */
 const HANDOFF_COLS =
@@ -113,7 +184,17 @@ export async function createMarkHandoff(owner: {
   // The insert is read back rather than trusted. Without this a failed write
   // hands out a QR encoding a token no row will ever match, and the employee
   // scans it, waits, and is told nothing is wrong.
-  if (error || !data) return { ok: false };
+  //
+  // The employee is told a plain sentence with no cause in it, which is right:
+  // the cause is the database's and means nothing to them. It has to reach
+  // somebody though, and it used to reach nobody, so this is the operator's
+  // copy of it.
+  if (error || !data) {
+    console.error(
+      `[mark-handoff] could not mint a handoff (${error?.code ?? 'no code'}: ${error?.message ?? 'the insert returned no row'}). The employee was told signing on a phone is unavailable.`,
+    );
+    return { ok: false };
+  }
   return { ok: true, rawToken, handoffId: (data as { id: string }).id };
 }
 

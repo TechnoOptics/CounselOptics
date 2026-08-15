@@ -53,6 +53,7 @@ export function FormFillClient({
   firmName,
   employeeName,
   employeeEmail,
+  phoneHandoffAvailable,
   submission,
 }: {
   template: FirmTemplate;
@@ -62,6 +63,12 @@ export function FormFillClient({
   firmName: string;
   employeeName: string;
   employeeEmail: string;
+  /**
+   * Whether the phone handoff exists in this database at all, established by
+   * the server. Not optional and not defaulted: a caller that forgets it is a
+   * type error rather than a page that quietly offers the route again.
+   */
+  phoneHandoffAvailable: boolean;
   /** Set when the employee is fixing a submission legal sent back. */
   submission?: TemplateSubmission;
 }) {
@@ -110,15 +117,34 @@ export function FormFillClient({
   const phonePermitted =
     template.signatureMethods === null ||
     template.signatureMethods.includes('phone');
-  // A restriction that leaves this employee nothing at all. Unreachable
-  // through the picker, the save path and the CHECK constraint, all three of
-  // which refuse an empty selection, but lib/signature-methods.ts reads a
-  // stored [] as "refuse everything" rather than quietly widening it, and this
-  // is the surface honouring that. A template nobody can sign is a visible
-  // problem the firm can fix; a restriction silently lifted is not visible at
-  // all, so this says so plainly instead of finding the employee a route the
-  // firm did not grant.
-  const noMethodAvailable = padModes.length === 0 && !phonePermitted;
+  // Two questions, asked of two different authorities, and an offer needs
+  // both. The firm's setting above says whether the phone is ALLOWED; the
+  // prop says whether it is POSSIBLE in this database.
+  //
+  // They were one question until today, and the one they asked was the wrong
+  // one. A template with no restriction recorded reads as allowing all four
+  // methods, which is correct and deliberately fail-open, because a database
+  // without 20260814_signature_methods.sql must not refuse every method. But
+  // 20260815_mark_handoffs.sql is unapplied as well, so that default was also
+  // answering "does the phone handoff exist", which it knows nothing about.
+  // The card rendered, and the employee found out by tapping it.
+  const phoneOffered = phonePermitted && phoneHandoffAvailable;
+  // No pad, and no phone either. Two ways to arrive here and they are told
+  // apart below, because one is the firm's decision and one is not.
+  //
+  // The firm's is a restriction that leaves this employee nothing at all:
+  // unreachable through the picker, the save path and the CHECK constraint,
+  // all three of which refuse an empty selection, but lib/signature-methods.ts
+  // reads a stored [] as "refuse everything" rather than quietly widening it,
+  // and this is the surface honouring that. A template nobody can sign is a
+  // visible problem the firm can fix; a restriction silently lifted is not
+  // visible at all, so this says so plainly instead of finding the employee a
+  // route the firm did not grant.
+  const noWayToSign = padModes.length === 0 && !phoneOffered;
+  // The other way: the firm restricted this template to the phone, and the
+  // phone is the one thing this deployment cannot do yet. Not the firm's
+  // doing, so it does not read as the firm's fault.
+  const phoneOnlyNotProvisioned = noWayToSign && phonePermitted;
 
   const needsApproval = template.requiresApproval;
   const forSignature = template.deliveryMode === 'signature';
@@ -461,13 +487,21 @@ export function FormFillClient({
               </p>
             )}
 
-            {noMethodAvailable && (
+            {noWayToSign && (
               <p className="rounded-lg border border-edge bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-foreground">
-                <T>
-                  Your legal team has not left a way to sign this form. Ask
-                  them to enable a signature method on it, then open this page
-                  again.
-                </T>
+                {phoneOnlyNotProvisioned ? (
+                  <T>
+                    This form is set to be signed on a phone, and signing on a
+                    phone is not available yet. Ask your legal team to allow
+                    another way to sign it, then open this page again.
+                  </T>
+                ) : (
+                  <T>
+                    Your legal team has not left a way to sign this form. Ask
+                    them to enable a signature method on it, then open this page
+                    again.
+                  </T>
+                )}
               </p>
             )}
 
@@ -477,8 +511,10 @@ export function FormFillClient({
                 was reported missing. Absent when the firm has not allowed a
                 phone, because an offer that would be refused on scanning is
                 worse than no offer, and lib/mark-handoff.ts refuses to mint
-                one regardless. */}
-            {phonePermitted &&
+                one regardless. Absent, equally, when this deployment has no
+                phone handoff to give: an offer must not be made unless it can
+                be honoured. */}
+            {phoneOffered &&
               (phoneMark ? (
                 <p className="rounded-lg border border-edge bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-foreground">
                   <T>
@@ -489,6 +525,7 @@ export function FormFillClient({
               ) : (
                 <PhoneMarkHandoff
                   templateId={template.id}
+                  available={phoneHandoffAvailable}
                   onlyRoute={padModes.length === 0}
                   onMark={(dataUrl, handoffId) =>
                     setPhoneMark({ dataUrl, handoffId })
@@ -506,7 +543,7 @@ export function FormFillClient({
             {/* Not asked when there is no way to make a mark. Affirming intent
                 that "the mark above" be a signature, above an apology and no
                 pad, asks somebody to attest to something that cannot exist. */}
-            {!noMethodAvailable && (
+            {!noWayToSign && (
             <label className="flex items-start gap-3 text-[13px] text-foreground">
               <input
                 type="checkbox"
