@@ -147,7 +147,9 @@ export function SafetyAdvisory({ text }: { text: string }) {
             </ul>
           </details>
 
-          <p className="mt-3 text-[11px] text-rose-900/65 dark:text-rose-100/65">
+          {/* /80 rather than /65, which is 3.92:1 on this advisory's rose-50
+              fill. /80 is 5.69:1 and stays under the /85 body above. */}
+          <p className="mt-3 text-[11px] text-rose-900/80 dark:text-rose-100/65">
             Advottic noticed wording that suggests urgency. This is information, not legal
             advice - if it does not apply to your matter, you can hide this notice and
             keep filling out the form.

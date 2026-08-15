@@ -1673,6 +1673,14 @@ describe('every error and warning surface can be read on both of its grounds', (
     'components/portal/RequestHeader.tsx': 'counsel',
     'app/cases/[id]/activity-list.tsx': 'consumer',
     'app/cases/[id]/page.tsx': 'consumer',
+    // Both moved onto a status token when the consumer light surface was
+    // swept: the admin-preview banner's two quiet amber tiers were 2.95:1
+    // and 3.54:1 on their own amber-50 fill, and the Safe Witness badge's
+    // rose-600 was 3.85:1 on its rose tint. Consumer family, not HQ - these
+    // render on the case timeline and the profile page, which have two
+    // themes, unlike anything under app/admin.
+    'app/cases/[id]/timeline/admin-preview-toggle.tsx': 'consumer',
+    'app/profile/page.tsx': 'consumer',
     'app/cases/page.tsx': 'consumer',
     'app/changelog/page.tsx': 'consumer',
     'app/example/page.tsx': 'consumer',

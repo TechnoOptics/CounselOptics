@@ -392,8 +392,43 @@ function tracked(dirs: string[]): string[] {
 }
 
 const SHELL = /counselShellClass|counsel-shell|hq-shell|enterprise-shell/;
+
+/**
+ * A route segment whose LAYOUT declares an always-dark shell takes its
+ * whole SUBTREE with it.
+ *
+ * The per-file filter below is the same idea and was not enough. A shell
+ * is declared once, on a layout, and inherited by every page under it:
+ * `app/admin/layout.tsx` opens `<div className="dark hq-shell ...">`, so
+ * all 30 files of the HQ console render inside a `.dark` ancestor and
+ * the consumer light theme never paints one of them. The per-file filter
+ * dropped the layout and kept the console, and the console was then
+ * measured against #ffffff.
+ *
+ * That is not a conservative reading, it is a wrong one, and it does not
+ * fail safe. Under a `.dark` ancestor a call site's own `dark:` twin is
+ * the value that ALWAYS wins, so the light half of every pair in there
+ * is dead code - and this sweep reads a `dark:` twin as the author
+ * saying "the other one is my LIGHT value", which is exactly the claim
+ * that cannot be true under a permanently dark shell. It reported
+ * `text-amber-600` at 3.19:1 and `text-ink-500` at 4.40:1 in the HQ
+ * console for text that renders as `dark:text-amber-200` and
+ * `dark:text-cream-100/50`. Repainting either would have changed nothing
+ * on screen and moved a guard's number instead of a pixel.
+ *
+ * tests/accent-text.test.ts had already written the same fact down -
+ * `'app/admin': 'the HQ shell renders \`dark hq-shell\`, one theme'` in
+ * its SELF_GROUNDED list. This reads it off the layouts instead, so a
+ * new always-dark segment removes its subtree the day it is added and
+ * neither list has to be kept in step by hand.
+ */
+const DARK_SEGMENTS = tracked(['app'])
+  .filter((f) => /(?:^|\/)layout\.tsx$/.test(f) && SHELL.test(read(f)))
+  .map((f) => f.replace(/layout\.tsx$/, ''));
+
 const FILES = tracked(['app', 'components'])
   .filter((f) => !/^app\/counsel\/|^app\/portal\/|^components\/counsel\//.test(f))
+  .filter((f) => !DARK_SEGMENTS.some((seg) => f.startsWith(seg)))
   .filter((f) => !SHELL.test(read(f)));
 
 /**
@@ -505,34 +540,54 @@ function groundsFor(o: Occurrence): Record<string, string> {
  * the entry is still live AND still below the floor, so a fix retires
  * its own exemption rather than leaving a standing one.
  *
- * None of these is on the public marketing surface, which the rendered
- * audit of 2026-08-10 measured at zero failures. They are in the
- * signed-in consumer app, which that audit could not reach, and none was
- * verified in a browser - which is exactly why they are recorded rather
- * than guessed at.
+ * EMPTY, AND THAT IS THE POINT. It carried fourteen entries when this
+ * guard landed on 2026-08-10. Every one is now retired, and the two-way
+ * assertion below is what forced each out as its defect was closed
+ * rather than leaving a standing exemption behind. Eleven were real
+ * defects on the consumer light surface; three were this sweep being
+ * wrong, and those are the half worth writing down.
+ *
+ *   THE ELEVEN, FIXED AT THE CALL SITE. White on `bg-gold-600` at
+ *   2.34:1 (the timeline day-count badge, now forest-950 on the same
+ *   fill, which the dark half already used); the timeline empty-state
+ *   icons at 2.33:1 and 3.01:1 on their own 5% tint, now forest-900/65;
+ *   the admin-preview banner's two amber tiers at 2.95:1 and 3.54:1, now
+ *   `--warn-text`; two callout footnotes at 2.90:1 and 3.68:1 and a
+ *   third at 4.13:1, raised to /80 rather than pointed at a token,
+ *   because each had to stay quieter than the /85 body directly above
+ *   it and a token would have inverted that; rose-600 at 3.85:1 on a
+ *   rose tint, now `--danger-text`; forest-300 and forest-400 at 2.13:1
+ *   and 3.89:1 in the share viewer, now forest-500 - confirmed in a
+ *   browser first, because the entry could not say whether that viewer
+ *   painted a panel, and it does not: white button, white card, #fafaf8
+ *   page. text-ink-500 was 4.40:1 on one tinted chip in the consumer
+ *   tree, now `text-muted` at that one call site rather than a churn of
+ *   the 156 files that spell the class.
+ *
+ *   THE THREE THIS SWEEP GOT WRONG, all the same shape: the ground is
+ *   set by an ANCESTOR, and the class list the sweep reads says the
+ *   opposite. `text-cream-100/70` in components/PresenceIndicator.tsx
+ *   measured 1.05:1 and was never on white - it renders only inside the
+ *   case hero, which wears `hero-bg` and is dark in both themes. It was
+ *   measured at all because it carried a `dark:text-cream-100/55` twin,
+ *   and a `dark:` twin is what this file reads as the author stating
+ *   "the other one is my LIGHT value". A cream/cream pair is not that
+ *   statement; the fix was to delete the twin so the source says what is
+ *   true. `text-amber-600` at 3.19:1 and one `text-ink-500` at 4.40:1
+ *   were in the HQ console, which `app/admin/layout.tsx` renders inside
+ *   `dark hq-shell` - see DARK_SEGMENTS above, which now drops that
+ *   subtree, and note that the light half of every pair in there is dead
+ *   code that no repaint would have moved on screen.
+ *
+ *   SO: BEFORE ADDING AN ENTRY, find the ground. A ratio computed from a
+ *   class list alone is a hypothesis. Two ways this file can be fooled,
+ *   both seen here: an always-dark ancestor (check the segment's layout,
+ *   and check DARK_SEGMENTS covers it), and a background-IMAGE ancestor
+ *   like `hero-bg` - a computed-style walk up the DOM reads straight
+ *   through that one to the page and agrees with the wrong answer, so it
+ *   takes actual pixels to settle.
  */
-const KNOWN_BELOW: Record<string, string> = {
-  'text-cream-100/70':
-    'components/PresenceIndicator.tsx; cream at 70% with a cream `dark:` twin, so the light ground is whatever chip encloses it and only a render can say',
-  'text-forest-300':
-    "app/share/[token]/human-check.tsx; 2.13:1 if it is on the page, and this sweep cannot see whether the share viewer's panel is behind it",
-  'text-forest-400': 'app/share/[token]/human-check.tsx, same panel, 3.89:1',
-  'text-forest-900/40':
-    'the timeline empty-state icons, 2.33:1 on their own 5% tint; icons rather than words, so the floor that applies is 3:1 and they miss that too',
-  'text-forest-900/50': 'the same icons one stop up, 3.01:1',
-  'text-white':
-    'the timeline day-count badge on bg-gold-600, 2.34:1; white on a mid-gold fill needs the fill to darken or the label to go dark',
-  'text-amber-600': 'app/admin/users/trial-controls.tsx, 3.19:1; --warn-text is 6.12:1 and is the token for this',
-  'text-amber-700/70': 'app/cases/[id]/timeline/admin-preview-toggle.tsx, 2.95:1',
-  'text-amber-700/80': 'the same toggle, 3.54:1',
-  'text-amber-900/55': 'components/CallALawyerCallout.tsx, 2.90:1',
-  'text-amber-900/65': 'the same callout, 3.68:1',
-  'text-rose-600':
-    '9 files, 3.85:1 on a bg-rose-500/15 tint; --danger-text is the token, but rose-600 is also used as an icon fill where 3:1 applies',
-  'text-rose-900/65': 'components/SafetyAdvisory.tsx, 4.13:1',
-  'text-ink-500':
-    '156 files, 4.40:1 and only on a bg-ink-100 chip; 4.83:1 on the page itself, and the rendered audit found no instance of it under the floor',
-};
+const KNOWN_BELOW: Record<string, string> = {};
 
 /* ------------------------------------------------------------------ */
 
@@ -542,16 +597,27 @@ describe('the consumer light surface', () => {
     // floor is how the counsel sweep went quiet: a broken pathspec cut it
     // to two files, every assertion passed, and nine defects sat behind
     // it. A mutation found that, not a green run.
-    expect(FILES.length).toBeGreaterThanOrEqual(330);
+    //
+    // These came DOWN once, from 330/2200/1400/3700, when DARK_SEGMENTS
+    // above started dropping the 30 files of the always-dark HQ console
+    // that the per-file shell filter had been letting through. Coverage
+    // of the surface this file is named after did not change: every one
+    // of those files renders inside `dark hq-shell` and the consumer
+    // light theme paints none of them. A floor that has to be lowered
+    // for any OTHER reason is a broken pathspec, which is the thing
+    // these numbers exist to catch - re-derive it, do not nudge it.
+    expect(DARK_SEGMENTS).toContain('app/admin/');
+    expect(FILES.some((f) => f.startsWith('app/admin/'))).toBe(false);
+    expect(FILES.length).toBeGreaterThanOrEqual(315);
     expect(FILES.filter((f) => /^app\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(3);
     expect(FILES.filter((f) => /^components\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(
       80,
     );
-    expect(MEASURED.length).toBeGreaterThanOrEqual(2200);
-    expect(LISTED.length).toBeGreaterThanOrEqual(1400);
+    expect(MEASURED.length).toBeGreaterThanOrEqual(2000);
+    expect(LISTED.length).toBeGreaterThanOrEqual(1100);
     // And the two halves together are the whole sweep, so neither can
     // grow by eating the other unnoticed.
-    expect(MEASURED.length + LISTED.length).toBeGreaterThanOrEqual(3700);
+    expect(MEASURED.length + LISTED.length).toBeGreaterThanOrEqual(3100);
 
     // The stylesheet is reachable, in the bare and the escaped spelling.
     expect(PAGE).toBe('#ffffff');

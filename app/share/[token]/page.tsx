@@ -25,11 +25,14 @@ export default function SharePage({ params }: { params: { token: string } }) {
             </div>
           </div>
           <UnlockForm token={params.token} />
-          <p className="mt-5 text-[11.5px] leading-relaxed text-forest-400 dark:text-cream-100/40">
+          {/* forest-500 for both of these: forest-400 is 3.89:1 on the white
+              card and 3.72:1 on the page, and this is the same microcopy tier
+              the header above already sets in forest-500. */}
+          <p className="mt-5 text-[11.5px] leading-relaxed text-forest-500 dark:text-cream-100/40">
             This document is encrypted. The key was sent to you separately and is required to decrypt it. Please keep it confidential and do not forward this link.
           </p>
         </div>
-        <p className="mt-4 text-center text-[11px] text-forest-400 dark:text-cream-100/30">Secured by Advottic</p>
+        <p className="mt-4 text-center text-[11px] text-forest-500 dark:text-cream-100/30">Secured by Advottic</p>
       </div>
     </main>
   );

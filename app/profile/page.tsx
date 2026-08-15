@@ -340,9 +340,12 @@ export default async function ProfilePage({
             for help. */}
         <div className="rounded-lg ring-1 ring-rose-200 dark:ring-rose-700/40 bg-rose-50/30 dark:bg-rose-950/15 p-4">
           <div className="flex items-center gap-2 mb-2">
+            {/* `danger-text`, not rose-600: rose-600 is 4.70:1 on white but
+                3.85:1 once this badge's own rose tint is under it. The token
+                is 5.30:1 there. */}
             <span
               aria-hidden
-              className="inline-flex h-7 w-7 items-center justify-center rounded bg-rose-500/15 text-rose-600 dark:text-rose-300"
+              className="inline-flex h-7 w-7 items-center justify-center rounded bg-rose-500/15 text-danger-text dark:text-rose-300"
             >
               <svg
                 width="14"

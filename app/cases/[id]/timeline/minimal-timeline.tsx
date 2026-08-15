@@ -95,7 +95,9 @@ export function MinimalTimeline({
           turns it into a fully-analysed, court-ready case timeline.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-forest-900/5 px-2.5 py-1 text-xs text-ink-500 dark:bg-cream-50/10 dark:text-cream-300/70">
+          {/* `text-muted`, not `text-ink-500`: ink-500 is 4.83:1 on white but
+              only 4.41:1 once the chip's own 5% forest tint is under it. */}
+          <span className="rounded-full bg-forest-900/5 px-2.5 py-1 text-xs text-muted dark:bg-cream-50/10 dark:text-cream-300/70">
             {events.length} {events.length === 1 ? 'item' : 'items'}
           </span>
           <InviteFirm caseId={caseId} />
@@ -134,7 +136,7 @@ export function MinimalTimeline({
           dragOver ? 'border-gold-500 bg-gold-500/10' : 'border-forest-900/20 bg-white/60 dark:border-cream-50/15 dark:bg-cream-50/5'
         }`}
       >
-        <div className="flex justify-center text-forest-900/40 dark:text-cream-50/40">
+        <div className="flex justify-center text-forest-900/65 dark:text-cream-50/40">
           <ArchiveIcon size={30} />
         </div>
         <p className="mt-2 font-medium text-forest-900 dark:text-cream-100">
@@ -292,14 +294,14 @@ function MinimalCard({ event, onChange, onDelete }: {
             className="flex-none overflow-hidden rounded-lg ring-1 ring-forest-900/10 transition hover:ring-2 hover:ring-gold-500"
           >
             {thumb ? <img src={thumb} alt="" data-no-translate className="h-16 w-16 object-cover" />
-              : <div className="grid h-16 w-16 place-items-center bg-forest-900/5 text-forest-900/40 dark:bg-cream-50/10 dark:text-cream-50/40"><KindIcon kind="photo" className="h-6 w-6" /></div>}
+              : <div className="grid h-16 w-16 place-items-center bg-forest-900/5 text-forest-900/65 dark:bg-cream-50/10 dark:text-cream-50/40"><KindIcon kind="photo" className="h-6 w-6" /></div>}
           </button>
         ) : event.media.length > 0 ? (
           <button
             type="button"
             onClick={() => setViewing(event.media[0])}
             title="Open attachment"
-            className="grid h-16 w-16 flex-none place-items-center rounded-lg bg-forest-900/5 text-forest-900/50 transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10 dark:text-cream-50/50"
+            className="grid h-16 w-16 flex-none place-items-center rounded-lg bg-forest-900/5 text-forest-900/65 transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10 dark:text-cream-50/50"
           >
             <MediaIcon m={event.media[0]} />
           </button>

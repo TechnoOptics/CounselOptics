@@ -96,7 +96,20 @@ export function PresenceIndicator({
       aria-label="People currently viewing this case"
       className="flex items-center gap-2 flex-wrap"
     >
-      <span className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/70 dark:text-cream-100/55">
+      {/*
+        ONE value, no `dark:` twin, and that is the honest spelling.
+        This label only ever renders inside the case hero, which wears
+        `hero-bg` - a forest gradient that is dark in BOTH themes. So there is
+        no light value to give: cream is correct either way, and confirmed in
+        a browser at 6.9:1 on the gradient it actually lands on.
+        The twin it used to carry (`dark:text-cream-100/55`) was worse than
+        redundant. tests/consumer-light-legibility.ts reads a `dark:text-*`
+        twin as the author stating "the other one is my LIGHT value", so the
+        pair made the sweep measure cream on the white page and report 1.05:1
+        for text that was never on white. `hero-bg` paints through
+        background-IMAGE, so nothing downstream can see the ground either.
+      */}
+      <span className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/70">
         Viewing
       </span>
       <div className="flex -space-x-2">
