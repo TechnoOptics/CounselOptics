@@ -247,7 +247,14 @@ function Tabs() {
                   </span>
                 </div>
               </div>
-              <span className="btn-secondary opacity-60 cursor-not-allowed select-none">
+              {/* A picture of a button on a read-only page - a bare
+                  span, so it is not a control and carries no disabled
+                  state to announce. `opacity-60` was the only thing
+                  saying "not clickable here", and on white it faded
+                  forest-900 to 4.11:1 across all five rows. Said with
+                  a quiet fill and a muted-but-legible ink instead,
+                  which reads the same and measures 7.6:1. */}
+              <span className="btn-secondary bg-cream-50 text-ink-600 border-ink-200 cursor-not-allowed select-none">
                 View
               </span>
             </li>
@@ -315,9 +322,17 @@ function Tabs() {
             ].map((it, i) => (
               <li
                 key={it.t}
+                /* A completed item said "done" with `opacity-70` on the
+                   whole row, which on a white page fades every ink in
+                   it TOWARDS the ground: the white tick on its emerald
+                   disc measured 2.28:1, the caption 3.59:1 and the
+                   struck title 4.31:1. The emerald border, the emerald
+                   tint and the line-through already say completed
+                   without spending contrast, so the fade goes and they
+                   do the work. */
                 className={`flex items-start gap-3 rounded-lg border p-3 ${
                   it.done
-                    ? 'border-emerald-200 bg-emerald-50/40 opacity-70'
+                    ? 'border-emerald-300 bg-emerald-50/60'
                     : it.tone === 'amber'
                       ? 'border-amber-200 bg-amber-50/60'
                       : 'border-ink-200 bg-cream-50/60'

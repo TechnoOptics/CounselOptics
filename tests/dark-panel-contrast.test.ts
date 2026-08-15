@@ -25,6 +25,12 @@ import { join } from 'node:path';
  * Every threshold is the ground's OWN requirement, computed from the
  * measured luminance rather than a copied number, so a test that passes
  * is a statement about contrast and not about a hex.
+ *
+ * The last describe is the light-ground remainder the same sweep turned
+ * up once the dark panels were closed. It lives here rather than in
+ * tests/consumer-light-legibility.test.ts because it is not a question
+ * about a palette class at all: the ink was correct and an ancestor
+ * `opacity` was fading it into the page.
  */
 
 const ROOT = join(__dirname, '..');
@@ -313,6 +319,49 @@ describe('the hand-painted dark panels clear their own grounds', () => {
       example,
       'the stat cell no longer declares the theme it is painted in',
     ).toMatch(/className="dark px-4/);
+  });
+});
+
+describe('state is not spelled by fading ink towards the page', () => {
+  /*
+   * The light-ground remainder, closed in the same branch. Every one of
+   * these was an ancestor `opacity` standing in for a state word:
+   * `opacity-70` on a completed checklist row and `opacity-60` on the
+   * read-only "View" chips. On a white page that fades the ink TOWARDS
+   * the ground rather than away from it, so the whole row loses
+   * contrast at once and nothing in the row's own classes shows why -
+   * the white tick on its emerald disc measured 2.28:1, the caption
+   * 3.59:1, the struck title 4.31:1, the five chips 4.11:1.
+   *
+   * Border, tint, line-through and a muted ink all say the same thing
+   * and cost no contrast, which is what those states use now.
+   */
+  const EXAMPLE = code('app/example/page.tsx');
+
+  it('leaves no opacity utility on the read-only chips', () => {
+    for (const cls of EXAMPLE.match(/className="[^"]*cursor-not-allowed[^"]*"/g) ?? []) {
+      expect(cls, 'a read-only chip is still dimmed with opacity').not.toMatch(/\bopacity-\d/);
+    }
+  });
+
+  it('leaves no opacity utility on the completed checklist row', () => {
+    // The done branch of the row's class expression.
+    const done = /it\.done\s*\?\s*'([^']*)'/.exec(EXAMPLE);
+    expect(done, 'the completed-row branch is gone').not.toBeNull();
+    expect(done![1], 'the completed row is still dimmed with opacity').not.toMatch(
+      /\bopacity-\d/,
+    );
+  });
+
+  it('clears 4.5:1 on the two pairs that fade left behind', () => {
+    // The tick, once its row is no longer faded: white on emerald-700.
+    expect(contrast(hexLuminance('#ffffff'), hexLuminance('#047857'))).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    // The chip: ink-600 on cream-50, itself on the white page.
+    expect(contrast(hexLuminance('#52525b'), hexLuminance('#fefcf3'))).toBeGreaterThanOrEqual(
+      4.5,
+    );
   });
 });
 

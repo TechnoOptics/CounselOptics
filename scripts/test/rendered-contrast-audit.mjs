@@ -200,6 +200,18 @@ const HARVEST = `(() => {
       if (s.overflow !== 'visible' && (n.offsetWidth <= 1 || n.offsetHeight <= 1)) return true;
       if (s.clipPath === 'inset(50%)') return true;
       if (s.clip === 'rect(0px, 0px, 0px, 0px)') return true;
+      // A CLOSED disclosure. Chrome does not give the skipped subtree a
+      // display of none, so it survives the checks above, and the rects
+      // it reports are degenerate ones parked at the container's edge -
+      // which sampled the section's own ring-ink-200 and reported four
+      // runs of /pricing source citations at 3.81:1. Nobody can see
+      // that text until they open the disclosure, at which point it is
+      // on the white card and clears the floor. Text inside the
+      // SUMMARY is visible and is not skipped.
+      const parent = n.parentElement;
+      if (parent && parent.tagName === 'DETAILS' && !parent.open && n.tagName !== 'SUMMARY') {
+        return true;
+      }
     }
     return false;
   }
