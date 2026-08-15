@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { firmVocabulary } from '@/lib/firm-vocabulary';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { readRequestFolders } from '@/lib/request-folders';
 import { isIntakeOpen } from '@/lib/intake-lanes';
@@ -40,6 +41,9 @@ export default async function CounselInboxPage({
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+  // The "create one yourself" link names the thing it creates, which an
+  // in-house team calls a request.
+  const vocab = firmVocabulary(ctx.firm.firmType);
   const supabase = createServerSupabase();
   const { data: rows } = await supabase
     .from('firm_matter_intakes')
@@ -101,7 +105,7 @@ export default async function CounselInboxPage({
               href="/counsel/intake"
               className="underline text-foreground"
             >
-              <T>New intake</T>
+              <T>{vocab.intake}</T>
             </Link>
             .
           </>
