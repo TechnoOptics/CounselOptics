@@ -14,6 +14,7 @@ import {
   projectActivityForSubmitter,
 } from './signing-activity';
 import type { SubmissionSigning } from './template-submission-types';
+import { formatSignedOn } from './firm-template-placeholders';
 
 /**
  * The end of the chain: a signing request has completed, and the two people
@@ -377,7 +378,7 @@ async function tellTheEmployee(row: CompletionRow, completedAt: string): Promise
           templateName: row.template_name,
           reference: refOf(row),
           counterparty,
-          signedOn: formatSignedOn(completedAt),
+          signedOn: formatCompletedOn(completedAt),
           link: `${siteUrl()}${link}`,
         }),
       })
@@ -428,13 +429,20 @@ async function tellTheLegalTeam(
   );
 }
 
-/** A date a person can read, with a bad timestamp degrading to no date. */
-function formatSignedOn(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return '';
-  return at.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+/**
+ * The completed instrument's signature line.
+ *
+ * This was a PRIVATE COPY of formatSignedOn that returned date-only, in the
+ * machine's local zone, and took an ISO string where the shared one takes a
+ * Date. So the finished, countersigned document - the one that matters most -
+ * kept printing "March 3, 2026" after the template and PDF paths had both been
+ * given the time and a pinned zone. A fix that does not reach the document
+ * somebody actually receives is not a fix.
+ *
+ * It is now a thin adapter over the shared formatter and holds no formatting
+ * of its own. Same lesson as lib/signature-geometry.ts: the fourth copy is
+ * where the drift hides.
+ */
+function formatCompletedOn(iso: string): string {
+  return formatSignedOn(new Date(iso));
 }

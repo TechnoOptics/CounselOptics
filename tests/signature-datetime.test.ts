@@ -65,6 +65,45 @@ describe('what a signature line says', () => {
   });
 });
 
+describe('there is exactly one formatter', () => {
+  /**
+   * The defect this caught: lib/submission-completion.ts carried a PRIVATE
+   * copy of formatSignedOn that returned date-only in the machine's local
+   * zone. So after the template block and the PDF caption were both fixed, the
+   * finished countersigned document - the one the signer actually receives -
+   * still printed "March 3, 2026". A fix that does not reach the document
+   * somebody holds is not a fix, and a fourth copy is where the drift hides.
+   */
+  const FILES = [
+    'lib/submission-completion.ts',
+    'lib/signature-render.ts',
+    'lib/template-submissions.ts',
+  ];
+
+  it('no module declares its own date formatter for a signature line', () => {
+    for (const f of FILES) {
+      const src = readFileSync(join(process.cwd(), f), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '');
+      expect(
+        src,
+        `${f} declares its own signature date formatter; use the shared formatSignedOn`,
+      ).not.toMatch(/function formatSignedOn\s*\(/);
+    }
+  });
+
+  it('the completed document goes through the shared one', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'lib/submission-completion.ts'),
+      'utf8',
+    );
+    expect(src).toMatch(/import \{ formatSignedOn \} from '\.\/firm-template-placeholders'/);
+    expect(src).toMatch(/formatSignedOn\(new Date\(iso\)\)/);
+    // And it must not have quietly gone back to date-only.
+    expect(src.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/toLocaleDateString/);
+  });
+});
+
 describe('both printers use the one formatter', () => {
   const RAW = readFileSync(join(process.cwd(), 'lib/signature-render.ts'), 'utf8');
   /**
