@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getWorkspacePersona } from '@/lib/persona';
 import { getPortalTemplateAction } from '@/lib/firm-templates';
 import { getTemplateSubmissionAction } from '@/lib/template-submissions';
+import { markHandoffFeatureAvailable } from '@/lib/mark-handoff-queries';
 import { isEditableBySubmitter } from '@/lib/template-approval';
 import { displayTicket } from '@/lib/ticket-numbers';
 import { resolveSubmissionSigningState } from '@/lib/template-submission-types';
@@ -62,6 +63,11 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
         firmName={persona.firm.name}
         employeeName={persona.employee.displayName ?? ''}
         employeeEmail={persona.employee.email ?? ''}
+        // The same question the fill page asks, because this renders the same
+        // form: does the phone handoff exist in this database at all. Asked
+        // only on the branch that renders the form, so a status page nobody is
+        // signing on does not probe.
+        phoneHandoffAvailable={await markHandoffFeatureAvailable()}
         submission={submission}
       />
     );

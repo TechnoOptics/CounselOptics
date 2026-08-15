@@ -31,9 +31,10 @@ vi.mock('../app/portal/forms/[id]/mark-handoff-actions', () => ({
 
 const { FormFillClient } = await import('../app/portal/forms/[id]/form-fill-client');
 
-function page(signatureMethods: unknown): string {
+function page(signatureMethods: unknown, phoneHandoffAvailable = true): string {
   const html = renderToStaticMarkup(
     createElement(FormFillClient as never, {
+      phoneHandoffAvailable,
       template: {
         id: 't1',
         firmId: 'f1',
@@ -109,6 +110,66 @@ describe('the employee form, on a template that forbids the phone', () => {
     expect(html).not.toContain('>Draw<');
     expect(html).not.toContain('>Upload<');
     expect(html).not.toContain('Draw it, type it, or upload');
+  });
+});
+
+/**
+ * The live defect. 20260815_mark_handoffs.sql is unapplied, so
+ * firm_mark_handoffs does not exist; 20260814_signature_methods.sql is
+ * unapplied too, so signature_methods reads as null, which means "no
+ * restriction" and therefore "the phone is allowed". The form offered a route
+ * whose table was not there, and the employee found that out by tapping it.
+ *
+ * Whether the firm ALLOWS the phone and whether the phone is POSSIBLE are two
+ * questions now, and an offer needs both.
+ */
+describe('the employee form, where the phone handoff is not provisioned', () => {
+  const html = page(null, false);
+
+  it('does not offer a route the server cannot honour', () => {
+    expect(html).not.toContain(QR_BUTTON);
+  });
+
+  /** Nothing else moves. This employee has a pad and does not need telling
+   *  about a feature they were never shown. */
+  it('is otherwise the ordinary form', () => {
+    expect(html).toContain('>Draw<');
+    expect(html).toContain('>Type<');
+    expect(html).toContain('>Upload<');
+    expect(html).toContain('intend that the mark above be my signature');
+    expect(html).not.toContain('has not left a way to sign this form');
+    expect(html).not.toContain('not available yet');
+  });
+});
+
+/**
+ * The one case where it has to be said out loud: the firm restricted this
+ * template to the phone, so there is no pad to fall back to.
+ */
+describe('a phone-only form where the phone handoff is not provisioned', () => {
+  const html = page(['phone'], false);
+
+  it('offers nothing, rather than a button that fails on tapping', () => {
+    expect(html).not.toContain(QR_BUTTON);
+    expect(html).not.toContain('<canvas');
+  });
+
+  it('says plainly that there is no way to sign this one yet', () => {
+    expect(html).toContain('set to be signed on a phone');
+    expect(html).toContain('not available yet');
+    expect(html).toContain('Ask your legal team');
+  });
+
+  /** No cause. The database is not the employee's problem and naming it here
+   *  would be alarming and useless in equal measure. */
+  it('tells the employee nothing about the database', () => {
+    expect(html).not.toContain('firm_mark_handoffs');
+    expect(html).not.toContain('migration');
+    expect(html).not.toContain('table');
+  });
+
+  it('does not ask anyone to affirm intent about a mark that cannot exist', () => {
+    expect(html).not.toContain('intend that the mark above be my signature');
   });
 });
 

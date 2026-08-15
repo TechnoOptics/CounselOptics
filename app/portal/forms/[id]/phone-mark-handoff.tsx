@@ -28,10 +28,25 @@ import {
  */
 export function PhoneMarkHandoff({
   templateId,
+  available,
   onlyRoute,
   onMark,
 }: {
   templateId: string;
+  /**
+   * Whether the mint could work at all, established on the server.
+   *
+   * This was a hardcoded `true`, written when the only thing that could hold
+   * the card back was the signer's disclosure step, which this surface does
+   * not have. It is a prop now because there turned out to be a second reason:
+   * 20260815_mark_handoffs.sql is unapplied, so firm_mark_handoffs does not
+   * exist and every mint fails. The form does not render this card in that
+   * state at all, and this says the same thing a second time so a future
+   * caller that renders it optimistically gets a disabled button rather than
+   * one that fails on tapping. The server says it a third time, and that one
+   * is the control.
+   */
+  available: boolean;
   /**
    * True when the pad above has nothing to offer, which is what a template
    * restricted to the phone produces. The copy has to change with it:
@@ -52,7 +67,7 @@ export function PhoneMarkHandoff({
 }) {
   return (
     <PhoneHandoffCard
-      available
+      available={available}
       mint={async () => {
         const res = await mintPhoneMarkAction(templateId);
         // The handoff id becomes the card's `ref` and comes back to the poll
@@ -79,11 +94,11 @@ export function PhoneMarkHandoff({
         offer: onlyRoute
           ? 'This form is signed on a phone. Show a code and scan it with yours.'
           : 'Prefer to sign with your finger? Use your phone.',
-        // Unreachable here: `available` is always true on this surface, because
-        // an employee signing their employer's own paper has no disclosure
-        // step to get past first. Written rather than left blank so the card
-        // has nothing to fall through to if that ever changes.
-        notYet: 'You can sign this on your phone.',
+        // Reached only by a caller that rendered this card knowing the mint
+        // cannot work. The form does not: it drops the card entirely, and on a
+        // phone-only template says why in its own words, because a disabled
+        // button is not an explanation.
+        notYet: 'Signing on your phone is not available yet.',
         scan: 'Scan with your phone and draw your signature there. The code works once and expires in fifteen minutes.',
         alsoHere: onlyRoute
           ? 'Your signature comes back to this page, and you finish the form here.'
