@@ -1635,6 +1635,7 @@ describe('every error and warning surface can be read on both of its grounds', (
   /** The file, and which shell family decides its two grounds. */
   const SURFACE_FILES: Record<string, 'counsel' | 'consumer'> = {
     'app/counsel/cases/[id]/approach-builder.tsx': 'counsel',
+    'app/counsel/cases/[id]/case-file-panel.tsx': 'counsel',
     'app/counsel/cases/[id]/evidence/evidence-intake.tsx': 'counsel',
     'app/counsel/cases/[id]/evidence/evidence-viewer.tsx': 'counsel',
     'app/counsel/request/request-form.tsx': 'counsel',
