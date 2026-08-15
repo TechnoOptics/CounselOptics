@@ -20,6 +20,7 @@ import { T } from '@/components/i18n/LocaleProvider';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { logCaseActivity } from '@/lib/case-activity-log';
+import { caseFileIsOpen } from '@/lib/case-file';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,13 @@ export default async function FirmTimelinePage({
     firmId = summary.guest.firmId;
     isGuest = true;
   }
+  // A timeline of events is a court exhibit, so this page only exists for a
+  // matter whose case file is open. Back to the matter rather than notFound():
+  // the matter is real and the person is allowed to see it, they have simply
+  // arrived at a surface it does not have. Nothing here is deleted by turning
+  // them away - every event, person and narrative is untouched and returns
+  // whole when an owner, admin or attorney opens the case file.
+  if (!(await caseFileIsOpen(params.id))) redirect(`/counsel/cases/${params.id}`);
   const supabase = createServerSupabase();
   const CASE_COLS =
     'id, title, subject_name, subject_type, subject_profile, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, description, posture, status, hearing_at, hearing_location, hearing_notes, created_at, firm_id';

@@ -6,6 +6,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { firmSuspended } from '@/lib/firm-trials';
 import { exhibitLabel, type TimelineMedia, type AiExtracted } from '@/lib/timeline-types';
 import { logCaseActivity } from '@/lib/case-activity-log';
+import { caseFileRefusal } from '@/lib/case-file';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -131,6 +132,15 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     .maybeSingle();
   const c = caseRow as { id: string; title: string; firm_id: string | null } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // Original exhibit files, by URL. This is the door a closed case file most
+  // needs shut: the page is gone but the bytes are addressable, and a route
+  // handler renders no layout to stop anyone. Nothing is deleted by refusing -
+  // the storage objects are untouched and open again with the case file.
+  const caseFileClosed = await caseFileRefusal(params.id);
+  if (caseFileClosed) {
+    return NextResponse.json({ error: caseFileClosed.error }, { status: 403 });
+  }
 
   const url = new URL(req.url);
   const ids = (url.searchParams.get('ids') || '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, MAX_FILES);

@@ -26,6 +26,7 @@ import {
   ROLE_LABEL,
   type TimelineMedia,
 } from '@/lib/timeline-types';
+import { caseFileRefusal } from '@/lib/case-file';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -122,6 +123,14 @@ export async function GET(
     .maybeSingle();
   const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null; text_normalizations: unknown } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // An approach export is the firm's theory of a court case, printed. Same
+  // gate, same reasons, as the matter packet next door: a route handler
+  // renders no layout, so a closed case file has to be refused right here.
+  const caseFileClosed = await caseFileRefusal(params.id);
+  if (caseFileClosed) {
+    return NextResponse.json({ error: caseFileClosed.error }, { status: 403 });
+  }
 
   // The reference this packet is filed under. Its own request rather than a
   // sixth column on the select above; the matter export route states why at

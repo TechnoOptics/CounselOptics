@@ -22,6 +22,7 @@ import { parseExhibitSheet } from '@/lib/exhibit-sheet';
 import { staticMapUrlServer } from '@/lib/maps';
 import { canonicalOrg } from '@/lib/entity-normalize';
 import { logCaseActivity } from '@/lib/case-activity-log';
+import { caseFileRefusal } from '@/lib/case-file';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -118,6 +119,19 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     .maybeSingle();
   const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null; text_normalizations: unknown } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // The court packet is a court surface. A matter the firm is handling as a
+  // request has no case file open, so there is no packet to build - and this
+  // is the ONLY thing standing between a URL and one, because a route handler
+  // renders no layout and no page. Asked after the access check above, never
+  // before it, so a 403 here cannot report whether a guessed id is a real
+  // matter. Refusing builds nothing and deletes nothing: every exhibit, event
+  // and approach the packet would have named is untouched and comes back the
+  // moment the case file is opened again.
+  const caseFileClosed = await caseFileRefusal(params.id);
+  if (caseFileClosed) {
+    return NextResponse.json({ error: caseFileClosed.error }, { status: 403 });
+  }
 
   // The reference this exhibit is filed under, printed on the cover. Its own
   // request and NOT a sixth column on the select above, for the reason

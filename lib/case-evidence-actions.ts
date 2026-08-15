@@ -9,6 +9,7 @@ import {
 } from './evidence-folders';
 import { createAdminSupabase } from './supabase/admin';
 import { requireActiveFirm } from './firm-authz';
+import { caseFileRefusal } from './case-file';
 import type { FirmRole } from './firm-types';
 import { logCaseActivity } from './case-activity-log';
 import { aiConfigured } from './timeline-ai';
@@ -74,7 +75,7 @@ const EVIDENCE_POSTING_ROLES: readonly FirmRole[] = [
  * `firmId`. Every read and write in this module goes through the service-role
  * client, which bypasses RLS, so this gate is the only authorization there is.
  */
-async function assertFirmCase(
+async function assertFirmCaseAccess(
   firmId: string,
   caseId: string,
   intent: EvidenceIntent = 'write',
@@ -117,6 +118,32 @@ async function assertFirmCase(
     };
   }
   return { ok: false, error: 'You do not have access to this matter.' };
+}
+
+/**
+ * Access, and then the CASE FILE.
+ *
+ * The Evidence Center is a court surface. A matter being handled as a request
+ * does not render it and its routes turn a reader away, but every export in
+ * this module is a public HTTP endpoint that stays callable regardless, so the
+ * refusal has to be here as well as there.
+ *
+ * Applied to reads too, unlike lib/firm-surface-guard.ts, and lib/case-file.ts
+ * explains why: the way back is one click on the matter page itself, so a
+ * closed case file is a shut drawer rather than deletion with extra steps.
+ * Nothing in `case_timeline_events` or its storage objects is touched.
+ *
+ * Asked LAST, of a caller already proven to have access, so that a refusal
+ * cannot report whether a guessed matter id is real.
+ */
+async function assertFirmCase(
+  firmId: string,
+  caseId: string,
+  intent: EvidenceIntent = 'write',
+): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const gate = await assertFirmCaseAccess(firmId, caseId, intent);
+  if (!gate.ok) return gate;
+  return (await caseFileRefusal(caseId)) ?? gate;
 }
 
 type EventRow = {

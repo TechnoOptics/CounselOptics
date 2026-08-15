@@ -61,6 +61,14 @@ const h = vi.hoisted(() => {
     caseExists: true,
     /** Whether the caller is an outside co-counsel guest on this matter. */
     isGuest: false,
+    /**
+     * Whether the firm has opened the CASE FILE on this matter
+     * (cases.litigation_mode). Held true for every role test below, because
+     * this file is about what a ROLE may reach and a second closed gate would
+     * make every refusal here ambiguous. Its own describe block at the bottom
+     * is where it is allowed to be false.
+     */
+    caseFileOpen: true,
   };
   /** Every table the SERVICE-ROLE client was asked to touch, in order. */
   const adminCalls: string[] = [];
@@ -130,6 +138,17 @@ const h = vi.hoisted(() => {
     firm_members: { user_id: 'user-2' },
   };
 
+  /**
+   * The matter row lib/case-file.ts reads. Separate from READ.cases because
+   * the two reads want different columns and the case-file read is the only
+   * one whose answer can change per test.
+   */
+  const caseFileRow = () => ({
+    litigation_mode: s.caseFileOpen,
+    hearing_at: null,
+    hearing_location: null,
+  });
+
   const WRITE: Record<string, unknown> = {
     case_timeline_events: EVENT_ROW,
     case_approaches: APPROACH_ROW,
@@ -140,7 +159,15 @@ const h = vi.hoisted(() => {
   function adminNode(table: string, op: string) {
     const settle = () => {
       adminCalls.push(`${table}:${op}`);
-      const data = op === 'select' ? READ[table] ?? null : WRITE[table] ?? { id: 'x' };
+      // A `cases` select carries the case-file columns too. PostgREST answers
+      // whichever subset was asked for; this fake cannot see the column list,
+      // so it hands back the union and lets each caller take its own.
+      const data =
+        op === 'select'
+          ? table === 'cases'
+            ? { ...(READ.cases as Record<string, unknown>), ...caseFileRow() }
+            : (READ[table] ?? null)
+          : (WRITE[table] ?? { id: 'x' });
       return { data, error: null, count: 0 };
     };
     const n: Record<string, unknown> = {};
@@ -260,6 +287,7 @@ beforeEach(() => {
   h.s.role = 'paralegal';
   h.s.caseExists = true;
   h.s.isGuest = false;
+  h.s.caseFileOpen = true;
 });
 
 describe('a staff member cannot reach a matter’s privileged material', () => {
@@ -440,5 +468,94 @@ describe('an outside co-counsel guest is unaffected', () => {
     });
     expect(res.ok).toBe(false);
     expect(h.adminCalls).toEqual([]);
+  });
+});
+
+/*
+ * The second gate, one level down from the role: is the CASE FILE open?
+ *
+ * The owner, looking at a routine employee request rendered as a litigation
+ * workbench: "Please only use this screen if there is a court case, or the
+ * firm has selected build a case."
+ *
+ * Hiding the case menu is a display choice. Every export below is a public
+ * HTTP endpoint that stays callable whatever the page draws, which is the
+ * whole reason lib/case-file.ts exists, so these run the REAL modules with
+ * every other gate held open - owner role, matter exists, admin client
+ * available, organization live - and the only thing left to refuse is the
+ * mode. Same construction as the role suite above, and it avoids the same
+ * false green: lib/case-mode.ts is not mocked either.
+ *
+ * Mutations, each verified red:
+ *   - delete the caseFileRefusal line from any one of the five assertFirmCase
+ *     wrappers: that module's refusal goes red.
+ *   - move caseFileRefusal ABOVE assertFirmCaseAccess: "says nothing about
+ *     whether the matter exists" goes red.
+ *   - make lib/case-file.ts fail OPEN (return null when the read errors or the
+ *     column is absent): "an unreadable matter keeps its case file shut" goes
+ *     red.
+ */
+describe('a matter handled as a request has no litigation surfaces', () => {
+  beforeEach(() => {
+    // Every other gate open. An owner, on a real matter, in a live firm.
+    h.s.role = 'owner';
+    h.s.caseExists = true;
+    h.s.caseFileOpen = false;
+  });
+
+  it('refuses the timeline builder, and the service-role client never writes', async () => {
+    const res = await createFirmTimelineEvent('firm-1', 'case-1', new FormData());
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/case file is not open/i);
+    expect(h.adminCalls).not.toContain('case_timeline_events:insert');
+  });
+
+  it('refuses the timeline read, because a closed drawer is not an empty one', async () => {
+    const bundle = await getFirmTimelineBundle('firm-1', 'case-1');
+    expect(bundle.events).toEqual([]);
+    expect(h.adminCalls).not.toContain('case_timeline_events:select');
+  });
+
+  it('refuses saving a case approach', async () => {
+    const res = await createFirmApproach('firm-1', 'case-1', {
+      title: 'Theory',
+      prompt: 'prove it',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/case file is not open/i);
+    expect(h.adminCalls).not.toContain('case_approaches:insert');
+  });
+
+  it('refuses listing approaches and the legal review', async () => {
+    expect((await listFirmApproaches('firm-1', 'case-1')).ok).toBe(false);
+    expect((await getFirmLegalReview('firm-1', 'case-1')).ok).toBe(false);
+    expect(h.adminCalls).not.toContain('case_approaches:select');
+    expect(h.adminCalls).not.toContain('case_legal_reviews:select');
+  });
+
+  it('says nothing about whether the matter exists', async () => {
+    // The refusal is asked LAST, of a caller already proven to have access, so
+    // it cannot be used as an existence oracle. A staff member gets the ROLE
+    // refusal for a real matter and an invented one alike; an owner gets the
+    // matter refusal for the invented one and the case-file refusal for the
+    // real one, and neither sentence names a row.
+    h.s.role = 'staff';
+    const real = await listFirmApproaches('firm-1', 'case-1');
+    h.s.caseExists = false;
+    const imaginary = await listFirmApproaches('firm-1', 'case-nonexistent');
+    expect(real.error).toBe(imaginary.error);
+    expect(real.error).not.toMatch(/case file/i);
+  });
+
+  it('opens again the moment the firm says so, with nothing regenerated', async () => {
+    h.s.caseFileOpen = true;
+    const bundle = await getFirmTimelineBundle('firm-1', 'case-1');
+    expect(h.adminCalls).toContain('case_timeline_events:select');
+    expect(bundle.events).toEqual([]);
+    // Nothing was written on the way back in. Switching the mode is one column
+    // on the matter row; it neither deletes nor rebuilds a thing.
+    expect(h.adminCalls.filter((c) => c.endsWith(':insert'))).toEqual([]);
+    expect(h.adminCalls.filter((c) => c.endsWith(':update'))).toEqual([]);
+    expect(h.adminCalls.filter((c) => c.endsWith(':delete'))).toEqual([]);
   });
 });

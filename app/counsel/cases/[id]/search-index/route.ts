@@ -5,6 +5,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { firmSuspended } from '@/lib/firm-trials';
 import { exhibitLabel, type AiExtracted } from '@/lib/timeline-types';
 import { readEvidenceFolderRegistry, canSeeEvidenceFolder } from '@/lib/evidence-folders';
+import { caseFileRefusal } from '@/lib/case-file';
 
 export const runtime = 'nodejs';
 
@@ -69,6 +70,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .maybeSingle();
   const c = caseRow as { id: string; firm_id: string | null } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // The evidence search index is the Evidence Center's index. A matter handled
+  // as a request does not have that surface, and a route handler renders no
+  // layout, so the refusal is here rather than only on the page.
+  const caseFileClosed = await caseFileRefusal(params.id);
+  if (caseFileClosed) {
+    return NextResponse.json({ error: caseFileClosed.error }, { status: 403 });
+  }
 
   const [{ data: rows }, folderRegistry] = await Promise.all([
     admin

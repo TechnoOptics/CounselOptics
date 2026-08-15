@@ -9,6 +9,7 @@ import {
   FIRM_POSTING_ROLES,
 } from './firm-authz';
 import { aiConfigured } from './timeline-ai';
+import { caseFileRefusal } from './case-file';
 import { resolveTimelineAccess } from './timeline-entitlement';
 import { generateLegalReviewDraft, type LegalReviewFacts } from './legal-review-ai';
 import { loadCaseEvidenceDigest } from './case-evidence-digest';
@@ -80,7 +81,7 @@ export type LegalReview = {
  * The role is answered BEFORE the matter lookup, so the refusal cannot be read
  * as confirmation that the id passed in is a real matter in this firm.
  */
-async function assertFirmCase(
+async function assertFirmCaseAccess(
   firmId: string,
   caseId: string,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
@@ -105,6 +106,26 @@ async function assertFirmCase(
     .maybeSingle();
   if (!kase) return { ok: false, error: 'That matter is not in this firm.' };
   return { ok: true, userId: user.id };
+}
+
+/**
+ * Access, and then the CASE FILE.
+ *
+ * A legal review reads the whole matter and spends the firm's tokens on
+ * CourtListener-verified case law about it. `app/counsel/cases/[id]/
+ * legal-review-panel.tsx` is imported by nothing today, so this surface is
+ * already unreachable from any page - and both exports are still live public
+ * endpoints, which is exactly the difference between undiscoverable and gated.
+ *
+ * Asked last, of a caller already proven to have access.
+ */
+async function assertFirmCase(
+  firmId: string,
+  caseId: string,
+): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const gate = await assertFirmCaseAccess(firmId, caseId);
+  if (!gate.ok) return gate;
+  return (await caseFileRefusal(caseId)) ?? gate;
 }
 
 // ── Load the persisted review (admin, firm-scoped) ────────────────────────
