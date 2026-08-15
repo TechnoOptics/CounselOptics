@@ -46,6 +46,7 @@ import {
 } from './counterparty-fields';
 import { loadCounterpartyStamp } from './counterparty-intake';
 import type { TemplateField } from './firm-templates';
+import { formatSignedOn } from './firm-template-placeholders';
 
 export type RenderResult =
   | { ok: true; signedPath: string; bytes: number; pages: number }
@@ -528,9 +529,17 @@ export async function renderFinalSignedPdf(
       // Caption under the signature: name + signed-at ISO date so
       // the executed PDF carries its own legibility regardless of
       // the surrounding audit trail.
+      // Was `.toISOString().slice(0, 10)`: a string cut at ten characters, so
+      // date only and in ISO rather than the US format the product prints
+      // everywhere else. Same formatter as the template block now, so the two
+      // printers cannot drift - the lesson lib/signature-geometry.ts already
+      // paid for when the same geometry lived in three hand-written copies.
+      //
+      // This path reads signed_at FROM THE ROW, which is the real instant. It
+      // is the template path that still recomputes its own; see formatSignedOn.
       const captionParts = [
         s.signer_name?.trim() || s.signer_email,
-        s.signed_at ? new Date(s.signed_at).toISOString().slice(0, 10) : null,
+        s.signed_at ? formatSignedOn(new Date(s.signed_at)) : null,
       ].filter(Boolean);
       page.drawText(captionParts.join(' - '), {
         x: rect.x + 2,

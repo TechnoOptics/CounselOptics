@@ -45,7 +45,11 @@ const base = {
 };
 
 const EMPLOYEE_BLOCK =
-  '\n\n\nSigned: Dana Lowell\nDate: March 3, 2026\nEmail: dana@anderson.test';
+  '\n\n\nSigned: Dana Lowell\n' +
+  // The signature line carries the TIME and a named zone now, and the zone
+  // is pinned to UTC in formatSignedOn so this pin is the same on every
+  // machine. It read 'Date: March 3, 2026' while the block was date-only.
+  'Date: March 3, 2026 at 12:00 PM UTC\nEmail: dana@anderson.test';
 
 /** The body after substitution, which both cases must share exactly. */
 const MERGED_BODY = BODY.replace('{{start_date}}', 'March 3, 2026').replace(

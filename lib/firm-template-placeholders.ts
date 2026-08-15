@@ -447,6 +447,49 @@ export function findSignatureBlockLine(documentText: string): number | null {
 }
 
 /** The date format the signature block uses, on both sides. */
+/**
+ * The date AND time a signature was made, as printed on the instrument.
+ *
+ * This was `toLocaleDateString` and therefore date-only, so a signed document
+ * carried "Date: August 15, 2026" and nothing about when in that day. Reported
+ * from a real signing: "I signed and still do not see a signature time and
+ * signature date on the document."
+ *
+ * WHY UTC, AND WHY IT IS PINNED RATHER THAN LOCAL. Advottic renders this block
+ * in two places: the employee's browser, and the server when the PDF is made.
+ * A local-zone format therefore prints a DIFFERENT time in each, on the same
+ * executed instrument. Measured on one instant:
+ *
+ *     UTC                  March 3, 2026 at 12:00 PM UTC
+ *     America/Chicago      March 3, 2026 at 6:00 AM CST
+ *     America/Los_Angeles  March 3, 2026 at 4:00 AM PST
+ *
+ * Those are not cosmetic differences. A late-evening signature falls on two
+ * different calendar DAYS depending on the reader, and the day decides notice
+ * periods, cure windows and priority. So the zone is fixed here rather than
+ * inherited: UTC cannot drift with a server region or a viewer's device, and
+ * it is the zone the audit chain already stores. Friendlier local time belongs
+ * in the UI beside the document, never on the instrument.
+ *
+ * The zone is NAMED in the output. A bare "12:00 PM" is ambiguous by up to a
+ * day and unreadable as evidence years later.
+ *
+ * KNOWN LIMITATION, recorded rather than hidden. The caller in
+ * app/portal/forms/[id]/form-fill-client.tsx passes `new Date()` from inside a
+ * useMemo, so the value is the moment the block was RENDERED, not signed, and
+ * a later re-render prints a later time. The true instant is in the database
+ * (mark_at, signed_at) and lib/signature-render.ts reads it; the template path
+ * does not yet. Pinning the zone does not fix that and is not meant to.
+ */
 export function formatSignedOn(date: Date): string {
-  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  });
 }
