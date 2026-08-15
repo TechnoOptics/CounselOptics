@@ -1,0 +1,136 @@
+/**
+ * Find the signature lines in a PDF by reading its TEXT, with positions.
+ *
+ * WHY THIS EXISTS. lib/signature-anchors.ts scans raw content-stream bytes
+ * with a regex. That only works on a PDF whose text happens to be stored in a
+ * standard encoding. A real commercial contract usually is not: fonts are
+ * subset-embedded, so "By:" is a run of glyph indices and a byte regex sees
+ * nothing at all.
+ *
+ * Measured on a real Mutual NDA that was reported as undetected: searching all
+ * 447,801 bytes of its decompressed streams found "By:" 0 times, "Signature"
+ * 0 times, "Name:" 0 times. Nothing was wrong with the vocabulary. The text
+ * was simply not readable that way, and widening the regex would have changed
+ * nothing while looking like a fix.
+ *
+ * `unpdf` already ships in this project, so no dependency is added.
+ *
+ * WHAT "By:" HAS TO DO WITH IT. `By:` is the standard US commercial-contract
+ * signature label and was absent from the old vocabulary entirely. It is first
+ * here. The older spellings stay, because a form that says "Signature:" is
+ * still a form.
+ *
+ * EVERY BLOCK, NOT THE FIRST. The old scan returned at most one placement per
+ * page. The NDA that prompted this has TWO signature blocks on its last page,
+ * one per party, so returning the first would leave one side of a mutual
+ * agreement with nowhere to sign - a failure noticed only after sending.
+ */
+
+/** What was found, in the PDF's own coordinate space (origin bottom-left). */
+export type TextAnchor = {
+  /** 1-indexed. */
+  page: number;
+  /** The label that matched, as written in the document. */
+  label: string;
+  /** Points from the left edge. */
+  x: number;
+  /** Points from the BOTTOM edge, matching PDF convention. */
+  y: number;
+  /** The page box, so a caller can normalize without re-opening the file. */
+  pageWidth: number;
+  pageHeight: number;
+};
+
+/**
+ * Signature-line labels, most specific first.
+ *
+ * Deliberately NOT `Name:` / `Title:` / `Date:` / `Email:`. Those are adjacent
+ * fields rather than places to put the signature image, and treating them as
+ * signature anchors would stack four marks down the block. They are worth
+ * placing eventually, from their own coordinates, which this returns enough
+ * information to do later.
+ */
+const LABEL_RE =
+  /(\bBy\s*:|\bSignature\s*(of\b|:)|\bAuthorized\s+signature\b|\bSign\s+here\b|\bSigned\s+by\b|\/s\/)/i;
+
+/**
+ * Read a PDF's text and return every signature-line anchor, with positions.
+ *
+ * Returns [] rather than throwing when the document cannot be parsed. A
+ * caller that cannot find anchors falls back to its previous behaviour, so a
+ * malformed upload degrades to what it did before rather than failing the
+ * upload outright.
+ */
+export async function findTextAnchors(bytes: Uint8Array): Promise<TextAnchor[]> {
+  let getDocumentProxy: (b: Uint8Array) => Promise<unknown>;
+  try {
+    ({ getDocumentProxy } = await import('unpdf'));
+  } catch {
+    return [];
+  }
+
+  const out: TextAnchor[] = [];
+  try {
+    const pdf = (await getDocumentProxy(bytes)) as {
+      numPages: number;
+      getPage: (n: number) => Promise<{
+        getViewport: (o: { scale: number }) => { width: number; height: number };
+        getTextContent: () => Promise<{
+          items: Array<{ str?: string; transform?: number[] }>;
+        }>;
+      }>;
+    };
+
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const page = await pdf.getPage(n);
+      const view = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      for (const item of content.items) {
+        const text = (item.str ?? '').trim();
+        if (!text) continue;
+        const match = LABEL_RE.exec(text);
+        if (!match) continue;
+        const t = item.transform;
+        // No transform means no position, and a placement without a position
+        // is what the old code guessed at. Skipped rather than guessed.
+        if (!t || t.length < 6) continue;
+        out.push({
+          page: n,
+          label: match[0],
+          x: t[4],
+          y: t[5],
+          pageWidth: view.width,
+          pageHeight: view.height,
+        });
+      }
+    }
+  } catch {
+    return [];
+  }
+  return out;
+}
+
+/**
+ * Normalize an anchor to the 0-1 space SignaturePlacement uses.
+ *
+ * The signature sits slightly ABOVE the baseline the label sits on, because
+ * the label and the rule share a line and a mark drawn at the baseline reads
+ * as struck through it. `liftPt` is that offset, in points, and is applied
+ * before normalizing so it does not scale with page size.
+ */
+export function normalizeAnchor(
+  anchor: TextAnchor,
+  opts: { liftPt?: number } = {},
+): { positionPage: number; positionX: number; positionY: number } {
+  const lift = opts.liftPt ?? 2;
+  return {
+    positionPage: anchor.page,
+    positionX: clamp01(anchor.x / anchor.pageWidth),
+    positionY: clamp01((anchor.y + lift) / anchor.pageHeight),
+  };
+}
+
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(1, Math.max(0, n));
+}
