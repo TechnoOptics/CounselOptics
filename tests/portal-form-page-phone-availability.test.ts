@@ -76,7 +76,21 @@ async function render(): Promise<string> {
 }
 
 /** The card's own button label. Its presence is the QR option being offered. */
-const QR_BUTTON = 'Sign with mobile';
+/**
+ * The phone is offered through a TAB now, not a card below the pad.
+ *
+ * It used to render as its own block under the signature pad, with a "Sign
+ * with mobile" button always in the markup. That was reported as the phone
+ * being missing from the options: three tabs on one row and the fourth way
+ * somewhere further down does not read as four ways of signing.
+ *
+ * So the assertion moves with it. What is checked is still "is the phone
+ * offered", but the evidence is the tab in the strip rather than a button in
+ * a panel that is now only mounted once the tab is chosen. Asserting the old
+ * string here would have kept passing right up until the day it silently
+ * meant nothing.
+ */
+const QR_BUTTON = 'Phone';
 
 describe('the employee form page', () => {
   it('offers the phone when this database has the handoff table', async () => {

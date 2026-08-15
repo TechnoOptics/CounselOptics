@@ -45,6 +45,7 @@ export function SignaturePad({
   onError,
   externalMark,
   allowedModes,
+  phoneTab = null,
 }: {
   /** Sits to the left of the mode tabs, so a caller keeps its own section
    *  label on the same row rather than stacking a second one above. */
@@ -87,6 +88,22 @@ export function SignaturePad({
    * thing beneath it.
    */
   allowedModes?: readonly SignatureMode[];
+  /**
+   * A fourth tab that is NOT a pad mode.
+   *
+   * Signing on a phone is one of the four methods a firm can allow, but it is
+   * a HANDOFF, not something this pad produces: the phone draws and the mark
+   * arrives back through `externalMark`. It used to render as a separate card
+   * below the pad, which is why it was reported as missing from the options -
+   * three tabs on one row and the fourth way somewhere further down does not
+   * read as four ways of signing.
+   *
+   * So the caller supplies the panel and keeps the handoff logic, and this
+   * component only lends it a place in the strip. `panel` replaces the pad
+   * surface while its tab is selected; nothing about the pad's own modes
+   * changes, and signatureMethodFromPadMode still refuses the string 'phone'.
+   */
+  phoneTab?: { label: string; panel: React.ReactNode } | null;
 }) {
   const ALL_MODES: readonly SignatureMode[] = ['drawn', 'typed', 'uploaded'];
   const offered = allowedModes ?? ALL_MODES;
@@ -98,6 +115,11 @@ export function SignaturePad({
   // before any of this state is reachable. A hook cannot be skipped, so the
   // state still has to be declared with something.
   const [mode, setMode] = useState<SignatureMode>(offered[0] ?? 'drawn');
+  // Which tab is showing, when the answer is not one of the pad's own modes.
+  // Separate from `mode` on purpose: `mode` is what the pad would PRODUCE, and
+  // the phone produces nothing here. Defaults on when the phone is the only
+  // way left, so a phone-only template opens on the thing it can do.
+  const [onPhoneTab, setOnPhoneTab] = useState(nothingOffered && !!phoneTab);
   const [typed, setTyped] = useState(defaultTypedName ?? '');
   const [drawing, setDrawing] = useState(false);
   const [hasInk, setHasInk] = useState(false);
@@ -273,6 +295,7 @@ export function SignaturePad({
     <button
       type="button"
       onClick={() => {
+        setOnPhoneTab(false);
         setMode(m);
         // Switching away from Type leaves a rendered name behind, which would
         // read as a drawing the person did not make.
@@ -286,7 +309,7 @@ export function SignaturePad({
 
   // Nothing this pad can do is allowed here. Said plainly rather than by
   // drawing a canvas whose every mark the server would refuse.
-  if (nothingOffered) {
+  if (nothingOffered && !phoneTab) {
     return (
       <div className="space-y-3">
         {heading}
@@ -305,9 +328,31 @@ export function SignaturePad({
           {offered.includes('drawn') && tab('drawn', 'Draw')}
           {offered.includes('typed') && tab('typed', 'Type')}
           {offered.includes('uploaded') && tab('uploaded', 'Upload')}
+          {phoneTab && (
+            <button
+              type="button"
+              onClick={() => {
+                // Leaving a pad mark behind while the phone draws would put
+                // two signatures in play and send whichever won the race.
+                clear();
+                setOnPhoneTab(true);
+              }}
+              className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${onPhoneTab ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+            >
+              {phoneTab.label}
+            </button>
+          )}
         </div>
       </div>
 
+      {/* The phone's panel stands in for the pad surface. The pad's own
+          controls stay mounted below only when a pad mode is showing, so a
+          person on the Phone tab is not offered a Clear for a canvas they
+          cannot see. */}
+      {onPhoneTab && phoneTab ? (
+        phoneTab.panel
+      ) : (
+      <>
       {mode === 'typed' && (
         <input
           value={typed}
@@ -352,6 +397,8 @@ export function SignaturePad({
               : 'Attach an image of your signature'}
         </span>
       </div>
+      </>
+      )}
     </div>
   );
 }

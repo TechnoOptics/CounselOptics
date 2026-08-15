@@ -466,13 +466,37 @@ export function FormFillClient({
 
           <section className="space-y-3 rounded-xl border border-edge bg-surface p-4">
             <SectionTitle>Your signature</SectionTitle>
-            {padModes.length > 0 && (
+            {(padModes.length > 0 || phoneOffered) && (
               <SignaturePad
                 defaultTypedName={signature}
                 allowedModes={padModes}
                 externalMark={phoneMark?.dataUrl ?? null}
                 onChange={setMark}
                 onError={setError}
+                // The fourth way, in the strip with the other three. It used
+                // to sit in its own card below the pad, which is why it was
+                // reported as missing from the options: three tabs on one row
+                // and the fourth way further down does not read as four ways
+                // of signing. Absent when the firm has not allowed a phone, or
+                // when this deployment has no handoff to give, because an
+                // offer that would be refused on scanning is worse than none.
+                phoneTab={
+                  phoneOffered && !phoneMark
+                    ? {
+                        label: 'Phone',
+                        panel: (
+                          <PhoneMarkHandoff
+                            templateId={template.id}
+                            available={phoneHandoffAvailable}
+                            onlyRoute={padModes.length === 0}
+                            onMark={(dataUrl, handoffId) =>
+                              setPhoneMark({ dataUrl, handoffId })
+                            }
+                          />
+                        ),
+                      }
+                    : null
+                }
               />
             )}
             {/* Only when all three are on the table. The firm can narrow this
@@ -505,33 +529,17 @@ export function FormFillClient({
               </p>
             )}
 
-            {/* The fourth way, and on a phone-only template the only way. It
-                is here rather than tucked below the buttons because an option
-                nobody can find is an option nobody has: this is exactly what
-                was reported missing. Absent when the firm has not allowed a
-                phone, because an offer that would be refused on scanning is
-                worse than no offer, and lib/mark-handoff.ts refuses to mint
-                one regardless. Absent, equally, when this deployment has no
-                phone handoff to give: an offer must not be made unless it can
-                be honoured. */}
-            {phoneOffered &&
-              (phoneMark ? (
-                <p className="rounded-lg border border-edge bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-foreground">
-                  <T>
-                    Your signature came back from your phone and is on the
-                    document. Tick the box below and send the form from here.
-                  </T>
-                </p>
-              ) : (
-                <PhoneMarkHandoff
-                  templateId={template.id}
-                  available={phoneHandoffAvailable}
-                  onlyRoute={padModes.length === 0}
-                  onMark={(dataUrl, handoffId) =>
-                    setPhoneMark({ dataUrl, handoffId })
-                  }
-                />
-              ))}
+            {/* The mark came back. Said here rather than in the tab,
+                because at this point the tab is gone: there is nothing left
+                to scan and the pad below is showing what the phone drew. */}
+            {phoneOffered && phoneMark && (
+              <p className="rounded-lg border border-edge bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-foreground">
+                <T>
+                  Your signature came back from your phone and is on the
+                  document. Tick the box below and send the form from here.
+                </T>
+              </p>
+            )}
             {/* The intent affirmation. This is the definitional element of an
                 electronic signature under 15 USC 7006(5) and UETA 2(8), and it
                 is the part of the outside signer's ceremony that genuinely
