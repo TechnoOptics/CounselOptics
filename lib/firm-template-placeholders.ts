@@ -474,12 +474,26 @@ export function findSignatureBlockLine(documentText: string): number | null {
  * The zone is NAMED in the output. A bare "12:00 PM" is ambiguous by up to a
  * day and unreadable as evidence years later.
  *
- * KNOWN LIMITATION, recorded rather than hidden. The caller in
- * app/portal/forms/[id]/form-fill-client.tsx passes `new Date()` from inside a
- * useMemo, so the value is the moment the block was RENDERED, not signed, and
- * a later re-render prints a later time. The true instant is in the database
- * (mark_at, signed_at) and lib/signature-render.ts reads it; the template path
- * does not yet. Pinning the zone does not fix that and is not meant to.
+ * WHICH CALLERS PASS THE REAL INSTANT, traced rather than assumed, because an
+ * earlier note here overstated the problem and called two correct callers
+ * wrong.
+ *
+ *   lib/submission-completion.ts   completedAt from the row      EXECUTED
+ *   lib/signature-render.ts        signed_at from the row        EXECUTED
+ *   lib/template-submissions.ts    new Date() AT SUBMIT          correct: that
+ *                                                                IS the instant
+ *   form-fill-client.tsx           new Date() in a useMemo       a live preview
+ *   api/.../draft-template/pdf     new Date() at build           drafts only
+ *
+ * The two PDF-route calls looked wrong and are not. That route never receives
+ * a submission id; every caller is a template editor, a studio, a preview tab,
+ * or the employee downloading the document they are still filling in. Nothing
+ * executed is rendered there, and for an unsigned draft "now" is the honest
+ * answer. The same goes for the live preview, which is a preview.
+ *
+ * So every path that prints a signature on an EXECUTED instrument reads its
+ * timestamp from the row. There is no open provenance gap here; there was one
+ * in lib/submission-completion.ts and it is closed.
  */
 export function formatSignedOn(date: Date): string {
   if (Number.isNaN(date.getTime())) return '';
