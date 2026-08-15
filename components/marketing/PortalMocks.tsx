@@ -20,8 +20,19 @@ const F = {
   panel2: '#1d1d1d',
   line: 'rgba(245,237,214,0.10)',
   text: '#F3EEE1',
-  dim: 'rgba(243,238,225,0.60)',
-  faint: 'rgba(243,238,225,0.38)',
+  /*
+   * `dim` and `faint` are two levels of quiet, and both are content -
+   * "Total items", "Analyzed", "Processing", "Relevance to the matter",
+   * the citation under a result. Measured on the rendered pages,
+   * `faint` was 3.25:1 on the #161616 panel across 21 runs at 8.5-10px,
+   * where 4.5:1 is the floor and nothing about the size relieves it.
+   *
+   * Raised to 5.4:1. `dim` moves with it, from 0.60 to 0.72, purely to
+   * keep the two levels apart: at 0.55 and 0.60 they would have been
+   * the same grey and the hierarchy the mock is drawing would be gone.
+   */
+  dim: 'rgba(243,238,225,0.72)',
+  faint: 'rgba(243,238,225,0.55)',
   gold: '#D5BB7E',
   goldDeep: '#B9922F',
   goldSoft: '#E8D9B5',

@@ -132,11 +132,21 @@ function CaseHero() {
               <p className="text-sm text-cream-100/85 mt-3">
                 <span className="text-cream-100/55">Business: </span>
                 <span className="font-medium text-cream-100">Advottic Holdings</span>
-                <span className="text-cream-100/40 mx-2">·</span>
+                {/* /40 even at its raised alpha is 3.7:1 this high on
+                    the hero, where the gold wash is lightest. /55 is
+                    the quiet step that survives this particular ground
+                    at 4.8:1. */}
+                <span className="text-cream-100/55 mx-2">·</span>
                 <span className="text-cream-100/85">Shakopee, MN, USA</span>
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium ring-1 bg-amber-500/10 ring-amber-300/40 text-warn-text">
+            {/* Same story as the stat cells below: the warning token is
+                declared per theme, this pill sits on a dark hero band,
+                and with nothing saying so it took the light value and
+                measured 1.37:1. `dark` says so. The fill is its own as
+                well, so the pill no longer reads whatever the hero wash
+                behind it happens to be. */}
+            <span className="dark inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium ring-1 bg-forest-950/60 ring-amber-300/50 text-warn-text">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-200" />
               Under Review
             </span>
@@ -179,8 +189,17 @@ function Kpi({
           : tone === 'cream'
             ? 'text-cream-200'
             : 'text-cream-100/60';
+  // `dark` because this cell IS painted dark - it sits on the forest
+  // hero strip inside a light page. The status tokens are declared per
+  // theme, and without a subtree that says which theme it is painting,
+  // `amber` and `rose` resolved to their LIGHT values on a dark ground:
+  // measured, the amber figure was 1.37:1. Saying it once here is the
+  // mechanism the stylesheet already has for this, and it is why the
+  // tone stays a token rather than becoming a hand-picked amber-300 - a
+  // dark-only status colour in a file that also has a light ground is
+  // the thing tests/accent-text.test.ts exists to refuse.
   return (
-    <div className="px-4 sm:px-6 py-4 border-r border-cream-100/10 last:border-r-0 sm:[&:nth-child(2n)]:border-r sm:[&:nth-child(4n)]:border-r-0">
+    <div className="dark px-4 sm:px-6 py-4 border-r border-cream-100/10 last:border-r-0 sm:[&:nth-child(2n)]:border-r sm:[&:nth-child(4n)]:border-r-0">
       <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/55">
         {label}
       </p>
@@ -228,7 +247,14 @@ function Tabs() {
                   </span>
                 </div>
               </div>
-              <span className="btn-secondary opacity-60 cursor-not-allowed select-none">
+              {/* A picture of a button on a read-only page - a bare
+                  span, so it is not a control and carries no disabled
+                  state to announce. `opacity-60` was the only thing
+                  saying "not clickable here", and on white it faded
+                  forest-900 to 4.11:1 across all five rows. Said with
+                  a quiet fill and a muted-but-legible ink instead,
+                  which reads the same and measures 7.6:1. */}
+              <span className="btn-secondary bg-cream-50 text-ink-600 border-ink-200 cursor-not-allowed select-none">
                 View
               </span>
             </li>
@@ -243,15 +269,23 @@ function Tabs() {
         </p>
 
         <div className="mt-4 rounded-2xl p-5 md:p-6 text-white bg-gradient-to-br from-amber-700 via-amber-800 to-forest-900">
-          <p className="text-[10px] tracking-[0.3em] uppercase font-semibold opacity-80">
+          {/* The opacities on this card are not decoration, they are
+              the whole contrast problem: white text on an amber-700 to
+              forest-900 gradient clears 5.3:1 at full strength, and the
+              80% step dropped the 10px label to 4.0:1 while the nested
+              70% compounded to 56% and took "Location:" to 3.0:1. The
+              hierarchy is kept by size and weight, which cost nothing,
+              rather than by fading content on the darkest panel of the
+              page. */}
+          <p className="text-[10px] tracking-[0.3em] uppercase font-semibold">
             Upcoming hearing
           </p>
           <h4 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">In 9 days</h4>
           <p className="text-sm opacity-90 mt-1.5">{hearing.longLabel}, 9:30 AM</p>
-          <p className="text-sm opacity-80 mt-1">
-            <span className="opacity-70">Location:</span> Scott County District Court, Courtroom 4
+          <p className="text-sm opacity-90 mt-1">
+            <span className="font-medium">Location:</span> Scott County District Court, Courtroom 4
           </p>
-          <p className="text-sm opacity-80 mt-2 max-w-xl">
+          <p className="text-sm opacity-90 mt-2 max-w-xl">
             Hon. J. Smith · Conciliation calendar · Bring filed Statement of Claim plus 3 copies
             and the original lease.
           </p>
@@ -288,9 +322,17 @@ function Tabs() {
             ].map((it, i) => (
               <li
                 key={it.t}
+                /* A completed item said "done" with `opacity-70` on the
+                   whole row, which on a white page fades every ink in
+                   it TOWARDS the ground: the white tick on its emerald
+                   disc measured 2.28:1, the caption 3.59:1 and the
+                   struck title 4.31:1. The emerald border, the emerald
+                   tint and the line-through already say completed
+                   without spending contrast, so the fade goes and they
+                   do the work. */
                 className={`flex items-start gap-3 rounded-lg border p-3 ${
                   it.done
-                    ? 'border-emerald-200 bg-emerald-50/40 opacity-70'
+                    ? 'border-emerald-300 bg-emerald-50/60'
                     : it.tone === 'amber'
                       ? 'border-amber-200 bg-amber-50/60'
                       : 'border-ink-200 bg-cream-50/60'

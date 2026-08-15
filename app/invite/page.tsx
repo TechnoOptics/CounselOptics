@@ -36,7 +36,13 @@ export default function InvitePage() {
         <p className="eyebrow justify-center">A personal invitation</p>
         <h1 className="font-display text-[40px] sm:text-[56px] font-medium tracking-[-0.02em] leading-[1.04] text-forest-900 dark:text-cream-100">
           Hi, I&rsquo;m{' '}
-          <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+          {/* Light page - the heading beside this one is
+              `text-forest-900 dark:text-cream-100`, so the ramp has to
+              be paired the same way. On white the dark-ground ramp
+              measured 1.40:1, the same failure the ten other display
+              headings were converted out of; this call site was missed
+              then and is the last one. */}
+          <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">
             Abel.
           </span>
         </h1>

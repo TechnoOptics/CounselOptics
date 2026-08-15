@@ -778,6 +778,61 @@ html:not(.dark) .hover\:text-gold-800:hover,
 html:not(.dark) .group:hover .group-hover\:text-gold-700 {
   color: var(--accent-text);
 }
+
+/* ============ THE CREAM ALPHA RAMP ON A DARK PANEL =================
+   The block above is about a light ground. This one is the opposite
+   case, and it is the half the 2026-08-10 sweep recorded and did not
+   close: cream text on the DARK panels that sit inside the light
+   consumer pages - the /enterprise product mocks, the marketing portal
+   mocks, the hero bands.
+
+   Measured on the rendered pages (scripts/test/rendered-contrast-audit
+   .mjs), against the pixels under each run's own glyph boxes:
+
+     text-cream-100/35   3.02:1    4 runs   "9:14 AM"
+     text-cream-100/40   3.60:1    2 runs   "Read by 3 of 4 - last delivery"
+     text-cream-100/45   4.02:1   17 runs   the audit-trail and message rows
+     text-cream-100/50   4.48:1    6 runs   "Hearing", "Exhibits"
+     text-cream-100/55   3.48:1    9 runs   the /example case-file labels
+
+   All of it is content at 8.5-12px, where 4.5:1 is the floor and there
+   is no large-text relief to fall back on.
+
+   WHY THE ALPHA MOVES AND THE COLOUR DOES NOT. These are not a palette
+   choice that came out too dim; each one is `cream-100` at a stated
+   opacity, and the opacity IS the design - a quiet ramp of five steps.
+   Raising the steps keeps the ramp and its ordering (0.55 < 0.58 < 0.62
+   < 0.66 < 0.72, still five distinguishable levels) while putting the
+   quietest of them at 5.4:1 on the near-black firm panel. Repainting
+   them to a solid would flatten five levels into one.
+
+   WHY A LAYER AND NOT 869 EDITS. That is how many call sites these five
+   spellings have across app/ and components/, and the reasoning is the
+   one the block above gives for `text-ink-400`: a token migration is
+   the right long-run answer and is not this change.
+
+   SAFE IN THE DIRECTION IT MOVES. More opaque cream can only gain
+   contrast on a dark ground, which is the only ground these spellings
+   are used on - all 38 measured runs sit on one. On a light ground they
+   would already be illegible at the SHIPPED alpha, so this cannot
+   introduce that failure, only deepen one that was already there; the
+   rendered sweep reports none.
+
+   `html` prefixes each selector purely for specificity. Tailwind's own
+   `.text-cream-100\/45` is (0,1,0) and so is a bare rewrite, which
+   would leave the winner to source order; (0,1,1) settles it without
+   outranking the light-surface guards further down, which are (0,3,1)
+   and must still win where they apply. */
+html .text-cream-100\/35 { color: rgba(251, 247, 233, 0.55); }
+html .text-cream-100\/40 { color: rgba(251, 247, 233, 0.58); }
+html .text-cream-100\/45 { color: rgba(251, 247, 233, 0.62); }
+html .text-cream-100\/50 { color: rgba(251, 247, 233, 0.66); }
+html .text-cream-100\/55 { color: rgba(251, 247, 233, 0.72); }
+/* No hover or group-hover spelling of these five is listed because none
+   exists: the only `group-hover:text-cream-100/*` at any call site is
+   `/65`, which is above this ramp and measured clear. A rule for a
+   class nothing paints is a rule nothing can keep honest. */
+
 /* Solid light surfaces get repainted dark forest in dark mode so the
    text overrides above stay readable on them. Note: gradient stops
    (`from-cream-50`, `via-cream-50` etc.) compile to different CSS
@@ -2769,14 +2824,29 @@ select:focus-visible,
   /* Hero background - lighter forest base, multiple warm gold + cream radial
      spotlights, faint dot grid that fades away from the centre. Designed for
      the marketing hero so the surface feels luminous, not heavy. */
+  /* THE WASH ALPHAS ARE A CONTRAST BUDGET, NOT JUST A LOOK.
+     Measured on the rendered pages, the four washes plus a .hero-orb
+     drifting over them used to take the ground under a display heading
+     from the base gradient's luminance 0.082 up to 0.19 - light enough
+     that nothing could be read on it to AA. At 0.19 even pure white is
+     2.7:1, so the band was not "hard to read on", it was outside what a
+     3:1 floor can be met on at all, and the failures it produced looked
+     like ink bugs: the gold-shine headline at 1.07:1, the gold-300
+     eyebrow at 3.29:1, cream-100/85 body copy at 4.37:1.
+     Halved here, which puts the lightest ground under a heading at
+     ~0.12 and buys back the room those three need. The hero still reads
+     as luminous; it is the top end of the wash that was spending
+     contrast the text needed. scripts/test/rendered-contrast-audit.mjs
+     measures it, tests/dark-panel-contrast.test.ts holds the ceiling -
+     if these go back up, that is what fails. */
   .hero-bg {
     position: relative;
     isolation: isolate;
     background:
-      radial-gradient(ellipse 700px 400px at 88% 14%, rgba(245, 237, 214, 0.32), transparent 55%),
-      radial-gradient(ellipse 900px 520px at 72% 28%, rgba(213, 187, 126, 0.38), transparent 60%),
-      radial-gradient(ellipse 620px 380px at 12% 82%, rgba(213, 187, 126, 0.22), transparent 65%),
-      radial-gradient(ellipse 480px 320px at 50% 110%, rgba(245, 237, 214, 0.10), transparent 60%),
+      radial-gradient(ellipse 700px 400px at 88% 14%, rgba(245, 237, 214, 0.16), transparent 55%),
+      radial-gradient(ellipse 900px 520px at 72% 28%, rgba(213, 187, 126, 0.19), transparent 60%),
+      radial-gradient(ellipse 620px 380px at 12% 82%, rgba(213, 187, 126, 0.11), transparent 65%),
+      radial-gradient(ellipse 480px 320px at 50% 110%, rgba(245, 237, 214, 0.05), transparent 60%),
       linear-gradient(135deg, #1f4839 0%, #2a5a47 38%, #19372d 100%);
   }
   .hero-bg::before {
@@ -2791,12 +2861,15 @@ select:focus-visible,
     pointer-events: none;
   }
   /* Soft glassy gold orbs that drift across the hero. */
+  /* Same budget as the washes above. A .hero-orb--cream sits directly
+     behind the display heading in the closing band, and at 0.55 it was
+     the single biggest lightener under any text on the site. */
   .hero-orb {
     position: absolute;
     border-radius: 9999px;
     filter: blur(40px);
     pointer-events: none;
-    opacity: 0.55;
+    opacity: 0.32;
   }
   .hero-orb--gold {
     background: radial-gradient(circle, rgba(213, 187, 126, 0.55) 0%, rgba(213, 187, 126, 0) 70%);

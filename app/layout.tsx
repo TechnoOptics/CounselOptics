@@ -264,6 +264,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     pathname === '/embed' || pathname.startsWith('/embed/');
   const isShellMode = isCounselMode || isHqMode || isHubMode || isEmbedMode;
 
+  // Routes whose page paints an OPAQUE full-viewport surface of its own.
+  // The consumer header and footer render underneath it: invisible to a
+  // sighted reader, but still in the accessibility tree and still in the
+  // tab order, so a screen-reader or keyboard user walks a header and a
+  // footer that nobody can see and that do not belong to the screen they
+  // are on.
+  //
+  // Measured 2026-08-15 with scripts/test/rendered-contrast-audit.mjs:
+  // /safe rendered 18 runs of header and footer text beneath
+  // SafeWitness's `fixed inset-0 z-[90]` panel, the worst at 1.06:1 -
+  // which reads as a catastrophic contrast bug and is really this.
+  //
+  // Deliberately NOT folded into isShellMode. That flag also turns off
+  // consumer AutoTranslate, and Safe Witness is the screen someone opens
+  // to tell people where they are; it must keep working in the reader's
+  // own language. Only the chrome is dropped.
+  const isOverlayRoute = pathname === '/safe' || pathname.startsWith('/safe/');
+  const showSiteChrome = !isShellMode && !isOverlayRoute;
+
   // Which way `<html>` is painted on THIS route. Counsel and the employee
   // portal carry their own theme, and `.dark` on <html> is what every
   // token, every per-class override and every `dark:` utility keys off,
@@ -533,7 +552,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             trial banner are intentionally hidden inside /counsel/*
             because firms have per-contract billing and the consumer
             directories are not relevant to organizational users. */}
-        {!isShellMode && (
+        {showSiteChrome && (
           // Wrap the consumer header/nav so it translates too (the main
           // content is wrapped separately below). AutoTranslate is a no-op
           // for English and skips <select>, so the LanguageSwitcher's own
@@ -705,7 +724,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           initialSha={(process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev').slice(0, 12)}
         />
         </SafeMount>
-        {!isShellMode && (
+        {showSiteChrome && (
         <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
           <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
             {/* Get-the-app row: real <a> links to the store listings so

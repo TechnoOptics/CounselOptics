@@ -33,8 +33,15 @@ export function BellaAvatar() {
       <span
         className="relative z-[1] font-display text-[18px] font-medium tracking-tight"
         style={{
+          /* The terminal stop used to be a deeper bronze, which put the
+             darkest third of the monogram at 4.48:1 on the forest disc
+             behind it - under the 4.5:1 floor by less than a rounding
+             step, but under it. `bg-clip-text` makes the gradient the
+             ink, so the floor is asked of every stop, not of the
+             average. Lifted to 5.5:1, keeping the same top-left to
+             bottom-right fall. */
           background:
-            'linear-gradient(135deg, #f3e1ad 0%, #d5bb7e 50%, #b89853 100%)',
+            'linear-gradient(135deg, #f3e1ad 0%, #d5bb7e 50%, #c9a869 100%)',
           backgroundClip: 'text',
           WebkitBackgroundClip: 'text',
           color: 'transparent',
