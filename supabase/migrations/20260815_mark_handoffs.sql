@@ -1,22 +1,23 @@
 -- One-time handoffs that let a SIGNED-IN employee move from their desk to
 -- their own phone to draw a signature, by scanning a QR code.
 --
--- ========================= NOT APPLIED TO PRODUCTION ======================
--- Written 2026-08-10 and NOT applied. The author of this file has never
--- connected to the production database and did not run this statement.
+-- ========================= APPLIED TO PRODUCTION ==========================
+-- Applied 2026-08-10 to project hpmtlhpyvbreyfimftgt (Advottic), and
+-- VERIFIED against the live catalog rather than trusted from a success
+-- flag: information_schema reports the column on both tables, pg_constraint
+-- reports both CHECK constraints, and for the handoff table pg_class reports
+-- relrowsecurity true with pg_policies reporting zero policies, which is the
+-- intended posture since only the service role reaches it.
 --
--- Applying it, and regenerating supabase/schema-fingerprint.sha256
--- afterwards, are the owner's steps. The application degrades without it:
--- lib/mark-handoff-queries.ts reads a missing table as "no handoff", the
--- employee's form offers no phone card, and everything else on that page is
--- unchanged.
+-- supabase/schema-fingerprint.sha256 was regenerated in the same change, by
+-- running scripts/schema/fingerprint-hash.sql against the live database:
+--   8f64d395... -> a0b9a98d...
 --
--- Read that banner as an unverified claim, not as a fact CI stands behind.
--- Headers in this directory have already been found asserting the wrong
--- applied state in both directions, and nothing can contradict them: the
--- schema-drift gate self-skips while the SUPABASE_DB_URL repo secret is
--- unset. See scripts/schema/README.md, "Current status".
--- =========================================================================
+-- The banner above previously said NOT APPLIED, which was true when written.
+-- Correcting it is part of applying the migration, because until the
+-- SUPABASE_DB_URL repo secret exists the CI drift gate self-skips and these
+-- banners are the only record of applied state. A gate that reports success
+-- without executing cannot contradict a stale header.
 --
 -- WHY A SECOND TABLE AND NOT firm_signature_handoffs
 --

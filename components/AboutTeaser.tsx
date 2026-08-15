@@ -73,7 +73,7 @@ export function AboutTeaser({
           }`}
         >
           Advottic prepares.{' '}
-          <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+          <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">
             An attorney advises.
           </span>{' '}
           You decide.

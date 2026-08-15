@@ -317,7 +317,7 @@ function Stat({
 }) {
   const c =
     accent === 'emerald'
-      ? 'text-emerald-600'
+      ? 'text-emerald-700 dark:text-emerald-400'
       : accent === 'rose'
         ? 'text-rose-600'
         : accent === 'gold'

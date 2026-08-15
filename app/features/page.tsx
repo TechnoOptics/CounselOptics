@@ -35,7 +35,7 @@ export default function FeaturesPage() {
         </p>
         <h1 className="mx-auto mt-5 max-w-3xl font-display text-[40px] font-medium leading-[1.02] tracking-[-0.02em] text-forest-900 dark:text-cream-100 sm:text-[58px] text-balance">
           Everything Advottic does,{' '}
-          <span className="bg-gold-shine bg-clip-text italic text-transparent gold-pan">in plain sight.</span>
+          <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text italic text-transparent gold-pan">in plain sight.</span>
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-[17px] leading-relaxed text-ink-600 dark:text-cream-100/80">
           Two products held to one calm standard: a place for people to prepare their own matter, and a

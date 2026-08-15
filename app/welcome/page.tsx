@@ -47,7 +47,7 @@ export default async function WelcomePage() {
         <p className="eyebrow justify-center">A friend sent you here</p>
         <h1 className="font-display text-[40px] sm:text-[56px] font-medium tracking-[-0.02em] leading-[1.02] text-forest-900 dark:text-cream-100">
           Welcome to{' '}
-          <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+          <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">
             Advottic
           </span>
           .

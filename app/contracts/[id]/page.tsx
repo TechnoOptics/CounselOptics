@@ -238,7 +238,7 @@ function ReviewList({
   if (!items || items.length === 0) return null;
   const dot =
     tone === 'emerald'
-      ? 'text-emerald-600 dark:text-emerald-400'
+      ? 'text-emerald-700 dark:text-emerald-400'
       : 'text-rose-600 dark:text-rose-400';
   const sym = tone === 'emerald' ? '+' : '−';
   return (

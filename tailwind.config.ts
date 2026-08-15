@@ -180,6 +180,35 @@ const config: Config = {
         // gold-pan animation sweeps a real shimmer across text/surfaces.
         'gold-shine':
           'linear-gradient(135deg, #8a661f 0%, #c79532 12%, #f2d896 28%, #d4a14a 44%, #b08229 58%, #d4a14a 72%, #f2d896 88%, #c79532 100%)',
+        /*
+         * The same shimmer, tuned for a ground it can be read on.
+         *
+         * `bg-gold-shine bg-clip-text` makes the GRADIENT the ink, so the
+         * contrast question is asked of every stop, not of `color` - which
+         * is `transparent` and tells a class sweep nothing. Measured on the
+         * rendered pages, ten display headings wear this treatment on a
+         * white page, and its two highlight bands (#f2d896) are 1.40:1
+         * there. At 40-80px that is under the 3:1 large-text floor by a
+         * factor of two: the bright half of each letter is not so much low
+         * contrast as absent.
+         *
+         * The ramp is not flattened to a solid, because the shimmer is the
+         * one piece of motion these pages spend on the headline. It is
+         * moved down the same hue instead: bronze base, deeper mids, and
+         * the two highlight bands at #7d6224, which is 5.76:1 on white and
+         * 4.93:1 on cream-200, the tightest consumer light surface. Every
+         * stop clears AA for SMALL text as well, so a call site that uses
+         * it at 13px is safe too.
+         *
+         * Pair it with `dark:bg-gold-shine` at the call site: on the dark
+         * consumer ground the original ramp is the readable one, and this
+         * one would be bronze on near-black. Headings that sit on a DARK
+         * band inside a light page keep `bg-gold-shine` and are not
+         * converted - see the report on the hero, which fails the other way
+         * and needs its own answer.
+         */
+        'gold-shine-ink':
+          'linear-gradient(135deg, #4a3712 0%, #6a5521 12%, #7d6224 28%, #5c4515 44%, #3e3520 58%, #5c4515 72%, #7d6224 88%, #6a5521 100%)',
         // Vertical solid-fill version for buttons / CTAs - top highlight,
         // rich body, deep base, warm bottom edge. Same palette, fewer
         // stops, no diagonal so big surfaces still read as "gold."
