@@ -30,9 +30,45 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PopupPortal } from './PopupPortal';
+import { inertBackground } from '@/lib/inert-background';
 
 type Contact = { name: string; email: string };
 type Phase = 'setup' | 'idle' | 'arming' | 'active' | 'review';
+
+
+/**
+ * The blank screen Safe Witness shows while recording in discreet mode.
+ *
+ * A component rather than inline JSX because it needs an effect: making the
+ * rest of the document inert has to be undone when this unmounts, and a
+ * conditional `return <PopupPortal>` in the middle of the parent cannot hold
+ * one. The ref is what tells inertBackground which node to spare.
+ */
+function DiscreetOverlay({ onReveal }: { onReveal: () => void }) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    // Runs after the portal has attached, so the node has a parent to have
+    // siblings in. Returning the undo directly is the whole cleanup: if this
+    // unmounts for any reason, including the recording ending on its own, the
+    // page comes back.
+    const restore = inertBackground(ref.current);
+    ref.current?.focus();
+    return restore;
+  }, []);
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onReveal}
+      aria-label="Reveal Safe Witness controls"
+      className="fixed inset-0 z-[95] bg-black flex items-center justify-center"
+    >
+      <span className="text-[10px] text-white/10">tap</span>
+    </button>
+  );
+}
 
 export function SafeWitness() {
   const [contact, setContact] = useState<Contact | null>(null);
@@ -416,17 +452,23 @@ export function SafeWitness() {
   }
 
   // ---- Discreet overlay (recording continues) ----
+  //
+  // The screen goes black so that somebody the user is hiding it from sees
+  // nothing. Covering pixels is not concealment on its own: everything under
+  // this rectangle stayed in the tab order and in the accessibility tree, so
+  // one Tab press painted a focus ring straight through it and a screen
+  // reader read the page out while the display showed black. DiscreetOverlay
+  // makes the rest of the document inert for as long as it is up. See
+  // lib/inert-background.ts.
+  //
+  // The "tap" hint is deliberately at a contrast a checker will flag. It is
+  // camouflage, and a legible hint would announce what this screen is to the
+  // person the user is hiding it from. The reveal target is the whole
+  // viewport, so nobody has to find the word.
   if (hidden && (phase === 'arming' || phase === 'active')) {
     return (
       <PopupPortal dark={false}>
-        <button
-          type="button"
-          onClick={() => setHidden(false)}
-          aria-label="Reveal Safe Witness controls"
-          className="fixed inset-0 z-[95] bg-black text-black flex items-center justify-center"
-        >
-          <span className="text-[10px] text-white/10">tap</span>
-        </button>
+        <DiscreetOverlay onReveal={() => setHidden(false)} />
       </PopupPortal>
     );
   }
