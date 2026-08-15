@@ -405,6 +405,31 @@ export function isUnknownColumnError(
   return (error.message ?? '').includes(column);
 }
 
+/**
+ * Whether a statement failed because the whole TABLE is not there yet.
+ *
+ * The sibling of isUnknownColumnError above, and deliberately not the same
+ * function with a looser code list, because the two mean opposite things to a
+ * caller. A missing column is a row that can still be written with one field
+ * left out: the recovery is to retry without it. A missing table is a feature
+ * that does not exist in this database at all, and there is nothing to retry.
+ * The only honest recovery is to stop offering it.
+ *
+ * Postgres answers with 42P01 (undefined_table); PostgREST answers a table
+ * absent from its schema cache with PGRST205. The table name has to appear in
+ * the message for the same reason it does above: a code alone would let one
+ * missing relation be read as another.
+ */
+export function isUnknownTableError(
+  error: { code?: string | null; message?: string | null } | null | undefined,
+  table: string,
+): boolean {
+  if (!error) return false;
+  const code = error.code ?? '';
+  if (code !== 'PGRST205' && code !== '42P01') return false;
+  return (error.message ?? '').includes(table);
+}
+
 export type DownloadColumnFallback =
   /** Send anyway, without the column. Only when downloads were allowed. */
   | 'retry-without-column'
