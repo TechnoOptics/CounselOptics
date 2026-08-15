@@ -52,7 +52,22 @@ type Phase =
   | { kind: 'expired' }
   | { kind: 'unavailable'; message: string };
 
-const POLL_MS = 4000;
+/**
+ * How often the desk asks whether the phone has finished.
+ *
+ * This was 4000ms and read as broken. A person signs on the phone, watches
+ * the desk, and nothing happens for up to four seconds; the reasonable
+ * conclusion is that the handoff failed, so they scan again or sign on the
+ * pad instead. The mark was on its way the whole time.
+ *
+ * 1200ms is chosen against what it costs rather than by feel. The window is
+ * bounded by the row's own expiry (HANDOFF_TTL_MINUTES), only one code is up
+ * at a time per person, and the endpoint behind it is a single indexed row
+ * read under the caller's own session. So the extra requests are a few dozen
+ * cheap reads across one short signing session, against a person otherwise
+ * concluding the feature does not work.
+ */
+const POLL_MS = 1200;
 
 export const HANDOFF_UNREACHABLE =
   'Could not reach the server. You can sign on this page instead.';
@@ -140,9 +155,13 @@ export function PhoneHandoffCard({
         if ((await pollRef.current(showingRef)) && !stopped) finishedRef.current();
       } catch {
         // A dropped poll is not worth telling anyone about. The next one is
-        // four seconds away and the pad on this page still works.
+        // POLL_MS away and the pad on this page still works.
       }
     };
+    // Ask once immediately. setInterval's first tick is a whole POLL_MS away,
+    // so without this the desk is deaf for the first interval after the code
+    // goes up, which is exactly when a fast signer finishes.
+    void check();
     const timer = setInterval(check, POLL_MS);
     return () => {
       stopped = true;
