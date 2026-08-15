@@ -61,9 +61,25 @@ describe('reading the signature lines out of a contract', () => {
     const ys = anchors.map((a) => Math.round(a.y)).sort((x, y) => x - y);
     expect(ys).toEqual([438, 639]);
     for (const a of anchors) {
-      expect(Math.round(a.x)).toBe(324);
       expect(a.pageWidth).toBe(612);
       expect(a.pageHeight).toBe(792);
+    }
+  });
+
+  it('lands on the rule, not on the word "By:"', async () => {
+    // FOUND BY RENDERING, not by a test. The first version placed the mark at
+    // the text item's own x, and page 8 of the real NDA showed the box sitting
+    // squarely on top of the word "By:". The label and the rule are ONE text
+    // item - "By: ______" - so the item's x is the label's x.
+    //
+    // No assertion here could have caught it: the coordinate was the item's,
+    // and the item was the right one. Only looking at the page did.
+    const anchors = await findTextAnchors(await contractWithTwoSignatureBlocks());
+    for (const a of anchors) {
+      // The blocks are drawn at x=324; the anchor must sit to the RIGHT of it.
+      expect(a.x).toBeGreaterThan(324);
+      // And still inside the item rather than off across the page.
+      expect(a.x).toBeLessThan(324 + 200);
     }
   });
 
@@ -81,7 +97,11 @@ describe('reading the signature lines out of a contract', () => {
     const top = anchors.find((a) => Math.round(a.y) === 639)!;
     const n = normalizeAnchor(top);
     expect(n.positionPage).toBe(2);
-    expect(n.positionX).toBeCloseTo(324 / 612, 3);
+    // To the RIGHT of the label's own x, because the mark goes on the rule.
+    // This asserted 324/612 while the anchor was placed at the label, which is
+    // the placement the render disproved.
+    expect(n.positionX).toBeGreaterThan(324 / 612);
+    expect(n.positionX).toBeLessThan(0.75);
     // Lifted above the baseline: a mark drawn ON it reads as struck through.
     expect(n.positionY).toBeGreaterThan(639 / 792);
     expect(n.positionY).toBeLessThan(1);

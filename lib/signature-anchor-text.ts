@@ -76,7 +76,7 @@ export async function findTextAnchors(bytes: Uint8Array): Promise<TextAnchor[]> 
       getPage: (n: number) => Promise<{
         getViewport: (o: { scale: number }) => { width: number; height: number };
         getTextContent: () => Promise<{
-          items: Array<{ str?: string; transform?: number[] }>;
+          items: Array<{ str?: string; transform?: number[]; width?: number }>;
         }>;
       }>;
     };
@@ -94,10 +94,28 @@ export async function findTextAnchors(bytes: Uint8Array): Promise<TextAnchor[]> 
         // No transform means no position, and a placement without a position
         // is what the old code guessed at. Skipped rather than guessed.
         if (!t || t.length < 6) continue;
+        // Start of the RULE, not of the label.
+        //
+        // Found by rendering the placement onto the real NDA and looking at
+        // page 8: a box at the item's own x covers the word "By:" itself,
+        // because the label and the rule are ONE text item -
+        // "By: _______________________________". The signature belongs on the
+        // rule, to the right of the word.
+        //
+        // The offset is the label's share of the item's width. It is an
+        // approximation - a proportional font does not spend equal width per
+        // character - but it is bounded by the item and lands on the rule,
+        // where the alternative was landing on the label every time. The
+        // tests could not have caught this: the coordinate was the item's,
+        // and the item was the right one.
+        const width = typeof item.width === 'number' ? item.width : 0;
+        const after = match.index + match[0].length;
+        const ruleOffset =
+          width > 0 && text.length > 0 ? (width * after) / text.length : 0;
         out.push({
           page: n,
           label: match[0],
-          x: t[4],
+          x: t[4] + ruleOffset,
           y: t[5],
           pageWidth: view.width,
           pageHeight: view.height,
@@ -122,7 +140,9 @@ export function normalizeAnchor(
   anchor: TextAnchor,
   opts: { liftPt?: number } = {},
 ): { positionPage: number; positionX: number; positionY: number } {
-  const lift = opts.liftPt ?? 2;
+  // 4pt, set by looking at the render rather than by feel: at 2 the box's
+  // bottom edge sat on the label's own baseline and read as struck through it.
+  const lift = opts.liftPt ?? 4;
   return {
     positionPage: anchor.page,
     positionX: clamp01(anchor.x / anchor.pageWidth),
