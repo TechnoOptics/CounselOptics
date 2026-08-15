@@ -212,9 +212,14 @@ export function EnterpriseSectorTabs() {
             }`}
           >
             <span>{s.label}</span>
+            {/* The selected tab paints `bg-gold-metal`, and forest-950
+                at 65% on that gold measured 3.50:1 for a 10px tagline.
+                The alpha was doing nothing the gold ground did not
+                already do - it is the quiet half of the pair either way
+                - so it goes, taking the tagline to 5.7:1. */}
             <span
               className={`text-[10px] tracking-wide ${
-                sector === s.key ? 'text-forest-950/65' : 'text-cream-100/60 group-hover:text-cream-100/65'
+                sector === s.key ? 'text-forest-950' : 'text-cream-100/60 group-hover:text-cream-100/65'
               }`}
             >
               {s.tagline}

@@ -332,12 +332,51 @@ const SETTLE = `(() => {
     }
   \`;
   document.head.appendChild(s);
-  // The cookie dialog covers the page it is asking about.
-  for (const sel of ['[data-cookie-dialog]', '[aria-label*="ookie"]', '[class*="cookie" i]']) {
-    document.querySelectorAll(sel).forEach((el) => el.remove());
-  }
   window.scrollTo(0, 0);
   return true;
+})()`;
+
+/**
+ * Drop the cookie dialog.
+ *
+ * Run AFTER the settle wait, not with it: CookieBanner is a client
+ * component that mounts on hydration, so a removal fired the moment
+ * `networkidle2` resolves happens before the dialog exists and the
+ * dialog is back by the time anything is measured. That is not a
+ * cosmetic problem - it covers the page it is asking about, so every
+ * run behind it reads the scrim as its ground and is reported at ~1:1,
+ * or is written off as occluded and silently stops being measured at
+ * all. Both are wrong answers that look like answers.
+ */
+const DROP_OVERLAYS = `(() => {
+  let n = 0;
+  for (const sel of [
+    '[data-cookie-dialog]',
+    '[aria-label*="ookie"]',
+    '[class*="cookie" i]',
+  ]) {
+    for (const el of document.querySelectorAll(sel)) { el.remove(); n++; }
+  }
+  return n;
+})()`;
+
+/**
+ * Anything still painting over most of the viewport once the cookie
+ * dialog is gone. A route that reports one is not measurable, and the
+ * run says so rather than quietly reporting the scrim.
+ */
+const REMAINING_OVERLAY = `(() => {
+  const vw = window.innerWidth, vh = Math.min(window.innerHeight, 2000);
+  for (const el of document.querySelectorAll('body *')) {
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
+    if (cs.pointerEvents === 'none' || +cs.opacity === 0) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width >= vw * 0.9 && r.height >= vh * 0.9 && r.top < 50) {
+      return el.tagName + '.' + String(el.className || '').slice(0, 60);
+    }
+  }
+  return null;
 })()`;
 
 // ------------------------------------------------------------------ main
@@ -401,6 +440,19 @@ try {
     }
     await page.setViewport({ width: WIDTH, height: docHeight + 40, deviceScaleFactor: 1 });
     await new Promise((r) => setTimeout(r, 500));
+    await page.evaluate(DROP_OVERLAYS);
+    await new Promise((r) => setTimeout(r, 150));
+
+    // A page-covering panel that is NOT the route's own is a measurement
+    // that cannot be trusted, so it is refused rather than reported.
+    // /safe's own SafeWitness surface is the one legitimate case, and it
+    // is what the occlusion section exists to describe.
+    const overlay = await page.evaluate(REMAINING_OVERLAY);
+    if (overlay && !route.startsWith('/safe')) {
+      console.error(`  ! ${route} is covered by ${overlay}; not measurable, skipped`);
+      await page.close();
+      continue;
+    }
 
     const runs = await page.evaluate(HARVEST);
     await page.evaluate(BLANK_INK);

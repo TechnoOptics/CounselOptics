@@ -1281,7 +1281,12 @@ function FinalCta() {
           style={{ width: 240, height: 240, left: '8%', bottom: '-20%' }}
         />
         <div className="relative max-w-3xl mx-auto">
-          <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300 mb-5">
+          {/* gold-200 rather than gold-300: this eyebrow sits directly
+              under the cream orb, the lightest ground on the page, and
+              gold-300 measured 3.29:1 there. Darkening the hero took it
+              to 4.12:1, still short of the 4.5:1 a 10px label needs, so
+              the ink moves one step up the ramp as well. */}
+          <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-200 mb-5">
             Whenever you are ready
           </p>
           <h2 className="font-display text-4xl sm:text-6xl lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.98]">

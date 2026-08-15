@@ -175,11 +175,41 @@ const config: Config = {
       },
       backgroundImage: {
         'forest-gradient': 'linear-gradient(135deg, #0F2D24 0%, #173b30 50%, #23362F 100%)',
-        // Metallic gold to match the brand pillar mark: deep bronze base,
-        // rich warm gold mids, and two cream-gold highlight bands so the
-        // gold-pan animation sweeps a real shimmer across text/surfaces.
+        /*
+         * Metallic gold to match the brand pillar mark, lifted onto the
+         * range a dark ground can carry: warm gold base, richer mids,
+         * and two cream-gold highlight bands so the gold-pan animation
+         * sweeps a real shimmer across text/surfaces.
+         *
+         * WHY THE BASE IS NOT BRONZE ANY MORE. `bg-clip-text` makes the
+         * gradient the ink, so the floor is asked of every stop. The old
+         * ramp opened on a deep bronze, and measured on the rendered
+         * hero that stop was 1.07:1 under the display headings - not
+         * dim, absent. Darkening the hero does not reach it either: the
+         * same bronze is 2.46:1 against the DARKEST stop of the hero's
+         * own base gradient, so it was under the 3:1 large-text floor on
+         * every forest ground there is. The ramp had to move.
+         *
+         * Every stop here sits at relative luminance >= 0.558, which
+         * clears 3:1 against the lightest ground the retuned .hero-bg
+         * puts under a heading. The binding call site is /example's
+         * closing band, where a 34px heading sits directly beneath a
+         * .hero-orb--cream and reads a ground of 0.14 - lighter than
+         * the homepage's, because that heading is shorter and sits
+         * nearer the orb's centre. It measures 3.2:1 there. The two
+         * numbers are a pair: lightening the hero washes again, or
+         * dropping a stop back down the ramp, breaks the same headings,
+         * and tests/dark-panel-contrast.test.ts fails on either.
+         *
+         * The shimmer's range is kept - the highlight against a 0.558
+         * base is a spread the eye still reads as metal, moved up
+         * rather than flattened.
+         *
+         * Also the fill behind `.btn-accent`'s `text-forest-900`, which
+         * only gains from a lighter ramp.
+         */
         'gold-shine':
-          'linear-gradient(135deg, #8a661f 0%, #c79532 12%, #f2d896 28%, #d4a14a 44%, #b08229 58%, #d4a14a 72%, #f2d896 88%, #c79532 100%)',
+          'linear-gradient(135deg, #e5c07c 0%, #e8c47f 12%, #f2d896 28%, #e9c684 44%, #e6c281 58%, #e9c684 72%, #f2d896 88%, #e8c47f 100%)',
         /*
          * The same shimmer, tuned for a ground it can be read on.
          *
