@@ -334,11 +334,21 @@ export async function grantFirmPoolTokens(input: {
         period_end: input.periodEnd,
       },
     });
-    reportWriteFailure('firm pool ledger row', ledgerErr);
+    if (ledgerErr) {
+      // Best effort by design: the pool credit already landed, and throwing
+      // here would tell a Stripe webhook to retry a grant that succeeded. What
+      // it costs is a gap in the ledger the counsel pool page reads back, so it
+      // is said out loud rather than swallowed.
+      console.error(
+        `[tokens] firm pool ledger row for ${input.firmId} did not land (${
+          (ledgerErr as { message?: string }).message ?? 'unknown error'
+        }); the pool was credited but the audit trail is short one movement`,
+      );
+    }
   } else {
-    reportWriteFailure('firm pool ledger row', {
-      message: `firm ${input.firmId} has no created_by to attribute the grant to`,
-    });
+    console.error(
+      `[tokens] firm ${input.firmId} has no created_by to attribute the pool grant to; the pool was credited but no ledger row was written`,
+    );
   }
 
   return { granted: true, balance: newBalance };

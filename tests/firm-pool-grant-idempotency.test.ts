@@ -178,7 +178,7 @@ describe('grantFirmPoolTokens concurrency', () => {
 
     // The pool is still credited; only the un-writable ledger row is skipped.
     expect(res.granted).toBe(true);
-    expect(s.firm.token_pool_balance).toBe(EXPECTED);
+    expect(s.firm?.token_pool_balance).toBe(EXPECTED);
     expect(s.ledger).toHaveLength(0);
   });
 
@@ -241,7 +241,7 @@ describe('grantFirmPoolTokens dropped-credit recovery', () => {
     expect(s.claimDeletes).toHaveLength(1);
     expect(s.grants.size).toBe(0);
 
-    s.firm = { token_pool_balance: 0, token_pool_period_end: null };
+    s.firm = { token_pool_balance: 0, token_pool_period_end: null, created_by: 'user_owner' };
     const second = await grantFirmPoolTokens({ firmId: 'f1', tier: 'small_firm', seats: SEATS, periodEnd: PERIOD });
 
     expect(second.granted).toBe(true);
