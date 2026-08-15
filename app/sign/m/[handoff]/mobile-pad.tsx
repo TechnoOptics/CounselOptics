@@ -186,6 +186,33 @@ export function MobilePad({
     }
   }
 
+  // Once the mark is gone, this pad must not come back.
+  //
+  // The server already refuses a second submission and a re-fetch of this page
+  // renders "Your signature has already gone to your computer" rather than a
+  // pad, so nothing can be signed twice. What it does not stop is the BACK
+  // BUTTON restoring this entry from the browser's cache: the person taps
+  // back, sees a blank pad where they just signed, and reasonably concludes
+  // the signature was lost.
+  //
+  // pushState + popstate rather than replaceState. replaceState only rewrites
+  // the current entry, so back would still leave toward whatever preceded the
+  // scan, which on a fresh tab is nothing and closes the tab mid-ceremony.
+  // Pushing one entry and re-pushing it on popstate keeps a back press on this
+  // confirmation, which is the screen that tells the truth.
+  //
+  // Armed ONLY after a successful submit, so it can never trap somebody who
+  // has not signed and wants to leave.
+  useEffect(() => {
+    if (!done || typeof window === 'undefined') return;
+    window.history.pushState(null, '', window.location.href);
+    const hold = () => {
+      window.history.pushState(null, '', window.location.href);
+    };
+    window.addEventListener('popstate', hold);
+    return () => window.removeEventListener('popstate', hold);
+  }, [done]);
+
   if (done) {
     return (
       <Shell>
