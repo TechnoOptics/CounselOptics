@@ -21,6 +21,7 @@
     "test:tight-br": "node scripts/test/find-tight-br.mjs",
     "test:published-pricing": "node scripts/test/published-pricing-invariants.mjs",
     "test:audit-guards": "node scripts/test/counsel-routing.mjs && node scripts/test/bella-markdown.mjs && node scripts/test/signature-anchors.mjs && node scripts/test/i18n-a11y-invariants.mjs && node scripts/test/counsel-i18n-invariants.mjs && node scripts/test/crisis-copy-invariants.mjs && node scripts/test/us-format-invariants.mjs && node scripts/test/find-curly-titles.mjs && node scripts/test/find-tight-br.mjs && node scripts/test/published-pricing-invariants.mjs && node scripts/test/robots-invariants.mjs && node scripts/test/canonical-invariants.mjs",
+    "audit:contrast": "node scripts/test/rendered-contrast-audit.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

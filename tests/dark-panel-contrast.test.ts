@@ -102,6 +102,43 @@ function gradientStops(config: string, key: string): string[] {
   return stops;
 }
 
+/**
+ * WHAT THIS FILE DOES NOT DO, stated because a green run here is easy to
+ * misread as "the marketing surface is AA-clean". It is not a sweep.
+ *
+ * Every describe below is a NAMED invariant, derived from one finding that was
+ * actually fixed: the gold-shine ramp, the four hero washes, the cream alpha
+ * ramp, the hand-painted dark panels, disabled-state ink, and chrome under a
+ * full-screen panel. Each pins a specific value so that specific regression
+ * cannot come back. None of them walks the pages.
+ *
+ * The sweep is scripts/test/rendered-contrast-audit.mjs (`npm run
+ * audit:contrast`), which renders each page twice and samples the real ground
+ * under every glyph. It needs a browser and a running server, so it is opt-in
+ * and NOT in CI.
+ *
+ * Run on 2026-08-15 against this branch, 14 public routes:
+ *
+ *     2942 runs measured, 372 below the AA floor
+ *     /safe                                     0 below floor
+ *
+ * So these 18 tests were green while 372 runs were below the floor. They are
+ * not lying and they are not useless: they hold the things that were fixed.
+ * They simply answer a narrower question than "is the surface legible", and
+ * anybody adding to this file should keep that boundary in mind.
+ *
+ * The 372 cluster into a small number of token decisions rather than a long
+ * tail, which is why they are one deliberate change and not this file's job:
+ *
+ *     103 runs   worst 1.75:1   gold-700 ink
+ *      81 runs   worst  3.7:1   emerald-600 ink, /pricing
+ *      83 runs   worst 2.56:1   ink-400 (zinc-400) body grey
+ *      17 runs   worst 1.07:1   bg-clip-text gold gradient headlines
+ *
+ * Changing any of those four changes the look of the public site, so it is the
+ * owner's call, not a sweep-and-fix.
+ */
+
 describe('the gold-shine ramp is legible on the ground it is for', () => {
   /*
    * `bg-clip-text` makes the GRADIENT the ink and leaves `color`
