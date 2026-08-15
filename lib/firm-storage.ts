@@ -7,6 +7,12 @@ import {
   isExecutedCopyPath,
   pickDocumentArtifactRequest,
 } from './signing-artifact';
+import {
+  firmAiGateFor,
+  resolveFirmEntitlement,
+  type FirmAiGate,
+} from './firm-entitlement';
+import { paidFromSubscription } from './trial-entitlement';
 import type {
   Firm,
   FirmChannel,
@@ -407,6 +413,9 @@ export async function getActiveFirmContext(): Promise<FirmContext | null> {
 }
 
 /**
+ * Whether an organization may use the metered AI routes, and why not when it
+ * may not.
+ *
  * A firm has no billing entity of its own - "the firm's plan" really
  * means its creator's personal subscription (see the comment on
  * assertOrganizerEligible in lib/community-actions.ts, which checks
@@ -415,18 +424,76 @@ export async function getActiveFirmContext(): Promise<FirmContext | null> {
  * subscription funding it is actually still active - so a firm whose
  * creator's subscription lapsed or was canceled could otherwise keep
  * using AI routes indefinitely. Callers that meter real cost per call
- * (counsel/analyze, counsel/draft-template) should check this too.
+ * (counsel/analyze, counsel/draft-template, counsel/draft-letter) check this.
  *
  * Deliberately scoped to just those AI routes rather than folded into
  * getActiveFirmContext itself - blocking ALL portal access (team,
  * documents, clients) the instant a subscription lapses is a separate
  * product decision this doesn't make unilaterally.
+ *
+ * THIS REPLACED isFirmSubscriptionActive, and the rename is the point. That
+ * function read the creator's Stripe subscription and NOTHING else, so it
+ * answered a question narrower than the one the routes were asking. Two things
+ * fell out of the gap, and both were live:
+ *
+ * 1. AN HQ-GRANTED FIRM TRIAL BOUGHT NOTHING. `firms.trial_ends_at` opens the
+ *    counsel shell through firmAccessState, so an organization on a trial could
+ *    sign in, look around, and then get 402 "subscription is inactive" from
+ *    every AI route, because by definition nobody behind a trial is paying. The
+ *    trial is now resolved alongside the subscription.
+ *
+ * 2. A SUSPENSION DID NOT REACH THESE ROUTES. counselAccessRedirect is a layout
+ *    gate and a route handler renders no layout, so a suspended organization
+ *    whose creator still paid kept full AI access. Same shape of defect as the
+ *    `'use server'` endpoints this codebase has fixed twice before. The access
+ *    state is now part of the answer.
+ *
+ * The import of firm-trials is dynamic, matching requireActiveFirm in
+ * lib/firm-authz.ts, so the service-role client stays out of the module graph
+ * of everything that imports this file for storage helpers.
+ *
+ * THE CATCH AROUND firmEntitlementInputs IS NOT THE FORBIDDEN ONE. What
+ * lib/firm-authz.ts prohibits is a catch that YIELDS AN ACCESS STATE and lets
+ * the caller proceed, because that converts fail-closed into fail-open. This one
+ * yields a REFUSAL: every path out of the catch returns `ok: false`, so no
+ * caller can be let through by it. It exists only to turn a thrown read failure
+ * into 'undetermined', which is the difference between telling a paying firm to
+ * go and check their billing and telling them to try again. Do not widen it to
+ * cover the resolve, and do not make it return a gate that is ok.
  */
-export async function isFirmSubscriptionActive(firm: Firm): Promise<boolean> {
-  if (!firm.createdBy) return false;
+export async function firmAiGate(firm: Firm): Promise<FirmAiGate> {
+  const { firmEntitlementInputs } = await import('./firm-trials');
+
+  let inputs: Awaited<ReturnType<typeof firmEntitlementInputs>>;
+  try {
+    inputs = await firmEntitlementInputs(firm.id);
+  } catch (error) {
+    console.error(
+      'firmAiGate: could not determine entitlement, so the request is refused',
+      error instanceof Error ? error.message : String(error),
+    );
+    return { ok: false, reason: 'undetermined' };
+  }
+
+  // A firm with no creator has no subscription to read, which is UNPAID and not
+  // an error. It can still be carrying a trial, so this no longer short-circuits
+  // the whole answer the way the old boolean did.
   const { getSubscriptionForUser } = await import('./storage');
-  const sub = await getSubscriptionForUser(firm.createdBy).catch(() => null);
-  return sub?.status === 'active' || sub?.status === 'trialing';
+  const sub = firm.createdBy
+    ? await getSubscriptionForUser(firm.createdBy).catch(() => null)
+    : null;
+
+  const entitlement = resolveFirmEntitlement(
+    {
+      access: inputs.state,
+      paid: paidFromSubscription(sub),
+      trial: inputs.trial,
+    },
+    // Fresh clock, at the enforcement point. Never hoisted, never memoised.
+    new Date(),
+  );
+
+  return firmAiGateFor(inputs.state, entitlement);
 }
 
 export async function getFirmBySlug(slug: string): Promise<Firm | null> {

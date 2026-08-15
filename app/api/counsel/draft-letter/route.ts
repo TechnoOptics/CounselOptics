@@ -3,8 +3,12 @@ import { bellaGenerate } from '@/lib/bella';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import {
   getActiveFirmContext,
-  isFirmSubscriptionActive,
+  firmAiGate,
 } from '@/lib/firm-storage';
+import {
+  firmAiRefusalMessage,
+  firmAiRefusalStatus,
+} from '@/lib/firm-entitlement';
 import { cleanLegalText } from '@/lib/legal-templates';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { createServerSupabase } from '@/lib/supabase/server';
@@ -43,13 +47,11 @@ export async function POST(req: NextRequest) {
   if (!ctx) {
     return NextResponse.json({ error: 'No active firm.' }, { status: 403 });
   }
-  if (!(await isFirmSubscriptionActive(ctx.firm))) {
+  const gate = await firmAiGate(ctx.firm);
+  if (!gate.ok) {
     return NextResponse.json(
-      {
-        error:
-          "This firm's subscription is inactive. Ask the firm owner to update billing.",
-      },
-      { status: 402 },
+      { error: firmAiRefusalMessage(gate.reason) },
+      { status: firmAiRefusalStatus(gate.reason) },
     );
   }
 
