@@ -30,7 +30,7 @@ import {
   type DashboardViewerContext,
 } from '@/lib/counsel-dashboard';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
-import { firmVocabulary } from '@/lib/firm-vocabulary';
+import { firmCopy, firmVocabulary } from '@/lib/firm-vocabulary';
 import { AGING_DAYS } from '@/lib/approval-queue';
 import type { MatterRow } from '@/lib/matter-list';
 import {
@@ -144,6 +144,7 @@ export default async function CounselDashboard() {
   // What this kind of legal team calls things. One lookup, at the top, rather
   // than a type check at each tile that needs a noun.
   const vocab = firmVocabulary(surfaces.firmType);
+  const copy = firmCopy(surfaces.firmType);
 
   const isAdmin =
     ctx.membership.role === 'owner' || ctx.membership.role === 'admin';
@@ -551,6 +552,12 @@ export default async function CounselDashboard() {
     .filter((band) => band.metrics.length > 0);
 
   const data: DashboardTileData = {
+    // Resolved once here, at the only place that knows the firm's type, and
+    // read by every tile. The alternative was each tile asking, which is how
+    // a surface ends up with one card saying "Clients" and the next saying
+    // "Employees" about the same people.
+    vocab,
+    copy,
     firmId: ctx.firm.id,
     firmName: ctx.firm.name,
     userId: user.id,

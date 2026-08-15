@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { firmCopy, firmVocabulary } from '../lib/firm-vocabulary';
 import {
   actionCenterItems,
   actionCenterWorkItems,
@@ -26,6 +27,11 @@ import {
  */
 
 const BASE: DashboardTileData = {
+  // A law firm, so this fixture keeps the ordinary nouns. What the vocabulary
+  // does to those nouns is tested in tests/firm-vocabulary-reaches-the-page.ts;
+  // here it is only the envelope's required field.
+  vocab: firmVocabulary('firm'),
+  copy: firmCopy('firm'),
   firmId: 'f1',
   firmName: 'Firm',
   userId: 'u1',

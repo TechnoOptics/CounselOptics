@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { CounselTileId } from '@/lib/counsel-dashboard';
 import type { CounselMetric, MetricBand } from '@/lib/counsel-metrics';
+import type { FirmCopy, FirmVocabulary } from '@/lib/firm-vocabulary';
 import { T } from '@/components/i18n/LocaleProvider';
 import { formatDateWith } from '@/lib/format';
 
@@ -16,6 +17,20 @@ import { formatDateWith } from '@/lib/format';
  * to add to.
  */
 export type DashboardTileData = {
+  /**
+   * What this firm calls the people it helps, resolved once by the page from
+   * its type. It rides in the envelope rather than being derived per tile so
+   * a tile never asks what kind of firm it is in: an in-house team reads
+   * "Employees" here, a law firm reads "Clients", and the tile code is the
+   * same either way. See lib/firm-vocabulary.ts.
+   */
+  vocab: FirmVocabulary;
+  /**
+   * The sentences that go with those nouns. Separate from `vocab` because a
+   * heading can be renamed and a sentence has to be rewritten. See the note
+   * on FirmCopy.
+   */
+  copy: FirmCopy;
   firmId: string;
   firmName: string;
   userId: string;
@@ -120,10 +135,10 @@ export function DashboardTileRenderer({
     case 'clients-overview':
       return <SimpleCountTile
         href="/counsel/clients"
-        eyebrow="Clients"
+        eyebrow={data.vocab.clients}
         headline={String(data.counts.clients)}
         metric={<>{data.counts.clientsActive} <T>active</T></>}
-        body="Invite a client and they stay linked to your firm."
+        body={data.copy.tileRosterBody}
       />;
     case 'team-overview':
       return <SimpleCountTile
@@ -616,20 +631,17 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
     >
       {total === 0 ? (
         <p className="text-[13px] text-muted mt-2 leading-relaxed">
-          <T>
-            When you're set as the primary attorney on a client or case,
-            it'll show up here for quick access.
-          </T>
+          <T>{data.copy.assignedNothing}</T>
         </p>
       ) : (
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/60 mb-1">
-              <T>Your clients</T> ({clientCount})
+              <T>{data.copy.assignedRoster}</T> ({clientCount})
             </p>
             {clientCount === 0 ? (
               <p className="text-[12px] text-cream-100/55">
-                <T>No primary-attorney clients.</T>
+                <T>{data.copy.assignedRosterEmpty}</T>
               </p>
             ) : (
               <ul className="space-y-1">
@@ -664,7 +676,7 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
             </p>
             {caseCount === 0 ? (
               <p className="text-[12px] text-cream-100/55">
-                <T>No cases tied to your clients yet.</T>
+                <T>{data.copy.assignedCasesEmpty}</T>
               </p>
             ) : (
               <ul className="space-y-1">
@@ -702,7 +714,7 @@ function QuickActionsTile({ data }: { data: DashboardTileData }) {
     // There is no dedicated "new matter" route - the control lives on the
     // caseload page itself, so this shortcut used to 404 on click.
     { href: '/counsel/cases', label: 'New matter' },
-    { href: '/counsel/intake', label: 'New intake' },
+    { href: '/counsel/intake', label: data.vocab.intake },
     { href: '/counsel/calendar', label: 'Schedule meeting' },
     { href: '/counsel/documents', label: 'Upload document' },
   ];

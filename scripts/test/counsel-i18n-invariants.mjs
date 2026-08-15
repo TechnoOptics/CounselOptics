@@ -194,6 +194,26 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   'vocab.practiceAreas',
   'vocab.caseload',
   'vocab.directory',
+  // The per-type COPY DECK (FIRM_COPY in the same module). Same argument as
+  // the vocabulary above, one level up: where `vocab.*` is a noun, `copy.*` is
+  // a whole sentence, written out twice in full because a noun substituted
+  // into running copy breaks the article, the case, and the dictionary lookup
+  // that makes `<T>` work at all. FIRM_COPY is a frozen constant map of
+  // literal-valued records keyed by FirmType. Nothing writes into it at
+  // runtime, so no firm name, client name or figure can reach these wraps.
+  //
+  // The ternary is over two fields of that same map (singular / plural noun
+  // phrase); the count that selects between them is rendered outside the wrap.
+  'copy.rosterTitle',
+  'copy.rosterBlurb',
+  'copy.rosterEmpty',
+  'copy.rosterEmptyCanInvite',
+  'copy.rosterEmptyCannotInvite',
+  'clients.length === 1 ? copy.rosterCountOne : copy.rosterCountMany',
+  'data.copy.assignedRoster',
+  'data.copy.assignedRosterEmpty',
+  'data.copy.assignedCasesEmpty',
+  'data.copy.assignedNothing',
   // static-array .map() params
   'l',
   's',

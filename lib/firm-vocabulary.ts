@@ -97,3 +97,114 @@ export function menuLabelsForType(firmType: FirmType): Record<string, string> {
     '/counsel/cases': v.caseload,
   };
 }
+
+/**
+ * WHOLE SENTENCES, not nouns glued into them.
+ *
+ * The nouns above rename a heading. They cannot rewrite a sentence, and the
+ * roster and the dashboard are made of sentences. Three things break when a
+ * noun is substituted into running copy:
+ *
+ *   - The indefinite article. "a client" and "an employee" disagree, and
+ *     `a ${v.client}` prints "a employee" the day somebody adds a
+ *     vowel-initial word to the map.
+ *   - Case. A sentence needs "clients", a heading needs "Clients", and
+ *     `.toLowerCase()` scattered through JSX is how one of them ends up
+ *     capitalized mid-sentence.
+ *   - Translation. `<T>` matches a whole phrase against the dictionary. A
+ *     sentence assembled from fragments at render time matches nothing, so
+ *     every substituted string silently drops out of the translated set.
+ *
+ * So each surface's copy is written out twice, in full, and the page picks a
+ * record. That is more characters than interpolation and it is the reason the
+ * result reads like it was written for an in-house team rather than
+ * search-and-replaced at one.
+ *
+ * Everything here is a literal. Nothing a firm types can reach this map, which
+ * is what lets these values sit inside `<T>` under the counsel i18n guard.
+ */
+export type FirmCopy = {
+  /** /counsel/clients page title. */
+  rosterTitle: string;
+  /** The sentence under it, after the count. */
+  rosterBlurb: string;
+  /** The segmented view strip's accessible label. */
+  rosterViews: string;
+  /** Empty roster. */
+  rosterEmpty: string;
+  /** Empty roster, to somebody who may invite. */
+  rosterEmptyCanInvite: string;
+  /** Empty roster, to somebody who may not. */
+  rosterEmptyCannotInvite: string;
+  /** "3 clients at Bell Kerr." - the noun, singular and plural. */
+  rosterCountOne: string;
+  rosterCountMany: string;
+  /** The dashboard roster tile's body line. */
+  tileRosterBody: string;
+  /** "Assigned to me": the heading over the person's own roster column. */
+  assignedRoster: string;
+  /** ... and its two empty states. */
+  assignedRosterEmpty: string;
+  assignedCasesEmpty: string;
+  /** "Assigned to me" when the person has nothing at all. */
+  assignedNothing: string;
+};
+
+const BASE_COPY: FirmCopy = {
+  rosterTitle: 'Client roster',
+  rosterBlurb:
+    'Invite a client by email. They get a regular Advottic account; this firm gains view and collaborate access on cases they share.',
+  rosterViews: 'Client views',
+  rosterEmpty: 'No clients yet.',
+  rosterEmptyCanInvite: 'Use the invite form above to add your first client.',
+  rosterEmptyCannotInvite:
+    'An owner, admin, or attorney at the firm can invite the first client.',
+  rosterCountOne: 'client at',
+  rosterCountMany: 'clients at',
+  tileRosterBody: 'Invite a client and they stay linked to your firm.',
+  assignedRoster: 'Your clients',
+  assignedRosterEmpty: 'No primary-attorney clients.',
+  assignedCasesEmpty: 'No cases tied to your clients yet.',
+  assignedNothing:
+    "When you're set as the primary attorney on a client or case, it'll show up here for quick access.",
+};
+
+/**
+ * In-house.
+ *
+ * "Invite" survives: an in-house team does invite an employee into the portal,
+ * and the mechanism is the same one. What does not survive is "client", the
+ * suggestion that the relationship is external, and "primary attorney", which
+ * is a law-firm assignment convention rather than a corporate one.
+ */
+const CORPORATE_COPY: FirmCopy = {
+  rosterTitle: 'Employee roster',
+  rosterBlurb:
+    'Invite an employee by email. They get a regular Advottic account; your team gains view and collaborate access on the matters they raise.',
+  rosterViews: 'Employee views',
+  rosterEmpty: 'No employees yet.',
+  rosterEmptyCanInvite: 'Use the invite form above to add your first employee.',
+  rosterEmptyCannotInvite:
+    'An owner, admin, or attorney on the team can invite the first employee.',
+  rosterCountOne: 'employee at',
+  rosterCountMany: 'employees at',
+  tileRosterBody: 'Invite an employee and they stay linked to your team.',
+  assignedRoster: 'Your employees',
+  assignedRosterEmpty: 'Nobody is assigned to you yet.',
+  assignedCasesEmpty: 'No matters tied to your employees yet.',
+  assignedNothing:
+    "When an employee or a matter is assigned to you, it'll show up here for quick access.",
+};
+
+export const FIRM_COPY: Record<FirmType, FirmCopy> = {
+  individual: BASE_COPY,
+  firm: BASE_COPY,
+  legal_aid: BASE_COPY,
+  government: BASE_COPY,
+  other: BASE_COPY,
+  corporate: CORPORATE_COPY,
+};
+
+export function firmCopy(firmType: FirmType): FirmCopy {
+  return FIRM_COPY[firmType] ?? BASE_COPY;
+}

@@ -6,6 +6,7 @@ import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { ViewStrip, relativeTime, type ViewOption } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { firmCopy, firmVocabulary } from '@/lib/firm-vocabulary';
 import { formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +63,13 @@ export default async function CounselClientsPage({
   if (!ctx) redirect('/counsel');
   const clients = await listFirmClients(ctx.firm.id);
 
+  // An in-house team's roster is its employees, not its clients. The nouns and
+  // the sentences come off the firm's type in one place each; see
+  // lib/firm-vocabulary.ts for why the sentences are written out whole rather
+  // than assembled from the nouns.
+  const vocab = firmVocabulary(ctx.firm.firmType);
+  const copy = firmCopy(ctx.firm.firmType);
+
   const canInvite =
     ctx.membership.role === 'owner' ||
     ctx.membership.role === 'admin' ||
@@ -88,14 +96,18 @@ export default async function CounselClientsPage({
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
-        eyebrow={<T>Clients</T>}
-        title={<T>Client roster</T>}
+        eyebrow={<T>{vocab.clients}</T>}
+        title={<T>{copy.rosterTitle}</T>}
         subtitle={
           <>
             {clients.length}{' '}
-            {clients.length === 1 ? <T>client at</T> : <T>clients at</T>}{' '}
+            <T>
+              {clients.length === 1
+                ? copy.rosterCountOne
+                : copy.rosterCountMany}
+            </T>{' '}
             <span data-no-translate>{ctx.firm.name}</span>.{' '}
-            <T>Invite a client by email. They get a regular Advottic account; this firm gains view and collaborate access on cases they share.</T>
+            <T>{copy.rosterBlurb}</T>
           </>
         }
       />
@@ -104,12 +116,12 @@ export default async function CounselClientsPage({
 
       {clients.length === 0 ? (
         <EmptyState
-          title={<T>No clients yet.</T>}
+          title={<T>{copy.rosterEmpty}</T>}
           sub={
             canInvite ? (
-              <T>Use the invite form above to add your first client.</T>
+              <T>{copy.rosterEmptyCanInvite}</T>
             ) : (
-              <T>An owner, admin, or attorney at the firm can invite the first client.</T>
+              <T>{copy.rosterEmptyCannotInvite}</T>
             )
           }
         />
@@ -122,7 +134,7 @@ export default async function CounselClientsPage({
               href={(key) =>
                 key ? `/counsel/clients?view=${key}` : '/counsel/clients'
               }
-              label="Client views"
+              label={copy.rosterViews}
             />
           )}
 
