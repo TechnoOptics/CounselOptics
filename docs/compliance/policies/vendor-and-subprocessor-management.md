@@ -17,7 +17,7 @@ Maps to SOC 2 CC9.1 · ISO 27001 A.5.19–A.5.23 · HIPAA §164.308(b) / §164.3
 | **Supabase** | Auth, Postgres, Storage | All account + case data, exhibits, PHI | **Yes** | **Yes** | ☐ *Not executed: HIPAA add-on + BAA required (Team/Enterprise plan)* | ☐ | SOC 2 Type II |
 | **Vercel** | Hosting, edge, logs | HTTP requests, crash logs | **Yes** (transits) | **Yes** | ☐ *Not executed: Enterprise plan required for BAA* | ☐ | SOC 2 Type II |
 | **Anthropic** | Bella + Advottic Review (AI) | Case titles/descriptions, exhibit text, queries | **Yes** | **Yes** | ☐ *Request BAA + confirm zero-retention on the account* | ☐ | SOC 2 Type II |
-| **OpenAI** | Whisper transcription of audio/video exhibits | **The raw uploaded media file itself** (up to 25 MB) **and its original filename** | **Yes** | **Yes** | ☐ *Not executed. No DPA, no BAA, no security report collected. See the note below.* | ☐ | ☐ *Not collected* |
+| **OpenAI** | Whisper transcription of audio/video exhibits | **The raw uploaded media file itself** (up to 25 MB) **and its original filename** | **Yes** | **Yes** | ☐ *Not executed. No DPA, no BAA, no security report collected. The path is gated OFF in code, not merely unconfigured. See the note below.* | ☐ | ☐ *Not collected* |
 | **Twilio** | Safe Witness SMS | Phone number, alert text, GPS link, PIN | **Possibly** | **Yes** | ☐ *Twilio offers BAA; execute* | ☐ | SOC 2; HIPAA-eligible |
 | **Resend** | Transactional email | Recipient email, subject, body | **Possibly** (email content) | **Yes** | ☐ *Confirm BAA availability* | ☐ | SOC 2 |
 | **Google Maps** | Geocoding + static/interactive maps | Place names extracted from case evidence content; Safe Witness GPS coordinates | **Possibly** | **Yes** | ☐ *Not executed; confirm BAA availability* | ☐ | ☐ *Not collected* |
@@ -56,11 +56,43 @@ carrying PHI until proven otherwise. Policy step 1 was not satisfied
 before this went live: no security report was collected, no DPA was
 signed, and no BAA exists.
 
-Owner decision needed, and this should not wait for the next quarterly
-review. The options are to execute a DPA and BAA and move to a
-zero-retention configuration, to replace the provider, or to disable
-transcription by unsetting `OPENAI_API_KEY` (both call sites already
-degrade cleanly when it is absent).
+#### Decision taken 2026-08-15: gated off, and nothing was ever sent
+
+Two facts were established before deciding, rather than assumed.
+
+- Production was queried: **33 exhibits, of which 0 are audio or video,
+  0 have a transcript, and 0 timeline transcripts exist.** No recording
+  has ever been posted to OpenAI from this product.
+- `OPENAI_API_KEY` is **not set in the production environment**
+  (`vercel env ls production`). Both call sites were already refusing.
+
+So this was a latent exposure, not a live one, and the earlier wording
+of this note overstated it. What made it dangerous was that the safety
+was an **absence**: one environment variable, set by anybody wanting to
+try the feature, would have started shipping raw client evidence to a
+processor under no agreement, and the person setting it would have had
+no reason to think they were making a compliance decision.
+
+The key is therefore no longer sufficient on its own. `lib/subprocessor-gate.ts`
+requires a second, explicitly named variable,
+`OPENAI_SUBPROCESSOR_AGREEMENTS=signed`, and both call sites consult it.
+An API key now answers only "can we reach this service"; the second flag
+answers "are we permitted to". Neither is set, and the feature degrades
+to a calm sentence telling the person they can still upload the
+recording and describe it themselves.
+
+`tests/subprocessor-agreements.test.ts` reads THIS FILE. While the BAA
+and DPA boxes in the OpenAI row above are unchecked, it requires the
+gate to exist and both call sites to use it. Checking those boxes off
+without executing the agreements will not quietly re-open the path; and
+once the agreements genuinely exist, the test stops demanding the gate.
+
+**To turn transcription on later:** execute the DPA and the BAA, move
+the account to a zero-retention configuration, collect the SOC 2
+report, tick the boxes in the row above with their dates, then set
+`OPENAI_SUBPROCESSOR_AGREEMENTS=signed` alongside the key. The
+alternative remains to replace the provider with one already under a
+BAA, or to drop transcription.
 
 ### Why several rows say "Not collected"
 

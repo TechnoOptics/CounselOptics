@@ -5,6 +5,11 @@ import path from 'node:path';
 import { CASE_TYPES, isRealScan, type CaseType } from './types';
 import type { AIReview, Case, Exhibit, ScanData } from './types';
 import { AiUnavailableError, friendlyAiError } from './ai-errors';
+import {
+  TRANSCRIPTION_GATE_LOG,
+  TRANSCRIPTION_UNAVAILABLE,
+  openaiTranscriptionAllowed,
+} from './subprocessor-gate';
 
 const MODEL = 'claude-sonnet-4-6';
 const FAST_MODEL = 'claude-haiku-4-5-20251001';
@@ -598,8 +603,11 @@ export async function scanDocument(input: {
  * Whisper transcription. Accepts audio (mp3, m4a, wav, webm, ogg) AND video
  * (mp4, mov, mpeg) - Whisper will read the audio track from video. Returns
  * a ScanData record where transcript is populated and docType is set to
- * voice_note or video accordingly. Falls back to a demo placeholder if
- * OPENAI_API_KEY is not configured.
+ * voice_note or video accordingly.
+ *
+ * Falls back to a demo placeholder unless openaiTranscriptionAllowed() says
+ * yes, which needs BOTH a key and the sub-processor agreements flag. A key on
+ * its own is deliberately not enough: see lib/subprocessor-gate.ts.
  */
 export async function transcribeMedia(input: {
   fileBuffer: Buffer;
@@ -610,14 +618,23 @@ export async function transcribeMedia(input: {
   const isVideo = input.mediaType.startsWith('video/');
   const docType = isVideo ? 'video' : 'voice_note';
 
-  if (!apiKey) {
+  // The key alone is not permission. See lib/subprocessor-gate.ts: this call
+  // sends the WHOLE recording to OpenAI and Advottic holds no DPA or BAA with
+  // them, so setting a credential must not be the same act as agreeing to
+  // send client evidence to a third party.
+  //
+  // The refusal copy no longer names an environment variable either. It was
+  // shown to the person who uploaded the recording, and telling somebody
+  // filing evidence in a legal matter to go and configure a server key is an
+  // instruction they cannot act on and should not have been given.
+  if (!openaiTranscriptionAllowed()) {
+    if (apiKey) console.error(TRANSCRIPTION_GATE_LOG);
     return {
       docType,
       identifiers: {},
       parties: [],
       dates: [],
-      summary:
-        'Transcription requires OPENAI_API_KEY in the server environment. Once it is set, click Transcribe to extract the spoken content.',
+      summary: TRANSCRIPTION_UNAVAILABLE,
       transcript: '',
       scannedAt: new Date().toISOString(),
       modelUsed: 'unsupported',

@@ -2,6 +2,10 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { DOCUMENT_TYPES, EVIDENCE_FOLDERS, normalizeDocumentType, normalizeFolder, type AiExtracted, type OccurredPrecision, type TimelineKind } from './timeline-types';
 import { friendlyAiError } from './ai-errors';
+import {
+  TRANSCRIPTION_GATE_LOG,
+  openaiTranscriptionAllowed,
+} from './subprocessor-gate';
 // Type-only import (erased at runtime, so no import cycle with case-evidence).
 import type { CaseContext } from './case-evidence';
 
@@ -355,17 +359,27 @@ export async function analyzeText(input: {
 }
 
 /**
- * Transcribe a voice note / audio track. Env-gated on OPENAI_API_KEY (Whisper);
- * returns { configured:false } cleanly when no provider is wired, so the
- * feature degrades to "attach + describe" rather than breaking.
+ * Transcribe a voice note / audio track via Whisper. Gated on
+ * openaiTranscriptionAllowed(), which needs BOTH a key and the sub-processor
+ * agreements flag; a key on its own is deliberately not enough, see
+ * lib/subprocessor-gate.ts. Returns { configured:false } cleanly when the path
+ * is closed, so the feature degrades to "attach + describe" rather than
+ * breaking.
  */
 export async function transcribeAudio(input: {
   buffer: Buffer;
   filename: string;
   mime: string;
 }): Promise<{ configured: boolean; text: string | null; error?: string }> {
+  // The key alone is not permission. See lib/subprocessor-gate.ts: this call
+  // sends the WHOLE recording to OpenAI, and Advottic holds no DPA or BAA with
+  // them, so a second deliberate flag stands between an operator setting a
+  // credential and a client's voice note leaving the building.
   const key = process.env.OPENAI_API_KEY?.trim();
-  if (!key) return { configured: false, text: null };
+  if (!openaiTranscriptionAllowed()) {
+    if (key) console.error(TRANSCRIPTION_GATE_LOG);
+    return { configured: false, text: null };
+  }
   try {
     const form = new FormData();
     form.append(
