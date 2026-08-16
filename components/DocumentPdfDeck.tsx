@@ -301,7 +301,7 @@ export function DocumentPdfDeck({
             }
             className={
               overview
-                ? `relative cursor-pointer overflow-hidden rounded-md border bg-white shadow-card transition-shadow hover:shadow-card-hover ${
+                ? `doc-thumb relative cursor-pointer overflow-hidden rounded-md border bg-white shadow-card transition-shadow hover:shadow-card-hover ${
                     i === index ? 'border-accent ring-1 ring-accent' : 'border-edge'
                   }`
                 : 'doc-page absolute inset-0 overflow-hidden rounded-lg border border-edge bg-white shadow-card'
@@ -460,6 +460,21 @@ function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 const TURN_CSS = `
+/*
+ * Scale a page down to its thumbnail.
+ *
+ * renderPageToCanvas sets the canvas width and height INLINE, because it is
+ * painting at a device-pixel-ratio-corrected size. An inline style beats a
+ * class, so in the grid every canvas kept its full deck width and the cell,
+ * which clips, showed the top-left corner of each page: "Mutual N" cut off
+ * mid-word. Sixty-two passing tests could not see it; the rendered page could.
+ *
+ * !important is the right tool exactly here. The rule is not fighting another
+ * stylesheet, it is overriding a style written by the paint routine, which has
+ * no way to know it is being shown small.
+ */
+.doc-thumb canvas { width: 100% !important; height: 100% !important; }
+
 .doc-page {
   transition: transform 420ms cubic-bezier(.22,.61,.36,1), opacity 260ms ease;
   will-change: transform;

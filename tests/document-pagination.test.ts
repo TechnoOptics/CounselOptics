@@ -733,3 +733,31 @@ describe('both decks offer the zoomed-out view', () => {
     expect(src).toMatch(/!overview && i !== index/);
   });
 });
+
+describe('a thumbnail shows the whole page', () => {
+  /**
+   * Found by rendering the overview and looking at it, with 62 tests green.
+   *
+   * renderPageToCanvas sets the canvas width and height INLINE, at a
+   * device-pixel-ratio-corrected size. An inline style beats a class, so every
+   * thumbnail kept its full deck width and the clipping cell showed only the
+   * top-left corner of each page: the title read "Mutual N", cut off mid-word.
+   *
+   * A thumbnail that shows a corner is worse than no thumbnail, because the
+   * whole point of the view is answering "where are the signature blocks" at a
+   * glance.
+   */
+  const DECK = readFileSync(join(process.cwd(), 'components/DocumentPdfDeck.tsx'), 'utf8');
+
+  it('forces the canvas to the cell, over the inline paint size', () => {
+    expect(DECK).toMatch(/\.doc-thumb canvas \{[^}]*width: 100% !important/);
+    expect(DECK).toMatch(/\.doc-thumb canvas \{[^}]*height: 100% !important/);
+  });
+
+  it('the rule targets the class the thumbnails actually carry', () => {
+    // The pairing that matters. A rule naming a class nothing renders is the
+    // shape of dead guard this file has caught twice already.
+    const stripped = DECK.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(stripped, 'no thumbnail carries doc-thumb').toMatch(/\? `doc-thumb /);
+  });
+});
