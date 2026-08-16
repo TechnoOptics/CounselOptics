@@ -657,3 +657,79 @@ describe('every phone pad carries the firm mark', () => {
     });
   }
 });
+
+describe('both decks offer the zoomed-out view', () => {
+  /**
+   * The defect this exists for, and it SHIPPED: the overview was asked for on
+   * the approvals page and built into DocumentSheets, while approvals renders
+   * DocumentPdfDeck. Confirmed in a live browser on production: zero overview
+   * buttons on that page. The feature did not exist where it was asked for.
+   *
+   * Same shape as the MobilePad branding gap the same day. Two components do
+   * the same job for different inputs; wiring one and testing that one reads
+   * as done.
+   */
+  const DECKS = ['components/DocumentSheets.tsx', 'components/DocumentPdfDeck.tsx'];
+  const read = (f: string) =>
+    readFileSync(join(process.cwd(), f), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/\/\/[^\n]*/g, '');
+
+  for (const f of DECKS) {
+    it(`${f} has an overview mode`, () => {
+      const src = read(f);
+      expect(src, `${f} has no overview state`).toMatch(/const \[overview, setOverview\]/);
+      expect(src, `${f} never offers a way into overview`).toMatch(/setOverview\(true\)/);
+      expect(src, `${f} never offers a way back out`).toMatch(/setOverview\(false\)/);
+    });
+  }
+
+  it('the two decks label the control identically', () => {
+    /**
+     * The controls are duplicated on purpose: the decks have different
+     * internals. What must not drift is what the reader SEES, so the two are
+     * compared to EACH OTHER rather than to a hard-coded string.
+     *
+     * The first version of this compared aria-label and failed against correct
+     * code, because the two toggles carried the same visible words through
+     * different attributes: DocumentSheets used aria-pressed, which is the
+     * right choice for a toggle whose visible text is already its name. So the
+     * assertion moved to the visible text, which is what the sentence above
+     * says it is protecting, and the a11y attribute is checked separately.
+     */
+    const labels = DECKS.map((f) => {
+      const m = read(f).match(/\{overview \? '([^']+)' : '([^']+)'\}\s*<\/button>/);
+      expect(m, `${f} has no ViewToggle text pair`).not.toBeNull();
+      return [m![1], m![2]];
+    });
+    expect(labels[0]).toEqual(labels[1]);
+  });
+
+  it('both toggles announce their state the same way', () => {
+    // aria-pressed, not aria-label: the visible text is already the name, and
+    // an aria-label would override it with a second copy that can drift.
+    for (const f of DECKS) {
+      expect(read(f), `${f} does not announce toggle state`).toMatch(
+        /aria-pressed=\{overview\}/,
+      );
+    }
+  });
+
+  it('the PDF deck keeps its canvases mounted across the switch', () => {
+    // Remounting would lose the painted bitmaps and repaint every page, which
+    // is a visible stall and a fresh chance at the blank-canvas failure this
+    // component already shipped once. One map, two layouts.
+    const src = read('components/DocumentPdfDeck.tsx');
+    expect(src.match(/canvases\.current\[i\] = el/g) ?? []).toHaveLength(1);
+  });
+
+  it('overview never marks a visible page hidden', () => {
+    // In overview every page is on screen. Leaving the inert and aria-hidden
+    // logic unconditional would take the whole document out of the
+    // accessibility tree at the moment it is all visible.
+    const src = read('components/DocumentPdfDeck.tsx');
+    expect(src).toMatch(/aria-hidden=\{overview \? undefined : i !== index\}/);
+    expect(src).toMatch(/!overview && i !== index/);
+  });
+});

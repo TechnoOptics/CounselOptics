@@ -188,6 +188,21 @@ export function DocumentPdfDeck({
     if (count > 0) setIndex((i) => Math.min(i, count - 1));
   }, [count]);
 
+  /**
+   * The zoomed-out view of every page at once.
+   *
+   * SHIPPED TO THE WRONG COMPONENT FIRST. Asked for on the approvals page, it
+   * was built into components/DocumentSheets.tsx, and approvals renders THIS
+   * component, so the feature did not exist where it had been asked for.
+   * Confirmed in the live browser: zero overview buttons on that page.
+   *
+   * The canvases stay MOUNTED across the switch. Remounting them would lose
+   * the painted bitmaps and repaint every page, which on a long agreement is a
+   * visible stall and, worse, a chance for the blank-canvas failure this
+   * component already had once. Only the layout of their wrappers changes.
+   */
+  const [overview, setOverview] = useState(false);
+
   const drag = useRef<{ x: number; id: number } | null>(null);
 
   if (status === 'first' || status === 'failed') {
@@ -238,24 +253,68 @@ export function DocumentPdfDeck({
           if (dx <= -threshold) go(index + 1);
           else if (dx >= threshold) go(index - 1);
         }}
-        className="relative touch-pan-y overflow-hidden rounded-lg outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-accent"
-        style={{
-          aspectRatio: pages[0] ? `${pages[0].width} / ${pages[0].height}` : '612 / 792',
-        }}
+        className={
+          overview
+            ? 'grid grid-cols-2 gap-3 outline-none sm:grid-cols-3 lg:grid-cols-4'
+            : 'relative touch-pan-y overflow-hidden rounded-lg outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-accent'
+        }
+        style={
+          overview
+            ? undefined
+            : {
+                aspectRatio: pages[0] ? `${pages[0].width} / ${pages[0].height}` : '612 / 792',
+              }
+        }
       >
         {pages.map((_, i) => (
           <div
             key={i}
-            aria-hidden={i !== index}
+            // In overview every page is on screen, so none of them is hidden
+            // and none may be inert. Marking them hidden there would take the
+            // whole document out of the accessibility tree at exactly the
+            // moment it is all visible.
+            aria-hidden={overview ? undefined : i !== index}
             // inert, not merely aria-hidden: a page waiting off the deck must
             // leave the tab order too, or its contents stay reachable.
-            {...(i !== index ? { inert: '' as unknown as boolean } : {})}
-            className="doc-page absolute inset-0 overflow-hidden rounded-lg border border-edge bg-white shadow-card"
-            style={{
-              transform: `translateX(${(i - index) * 102}%)`,
-              opacity: Math.abs(i - index) > 1 ? 0 : 1,
-              pointerEvents: i === index ? 'auto' : 'none',
-            }}
+            {...(!overview && i !== index ? { inert: '' as unknown as boolean } : {})}
+            onClick={
+              overview
+                ? () => {
+                    setIndex(i);
+                    setOverview(false);
+                  }
+                : undefined
+            }
+            role={overview ? 'button' : undefined}
+            tabIndex={overview ? 0 : undefined}
+            aria-label={overview ? `Go to page ${i + 1}` : undefined}
+            onKeyDown={
+              overview
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setIndex(i);
+                      setOverview(false);
+                    }
+                  }
+                : undefined
+            }
+            className={
+              overview
+                ? `relative cursor-pointer overflow-hidden rounded-md border bg-white shadow-card transition-shadow hover:shadow-card-hover ${
+                    i === index ? 'border-accent ring-1 ring-accent' : 'border-edge'
+                  }`
+                : 'doc-page absolute inset-0 overflow-hidden rounded-lg border border-edge bg-white shadow-card'
+            }
+            style={
+              overview
+                ? { aspectRatio: `${pages[i].width} / ${pages[i].height}` }
+                : {
+                    transform: `translateX(${(i - index) * 102}%)`,
+                    opacity: Math.abs(i - index) > 1 ? 0 : 1,
+                    pointerEvents: i === index ? 'auto' : 'none',
+                  }
+            }
           >
             <canvas
               ref={(el) => {
@@ -263,6 +322,11 @@ export function DocumentPdfDeck({
               }}
               className="block h-full w-full"
             />
+            {overview && (
+              <span className="pointer-events-none absolute bottom-1 right-1.5 rounded bg-white/85 px-1 font-serif text-[10px] tabular-nums text-ink-500">
+                {i + 1}
+              </span>
+            )}
           </div>
         ))}
         {status === 'building' && (
@@ -272,6 +336,14 @@ export function DocumentPdfDeck({
         )}
       </div>
 
+      {overview ? (
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-[12px] text-muted">
+            {count === 1 ? '1 page' : `${count} pages`}
+          </p>
+          <ViewToggle overview onClick={() => setOverview(false)} />
+        </div>
+      ) : (
       <div className="flex items-center justify-between gap-4">
         <TurnButton direction="previous" disabled={index === 0} onClick={() => go(index - 1)} />
         <div className="flex flex-1 flex-col items-center gap-2">
@@ -284,6 +356,7 @@ export function DocumentPdfDeck({
           <p className="text-[12px] tabular-nums text-muted" aria-live="polite">
             Page {index + 1} of {count}
           </p>
+          <ViewToggle overview={false} onClick={() => setOverview(true)} />
         </div>
         <TurnButton
           direction="next"
@@ -291,7 +364,42 @@ export function DocumentPdfDeck({
           onClick={() => go(index + 1)}
         />
       </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * Switch between one page and all of them.
+ *
+ * Same control, same words and same icons as the one in
+ * components/DocumentSheets.tsx. Deliberately duplicated rather than shared:
+ * the two decks have different internals and a shared control would have to
+ * take a props bag describing both. What must not drift is what the reader
+ * SEES, and a test holds the labels together.
+ */
+function ViewToggle({ overview, onClick }: { overview: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={overview}
+      className="flex items-center gap-1.5 rounded-full border border-edge bg-surface px-3 py-1.5 text-[12px] text-foreground transition-colors hover:bg-ink-50 dark:hover:bg-forest-800/60"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {overview ? (
+          <rect x="6" y="3" width="12" height="18" rx="1.5" />
+        ) : (
+          <>
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </>
+        )}
+      </svg>
+      {overview ? 'One page' : 'All pages'}
+    </button>
   );
 }
 
