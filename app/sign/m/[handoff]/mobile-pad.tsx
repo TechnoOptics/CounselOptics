@@ -294,8 +294,34 @@ export function MobilePad({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-cream-50 dark:bg-forest-950 px-4 py-6">
-      <div className="mx-auto max-w-md card p-6">{children}</div>
+    /*
+      Centred, and on the phone's real viewport.
+      ...
+      Photographed on a Samsung over wireless debugging: the card sat high with
+      a screen of dead space under it, and a sliver of the page showed past the
+      right edge. Three things were wrong and all three are here.
+      ...
+      `min-h-dvh` rather than `min-h-screen`, because `100vh` on a phone is the
+      viewport WITHOUT the browser chrome, so the page was taller than the space
+      it had and the whole thing could scroll a little. `dvh` is the space that
+      actually exists.
+      ...
+      `overflow-x-hidden` for the sliver: something inside is wider than the
+      column, and on a signing screen a page that slides sideways under the
+      thumb reads as broken. Hidden here rather than hunted down inside, because
+      this Shell is the boundary that owns the page width.
+      ...
+      The safe-area inset keeps the card off the home indicator, which on this
+      device sits inside the viewport rather than below it.
+    */
+    <div
+      className="flex min-h-dvh items-center justify-center overflow-x-hidden bg-cream-50 px-4 py-6 dark:bg-forest-950"
+      style={{
+        paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
+        paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
+      }}
+    >
+      <div className="card w-full max-w-md p-6">{children}</div>
     </div>
   );
 }
