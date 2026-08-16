@@ -81,3 +81,28 @@ Related, and the same family:
 - The repository has repeatedly shipped guards that assert an identifier
   *appears* rather than that a value *reaches the render*. A test that
   cannot fail is the same failure as a measurement of the wrong build.
+
+---
+
+## A guard can be satisfied by its own documentation
+
+Twice on 2026-08-15 a source-reading test was green while proving nothing, both
+times because a COMMENT contained the string the test searched for.
+
+`tests/signature-datetime.test.ts` banned `toISOString().slice(0, 10)` and then
+failed against correct code, because the comment explaining the fix quoted the
+banned expression. That direction is noisy and gets noticed.
+
+The other direction is silent, and it shipped. `tests/document-pagination.ts`
+requires `components/DocumentSheets.tsx` to render the attribute that
+`form-fill-client.tsx` queries for, so a rename on one side cannot pass. It was
+mutated to check, and it **passed** with the attribute renamed: the comment
+above the element still spelled the old name.
+
+This house style writes long explanatory comments next to fixes, so the comment
+almost always contains the string the guard is about. That style and this test
+style are in direct conflict, and the comment wins by default.
+
+Strip comments before matching, `{/* */}` included for JSX. Then mutate the
+source and watch the test go red. Reading the guard is not enough: both of
+these read correctly.
