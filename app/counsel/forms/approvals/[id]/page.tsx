@@ -7,6 +7,7 @@ import { signedMarkUrl } from '@/lib/template-signature';
 import { normalizeCategory } from '@/lib/document-category';
 import { displayTicket } from '@/lib/ticket-numbers';
 import { DocumentSheets } from '@/components/DocumentSheets';
+import { SubmissionPdfDeck } from '@/components/SubmissionPdfDeck';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -155,7 +156,26 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
         </SectionTitle>
         {s.documentVisible ? (
           <div data-no-translate>
-            <DocumentSheets text={s.documentText} markSrc={markUrl} />
+            {/*
+              The approver decides this document leaves the building, so of the
+              three people in the chain they have the strongest claim to be
+              looking at the real pages rather than a reflowed approximation.
+              A submission with no template behind it (free text a studio
+              drafted) has no published template to render from, so it keeps
+              the text sheets, which is also the fallback for a failed build.
+            */}
+            {s.templateId ? (
+              <SubmissionPdfDeck
+                firmId={s.firmId}
+                templateId={s.templateId}
+                values={s.fieldValues}
+                signatureName={s.signatureName}
+                markUrl={markUrl}
+                fallback={<DocumentSheets text={s.documentText} markSrc={markUrl} />}
+              />
+            ) : (
+              <DocumentSheets text={s.documentText} markSrc={markUrl} />
+            )}
           </div>
         ) : (
           <p className="text-[13px] text-ink-600 dark:text-cream-100/70">

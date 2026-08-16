@@ -382,3 +382,59 @@ describe('the pages are actually painted', () => {
     expect(DECK).toMatch(/held\.generation !== generation\.current/);
   });
 });
+
+describe('the approver sees the real document too', () => {
+  /**
+   * The attorney on the approvals page decides the document leaves the
+   * building, so of the three people in the chain they have the strongest
+   * claim to be shown what actually gets sent.
+   *
+   * A wrapper exists because the approvals page is a server component and a
+   * function cannot cross that boundary, so buildPdf has to be built on the
+   * client from plain data.
+   */
+  const WRAP = readFileSync(join(process.cwd(), 'components/SubmissionPdfDeck.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+  const PAGE = readFileSync(
+    join(process.cwd(), 'app/counsel/forms/approvals/[id]/page.tsx'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('uses employee mode, so the server merges the firm published template', () => {
+    // Counsel mode renders whatever free text the body carries and would have
+    // been less work. Employee mode makes the server load the firm's own
+    // published template and merge the values itself, so the approver is shown
+    // a document built the way the recipient's is rather than one assembled
+    // from text this page happened to hold.
+    expect(WRAP).toMatch(/templateId,/);
+    expect(WRAP).toMatch(/'\/api\/counsel\/draft-template\/pdf'/);
+  });
+
+  it('converts the mark here rather than handing the server a URL', () => {
+    // A server that fetches a URL out of a request body is a request-forgery
+    // surface, and this route deliberately is not one. The conversion belongs
+    // on the client.
+    expect(WRAP).toMatch(/readAsDataURL/);
+    expect(WRAP).not.toMatch(/signatureUrl:/);
+  });
+
+  it('waits for the mark before the first build', () => {
+    // Otherwise the approver is shown an unsigned document that silently gains
+    // a signature, which on this page looks like the document changed under
+    // them mid-decision.
+    expect(WRAP).toMatch(/if \(!markResolved\) return/);
+  });
+
+  it('keeps the text sheets where there is no template to render from', () => {
+    // A free-text submission has no published template behind it, so there is
+    // nothing for employee mode to load.
+    expect(PAGE).toMatch(/s\.templateId \? \(/);
+    expect(PAGE).toMatch(/<DocumentSheets/);
+    expect(PAGE).toMatch(/fallback=\{<DocumentSheets/);
+  });
+});
