@@ -553,3 +553,61 @@ describe('the document can be seen all at once', () => {
     expect(SHEETS).toMatch(/aria-pressed=\{overview\}/);
   });
 });
+
+describe('the signed screen on a phone', () => {
+  /**
+   * The last thing a signer sees, and until now it was an eyebrow, a line of
+   * thanks and a sentence, left-aligned at the top of a card. It read like a
+   * form validation message at the end of a ceremony that had just put
+   * somebody's name on a legal instrument.
+   *
+   * Photographed on a real Samsung, which is also how the layout faults on the
+   * screen before it were found.
+   */
+  const PAD = readFileSync(
+    join(process.cwd(), 'app/sign/m/[handoff]/mobile-pad.tsx'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+  const QUERIES = readFileSync(
+    join(process.cwd(), 'lib/signing-handoff-queries.ts'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('carries the firm mark, and it is actually rendered', () => {
+    // The CALL sites, not just the props. An earlier guard in this file passed
+    // on an import that nothing used, which is why this checks that the value
+    // reaches an element.
+    expect(PAD).toMatch(/firmLogoUrl \? \(/);
+    expect(PAD).toMatch(/src=\{firmLogoUrl\}/);
+  });
+
+  it('degrades to the firm name when there is no logo', () => {
+    // A firm with no logo uploaded is the common case. The layout must not
+    // have a hole in it.
+    expect(PAD).toMatch(/\(firmLogoUrl \|\| firmName\)/);
+  });
+
+  it('uses a drawn mark, never an emoji', () => {
+    // House rule, and it matters most here: a glyph borrowed from a chat app
+    // would undercut the confirmation of a legal instrument.
+    expect(PAD).toMatch(/sig-tick/);
+    expect(PAD).not.toMatch(/[✅✔\uD83C-\uDBFF]/);
+  });
+
+  it('respects reduced motion', () => {
+    expect(PAD).toMatch(/prefers-reduced-motion/);
+  });
+
+  it('branding never blocks signing', () => {
+    // Every branding read is tolerated and returns nulls. A missing logo must
+    // not be the reason somebody cannot sign, and this page is reached by
+    // scanning a code with no session to fall back on.
+    expect(QUERIES).toMatch(/firmName: string \| null/);
+    expect(QUERIES).toMatch(/firmName = firm\?\.name\?\.trim\(\) \|\| null/);
+  });
+});

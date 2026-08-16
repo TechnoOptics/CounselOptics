@@ -27,12 +27,18 @@ export function MobilePad({
   handoffToken,
   signerLabel,
   documentName,
+  firmName,
+  firmLogoUrl,
   submitPath = '/api/firm/sign/mobile',
   doneMessage = 'Your signature has been recorded. You can put your phone down and go back to your computer.',
 }: {
   handoffToken: string;
   signerLabel: string;
   documentName: string;
+  /** Whose paper this is. All optional: a firm with no logo is the common case
+   *  and the screen is designed to look finished without one. */
+  firmName?: string | null;
+  firmLogoUrl?: string | null;
   /**
    * Where the mark goes. Two ceremonies end on this pad and they do not end in
    * the same place: an outside signer's phone COMPLETES a signature, and an
@@ -215,14 +221,59 @@ export function MobilePad({
 
   if (done) {
     return (
+      /*
+        The signed screen.
+        ...
+        This is the last thing a signer sees, and until now it was an eyebrow, a
+        line of thanks and a sentence, left-aligned at the top of a card. It
+        read like a form validation message at the end of a ceremony that had
+        just put somebody's name on a legal instrument.
+        ...
+        The mark is the subject. A drawn tick, stroked rather than filled and
+        animated once, because the thing being confirmed is an act rather than
+        a state. Under prefers-reduced-motion it simply appears.
+        ...
+        The firm's logo sits at the FOOT, not the top. On a page reached by
+        scanning a code, the question in the signer's mind is "did that work",
+        and answering it first is the screen's job. Whose paper it was is the
+        reassurance underneath, not the headline. A firm with no logo gets its
+        name in the same slot, so the layout never has a hole in it.
+      */
       <Shell>
-        <p className="eyebrow mb-2">Signed</p>
-        <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Thank you, <span data-no-translate>{signerLabel}</span>.
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-3 leading-relaxed">
-          {doneMessage}
-        </p>
+        <div className="text-center">
+          <SignedMark />
+          <p className="eyebrow mt-5 justify-center">Signed</p>
+          <h1 className="font-display mt-2 text-[26px] font-medium leading-[1.15] tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            Thank you, <span data-no-translate>{signerLabel}</span>.
+          </h1>
+          <p className="mx-auto mt-3 max-w-[30ch] text-[15px] leading-relaxed text-ink-600 dark:text-cream-100/70">
+            {doneMessage}
+          </p>
+
+          {/* The document, named, because a signer may have several open and
+              this is their only record of which one they just signed. */}
+          <p className="mt-5 border-t border-edge pt-4 text-[13px] text-ink-500 dark:text-cream-100/50">
+            <span data-no-translate>{documentName}</span>
+          </p>
+
+          {(firmLogoUrl || firmName) && (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              {firmLogoUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={firmLogoUrl}
+                  alt={firmName ? `${firmName} logo` : 'Company logo'}
+                  className="h-8 w-auto max-w-[160px] object-contain"
+                />
+              ) : null}
+              {firmName && (
+                <p className="text-[12px] tracking-[0.02em] text-ink-500 dark:text-cream-100/50">
+                  <span data-no-translate>{firmName}</span>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </Shell>
     );
   }
@@ -289,6 +340,36 @@ export function MobilePad({
         {submitting ? 'Recording signature...' : 'Sign document'}
       </button>
     </Shell>
+  );
+}
+
+/**
+ * A tick, drawn.
+ *
+ * Stroked rather than filled, and drawn once on arrival with a dash offset, so
+ * it reads as the moment of confirmation rather than a badge that was always
+ * there. No emoji: this is a legal instrument's confirmation screen, and a
+ * glyph borrowed from a chat app would undercut it.
+ */
+function SignedMark() {
+  return (
+    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-forest-900/5 dark:bg-cream-100/10">
+      <style>{`
+        .sig-tick { stroke-dasharray: 32; stroke-dashoffset: 32; animation: sig-draw 620ms cubic-bezier(.22,.61,.36,1) 120ms forwards; }
+        @media (prefers-reduced-motion: reduce) { .sig-tick { animation: none; stroke-dashoffset: 0; } }
+        @keyframes sig-draw { to { stroke-dashoffset: 0; } }
+      `}</style>
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          className="sig-tick"
+          d="M4 12.5l5.2 5.2L20 7"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
   );
 }
 

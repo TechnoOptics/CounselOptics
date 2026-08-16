@@ -202,6 +202,18 @@ export async function loadBoundHandoff(
 export type HandoffPadContext = {
   signerLabel: string;
   documentName: string;
+  /**
+   * Whose paper this is, for the phone screen.
+   *
+   * A signer who scanned a code is looking at a page with no address bar they
+   * read and no chrome they recognise, and is being asked to put their name to
+   * something. Naming the firm and showing its mark is what tells them whose
+   * document this is. Nulls are ordinary: a firm with no logo uploaded is the
+   * common case, and the screen is designed to look finished without one.
+   */
+  firmName: string | null;
+  firmLogoUrl: string | null;
+  firmAccent: string | null;
 };
 
 /**
@@ -248,8 +260,44 @@ export async function loadHandoffPadContext(
     documentName = (docRow as { name?: string } | null)?.name || documentName;
   }
 
+  // The firm behind the document, for branding only.
+  //
+  // Read from the DOCUMENT rather than passed in, because this page is reached
+  // by scanning a code and has no session to ask. Every failure here is
+  // tolerated and returns nulls: branding is decoration on this screen, and a
+  // missing logo must never be the reason somebody cannot sign.
+  let firmName: string | null = null;
+  let firmLogoUrl: string | null = null;
+  let firmAccent: string | null = null;
+  if (documentId) {
+    const { data: docFirm } = await admin
+      .from('firm_documents')
+      .select('firm_id')
+      .eq('id', documentId)
+      .maybeSingle();
+    const firmId = (docFirm as { firm_id?: string } | null)?.firm_id;
+    if (firmId) {
+      const { data: firmRow } = await admin
+        .from('firms')
+        .select('name, logo_url, accent_color')
+        .eq('id', firmId)
+        .maybeSingle();
+      const firm = firmRow as {
+        name?: string | null;
+        logo_url?: string | null;
+        accent_color?: string | null;
+      } | null;
+      firmName = firm?.name?.trim() || null;
+      firmLogoUrl = firm?.logo_url?.trim() || null;
+      firmAccent = firm?.accent_color?.trim() || null;
+    }
+  }
+
   return {
     signerLabel: sig.signer_name?.trim() || sig.signer_email,
     documentName,
+    firmName,
+    firmLogoUrl,
+    firmAccent,
   };
 }

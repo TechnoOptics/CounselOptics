@@ -81,6 +81,8 @@ export default async function MobileSignPadPage({
         handoffToken={params.handoff}
         signerLabel={context.signerLabel}
         documentName={context.documentName}
+        firmName={context.firmName}
+        firmLogoUrl={context.firmLogoUrl}
       />
     </AutoTranslate>
   );
