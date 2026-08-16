@@ -53,6 +53,15 @@ export function DocumentSheets({
   const markPage = markSrc ? (at ? Math.min(at.page, count - 1) : count - 1) : -1;
 
   const [index, setIndex] = useState(0);
+  // Overview is a real reading mode, not a gadget.
+  //
+  // Asked for on the approvals page, and that is the surface that most needs
+  // it: an approver is deciding whether a document goes out, which means
+  // questions like "how long is this" and "where are the signature blocks" that
+  // a one-page-at-a-time view answers slowly and a wall of pages answers at a
+  // glance. It is on the shared deck rather than that page so the employee
+  // filling the form gets it too.
+  const [overview, setOverview] = useState(false);
   const frame = useRef<HTMLDivElement | null>(null);
 
   const go = useCallback(
@@ -104,6 +113,58 @@ export function DocumentSheets({
       go(count - 1);
     }
   };
+
+  if (overview) {
+    return (
+      <div className="flex flex-col gap-4">
+        <style>{TURN_CSS}</style>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-[12px] text-muted">
+            {count === 1 ? '1 page' : `${count} pages`}
+          </p>
+          <ViewToggle overview onClick={() => setOverview(false)} />
+        </div>
+        {/* Two up on a phone, more as there is room. Small enough to see the
+            shape of the document, large enough that a signature block is
+            recognisable, which is the thing an approver is scanning for. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {pages.map((page, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                setIndex(i);
+                setOverview(false);
+              }}
+              aria-label={`Go to page ${i + 1}`}
+              aria-current={i === index ? 'true' : undefined}
+              className={`group relative overflow-hidden rounded-md border bg-white text-left shadow-card transition-shadow hover:shadow-card-hover ${
+                i === index ? 'border-accent ring-1 ring-accent' : 'border-edge'
+              }`}
+              style={{ aspectRatio: `${geom.widthPt} / ${geom.heightPt}` }}
+            >
+              <div className="pointer-events-none h-full overflow-hidden px-[8%] py-[6%] font-serif text-[4px] leading-[1.4] text-forest-950 sm:text-[5px]">
+                <div className="whitespace-pre-wrap">
+                  {i === markPage ? (
+                    <MarkedPage
+                      page={page}
+                      lineInPage={at ? at.lineInPage : Number.MAX_SAFE_INTEGER}
+                      markSrc={markSrc}
+                    />
+                  ) : (
+                    <DocumentText text={page} />
+                  )}
+                </div>
+              </div>
+              <span className="pointer-events-none absolute bottom-1 right-1.5 rounded bg-white/85 px-1 font-serif text-[9px] tabular-nums text-ink-500">
+                {i + 1}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -182,6 +243,7 @@ export function DocumentSheets({
           <p className="text-[12px] tabular-nums text-muted" aria-live="polite">
             Page {index + 1} of {count}
           </p>
+          <ViewToggle overview={false} onClick={() => setOverview(true)} />
         </div>
 
         <TurnButton
@@ -238,6 +300,48 @@ function MarkedPage({
       {image}
       <DocumentText text={lines.slice(lineInPage).join('\n')} />
     </>
+  );
+}
+
+/**
+ * Switch between one page at a time and the whole document at a glance.
+ *
+ * A labelled control rather than a bare icon. This sits on a page where an
+ * attorney is deciding whether a document leaves the building, and a mystery
+ * glyph on that surface costs more than the few pixels the words take.
+ */
+function ViewToggle({ overview, onClick }: { overview: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={overview}
+      className="flex h-9 shrink-0 items-center gap-2 rounded-full border border-edge bg-surface px-3 text-[12px] text-foreground transition-colors hover:bg-ink-50 dark:hover:bg-forest-800/60"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {overview ? (
+          <rect x="6" y="3" width="12" height="18" rx="1.5" />
+        ) : (
+          <>
+            <rect x="3" y="3" width="7" height="8" rx="1" />
+            <rect x="14" y="3" width="7" height="8" rx="1" />
+            <rect x="3" y="13" width="7" height="8" rx="1" />
+            <rect x="14" y="13" width="7" height="8" rx="1" />
+          </>
+        )}
+      </svg>
+      {overview ? 'One page' : 'All pages'}
+    </button>
   );
 }
 

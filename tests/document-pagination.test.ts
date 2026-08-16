@@ -489,3 +489,67 @@ describe('a hanging preview gives up instead of waiting forever', () => {
     expect(ms).toBeLessThan(120_000);
   });
 });
+
+describe('the document can be seen all at once', () => {
+  /**
+   * Asked for on the approvals page, and that is the surface that most needs
+   * it: an approver is deciding whether a document goes out, which raises
+   * questions ("how long is this", "where are the signature blocks") that a
+   * one-page-at-a-time view answers slowly and a wall of pages answers at a
+   * glance.
+   */
+  const SHEETS = readFileSync(join(process.cwd(), 'components/DocumentSheets.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  /** Only the overview branch: it ends where the single-page one begins. */
+  const overviewBranch = SHEETS.slice(
+    SHEETS.indexOf('Go to page'),
+    SHEETS.indexOf('ref={frame}'),
+  );
+
+  it('the overview branch is found, and is not the whole file', () => {
+    expect(overviewBranch.length).toBeGreaterThan(200);
+    expect(overviewBranch.length).toBeLessThan(SHEETS.length / 2);
+  });
+
+  it('offers both views', () => {
+    expect(SHEETS).toMatch(/const \[overview, setOverview\] = useState\(false\)/);
+    expect(SHEETS).toMatch(/'One page'/);
+    expect(SHEETS).toMatch(/'All pages'/);
+  });
+
+  it('opens on one page, not on the overview', () => {
+    // The overview is for orientation. Opening in it would put a wall of
+    // unreadable type in front of somebody who came to read a contract.
+    expect(SHEETS).toMatch(/useState\(false\)/);
+  });
+
+  it('a page in the overview is a real control, not a decorated div', () => {
+    // Keyboard and screen reader users get there the same way, and the label
+    // says which page rather than reading out the document's first words.
+    expect(SHEETS).toMatch(/aria-label=\{`Go to page \$\{i \+ 1\}`\}/);
+    expect(SHEETS).toMatch(/aria-current/);
+  });
+
+  it('draws the mark in the overview too', () => {
+    // A signature that appears in one view and not the other would make the
+    // overview a different document from the one being signed.
+    // Bounded to the OVERVIEW branch. An unbounded slice from 'Go to page'
+    // runs on into the single-page branch, which renders the mark too, so the
+    // guard passed with the mark deleted from the grid. Caught by mutating.
+    expect(overviewBranch).toMatch(/i === markPage/);
+    expect(overviewBranch).toMatch(/<MarkedPage/);
+  });
+
+  it('keeps the real page proportions in the grid', () => {
+    expect(overviewBranch).toMatch(/aspectRatio: `\$\{geom\.widthPt\} \/ \$\{geom\.heightPt\}`/);
+  });
+
+  it('the toggle says what it does', () => {
+    // Not a bare glyph. This sits where an attorney decides whether a document
+    // leaves the building.
+    expect(SHEETS).toMatch(/aria-pressed=\{overview\}/);
+  });
+});
