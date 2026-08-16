@@ -345,3 +345,40 @@ describe('the employee preview renders the real document', () => {
     }
   });
 });
+
+describe('the pages are actually painted', () => {
+  /**
+   * Caught by MEASURING the live page, not by any test here.
+   *
+   * The first version called renderPageToCanvas in the same effect that set the
+   * page list. React had not created the canvases yet, so every ref was null
+   * and a `continue` skipped all of them without a word. On production six
+   * canvases sat at their 300x150 default having never been drawn to, inside a
+   * deck that reported "Page 1 of 6" and looked finished.
+   *
+   * app/sign/[token]/pdf-runtime.ts says it plainly: a canvas that allocated
+   * but drew nothing is the most convincing way to appear to have shown
+   * somebody a document without having shown them anything.
+   */
+  const DECK = readFileSync(join(process.cwd(), 'components/DocumentPdfDeck.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('paints in a pass that runs after the canvases exist', () => {
+    // The paint effect must depend on the page list, which is what creates the
+    // canvas elements. Painting inside the build effect is the defect.
+    const paints = DECK.slice(DECK.indexOf('renderPageToCanvas({'));
+    expect(paints, 'no paint effect keyed on the page list').toMatch(/\}, \[pages\]\);/);
+  });
+
+  it('treats a missing canvas as a failure, never as something to skip', () => {
+    // `continue` here is what made a deck of blank pages look rendered.
+    expect(DECK).toMatch(/if \(!canvas\) throw/);
+    expect(DECK).not.toMatch(/if \(!canvas\) continue/);
+  });
+
+  it('does not paint from a superseded build', () => {
+    expect(DECK).toMatch(/held\.generation !== generation\.current/);
+  });
+});

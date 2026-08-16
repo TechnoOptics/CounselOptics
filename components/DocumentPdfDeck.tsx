@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { LABEL_RE } from '@/lib/signature-anchor-text';
-import { openSignerPdf, renderPageToCanvas } from '../app/sign/[token]/pdf-runtime';
+import { openSignerPdf, renderPageToCanvas, type OpenedPdf } from '../app/sign/[token]/pdf-runtime';
 
 /**
  * The REAL document, page by page, turning rather than scrolling.
@@ -49,6 +49,16 @@ export function DocumentPdfDeck({
   const [signaturePage, setSignaturePage] = useState<number | null>(null);
   const [index, setIndex] = useState(0);
   const [status, setStatus] = useState<'first' | 'building' | 'ready' | 'failed'>('first');
+  // The opened document, held so the PAINT can happen in a second pass.
+  //
+  // The first version painted in the same effect that set the page list, and
+  // every page came out blank: React had not created the canvases yet, so
+  // every ref was null and the `continue` below skipped all of them silently.
+  // Measured on production, six canvases sat at their 300x150 default having
+  // never been drawn to. The signer page's own notes call a blank canvas the
+  // most convincing way to appear to have shown somebody a document without
+  // having shown them anything, and this was that.
+  const opened = useRef<{ doc: OpenedPdf['doc']; generation: number } | null>(null);
   const canvases = useRef<(HTMLCanvasElement | null)[]>([]);
   const frame = useRef<HTMLDivElement | null>(null);
 
@@ -92,19 +102,7 @@ export function DocumentPdfDeck({
         setPages(sizes);
         setSignaturePage(sigPage);
 
-        const width = frame.current?.clientWidth ?? 612;
-        for (let n = 1; n <= pageCount; n++) {
-          const canvas = canvases.current[n - 1];
-          if (!canvas) continue;
-          await renderPageToCanvas({
-            doc,
-            pageNumber: n,
-            canvas,
-            cssWidthPx: width,
-            devicePixelRatio: window.devicePixelRatio || 1,
-          });
-          if (mine !== generation.current) return;
-        }
+        opened.current = { doc, generation: mine };
         setStatus('ready');
       } catch {
         // A failed build must not leave a blank frame where a contract goes. It
@@ -115,6 +113,46 @@ export function DocumentPdfDeck({
     }, 700);
     return () => clearTimeout(timer);
   }, [buildPdf, revision]);
+
+  /**
+   * Paint the pages, AFTER React has made the canvases.
+   *
+   * Keyed on `pages`, so it runs on the render that created the canvas
+   * elements rather than on the one that only decided how many there would be.
+   * That ordering is the whole fix: the previous version ran in the build
+   * effect, found every ref null, and skipped every page without a word.
+   *
+   * A missing canvas is now a FAILURE rather than a `continue`. There is no
+   * legitimate reason for one to be absent at this point, and treating it as
+   * routine is what let a deck of blank pages look like a rendered document.
+   */
+  useEffect(() => {
+    const held = opened.current;
+    if (!held || pages.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const width = frame.current?.clientWidth ?? 612;
+      try {
+        for (let n = 1; n <= pages.length; n++) {
+          const canvas = canvases.current[n - 1];
+          if (cancelled || held.generation !== generation.current) return;
+          if (!canvas) throw new Error('canvas missing');
+          await renderPageToCanvas({
+            doc: held.doc,
+            pageNumber: n,
+            canvas,
+            cssWidthPx: width,
+            devicePixelRatio: window.devicePixelRatio || 1,
+          });
+        }
+      } catch {
+        if (!cancelled && held.generation === generation.current) setStatus('failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pages]);
 
   const count = pages.length;
   const go = useCallback(
