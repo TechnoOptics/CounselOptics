@@ -22,7 +22,7 @@ import {
   SIGNING_INTENT_PREFIX,
   signingIntentSuffix,
 } from '@/lib/signing-intent';
-import { DocumentWithMark } from '@/components/DocumentWithMark';
+import { DocumentSheets } from '@/components/DocumentSheets';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { employeeFieldsOf } from '@/lib/counterparty-fields';
@@ -722,11 +722,13 @@ export function FormFillClient({
         {/* Live preview */}
         <section className="rounded-xl border border-edge bg-surface p-6">
           <SectionTitle className="mb-3">Preview</SectionTitle>
-          <div
-            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-foreground"
-            data-no-translate
-          >
-            <DocumentWithMark text={merged} markLine={markLine} markSrc={markSrc} />
+          {/*
+            No max-height and no overflow here on purpose. The sheets lay out at
+            full height and the PAGE scrolls, so nothing captures the wheel. The
+            pane this replaced was 530px around 4168px of content.
+          */}
+          <div data-no-translate>
+            <DocumentSheets text={merged} markLine={markLine} markSrc={markSrc} />
           </div>
         </section>
       </div>

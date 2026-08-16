@@ -6,7 +6,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { signedMarkUrl } from '@/lib/template-signature';
 import { normalizeCategory } from '@/lib/document-category';
 import { displayTicket } from '@/lib/ticket-numbers';
-import { DocumentWithMark } from '@/components/DocumentWithMark';
+import { DocumentSheets } from '@/components/DocumentSheets';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -154,11 +154,8 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
           What would be sent
         </SectionTitle>
         {s.documentVisible ? (
-          <div
-            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
-            data-no-translate
-          >
-            <DocumentWithMark text={s.documentText} markSrc={markUrl} />
+          <div data-no-translate>
+            <DocumentSheets text={s.documentText} markSrc={markUrl} />
           </div>
         ) : (
           <p className="text-[13px] text-ink-600 dark:text-cream-100/70">

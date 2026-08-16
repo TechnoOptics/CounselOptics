@@ -16,6 +16,7 @@ import { ExternalLink } from '@/components/ExternalLink';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
+import { DocumentSheets } from '@/components/DocumentSheets';
 import { FormFillClient } from '../../[id]/form-fill-client';
 import { WithdrawButton } from './withdraw-button';
 
@@ -315,11 +316,8 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
       <section className="rounded-xl border border-edge bg-surface p-6">
         <SectionTitle className="mb-3">Document</SectionTitle>
         {submission.documentVisible ? (
-          <div
-            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-foreground"
-            data-no-translate
-          >
-            {submission.documentText}
+          <div data-no-translate>
+            <DocumentSheets text={submission.documentText} markSrc={null} />
           </div>
         ) : (
           <p className="text-[13px] text-muted">

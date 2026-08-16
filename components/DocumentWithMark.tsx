@@ -82,6 +82,17 @@ export function DocumentWithMark({
 }
 
 /**
+ * The words alone, with the other side's blanks ruled.
+ *
+ * Exported so the paginated sheet view draws blanks the same way this one does.
+ * A second copy of the blank rendering is exactly the drift this file's own
+ * header warns about, so there is not one.
+ */
+export function DocumentText({ text }: { text: string }) {
+  return <>{body(text)}</>;
+}
+
+/**
  * The words, with each of the other side's blanks drawn as a ruled blank.
  *
  * The rule is the same fact the PDF draws, not the same measurement: the
