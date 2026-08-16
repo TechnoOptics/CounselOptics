@@ -222,3 +222,41 @@ describe('the signature is scrolled into view when it lands', () => {
     expect(FILL).toMatch(/\}, \[markSrc\]\);/);
   });
 });
+
+describe('a sheet never hides text', () => {
+  /**
+   * Caught by RENDERING the page and looking at it, after twenty green tests.
+   *
+   * The first version of the sheet used `h-full overflow-hidden` inside the
+   * aspect-ratio box, which turned an approximate page break into a hard clip:
+   * the opening sheet cut a definition of Confidential Information off
+   * mid-sentence, because the lines-per-page estimate under-counts what a
+   * browser fits at its own font size.
+   *
+   * The estimate being loose is a cosmetic fault. Truncating a covenant in
+   * front of somebody about to sign it is not. So the aspect ratio has to act
+   * as a minimum, which means no fixed height and no clip on the text.
+   */
+  const SHEETS = readFileSync(join(process.cwd(), 'components/DocumentSheets.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('does not clip the sheet body', () => {
+    expect(SHEETS, 'a sheet that clips can hide text from a signer').not.toMatch(
+      /overflow-hidden/,
+    );
+  });
+
+  it('does not pin the sheet body to a fixed height', () => {
+    // h-full inside the aspect-ratio box is what makes the ratio a ceiling
+    // rather than a floor. Without it the sheet grows to hold its text.
+    expect(SHEETS).not.toMatch(/className="h-full/);
+  });
+
+  it('still sets the page proportions', () => {
+    // The ratio must survive the fix. Removing it would stop the clipping too,
+    // and stop the sheets being sheets.
+    expect(SHEETS).toMatch(/aspectRatio/);
+  });
+});

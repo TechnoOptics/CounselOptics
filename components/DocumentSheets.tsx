@@ -71,7 +71,24 @@ export function DocumentSheets({
           className="w-full max-w-[612px] rounded-md border border-edge bg-white px-[8%] py-[6%] shadow-card dark:bg-cream-50"
           style={{ aspectRatio: `${geom.widthPt} / ${geom.heightPt}` }}
         >
-          <div className="h-full overflow-hidden whitespace-pre-wrap font-serif text-[clamp(9px,1.6vw,12px)] leading-[1.45] text-forest-950">
+          {/*
+            NO fixed height and NO overflow-hidden, and this is load-bearing.
+
+            The first version had `h-full overflow-hidden`, which turned the
+            aspect ratio into a hard clip. Every test passed. The rendered page
+            showed the first sheet cutting a definition of Confidential
+            Information off mid-sentence, because the lines-per-page estimate
+            under-counts what a browser fits at its own font size, and the
+            remainder was simply hidden.
+
+            Hiding text from somebody about to sign it is worse than the
+            scrolling column this replaced. Without a fixed height the aspect
+            ratio acts as a MINIMUM: a sheet that holds more than the estimate
+            grows a little rather than swallowing the difference. An
+            approximate page break is a cosmetic fault; a silently truncated
+            covenant is not.
+          */}
+          <div className="whitespace-pre-wrap font-serif text-[clamp(9px,1.6vw,12px)] leading-[1.45] text-forest-950">
             {i === markPage ? (
               <MarkedPage
                 page={page}
