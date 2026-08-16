@@ -464,7 +464,10 @@ describe('a hanging preview gives up instead of waiting forever', () => {
     .replace(/\/\/[^\n]*/g, '');
 
   it('bounds the PDF build', () => {
-    expect(DECK).toMatch(/withDeadline\(buildPdf\(\)/);
+    // Called through the ref rather than the prop: the prop is a new function
+    // on every render and having it in the effect's deps starved the debounce
+    // so the rebuild never ran. See "the rebuild is not starved by re-renders".
+    expect(DECK).toMatch(/withDeadline\(buildRef\.current\(\)/);
   });
 
   it('bounds opening the document, which is where the worker is awaited', () => {
@@ -865,5 +868,55 @@ describe('the preview follows the field being filled in', () => {
     // Every page is visible there; moving underneath somebody would only take
     // the view away from them.
     expect(DECK).toMatch(/needle\.length < 3 \|\| overview/);
+  });
+});
+
+describe('the rebuild is not starved by re-renders', () => {
+  /**
+   * Reported twice, and the second report is what found it: "I sign on my
+   * phone, I get the thank you, but I do not see it on the rendered form on the
+   * laptop."
+   *
+   * `buildPdf` is declared inline by the fill page, so it is a NEW REFERENCE on
+   * every render. With it in the effect's dependency list, every render tore
+   * down the pending 700ms debounce and started a fresh one. The phone handoff
+   * card polls every 1.2s while it waits, so renders arrived faster than the
+   * timer could elapse and the rebuild never ran at all. The deck went on
+   * showing the pages it had already built, which were the unsigned ones.
+   *
+   * The signature really was recorded. It was never re-rendered.
+   */
+  const DECK = readFileSync(join(process.cwd(), 'components/DocumentPdfDeck.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('the build effect depends on the revision string alone', () => {
+    // A function identity in this list restarts the debounce on every render.
+    expect(DECK).toMatch(/\}, \[revision\]\);/);
+    expect(DECK, 'buildPdf is a dependency again, which starves the debounce').not.toMatch(
+      /\}, \[buildPdf, revision\]\);/,
+    );
+  });
+
+  it('the build still calls the LATEST build function', () => {
+    // A ref, not a captured stale closure. Dropping the dependency without the
+    // ref would rebuild with whatever function the first render happened to
+    // create, which is a different and quieter bug.
+    expect(DECK).toMatch(/buildRef\.current\(\)/);
+    expect(DECK).toMatch(/buildRef\.current = buildPdf/);
+  });
+
+  it('revision still carries the mark, or nothing would trigger a rebuild', () => {
+    // The dependency and what it must contain are checked together. Narrowing
+    // the deps is only safe while revision covers everything that changes the
+    // document.
+    const FILL = readFileSync(
+      join(process.cwd(), 'app/portal/forms/[id]/form-fill-client.tsx'),
+      'utf8',
+    );
+    const m = /revision=\{JSON\.stringify\(\[([^\]]*)\]\)\}/.exec(FILL);
+    expect(m, 'the deck no longer declares what it rebuilds on').not.toBeNull();
+    expect(m![1], 'the mark does not trigger a rebuild').toContain('markSrc');
   });
 });

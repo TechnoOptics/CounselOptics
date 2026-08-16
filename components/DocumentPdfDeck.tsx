@@ -74,6 +74,29 @@ export function DocumentPdfDeck({
   // kind of wrong: it looks settled.
   const generation = useRef(0);
 
+  /**
+   * The build function, held in a ref so it is never a DEPENDENCY.
+   *
+   * THE DEFECT THIS FIXES, reported as "I sign on my phone, I get the thank
+   * you, but I do not see it on the rendered form on the laptop":
+   *
+   * `buildPdf` is declared inline by the fill page, so it is a NEW REFERENCE on
+   * every render. With it in the effect's dependency list, every render tore
+   * down the pending 700ms debounce and started a fresh one. The phone handoff
+   * card polls every 1.2s while it waits, so renders arrived faster than the
+   * timer could elapse and the rebuild NEVER RAN. The deck went on showing the
+   * pages it had already built, which were the unsigned ones.
+   *
+   * `revision` is the honest dependency and always was: it is a string, it is
+   * stable between renders, and it already contains everything that changes the
+   * document, the mark included. The function only ever needs to be the latest
+   * one, which is what a ref is for.
+   */
+  const buildRef = useRef(buildPdf);
+  useEffect(() => {
+    buildRef.current = buildPdf;
+  });
+
   useEffect(() => {
     const mine = ++generation.current;
     const timer = setTimeout(async () => {
@@ -94,7 +117,7 @@ export function DocumentPdfDeck({
         // a form somebody is filling in, not the one-time render that gates a
         // signing ceremony, so it should give up while they still associate the
         // failure with the document.
-        const blob = await withDeadline(buildPdf(), PREVIEW_BUILD_TIMEOUT_MS);
+        const blob = await withDeadline(buildRef.current(), PREVIEW_BUILD_TIMEOUT_MS);
         const bytes = await blob.arrayBuffer();
         if (mine !== generation.current) return;
         const { doc, pageCount } = await withDeadline(
@@ -136,7 +159,7 @@ export function DocumentPdfDeck({
       }
     }, 700);
     return () => clearTimeout(timer);
-  }, [buildPdf, revision]);
+  }, [revision]);
 
   /**
    * Paint the pages, AFTER React has made the canvases.
