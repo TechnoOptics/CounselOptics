@@ -50,7 +50,7 @@ export type TextAnchor = {
  * placing eventually, from their own coordinates, which this returns enough
  * information to do later.
  */
-const LABEL_RE =
+export const LABEL_RE =
   /(\bBy\s*:|\bSignature\s*(of\b|:)|\bAuthorized\s+signature\b|\bSign\s+here\b|\bSigned\s+by\b|\/s\/)/i;
 
 /**

@@ -270,3 +270,78 @@ describe('a sheet never hides text', () => {
     expect(SHEETS).toMatch(/aspectRatio/);
   });
 });
+
+describe('the employee preview renders the real document', () => {
+  /**
+   * Asked why an uploaded contract lost its pages and its formatting, the
+   * answer was that a firm template stores plain TEXT: lib/firm-templates.ts
+   * extracts the words at upload and the file itself is never kept. So no
+   * preview can show the original layout.
+   *
+   * But the document the employee sends is not that text either. It is a PDF
+   * this app builds, with real pagination and a real signature box, and that
+   * PDF can be rendered exactly. These guards hold the two properties that make
+   * the difference real rather than decorative.
+   */
+  const DECK = readFileSync(join(process.cwd(), 'components/DocumentPdfDeck.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+  const FILL = readFileSync(
+    join(process.cwd(), 'app/portal/forms/[id]/form-fill-client.tsx'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('reuses the signer page renderer rather than a second one', () => {
+    // The signer page rasterises the document for reasons recorded there: an
+    // iframe could not put the mark on the real signature line and an overlay
+    // came apart on the first scroll. A second renderer would be a second set
+    // of those bugs, and the employee and the recipient would stop looking at
+    // the same pixels.
+    expect(DECK).toMatch(/from '\.\.\/app\/sign\/\[token\]\/pdf-runtime'/);
+    expect(DECK).toMatch(/renderPageToCanvas/);
+  });
+
+  it('finds the signature page by reading the document, not by assuming', () => {
+    // Assuming the last page is wrong on a mutual agreement with blocks on two
+    // pages, and wrong again whenever an appendix follows the signatures.
+    expect(DECK).toMatch(/from '@\/lib\/signature-anchor-text'/);
+    // The CALL, not the import. The first version of this guard matched
+    // `LABEL_RE` anywhere in the file, so it passed with the search replaced by
+    // "assume the last page" while the import sat there unused. A pure helper
+    // that nothing invokes is this repository's most repeated failure, and the
+    // guard has to hold the call site as well as the presence.
+    expect(DECK, 'LABEL_RE is imported but never tested against the page text').toMatch(
+      /LABEL_RE\.test\(/,
+    );
+    expect(DECK).not.toMatch(/sigPage = pageCount - 1/);
+  });
+
+  it('discards a stale build instead of showing it', () => {
+    // A slow early build landing after a fast later one would put stale pages
+    // on screen, which on a document somebody is about to sign is the worst
+    // kind of wrong: it looks settled.
+    expect(DECK).toMatch(/generation\.current/);
+    expect(DECK).toMatch(/mine !== generation\.current/);
+  });
+
+  it('falls back to readable text rather than an empty frame', () => {
+    expect(DECK).toMatch(/'failed'/);
+    expect(FILL).toMatch(/fallback=\{/);
+    expect(FILL).toMatch(/<DocumentSheets/);
+  });
+
+  it('rebuilds on everything that changes the document', () => {
+    // A revision that omits an input leaves the preview stale while looking
+    // settled. All three of the values, the typed name and the mark change what
+    // the PDF says.
+    const m = /revision=\{JSON\.stringify\(\[([^\]]*)\]\)\}/.exec(FILL);
+    expect(m, 'the deck no longer declares what it rebuilds on').not.toBeNull();
+    for (const input of ['values', 'signature', 'markSrc']) {
+      expect(m![1], `${input} does not trigger a rebuild`).toContain(input);
+    }
+  });
+});

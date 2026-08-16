@@ -23,6 +23,7 @@ import {
   signingIntentSuffix,
 } from '@/lib/signing-intent';
 import { DocumentSheets } from '@/components/DocumentSheets';
+import { DocumentPdfDeck } from '@/components/DocumentPdfDeck';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { employeeFieldsOf } from '@/lib/counterparty-fields';
@@ -728,7 +729,25 @@ export function FormFillClient({
             pane this replaced was 530px around 4168px of content.
           */}
           <div data-no-translate>
-            <DocumentSheets text={merged} markLine={markLine} markSrc={markSrc} />
+            {/*
+              The REAL document, rendered from the PDF this page can build, so
+              the employee sees the pages and the layout the recipient will
+              receive rather than an estimate of them. The text sheets stay as
+              the fallback: they need nothing but the words, so a slow or failed
+              build leaves a readable document rather than an empty frame.
+
+              `revision` is what the PDF is built FROM. Anything that changes
+              the document has to appear in it or the preview goes stale while
+              looking settled, which on a contract is worse than looking busy.
+            */}
+            <DocumentPdfDeck
+              buildPdf={buildPdf}
+              revision={JSON.stringify([values, signature, markSrc])}
+              signed={Boolean(markSrc)}
+              fallback={
+                <DocumentSheets text={merged} markLine={markLine} markSrc={markSrc} />
+              }
+            />
           </div>
         </section>
       </div>
