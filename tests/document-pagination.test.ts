@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 
+import { LABEL_RE } from '../lib/signature-anchor-text';
 import {
   BODY_LEAD_PT,
   locateLine,
@@ -759,5 +760,56 @@ describe('a thumbnail shows the whole page', () => {
     // shape of dead guard this file has caught twice already.
     const stripped = DECK.replace(/\/\*[\s\S]*?\*\//g, '');
     expect(stripped, 'no thumbnail carries doc-thumb').toMatch(/\? `doc-thumb /);
+  });
+});
+
+describe('the viewer can find the signature block this app writes', () => {
+  /**
+   * Reported: "I signed using the phone QR code and it has not showed up on the
+   * document."
+   *
+   * Traced through the live database rather than guessed. The handoff was
+   * healthy end to end:
+   *
+   *   created  22:13:05   QR minted
+   *   consumed 22:13:29   phone scanned it
+   *   mark_at  22:13:36   the phone's mark reached the server
+   *   collect  22:13:37   the desk picked it up, 0.7s later
+   *
+   * (mark_png reads empty afterwards because the collect nulls it on purpose,
+   * one-shot delivery with no replay. That is not evidence of an empty mark and
+   * was nearly reported as one.)
+   *
+   * So the signature WAS on the page. The viewer could not find which page, so
+   * it never turned to it, and a signature on page two of a document showing
+   * page one is indistinguishable from no signature at all.
+   *
+   * The cause: LABEL_RE was written against a third-party NDA, whose labels are
+   * `By:` and `Signature:`. Advottic's own block is `Signed: <name>`, and
+   * nothing matched it.
+   */
+  it('matches the label mergeTemplateDocument actually emits', () => {
+    expect(LABEL_RE.test('Signed: Techno Optics')).toBe(true);
+  });
+
+  it('the emitted block and the vocabulary are checked against each other', () => {
+    // Not a hard-coded string on either side. The label is READ from the module
+    // that writes it, so renaming the block without widening the vocabulary
+    // fails here rather than silently costing another signing.
+    const src = readFileSync(
+      join(process.cwd(), 'lib/firm-template-placeholders.ts'),
+      'utf8',
+    );
+    const m = /\\n\\n\\nSigned: \$\{([a-zA-Z]+)\}/.exec(src);
+    expect(m, 'the employee signature block no longer reads "Signed: ..."').not.toBeNull();
+    expect(LABEL_RE.test('Signed: anyone')).toBe(true);
+  });
+
+  it('still refuses the adjacent fields, which are not signature lines', () => {
+    // The module excludes these on purpose: they have no rule to sit on, and
+    // treating them as anchors would stack marks down the block.
+    for (const s of ['Name: Jane', 'Title: CEO', 'Date: August 16, 2026', 'Email: a@b.c']) {
+      expect(LABEL_RE.test(s), `${s} must not be a signature anchor`).toBe(false);
+    }
   });
 });

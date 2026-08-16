@@ -20,6 +20,23 @@
  * here. The older spellings stay, because a form that says "Signature:" is
  * still a form.
  *
+ * `Signed:` IS OUR OWN LABEL, AND IT WAS MISSING. This vocabulary was written
+ * against a third-party commercial NDA, where the labels are `By:` and
+ * `Signature:`. But lib/firm-template-placeholders.ts appends the employee's
+ * own block as `Signed: <name>`, and nothing here matched it.
+ *
+ * Reported as "I signed using the phone QR code and it has not showed up on the
+ * document", and traced through the live database: the mark was written at
+ * 22:13:36 and collected by the desk at 22:13:37, so the handoff was fine and
+ * the signature really was on the page. What failed is that the viewer could
+ * not FIND the page it was on, so it never turned to it, and a signature on
+ * page two of a document showing page one is indistinguishable from no
+ * signature at all.
+ *
+ * The lesson is narrow and worth keeping: a vocabulary borrowed for other
+ * people's documents has to be checked against the documents this app writes
+ * itself.
+ *
  * EVERY BLOCK, NOT THE FIRST. The old scan returned at most one placement per
  * page. The NDA that prompted this has TWO signature blocks on its last page,
  * one per party, so returning the first would leave one side of a mutual
@@ -51,7 +68,7 @@ export type TextAnchor = {
  * information to do later.
  */
 export const LABEL_RE =
-  /(\bBy\s*:|\bSignature\s*(of\b|:)|\bAuthorized\s+signature\b|\bSign\s+here\b|\bSigned\s+by\b|\/s\/)/i;
+  /(\bBy\s*:|\bSignature\s*(of\b|:)|\bSigned\s*:|\bAuthorized\s+signature\b|\bSign\s+here\b|\bSigned\s+by\b|\/s\/)/i;
 
 /**
  * Read a PDF's text and return every signature-line anchor, with positions.
