@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 
 import {
@@ -610,4 +611,49 @@ describe('the signed screen on a phone', () => {
     expect(QUERIES).toMatch(/firmName: string \| null/);
     expect(QUERIES).toMatch(/firmName = firm\?\.name\?\.trim\(\) \|\| null/);
   });
+});
+
+describe('every phone pad carries the firm mark', () => {
+  /**
+   * The defect this exists for, and it shipped: MobilePad is rendered by TWO
+   * pages, because two ceremonies end on it. The outside signer's phone
+   * COMPLETES a signature; the employee's phone hands a mark back to the desk.
+   * Branding was wired into the signer's page only, so the employee path, which
+   * is the one behind the QR code on the fill form, showed no logo at all.
+   *
+   * Caught by reading rather than by looking, because every live surface was
+   * down at the time. It is exactly the shape of gap that a screenshot of ONE
+   * of the two pages would have declared fixed.
+   *
+   * This enumerates the callers rather than checking a known list, so a THIRD
+   * ceremony ending on this pad fails here instead of shipping unbranded.
+   */
+  const PAD_CALLERS = [
+    'app/sign/m/[handoff]/pad/page.tsx',
+    'app/sign/mark/[handoff]/pad/page.tsx',
+  ];
+
+  it('finds every page that renders the pad', () => {
+    // If a third caller appears, this count changes and the loop below starts
+    // covering it. A guard that hard-codes two would not notice.
+    const found = execSync(
+      "grep -rl '<MobilePad' app || true",
+      { cwd: process.cwd(), encoding: 'utf8' },
+    )
+      .split('\n')
+      .filter(Boolean)
+      .sort();
+    expect(found).toEqual([...PAD_CALLERS].sort());
+  });
+
+  for (const f of PAD_CALLERS) {
+    it(`${f} passes the firm branding through`, () => {
+      const src = readFileSync(join(process.cwd(), f), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+        .replace(/\/\/[^\n]*/g, '');
+      expect(src, `${f} renders MobilePad without firmName`).toMatch(/firmName=\{/);
+      expect(src, `${f} renders MobilePad without firmLogoUrl`).toMatch(/firmLogoUrl=\{/);
+    });
+  }
 });

@@ -352,6 +352,22 @@ export type BoundMarkHandoff = {
   /** Only what the pad prints. No document, no field values, no email. */
   signerLabel: string;
   documentName: string;
+  /**
+   * The firm's PUBLIC branding, so the phone can show whose paper this is.
+   *
+   * Added against the grain of the note below, so the reasoning is written
+   * here rather than assumed. A firm's name and logo are already public: the
+   * logo is served from a public storage bucket and the name is on the
+   * letterhead of the document being signed. Neither tells this device
+   * anything about the document, the form, the mark, or the session, which is
+   * what that note is protecting. And the employee holding the phone works
+   * there.
+   *
+   * Nulls are ordinary and must stay harmless. A firm with no logo uploaded is
+   * the common case.
+   */
+  firmName: string | null;
+  firmLogoUrl: string | null;
 };
 
 /**
@@ -388,6 +404,16 @@ export async function loadBoundMarkHandoff(
     .eq('user_id', found.user_id)
     .maybeSingle();
 
+  // The firm is already on the row, so this is one read and no join chain.
+  // Tolerated entirely: branding is decoration on the phone, and a failure to
+  // read a logo must never be the reason somebody cannot sign.
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('name, logo_url')
+    .eq('id', found.firm_id)
+    .maybeSingle();
+  const firm = firmRow as { name?: string | null; logo_url?: string | null } | null;
+
   return {
     ok: true,
     bound: {
@@ -397,6 +423,8 @@ export async function loadBoundMarkHandoff(
         'your signature',
       documentName:
         (tpl as { name?: string | null } | null)?.name?.trim() || 'this document',
+      firmName: firm?.name?.trim() || null,
+      firmLogoUrl: firm?.logo_url?.trim() || null,
     },
   };
 }

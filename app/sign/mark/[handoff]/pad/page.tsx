@@ -66,6 +66,8 @@ export default async function MarkHandoffPadPage({
         handoffToken={params.handoff}
         signerLabel={bound.bound.signerLabel}
         documentName={bound.bound.documentName}
+        firmName={bound.bound.firmName}
+        firmLogoUrl={bound.bound.firmLogoUrl}
         submitPath="/api/firm/mark"
         doneMessage="Your signature is on your computer now. Go back to it to finish the form and send it."
       />
