@@ -438,3 +438,54 @@ describe('the approver sees the real document too', () => {
     expect(PAGE).toMatch(/fallback=\{<DocumentSheets/);
   });
 });
+
+describe('a hanging preview gives up instead of waiting forever', () => {
+  /**
+   * The defect this exists for, measured on the live approvals page:
+   *
+   *   POST /api/counsel/draft-template/pdf   ->  200
+   *   GET  /pdf-worker/<v>/pdf.worker.min.mjs -> pending, every attempt
+   *   console errors                          -> none
+   *
+   * openSignerPdf awaits that worker, so the promise never settled. The catch
+   * never ran, the status stayed at its opening value, and the deck showed its
+   * fallback for as long as the page was open. Nothing looked wrong, which is
+   * the worst shape a defect can take: it reads as "this surface just does not
+   * have the feature".
+   *
+   * A `catch` only helps against a THROW. Neither the build nor the open may be
+   * awaited without a deadline.
+   */
+  const DECK = readFileSync(join(process.cwd(), 'components/DocumentPdfDeck.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('bounds the PDF build', () => {
+    expect(DECK).toMatch(/withDeadline\(buildPdf\(\)/);
+  });
+
+  it('bounds opening the document, which is where the worker is awaited', () => {
+    // The build returned 200. The hang was in the open. Bounding only the
+    // build would have left the actual defect in place while looking fixed.
+    expect(DECK).toMatch(/withDeadline\(\s*openSignerPdf\(bytes\)/);
+  });
+
+  it('rejects rather than resolving, so the failure path runs', () => {
+    // A deadline that RESOLVES on timeout would skip the catch and leave the
+    // component believing it had a document.
+    const fn = DECK.slice(DECK.indexOf('function withDeadline'));
+    expect(fn).toMatch(/reject\(new Error/);
+  });
+
+  it('gives up sooner than the signing ceremony does', () => {
+    // 120s is right for a render that gates a signature and is spent once. A
+    // preview beside a form being filled in must fail while the person still
+    // connects the delay to the document.
+    const m = /const PREVIEW_BUILD_TIMEOUT_MS = ([\d_]+);/.exec(DECK);
+    expect(m, 'no preview timeout declared').not.toBeNull();
+    const ms = Number(m![1].replace(/_/g, ''));
+    expect(ms).toBeGreaterThan(5_000);
+    expect(ms).toBeLessThan(120_000);
+  });
+});

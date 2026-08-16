@@ -73,10 +73,28 @@ export function DocumentPdfDeck({
     const timer = setTimeout(async () => {
       setStatus((s) => (s === 'first' ? 'first' : 'building'));
       try {
-        const blob = await buildPdf();
+        // A DEADLINE, because the failure this hit in production was a hang
+        // and not a throw.
+        //
+        // Measured on the approvals page: the PDF route answered 200 and
+        // `/pdf-worker/<version>/pdf.worker.min.mjs` stayed pending on every
+        // attempt, with no console error. openSignerPdf awaits that worker, so
+        // the promise never settled, the catch below never ran, and the deck
+        // sat in its opening state showing the fallback for as long as the page
+        // was open. Nothing was broken in a way anything could see, which is
+        // the worst shape a defect can take.
+        //
+        // 30s rather than the signer page's 120s: this is a live preview beside
+        // a form somebody is filling in, not the one-time render that gates a
+        // signing ceremony, so it should give up while they still associate the
+        // failure with the document.
+        const blob = await withDeadline(buildPdf(), PREVIEW_BUILD_TIMEOUT_MS);
         const bytes = await blob.arrayBuffer();
         if (mine !== generation.current) return;
-        const { doc, pageCount } = await openSignerPdf(bytes);
+        const { doc, pageCount } = await withDeadline(
+          openSignerPdf(bytes),
+          PREVIEW_BUILD_TIMEOUT_MS,
+        );
         if (mine !== generation.current) return;
 
         const sizes: { width: number; height: number }[] = [];
@@ -310,6 +328,27 @@ function TurnButton({
       </svg>
     </button>
   );
+}
+
+/**
+ * How long a preview may take before it is called failed.
+ *
+ * Deliberately not lib/signer-view.ts's 120s. That one gates a signing
+ * ceremony and may only be spent once; this is a preview beside a form being
+ * filled in, and a person who waits two minutes beside a form has stopped
+ * connecting the delay to the document.
+ */
+const PREVIEW_BUILD_TIMEOUT_MS = 30_000;
+
+/** Reject if the promise has not settled in time. A hang becomes a failure,
+ *  and a failure is something the component can already show. */
+function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('preview timed out')), ms),
+    ),
+  ]);
 }
 
 const TURN_CSS = `
