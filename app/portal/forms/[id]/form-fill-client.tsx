@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { FirmTemplate } from '@/lib/firm-templates';
@@ -196,6 +196,24 @@ export function FormFillClient({
   // given against the fingerprint that phone left. Sending the redraw would
   // fail that check and silently demote a phone signature to an ordinary one.
   const markSrc = phoneMark?.dataUrl ?? mark.dataUrl;
+  // Bring the signature into view the moment it arrives.
+  //
+  // The signature block is the last thing in most of these documents, so a mark
+  // that renders perfectly still lands several sheets below whatever the signer
+  // is looking at, and "I signed on my phone and it did not show up" is what
+  // that looks like from the signer's chair. Scrolling to it is the difference
+  // between the mark being present and the mark being SEEN.
+  //
+  // Depends on markSrc rather than running on every render, so it moves the
+  // page when a signature appears or changes and never while somebody is
+  // reading. `block: 'center'` rather than 'start' so the surrounding clause is
+  // visible too, which is the part a signer wants to check.
+  useEffect(() => {
+    if (!markSrc) return;
+    document
+      .querySelector('[data-signature-mark]')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [markSrc]);
   // A phone mark counts as ink. On a template restricted to the phone the pad
   // renders no canvas at all, so it never reports any, and reading only its
   // answer would leave the send button disabled forever with no way to enable

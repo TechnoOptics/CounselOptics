@@ -171,3 +171,54 @@ describe('the preview surfaces do not re-introduce the scroll pane', () => {
     });
   }
 });
+
+describe('the signature is scrolled into view when it lands', () => {
+  /**
+   * A guard on the WIRING, not on the maths.
+   *
+   * The signature block is the last thing in most of these documents. Once the
+   * preview shows every page rather than a 530px window, a mark that renders
+   * correctly still lands several sheets below wherever the signer is looking,
+   * and from their chair that is indistinguishable from it not rendering. So
+   * the fill page scrolls to it.
+   *
+   * The selector and the attribute live in two files with no import between
+   * them, which is the shape this repository has watched drift twice. So this
+   * does not check for two hard-coded strings: it EXTRACTS the attribute from
+   * the querySelector call and requires the component to render that one.
+   * Renaming either side alone fails here.
+   */
+  const FILL = readFileSync(
+    join(process.cwd(), 'app/portal/forms/[id]/form-fill-client.tsx'),
+    'utf8',
+  );
+  // Comments stripped, and this is not cosmetic: without it the first version
+  // of this guard PASSED after the attribute was renamed in the component,
+  // because the comment above the element still spelled the old name. A guard
+  // satisfied by its own documentation is the exact defect this file's
+  // neighbours were written to stop, and it was caught here by mutating.
+  const SHEETS = readFileSync(join(process.cwd(), 'components/DocumentSheets.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('the fill page queries for the mark and scrolls to it', () => {
+    expect(FILL).toMatch(/querySelector\('\[[a-z-]+\]'\)/);
+    expect(FILL).toMatch(/scrollIntoView/);
+  });
+
+  it('the attribute it queries for is the one the sheets render', () => {
+    const m = /querySelector\('\[([a-z-]+)\]'\)/.exec(FILL);
+    expect(m, 'the fill page no longer queries for the mark by attribute').not.toBeNull();
+    const attribute = m![1];
+    expect(
+      SHEETS,
+      `components/DocumentSheets.tsx does not render ${attribute}, so the scroll finds nothing`,
+    ).toContain(attribute);
+  });
+
+  it('only scrolls when the mark changes, never on every render', () => {
+    // Without the dependency the page would yank itself to the signature while
+    // somebody is reading a clause. The effect must be keyed on the mark.
+    expect(FILL).toMatch(/\}, \[markSrc\]\);/);
+  });
+});

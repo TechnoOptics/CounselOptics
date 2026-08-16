@@ -49,10 +49,16 @@ export function DocumentSheets({
       : null;
   const markPage = markSrc ? (at ? at.page : pages.length - 1) : -1;
 
+  // data-signature-mark is how the fill page finds the mark in order to scroll
+  // it into view the moment it arrives. Worth having because the signature
+  // block is usually the last thing in a multi-page document, so a mark that
+  // renders correctly can still land several sheets below what the signer is
+  // looking at, which is indistinguishable from not rendering at all.
   const image = (
     <img
       src={markSrc ?? ''}
       alt="Signature"
+      data-signature-mark
       className="my-1 block max-h-[56px] w-auto max-w-[200px] object-contain object-left"
     />
   );
