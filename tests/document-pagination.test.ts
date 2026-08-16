@@ -172,54 +172,49 @@ describe('the preview surfaces do not re-introduce the scroll pane', () => {
   }
 });
 
-describe('the signature is scrolled into view when it lands', () => {
+describe('the signature is brought into view when it lands', () => {
   /**
    * A guard on the WIRING, not on the maths.
    *
-   * The signature block is the last thing in most of these documents. Once the
-   * preview shows every page rather than a 530px window, a mark that renders
-   * correctly still lands several sheets below wherever the signer is looking,
-   * and from their chair that is indistinguishable from it not rendering. So
-   * the fill page scrolls to it.
+   * The signature block is the last thing in most of these documents, so a mark
+   * that renders correctly still lands several pages away from wherever the
+   * signer is looking, and from their chair that is indistinguishable from it
+   * not rendering. So the deck turns to it.
    *
-   * The selector and the attribute live in two files with no import between
-   * them, which is the shape this repository has watched drift twice. So this
-   * does not check for two hard-coded strings: it EXTRACTS the attribute from
-   * the querySelector call and requires the component to render that one.
-   * Renaming either side alone fails here.
+   * This lived on the fill page as a scrollIntoView while the preview was a
+   * column. The deck owns it now, which is the right place: all three surfaces
+   * get it instead of the one that happened to have the effect.
    */
-  const FILL = readFileSync(
-    join(process.cwd(), 'app/portal/forms/[id]/form-fill-client.tsx'),
-    'utf8',
-  );
-  // Comments stripped, and this is not cosmetic: without it the first version
-  // of this guard PASSED after the attribute was renamed in the component,
-  // because the comment above the element still spelled the old name. A guard
-  // satisfied by its own documentation is the exact defect this file's
-  // neighbours were written to stop, and it was caught here by mutating.
   const SHEETS = readFileSync(join(process.cwd(), 'components/DocumentSheets.tsx'), 'utf8')
+    // Comments stripped, and this is not cosmetic: without it an earlier
+    // version of this guard PASSED after the thing it checked was renamed,
+    // because the comment above still spelled the old name. A guard satisfied
+    // by its own documentation is the defect this file's neighbours exist to
+    // stop, and it was caught by mutating rather than by reading.
     .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
     .replace(/\/\/[^\n]*/g, '');
 
-  it('the fill page queries for the mark and scrolls to it', () => {
-    expect(FILL).toMatch(/querySelector\('\[[a-z-]+\]'\)/);
-    expect(FILL).toMatch(/scrollIntoView/);
+  it('turns to the page carrying the mark', () => {
+    expect(SHEETS).toMatch(/setIndex\(markPage\)/);
   });
 
-  it('the attribute it queries for is the one the sheets render', () => {
-    const m = /querySelector\('\[([a-z-]+)\]'\)/.exec(FILL);
-    expect(m, 'the fill page no longer queries for the mark by attribute').not.toBeNull();
-    const attribute = m![1];
-    expect(
-      SHEETS,
-      `components/DocumentSheets.tsx does not render ${attribute}, so the scroll finds nothing`,
-    ).toContain(attribute);
+  it('only turns when the mark changes, never on every render', () => {
+    // Without the dependency the deck would snap back to the signature while
+    // somebody is reading a clause on another page.
+    expect(SHEETS).toMatch(/\}, \[markSrc, markPage\]\);/);
   });
 
-  it('only scrolls when the mark changes, never on every render', () => {
-    // Without the dependency the page would yank itself to the signature while
-    // somebody is reading a clause. The effect must be keyed on the mark.
-    expect(FILL).toMatch(/\}, \[markSrc\]\);/);
+  it('clamps the mark to a real page', () => {
+    // locateLine can resolve past the last page on a document whose signature
+    // block sits after the text it measured. Turning to a page that does not
+    // exist shows a blank frame, which reads as the document failing to load.
+    expect(SHEETS).toMatch(/Math\.min\(at\.page, count - 1\)/);
+  });
+
+  it('draws the mark with an entrance rather than swapping it in', () => {
+    expect(SHEETS).toMatch(/doc-mark-in/);
+    expect(SHEETS).toMatch(/prefers-reduced-motion/);
   });
 });
 
@@ -242,16 +237,31 @@ describe('a sheet never hides text', () => {
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
     .replace(/\/\/[^\n]*/g, '');
 
-  it('does not clip the sheet body', () => {
-    expect(SHEETS, 'a sheet that clips can hide text from a signer').not.toMatch(
-      /overflow-hidden/,
-    );
+  /**
+   * The TEXT container specifically, not the deck frame.
+   *
+   * The frame legitimately clips: it is the mask that keeps the pages waiting
+   * off to the side out of sight. Banning overflow-hidden everywhere in this
+   * file would fail on that and teach whoever hits it to delete the rule. What
+   * must never clip is the element holding the words.
+   */
+  const textContainer = /className="([^"]*whitespace-pre-wrap[^"]*)"/.exec(SHEETS);
+
+  it('has a text container to check', () => {
+    expect(textContainer, 'no whitespace-pre-wrap container found in the sheet').not.toBeNull();
   });
 
-  it('does not pin the sheet body to a fixed height', () => {
+  it('does not clip the words', () => {
+    expect(
+      textContainer![1],
+      'the document text is clipped, so a sheet can hide terms from a signer',
+    ).not.toMatch(/overflow-hidden/);
+  });
+
+  it('does not pin the words to a fixed height', () => {
     // h-full inside the aspect-ratio box is what makes the ratio a ceiling
-    // rather than a floor. Without it the sheet grows to hold its text.
-    expect(SHEETS).not.toMatch(/className="h-full/);
+    // rather than a floor. Without it the text is never cut short.
+    expect(textContainer![1]).not.toMatch(/\bh-full\b/);
   });
 
   it('still sets the page proportions', () => {
