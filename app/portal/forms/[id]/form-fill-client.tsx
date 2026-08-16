@@ -91,6 +91,17 @@ export function FormFillClient({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  /**
+   * Which field the person is filling in, so the preview can show the clause it
+   * belongs to.
+   *
+   * Asked for directly: "whenever a user starts filling out a field in the left
+   * panel, set focus to that section on the place they are filling". On a seven
+   * page agreement the field and the sentence it changes are usually pages
+   * apart, so without this the preview is a document you scroll rather than a
+   * document that answers you.
+   */
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const [mark, setMark] = useState<SignaturePadValue>({
     dataUrl: null,
     mode: 'drawn',
@@ -197,6 +208,22 @@ export function FormFillClient({
   // given against the fingerprint that phone left. Sending the redraw would
   // fail that check and silently demote a phone signature to an ordinary one.
   const markSrc = phoneMark?.dataUrl ?? mark.dataUrl;
+  /**
+   * The text to look for in the rendered document.
+   *
+   * The field's own VALUE, not its label and not its {{key}}: the placeholder
+   * is gone by the time the document is rendered, and the label usually does
+   * not appear in the text at all.
+   *
+   * Three characters minimum. Below that a value matches half the document, and
+   * a preview that jumps to the wrong clause on every keystroke is worse than
+   * one that stays put. An empty or too-short field simply does not move it.
+   */
+  const focusText = (() => {
+    if (!focusedKey) return null;
+    const v = (values[focusedKey] ?? '').trim();
+    return v.length >= 3 ? v : null;
+  })();
   // A phone mark counts as ink. On a template restricted to the phone the pad
   // renders no canvas at all, so it never reports any, and reading only its
   // answer would leave the send button disabled forever with no way to enable
@@ -396,6 +423,14 @@ export function FormFillClient({
                 onChange: (
                   e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
                 ) => setValues((v) => ({ ...v, [f.key]: e.target.value })),
+                // Focusing a field points the preview at the clause it fills.
+                //
+                // Also fired on CHANGE above via focusedKey, so typing into a
+                // field that was already focused still moves the preview once
+                // the value becomes findable. Setting it here rather than only
+                // on change means tabbing through the form walks the document
+                // with you.
+                onFocus: () => setFocusedKey(f.key),
               };
               return (
                 <label key={f.key} className="block">
@@ -744,6 +779,7 @@ export function FormFillClient({
               buildPdf={buildPdf}
               revision={JSON.stringify([values, signature, markSrc])}
               signed={Boolean(markSrc)}
+              focusText={focusText}
               fallback={
                 <DocumentSheets text={merged} markLine={markLine} markSrc={markSrc} />
               }

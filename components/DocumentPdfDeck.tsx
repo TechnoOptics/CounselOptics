@@ -36,11 +36,17 @@ export function DocumentPdfDeck({
   revision,
   /** True once a signature exists, so the deck can turn to it. */
   signed,
+  /**
+   * Text from the field being filled in, so the deck can show the clause it
+   * changes. Null when nothing is focused or the value is too short to find.
+   */
+  focusText,
   fallback,
 }: {
   buildPdf: () => Promise<Blob>;
   revision: string;
   signed: boolean;
+  focusText?: string | null;
   /** Shown while the first build runs, and if a build fails. Usually the text
    *  preview, so the employee is never left with an empty frame. */
   fallback: React.ReactNode;
@@ -202,6 +208,52 @@ export function DocumentPdfDeck({
    * component already had once. Only the layout of their wrappers changes.
    */
   const [overview, setOverview] = useState(false);
+
+  /**
+   * Turn to the page carrying the text of the field being filled in.
+   *
+   * Searched in the RENDERED document rather than computed from the template,
+   * because the placeholder is gone by then and only the page text can say
+   * where a value actually landed.
+   *
+   * Deliberately does nothing when the value is not found, rather than falling
+   * back to page one. A field whose text is not in the document yet, because
+   * the rebuild has not finished, must leave the reader where they are: a
+   * preview that jumps to the front on every keystroke is worse than one that
+   * waits.
+   *
+   * Never runs in overview, where every page is already visible and moving the
+   * deck underneath somebody would only take the view away from them.
+   */
+  useEffect(() => {
+    const held = opened.current;
+    const needle = (focusText ?? '').trim().toLowerCase();
+    if (!held || needle.length < 3 || overview || pages.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (let n = 1; n <= pages.length; n++) {
+        if (cancelled || held.generation !== generation.current) return;
+        try {
+          const page = await held.doc.getPage(n);
+          const content = await page.getTextContent();
+          const text = (content.items as Array<{ str?: string }>)
+            .map((i) => i.str ?? '')
+            .join(' ')
+            .toLowerCase();
+          page.cleanup?.();
+          if (text.includes(needle)) {
+            if (!cancelled) setIndex(n - 1);
+            return;
+          }
+        } catch {
+          return;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [focusText, pages, overview]);
 
   const drag = useRef<{ x: number; id: number } | null>(null);
 

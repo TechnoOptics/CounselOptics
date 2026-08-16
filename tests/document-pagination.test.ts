@@ -813,3 +813,57 @@ describe('the viewer can find the signature block this app writes', () => {
     }
   });
 });
+
+describe('the preview follows the field being filled in', () => {
+  /**
+   * Asked for directly: "whenever a user starts filling out a field in the left
+   * panel, set focus to that section on the place they are filling."
+   *
+   * On a seven page agreement the input and the sentence it changes are usually
+   * pages apart, so without this the preview is a document you scroll rather
+   * than a document that answers you.
+   */
+  const read = (f: string) =>
+    readFileSync(join(process.cwd(), f), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/\/\/[^\n]*/g, '');
+  const DECK = read('components/DocumentPdfDeck.tsx');
+  const FILL = read('app/portal/forms/[id]/form-fill-client.tsx');
+
+  it('every field reports focus, not just some of them', () => {
+    // On the shared input props, so a field added later inherits it. Wiring
+    // each input by hand is how one gets missed.
+    expect(FILL).toMatch(/onFocus: \(\) => setFocusedKey\(f\.key\)/);
+  });
+
+  it('searches for the value, not the label or the placeholder', () => {
+    // The {{key}} is gone by the time the document is rendered, and the label
+    // usually does not appear in the text at all.
+    expect(FILL).toMatch(/values\[focusedKey\]/);
+  });
+
+  it('ignores values too short to find unambiguously', () => {
+    // One or two characters match half the document, and a preview that jumps
+    // to the wrong clause on every keystroke is worse than one that stays put.
+    expect(FILL).toMatch(/v\.length >= 3/);
+    expect(DECK).toMatch(/needle\.length < 3/);
+  });
+
+  it('stays put when the text is not found, rather than resetting to page one', () => {
+    // A value whose rebuild has not landed yet is not a reason to take the
+    // reader back to the front of the document.
+    const fn = DECK.slice(DECK.indexOf('const needle'));
+    const body = fn.slice(0, fn.indexOf('const drag'));
+    expect(body).toMatch(/text\.includes\(needle\)/);
+    expect(body, 'a not-found search must not move the deck').not.toMatch(
+      /setIndex\(0\)/,
+    );
+  });
+
+  it('never moves the deck while overview is open', () => {
+    // Every page is visible there; moving underneath somebody would only take
+    // the view away from them.
+    expect(DECK).toMatch(/needle\.length < 3 \|\| overview/);
+  });
+});
