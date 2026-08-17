@@ -46,6 +46,7 @@ function row(over: Partial<IntakeListRow> & { id: string }): IntakeListRow {
     folder: '',
     requesterName: 'Someone',
     inHouse: true,
+    signatureDirection: null,
     priority: 'Normal',
     state: 'open',
     assignedTo: null,

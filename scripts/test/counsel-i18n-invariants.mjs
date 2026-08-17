@@ -233,6 +233,31 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   'copy.inviteHeading',
   'copy.intakeEyebrow',
   'copy.intakeBlurb',
+  // The signature-direction question and its three answers
+  // (lib/intake-signature-direction.ts), and the attachment field's inbound
+  // wording. Every one is a module-level string constant or a field of
+  // SIGNATURE_DIRECTION_CHOICES, a frozen literal array. Nothing writes into
+  // them at runtime, so no request title, requester name or attachment name
+  // can reach these wraps; the person's own data on that form is rendered
+  // outside them.
+  'SIGNATURE_DIRECTION_QUESTION',
+  'choice.label',
+  'INBOUND_ATTACHMENT_LABEL',
+  'INBOUND_ATTACHMENT_HELP',
+  // The chip on the request queue and on the ticket. signatureDirectionLabel
+  // returns one of two literals or null, chosen by an enum read out of
+  // intake_answers, and the null case renders no chip at all. Same family as
+  // WORKFLOW_LABEL above: a fixed label selected by a stored enum.
+  'directionLabel',
+  // The template step's own copy (lib/intake-template-picker.ts): three module
+  // constants, plus deliveryModeLabel, which returns one of two literals for
+  // the DeliveryMode enum. The template's NAME and DESCRIPTION are firm data
+  // and are rendered outside these wraps, marked data-no-translate.
+  'TEMPLATE_STEP_QUESTION',
+  'TEMPLATE_STEP_HELP',
+  'TEMPLATE_STEP_EMPTY',
+  'deliveryModeLabel(selected.deliveryMode)',
+  'deliveryModeLabel(tpl.deliveryMode)',
   // static-array .map() params
   'l',
   's',

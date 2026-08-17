@@ -32,6 +32,7 @@ import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 import { T } from '@/components/i18n/LocaleProvider';
 import { intakeChannel, intakeDeadline } from '@/lib/intake-detail';
+import { signatureDirectionLabel } from '@/lib/intake-signature-direction';
 import { formatDate } from '@/lib/format';
 import {
   loadTicketSigningActivity,
@@ -201,6 +202,10 @@ export default async function IntakeDetailPage({
   // called a request something the notification about it did not.
   const ref = refFor(intake);
   const priority = String(ans.priority ?? '').trim();
+  // Null on every ticket filed before the signature question existed, and on
+  // any value that is not one of the two words. See
+  // lib/intake-signature-direction.ts.
+  const directionLabel = signatureDirectionLabel(ans.signature_direction);
   // What this request IS, not who filed it. Partner tickets carry their own
   // subject; everything else falls back to the matter type.
   const ticketTitle =
@@ -277,6 +282,16 @@ export default async function IntakeDetailPage({
           {priority && (
             <Chip>
               <span data-no-translate>{priority}</span>
+            </Chip>
+          )}
+          {/* Which way a signature runs on this ticket, when it runs at all.
+              It changes what the legal team is looking at: on an inbound one
+              the counterparty wrote the document, so the attachment is the
+              request rather than a supporting file. Neutral, like the rest of
+              this row - the accent is spent on the action bar's primary. */}
+          {directionLabel && (
+            <Chip>
+              <T>{directionLabel}</T>
             </Chip>
           )}
           {/* Neutral, not accent. The accent is spent once on this screen and

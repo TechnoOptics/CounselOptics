@@ -38,6 +38,7 @@ import {
   workflowColor,
   type IntakePriority,
 } from '@/lib/intake-workflow';
+import { signatureDirectionLabel } from '@/lib/intake-signature-direction';
 
 export type { IntakeListRow };
 
@@ -492,7 +493,11 @@ export function RequestsTable({
                   </td>
                 </tr>
               ) : (
-                page.rows.map((r) => (
+                page.rows.map((r) => {
+                  const directionLabel = signatureDirectionLabel(
+                    r.signatureDirection,
+                  );
+                  return (
                   <tr
                     key={r.id}
                     className="border-b border-edge last:border-0 transition-colors hover:bg-surface-2"
@@ -539,6 +544,20 @@ export function RequestsTable({
                             .join(' · ')}
                         </span>
                       </Link>
+                      {/* Which way a signature runs, when it runs at all. It
+                          sits under the subject rather than in a column of its
+                          own because most rows have nothing to say here, and a
+                          tenth column that is empty on most rows is a column
+                          that costs every row its width. Neutral, never the
+                          accent: the accent on this screen is the New request
+                          button. */}
+                      {directionLabel && (
+                        <span className="mt-1 flex">
+                          <Chip className="max-w-full truncate">
+                            <T>{directionLabel}</T>
+                          </Chip>
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5">
                       <span className="flex min-w-0 items-center gap-2">
@@ -603,7 +622,8 @@ export function RequestsTable({
                       {relativeTime(r.updatedAt) ?? ''}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
