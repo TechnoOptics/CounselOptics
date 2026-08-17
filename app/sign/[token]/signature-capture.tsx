@@ -16,6 +16,7 @@ import { MobileHandoff } from './mobile-handoff';
 import {
   padModesFor,
   signatureMethodFromPadMode,
+  signatureMethodsOnDevice,
   type SignatureMethod,
 } from '@/lib/signature-methods';
 
@@ -66,6 +67,7 @@ export function SignatureCapture({
   documentPresented,
   placement,
   signatureMethods,
+  viewerOnPhone,
   copyPermitted,
   copyHref,
   onMarkChange,
@@ -90,6 +92,20 @@ export function SignatureCapture({
    * tabs are not the control.
    */
   signatureMethods: SignatureMethod[] | null;
+  /**
+   * Whether the signer is already holding a phone, established on the server
+   * from the request's user agent.
+   *
+   * Used for exactly two things, and it is worth naming both because they pull
+   * in opposite directions: it WITHDRAWS the QR handoff, which is a loop on a
+   * phone, and it WIDENS what the pad may offer, so the phone-only template the
+   * handoff used to be the sole route for is still signable here.
+   *
+   * It never decides what is RECORDED. Drawing on a phone is a drawn signature
+   * made on a phone, which is a different claim from the attested 'phone'
+   * method, and lib/signature-write.ts keeps them apart on the server.
+   */
+  viewerOnPhone: boolean;
   /** Whether the firm allows this signer to download a copy. */
   copyPermitted: boolean;
   copyHref: string;
@@ -144,8 +160,33 @@ export function SignatureCapture({
   // What the pad may offer, and whether the phone route is on the table. Both
   // derive from one prop so the tabs and the QR card cannot disagree about
   // what this template allows.
-  const padModes = padModesFor(signatureMethods);
+  //
+  // The restriction is resolved against the DEVICE first. lib/signature-methods.ts
+  // has always held that the phone is a method delivering a DRAWN mark and that
+  // the QR handoff is the errand a desk runs to borrow a touchscreen it does not
+  // have. This signer may already be holding one, in which case the errand is
+  // done and a template restricted to 'phone' is satisfied by drawing here. On a
+  // desk signatureMethodsOnDevice returns the restriction untouched, so nothing
+  // about the desktop ceremony moves.
+  const methodsHere = signatureMethodsOnDevice(signatureMethods, viewerOnPhone);
+  const padModes = padModesFor(methodsHere);
   const phonePermitted = signatureMethods === null || signatureMethods.includes('phone');
+  // Permitted by the firm is not the same as worth offering. Handing a phone a
+  // code to scan with itself is a loop, and the signer's only way out of it was
+  // to work out that the card was not meant for them - on a legal instrument,
+  // part way through a ceremony. Whoever is on a phone draws on the screen they
+  // are already holding, which padModes above has just made sure they can.
+  const phoneOffered = phonePermitted && !viewerOnPhone;
+  // The pad has a drawn tab HERE ONLY BECAUSE this device is the phone the firm
+  // asked for. Worth saying out loud: the signer is looking at a single option
+  // on a document whose settings say phone, and without this the page never
+  // explains why. Not shown when the firm allowed drawing anyway, because then
+  // the tab needs no explaining.
+  const drawingStandsInForThePhone =
+    viewerOnPhone &&
+    signatureMethods !== null &&
+    signatureMethods.includes('phone') &&
+    !signatureMethods.includes('draw');
   const [intentAffirmed, setIntentAffirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -429,8 +470,10 @@ export function SignatureCapture({
             before they commit to the laptop, and disabled here for the
             same reason the notice above stops the ceremony: when the
             document never opened there is nothing to sign on any
-            device. */}
-        {documentPresented && phonePermitted && mobileHandoff}
+            device. Absent altogether for a signer already on a phone:
+            there is no laptop to commit to and nothing to hand off
+            to. */}
+        {documentPresented && phoneOffered && mobileHandoff}
 
         {error && (
           <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
@@ -478,8 +521,23 @@ export function SignatureCapture({
           consent and therefore able to mint. Absent entirely when the firm
           has not allowed signing on a phone: an offer that would be refused
           on scanning is worse than no offer. lib/signing-handoff-mint.ts
-          refuses to mint one regardless, because this is a browser. */}
-      {phonePermitted && mobileHandoff}
+          refuses to mint one regardless, because this is a browser.
+
+          Absent on a phone too, for a different reason: not that the offer
+          would be refused, but that taking it up is impossible. The pad
+          directly above is the route here, and it has a canvas even on a
+          phone-only document. */}
+      {phoneOffered && mobileHandoff}
+
+      {/* The firm asked for this one to be signed on a phone, and this is
+          one. Said plainly, so a single tab reads as the answer rather than
+          as something missing. */}
+      {drawingStandsInForThePhone && (
+        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
+          This document is signed on a phone, and you are on one. Draw your
+          signature on this screen.
+        </p>
+      )}
 
       <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
         <input

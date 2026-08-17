@@ -53,6 +53,7 @@ export function SignerSurface({
   positionY,
   copyPermitted,
   signatureMethods,
+  viewerOnPhone,
   copyHref,
   counterpartyFields,
   fieldBoxes,
@@ -70,6 +71,21 @@ export function SignerSurface({
   copyPermitted: boolean;
   /** Which methods the firm allows on this request. Null means all four. */
   signatureMethods: SignatureMethod[] | null;
+  /**
+   * Whether the signer is already holding a phone, established by the server
+   * from the request's user agent and passed straight through to the ceremony.
+   *
+   * Carried rather than resolved. This component runs in the browser, where
+   * every way of answering the question is either a viewport test (which cannot
+   * tell a phone from a narrow window) or a client effect (which the first paint
+   * beats: see the header of the prop's source in app/sign/[token]/page.tsx and
+   * the App Store rejection recorded there).
+   *
+   * Not optional and not defaulted. A caller that forgets it should be a type
+   * error rather than a page that quietly puts the QR back in front of somebody
+   * holding a phone.
+   */
+  viewerOnPhone: boolean;
   copyHref: string;
   /** The parts of the document this signer supplies. Empty for every
    *  document with no counterparty fields, which is every document this
@@ -194,6 +210,7 @@ export function SignerSurface({
           documentPresented={isDocumentPresented(renderStatus)}
           placement={placement}
           signatureMethods={signatureMethods}
+          viewerOnPhone={viewerOnPhone}
           copyPermitted={copyPermitted}
           copyHref={copyHref}
           onMarkChange={handleMark}

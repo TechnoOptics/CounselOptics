@@ -216,8 +216,15 @@ describe('one card, on both steps', () => {
     // offered on this step; it is now also absent when the firm has not
     // allowed the phone, which is why this looks for the guard rather than
     // for the old literal.
+    //
+    // That guard became phoneOffered when the device joined the decision: the
+    // card is withdrawn from a signer already holding a phone, because scanning
+    // a code with the device displaying it is a loop rather than a handoff. What
+    // this test is for is unchanged and still true - the card is offered on the
+    // disclosure step and not only at capture - so only the name it looks for
+    // moved. Which devices see it is tests/signer-page-on-a-phone.test.ts.
     const offered = src.indexOf(
-      '{documentPresented && phonePermitted && mobileHandoff}',
+      '{documentPresented && phoneOffered && mobileHandoff}',
     );
 
     expect(disclosure).toBeGreaterThan(-1);
