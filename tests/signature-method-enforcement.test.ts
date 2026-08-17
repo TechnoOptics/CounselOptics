@@ -416,3 +416,120 @@ describe('the provenance of the recorded method', () => {
     expect(signedEvent()?.metadata?.signature_method_attested_by).toBe('server');
   });
 });
+
+/**
+ * A phone-only document, signed on the phone itself.
+ *
+ * The signer page stopped offering the QR handoff to somebody already holding a
+ * phone, because scanning a code with the device displaying it is a loop rather
+ * than a handoff. That leaves a document restricted to ['phone'] exactly one
+ * route on a phone - drawing directly on it - and this gate is what decides
+ * whether that route reaches a record or a 403. Before the device was read here
+ * it was a 403, so the page would have offered a pad whose every mark this
+ * function threw away.
+ *
+ * THE INVARIANT THESE TESTS EXIST FOR, and it is sharper than the employee
+ * form's: this path writes signature_method AND signature_method_attested_by.
+ * Widening what may be SIGNED must never widen what is CLAIMED about it. A
+ * person drawing on their phone made a DRAWN signature on a phone, attested by
+ * nobody but themselves. The handoff's 'phone' attested_by 'server' is a
+ * different and stronger claim, backed by a burned one-time token and a cookie
+ * bound to the scanning device, and on an executed instrument that difference is
+ * the evidentiary record.
+ */
+const PHONE_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+const DESKTOP_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
+describe('a document restricted to the phone, signed from a phone', () => {
+  it('accepts the drawn mark instead of refusing the only route it has', async () => {
+    restrictTo(['phone']);
+    expect(await sign({ method: 'draw', userAgent: PHONE_UA })).toEqual({ ok: true });
+    expect(world.signatures[0].signed_at).not.toBeNull();
+  });
+
+  /**
+   * THE INVARIANT. Being on a phone widened what could be drawn. It did not
+   * manufacture the attestation, and a record saying 'phone' here would claim a
+   * handoff that never happened.
+   */
+  it('records it as a drawn signature and not as the phone method', async () => {
+    restrictTo(['phone']);
+    await sign({ method: 'draw', userAgent: PHONE_UA });
+    expect(signedEvent()?.metadata?.signature_method).toBe('draw');
+  });
+
+  /** The other half of the same invariant: the server did not vouch for this. */
+  it('still attributes the method to the signer, not to the server', async () => {
+    restrictTo(['phone']);
+    await sign({ method: 'draw', userAgent: PHONE_UA });
+    expect(signedEvent()?.metadata?.signature_method_attested_by).toBe('signer');
+  });
+
+  /**
+   * The user agent is the caller's own string. It may open the drawn door, and
+   * it may never be the thing that mints an attestation: a POST claiming
+   * 'phone' with no handoff behind it is still read as having said nothing, and
+   * a restricted request still refuses it.
+   */
+  it('does not let a browser claim the phone method by sending a phone user agent', async () => {
+    restrictTo(['phone']);
+    const result = await sign({ method: 'phone', userAgent: PHONE_UA });
+    expect(result.ok).toBe(false);
+    expect(world.signatures[0].signed_at).toBeNull();
+  });
+
+  it('does not widen anything else the firm forbade', async () => {
+    restrictTo(['phone']);
+    const result = await sign({ method: 'upload', userAgent: PHONE_UA });
+    expect(result.ok).toBe(false);
+    expect(world.signatures[0].signed_at).toBeNull();
+  });
+
+  /** The desk is unchanged, which is what makes this a resolution and not a
+   *  loosening: there the QR is still the route and still the only one. */
+  it('is still refused on a desktop, where the handoff is the route', async () => {
+    restrictTo(['phone']);
+    const result = await sign({ method: 'draw', userAgent: DESKTOP_UA });
+    expect(result.ok).toBe(false);
+    expect(world.signatures[0].signed_at).toBeNull();
+  });
+
+  /** A restriction naming no method names no phone either. Being on a phone
+   *  must not turn a document nobody can sign into one anybody can. */
+  it('does not rescue a restriction that names no method at all', async () => {
+    restrictTo([]);
+    const result = await sign({ method: 'draw', userAgent: PHONE_UA });
+    expect(result.ok).toBe(false);
+    expect(world.signatures[0].signed_at).toBeNull();
+  });
+
+  /** The real handoff, arriving from the phone it was scanned on, is untouched
+   *  by any of this and still carries the stronger claim. */
+  it('leaves a genuine handoff from a phone attested by the server', async () => {
+    restrictTo(['phone']);
+    await sign({ source: 'mobile_handoff', handoffId: 'h-1', userAgent: PHONE_UA });
+    expect(signedEvent()?.metadata?.signature_method).toBe('phone');
+    expect(signedEvent()?.metadata?.signature_method_attested_by).toBe('server');
+  });
+
+  /** A tablet is not a phone: iPadOS reports a Macintosh user agent, so the
+   *  allowlist in lib/platform.ts cannot identify one and deliberately does not
+   *  try. The tablet keeps the handoff, which is the truthful route for it. */
+  it('does not treat a tablet as a phone', async () => {
+    restrictTo(['phone']);
+    const iPad =
+      'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+    const result = await sign({ method: 'draw', userAgent: iPad });
+    expect(result.ok).toBe(false);
+  });
+
+  /** No header is not a phone. The device may only ever widen, so the case it
+   *  cannot answer lands on the behaviour that was already there. */
+  it('does not treat a missing user agent as a phone', async () => {
+    restrictTo(['phone']);
+    const result = await sign({ method: 'draw', userAgent: null });
+    expect(result.ok).toBe(false);
+  });
+});

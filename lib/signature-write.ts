@@ -22,8 +22,10 @@ import { getRealCurrentUser } from '@/lib/supabase/server';
 import {
   decideSignatureMethod,
   parseAllowedSignatureMethods,
+  signatureMethodsOnDevice,
   type SignatureMethod,
 } from '@/lib/signature-methods';
+import { isPhoneUserAgent } from '@/lib/platform';
 import { decodeSignaturePng, signerMarkPath } from '@/lib/template-signature';
 
 /**
@@ -422,8 +424,40 @@ export async function recordSignature(
     : input.method === 'phone'
       ? null
       : input.method;
+  // THE DEVICE IS READ HERE TOO, AND ONLY EVER TO WIDEN.
+  //
+  // The page stopped offering the QR handoff to a signer already holding a
+  // phone, because scanning a code with the device displaying it is a loop. A
+  // document restricted to ['phone'] therefore has exactly one route on a phone,
+  // drawing directly on it, and a gate that refused that would leave the page
+  // offering a pad whose every mark this function throws away with a 403.
+  //
+  // signatureMethodsOnDevice only ever ADDS 'draw' and never refuses, so this
+  // cannot reject a signature it would previously have accepted, and a spoofed
+  // user agent can only open a door that costs the firm nothing checkable: the
+  // firm asked for a mark drawn with a finger and that is what arrives. `[]`
+  // stays `[]`, so a restriction naming no method is not quietly widened.
+  //
+  // IT DOES NOT TOUCH WHAT IS ATTESTED, which is the whole point of putting it
+  // here rather than a line lower. `claimedMethod` above is already fixed: a
+  // browser saying 'phone' has been read as having said nothing, and only
+  // `fromHandoff` puts 'phone' there. So a person drawing on their phone is
+  // recorded as signature_method 'draw' attested_by 'signer' - a drawn signature
+  // made on a phone, which is a weaker and different claim from the handoff's
+  // 'phone' attested_by 'server', and on an executed instrument that difference
+  // is the evidentiary record. Widening what may be SIGNED must never widen what
+  // is CLAIMED about it.
+  //
+  // The user agent is the one the route read off the request, not the uaSnapshot
+  // inside `consent`: that field is the browser's own navigator string, sent in
+  // the body, and is evidence rather than input to a decision.
   const methodDecision = decideSignatureMethod({
-    allowed: parseAllowedSignatureMethods(request.signature_methods),
+    allowed: signatureMethodsOnDevice(
+      parseAllowedSignatureMethods(request.signature_methods),
+      // input.userAgent and not the local `userAgent`, which is bound further
+      // down this function: reading it here would be a use before declaration.
+      isPhoneUserAgent(input.userAgent),
+    ),
     claimed: claimedMethod,
   });
   if (!methodDecision.ok) {

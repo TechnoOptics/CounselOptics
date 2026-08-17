@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { isPhoneUserAgent } from '@/lib/platform';
 import { getSignatureByToken } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
@@ -84,6 +85,31 @@ export default async function SignPage({ params }: { params: { token: string } }
 
   const { signature, request, document, firm } = data;
   const locale = await getLocaleCookie();
+
+  /**
+   * Whether the person reading this is already holding a phone, established
+   * HERE, from the request, and passed down as a boolean.
+   *
+   * The signature methods on the request say whether the firm ALLOWS the phone.
+   * They do not say whether there is any POINT in offering the handoff, and
+   * until now nothing asked. Showing an outside signer a QR code to scan with
+   * their phone, on their phone, asks them to scan a code with the device
+   * displaying it. On a template restricted to the phone that loop was the only
+   * route the page offered at all.
+   *
+   * It is read off the request rather than resolved in the browser, and that is
+   * the whole of the care here. app/billing/tier-card.tsx resolved the device in
+   * a client effect that runs once with no retry; on the remote-URL WebView the
+   * first paint beat it, so the page rendered the wrong control and shipped,
+   * which was the 5th App Store rejection (2.1(b), 2026-07-02). A header is
+   * present before the first byte of HTML, so this cannot be raced, cannot
+   * hydrate to something else, and cannot flicker.
+   *
+   * There is no fallback to a client check behind this, deliberately. A
+   * `server || (ready && client)` pair is the racy pattern with a longer name:
+   * it reintroduces the second paint this exists to remove.
+   */
+  const viewerOnPhone = isPhoneUserAgent(headers().get('user-agent'));
 
   // Audit trail: record that the signer opened the link. Best-effort
   // and skipped once the signature is already executed (so a
@@ -534,6 +560,9 @@ export default async function SignPage({ params }: { params: { token: string } }
              accepted. The refusal itself is lib/signature-write.ts, on the
              server, because this page is not what a leaked link posts to. */
           signatureMethods={request.signatureMethods}
+          /* The device, from the request. Decides whether the QR handoff is a
+             handoff or a loop, and therefore whether it is offered at all. */
+          viewerOnPhone={viewerOnPhone}
           copyHref={`/api/firm/sign/copy/${signature.token}`}
           counterpartyFields={intake?.fields ?? []}
           fieldBoxes={intake?.boxes ?? []}
