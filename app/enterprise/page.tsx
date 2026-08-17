@@ -471,7 +471,7 @@ function EsignMock() {
           <p className="text-[10px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-2">
             Recipients
           </p>
-          <ul className="divide-y divide-cream-100/8">
+          <ul className="divide-y divide-cream-100/10">
             {[
               {
                 name: 'M. Sandoval',
@@ -1182,7 +1182,7 @@ function CapabilityFrame({
   children: React.ReactNode;
 }) {
   return (
-    <article className="relative overflow-hidden rounded-3xl border border-cream-100/12 bg-gradient-to-br from-forest-900/60 via-forest-950/60 to-forest-900/60 backdrop-blur p-6 sm:p-9 lg:p-12">
+    <article className="relative overflow-hidden rounded-3xl border border-cream-100/10 bg-gradient-to-br from-forest-900/60 via-forest-950/60 to-forest-900/60 backdrop-blur p-6 sm:p-9 lg:p-12">
       <div
         aria-hidden
         className={`pointer-events-none absolute h-72 w-72 rounded-full opacity-30 blur-3xl ${
@@ -1241,7 +1241,7 @@ function CapabilityCard({
   children: React.ReactNode;
 }) {
   return (
-    <article className="rounded-2xl border border-cream-100/12 bg-gradient-to-br from-forest-900/55 via-forest-950/55 to-forest-900/55 backdrop-blur p-5 sm:p-6 flex flex-col">
+    <article className="rounded-2xl border border-cream-100/10 bg-gradient-to-br from-forest-900/55 via-forest-950/55 to-forest-900/55 backdrop-blur p-5 sm:p-6 flex flex-col">
       <p className="text-[10.5px] tracking-[0.28em] uppercase font-semibold text-gold-300">
         {eyebrow}
       </p>

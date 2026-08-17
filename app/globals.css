@@ -1716,11 +1716,18 @@ body > * {
 .counsel-shell:not(.dark) .text-cream-200 { color: #17171b; }
 .counsel-shell:not(.dark) .text-forest-500\/70 { color: #5d5d68; }
 
-/* EDGES */
+/* EDGES
+   Every selector here repaints a class a call site actually writes, so a
+   rule whose class no longer appears anywhere is not harmless: it makes an
+   opacity Tailwind cannot compile look supported. `.border-cream-50\/12`
+   sat here for that reason. Tailwind only generates an opacity modifier
+   whose value is in `theme.opacity`, so `border-cream-50/12` compiled to
+   nothing, the light shell was patched here by hand and the dark shell fell
+   through to Tailwind's near-white preflight default. The call sites now
+   ask for /10, which compiles in both themes, and the hand rule is gone. */
 .counsel-shell:not(.dark) .border-cream-50\/10 { border-color: rgba(23, 23, 27, 0.12); }
 .counsel-shell:not(.dark) .border-forest-700\/40 { border-color: rgba(23, 23, 27, 0.13); }
 .counsel-shell:not(.dark) .ring-forest-700\/40 { --tw-ring-color: rgba(23, 23, 27, 0.13); }
-.counsel-shell:not(.dark) .border-cream-50\/12 { border-color: rgba(23, 23, 27, 0.14); }
 .counsel-shell:not(.dark) .border-forest-700\/30 { border-color: rgba(23, 23, 27, 0.12); }
 .counsel-shell:not(.dark) .ring-cream-50\/15 { --tw-ring-color: rgba(23, 23, 27, 0.17); }
 .counsel-shell:not(.dark) .ring-forest-700\/50 { --tw-ring-color: rgba(23, 23, 27, 0.14); }

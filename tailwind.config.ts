@@ -166,6 +166,62 @@ const config: Config = {
           950: '#09090b',
         },
       },
+      /*
+       * What an edge is when the call site did not say.
+       *
+       * Tailwind's preflight colours EVERY element up front:
+       * `*, ::before, ::after { border: 0 solid theme(borderColor.DEFAULT) }`.
+       * Left stock that DEFAULT is #e5e7eb, a light grey picked for a white
+       * page, so a border that lost its own colour painted near-white. On
+       * cream that is invisible; on every dark shell it is a white line, and
+       * because it comes from one declaration every call site inherits, it
+       * turned up on surface after surface rather than in one component.
+       *
+       * `--border` and `--background` are declared on `:root` in
+       * app/globals.css and redefined under `.dark`, `.enterprise-shell` and
+       * `.hq-shell`, so they resolve everywhere and resolve per theme. A
+       * border with no colour of its own now lands on the edge colour the
+       * rest of the surface is already using, in whichever theme is painting,
+       * which is the rule docs/DESIGN.md states as "edges | `edge` | one
+       * border colour, everywhere".
+       *
+       * The ring pair is the same hole twice more. Stock `ringColor.DEFAULT`
+       * is rgb(59 130 246 / 0.5), Tailwind's blue, which this product uses
+       * nowhere, so a ring that lost its colour did not fade out, it turned
+       * blue. Stock `ringOffsetColor.DEFAULT` is #fff, which draws a white
+       * halo between an element and its focus ring; the two `ring-offset-2`
+       * call sites are the document viewers, whose dark surround is exactly
+       * where a white halo shows.
+       *
+       * These are a floor, not a licence: a call site that means a specific
+       * edge still names one. What changed is that forgetting now costs a
+       * slightly wrong shade instead of a white line in the dark.
+       */
+      borderColor: { DEFAULT: 'var(--border)' },
+      divideColor: { DEFAULT: 'var(--border)' },
+      ringOffsetColor: { DEFAULT: 'var(--background)' },
+      /*
+       * A FUNCTION, and it has to be one. Preflight takes
+       * `borderColor.DEFAULT` as written, but the ring reset runs its value
+       * through Tailwind's `withAlphaValue` first so it can fold in
+       * `ringOpacity.DEFAULT`. A bare `var(--border)` has no channels to
+       * split, so that parse fails, and it fails SILENTLY: the build
+       * succeeds and Tailwind substitutes its own hardcoded fallback,
+       * rgb(147 197 253 / 0.5). Written as the plain string this line
+       * changed the default from one blue to a lighter blue and read, in
+       * the diff, exactly like a fix. A function is handed the opacity
+       * instead of being parsed for it, so the token survives; compiled,
+       * this emits `--tw-ring-color: var(--border)`.
+       *
+       * The cast is not a workaround for a wrong value. Tailwind resolves a
+       * colour written as a function at runtime, which is the whole point
+       * here, but its shipped `Config` type admits only `string` at a colour
+       * leaf, so the supported form does not typecheck. tests/
+       * border-colour-defaults.test.ts asserts the resolved value through
+       * Tailwind's own `withAlphaValue`, so if this ever stops working the
+       * cast cannot hide it.
+       */
+      ringColor: { DEFAULT: (() => 'var(--border)') as unknown as string },
       boxShadow: {
         card: '0 1px 2px 0 rgb(15 45 36 / 0.04), 0 1px 1px 0 rgb(15 45 36 / 0.03)',
         'card-hover':
