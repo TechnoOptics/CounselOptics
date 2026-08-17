@@ -100,10 +100,21 @@ describe('the request detail gathers its record controls into one strip', () => 
 
   it.each([
     ['the folder select', '<FolderPicker'],
-    ['the primary action that takes the matter on', '<ConvertToMatter'],
     ['the way in to declining or closing it', '<DecideJump'],
   ])('holds %s', (_label, tag) => {
     expect(actionBarSource()).toContain(tag);
+  });
+
+  /**
+   * Taking the request on as a matter used to be this bar's primary, and this
+   * case used to pin it as PRESENT. It is now pinned as an ABSENCE, because
+   * removing it was the point: an in-house legal team answers requests rather
+   * than opening matters from them, and the owner does not expect that to
+   * change. tests/ticket-not-a-matter.test.ts carries the full reasoning and
+   * the guard on the read path that survives.
+   */
+  it('no longer offers taking the request on as a matter', () => {
+    expect(actionBarSource()).not.toContain('<ConvertToMatter');
   });
 
   /**

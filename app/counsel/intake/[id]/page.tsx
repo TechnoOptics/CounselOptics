@@ -15,12 +15,11 @@ import {
   readIntakeFolder,
 } from '@/lib/request-folders';
 import { FolderPicker } from './folder-picker';
-import { ConvertToMatter } from './convert-to-matter';
 import { DecideJump } from './decide-jump';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
 import { DecideRequest } from './decide-request';
-import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
+import { AnalyzeAttachments } from './analyze-attachments';
 import { StatusPill } from '@/components/counsel/StatusPill';
 import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
 import { TicketManagement } from './ticket-management';
@@ -202,6 +201,26 @@ export default async function IntakeDetailPage({
   const opened = relativeTime(intake.created_at);
   const decision = readDecision(ans);
 
+  /**
+   * THE ATTACHMENT GATE. The conflict check and the analysis are offered only
+   * when this request carries a document, because an in-house team asked for a
+   * ticket they answer, not a matter they open, and neither control earns its
+   * space on a request that is only a question.
+   *
+   * Gated on the attachments the analysis can actually READ, which is the
+   * subset backed by a `firm_documents` row (origin 'chat'). Files recorded on
+   * `intake_answers.attachments` (origin 'filed') are not `firm_documents`
+   * rows, so the route cannot resolve or authorize them by id. Counting them
+   * here would show a control that then refuses, which is worse than not
+   * showing it. On production data today neither kind exists on any request,
+   * so both sections are hidden everywhere: that is the instruction, not a
+   * defect.
+   */
+  const analyzableAttachments = conv.ok
+    ? conv.documents.filter((d) => d.origin === 'chat')
+    : [];
+  const hasAttachments = analyzableAttachments.length > 0;
+
   return (
     <div className="space-y-6 animate-fade-up">
       {/* The rail collapses on entry so the ticket gets the width, and the
@@ -309,12 +328,14 @@ export default async function IntakeDetailPage({
                 <span data-no-translate>{formatDate(new Date(deadline.at))}</span>
               </p>
             )}
+            {/* Taking the request on as a matter used to be the bar's
+                primary. It is gone deliberately: an in-house team answers
+                requests, it does not open matters from them. The link to a
+                matter a request produced BEFORE that change still lives in
+                the Matter panel below, drawn only when case_id is set, which
+                is what keeps the already-converted requests connected to
+                their cases. */}
             <DecideJump decided={decision != null} />
-            <ConvertToMatter
-              firmId={ctx.firm.id}
-              intakeId={intake.id}
-              caseId={caseId}
-            />
           </>
         }
       >
@@ -679,15 +700,17 @@ export default async function IntakeDetailPage({
               </h2>
             </div>
 
-            <RecordSection id="conflict" title="Conflict check">
-              <ConflictCheckPanel
-                firmId={ctx.firm.id}
-                intakeId={intake.id}
-                status={intake.status}
-                results={intake.conflict_results}
-                notes={intake.conflict_check_notes}
-              />
-            </RecordSection>
+            {hasAttachments && (
+              <RecordSection id="conflict" title="Conflict check">
+                <ConflictCheckPanel
+                  firmId={ctx.firm.id}
+                  intakeId={intake.id}
+                  status={intake.status}
+                  results={intake.conflict_results}
+                  notes={intake.conflict_check_notes}
+                />
+              </RecordSection>
+            )}
 
             {/* The other end of the fork the action bar's primary starts.
                 The bar's secondary opens this, because declining writes a
@@ -717,16 +740,18 @@ export default async function IntakeDetailPage({
                 </RecordSection>
               )}
 
-            <RecordSection id="analyze" title="Analyze" defaultOpen={false}>
-              <p className="mb-2 text-[12px] text-muted">
-                <T>Run an AI breakdown of what the submitted document means, how the law
-                applies, its bias, and the risky clauses.</T>
-              </p>
-              <AnalyzeStudio
-                embedded
-                initialText={String(intake.matter_summary ?? '')}
-              />
-            </RecordSection>
+            {/* The studio that used to sit here seeded a textarea with the
+                request summary, so the copy said "the submitted document"
+                while the thing analysed was whatever the box held. It now
+                reads the attachments and only the attachments. */}
+            {hasAttachments && (
+              <RecordSection id="analyze" title="Analyze" defaultOpen={false}>
+                <AnalyzeAttachments
+                  intakeId={intake.id}
+                  documentNames={analyzableAttachments.map((d) => d.name)}
+                />
+              </RecordSection>
+            )}
 
             <RecordSection id="signing" title="Send for signature" defaultOpen={false}>
               <RequestActions />

@@ -8,6 +8,7 @@ import { AiUnavailableError } from './ai-errors';
 import { checkRateLimit } from './rate-limit';
 import { extractFileText } from './doc-review';
 import { analyzeImage } from './timeline-ai';
+import { buildPolicyCorpus } from './policy-corpus';
 
 /**
  * Firm policy library + the employee "Check a document" tool.
@@ -169,12 +170,15 @@ export async function checkAgainstPoliciesAction(
     return { ok: false, error: 'Your legal team has not uploaded any policies yet. File a request instead.' };
   }
 
-  let corpus = '';
-  for (const p of policies) {
-    const chunk = `\n\n### POLICY: ${p.name}\n${p.content}`;
-    if (corpus.length + chunk.length > MAX_POLICY_CHARS) break;
-    corpus += chunk;
-  }
+  /**
+   * This loop used to be first-come with a `break` on the first policy that
+   * would overflow, so one long policy early in the alphabet silently excluded
+   * every policy after it while the score below still read as a complete
+   * check. buildPolicyCorpus shares the cap fairly and names anything it had
+   * to cut or leave out.
+   */
+  const built = buildPolicyCorpus(policies, MAX_POLICY_CHARS);
+  const corpus = built.corpus;
 
   const system =
     'You are a meticulous in-house compliance analyst. You compare an employee\'s document or question against the company\'s written policies and answer ONLY with strict JSON matching: {"score": number 0-100, "verdict": string, "flags": [{"level": "blocked"|"caution"|"ok", "quote": string, "policy": string, "note": string}]}. "score" is your confidence the submission is within policy (100 = clearly fine). "flags" quote the specific passage of the SUBMISSION (short excerpt), name the policy it touches, and explain plainly. Use level "blocked" for things the policies prohibit, "caution" for things needing legal review or conditions, "ok" for notable passages that are explicitly permitted. Never invent policy text. If the policies do not address the submission, say so in the verdict and keep flags empty. The verdict must end by reminding the employee this is a policy comparison, not legal advice, and to file a request with legal when unsure.';

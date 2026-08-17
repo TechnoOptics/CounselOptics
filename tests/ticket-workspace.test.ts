@@ -342,28 +342,71 @@ describe('what the employee wrote stays in the main column', () => {
 });
 
 describe('the accent is spent once', () => {
+  const ROUTE_DIR = 'app/counsel/intake/[id]/';
+
+  /**
+   * WHY THIS IS DERIVED AND NOT A HAND-WRITTEN LIST.
+   *
+   * The previous version of this guard listed eight files, all of them in the
+   * route directory, and asserted the accent was claimed exactly once. It
+   * passed. The rendered page was claiming it FIVE times, because four of the
+   * claims lived in components the page imports and the list never mentioned:
+   * IntakeConversation's Send, IntakeWorkPanel's Create link, and two inside
+   * the analyze studio the page used to embed. A guard that reads eight files
+   * while the page renders twelve is not measuring the page.
+   *
+   * So the set is derived from the page's own import statements. Adding a new
+   * control to this route now pulls it into the sweep automatically, which is
+   * the failure the hand-written list could not catch.
+   *
+   * Deliberately NOT swept: components/counsel/patterns.tsx and StatusPill.
+   * Their accent is opt-in by the caller (`tone="accent"`, a toggle's "on"
+   * state), so the file contains the token without claiming anything. The
+   * call sites that WOULD claim it are inside the swept files, so a
+   * `tone="accent"` passed by this route is still caught.
+   */
+  function renderedFiles(): string[] {
+    const page = codeOf(PAGE);
+    const local = [...page.matchAll(/from '\.\/([a-zA-Z0-9-]+)'/g)].map(
+      (m) => `${ROUTE_DIR}${m[1]}.tsx`,
+    );
+    const shared = [
+      ...page.matchAll(/from '@\/(components\/intake\/[A-Za-z]+)'/g),
+    ].map((m) => `${m[1]}.tsx`);
+    return [PAGE, ...local, ...shared];
+  }
+
+  /**
+   * The sweep is only honest if every file it names exists. A rename that the
+   * regex stopped matching would silently shrink coverage back to nothing,
+   * which is exactly how the previous version stayed green.
+   */
+  it('sweeps every component the page imports, and they all exist', () => {
+    const files = renderedFiles();
+    expect(files.length).toBeGreaterThan(8);
+    for (const f of files) {
+      expect(() => codeOf(f), `${f} is swept but missing`).not.toThrow();
+    }
+    expect(files).toContain('components/intake/IntakeConversation.tsx');
+    expect(files).toContain('components/intake/IntakeWorkPanel.tsx');
+  });
+
   /**
    * docs/DESIGN.md: a gold button and a gold heading and a gold rule in the
    * same viewport is three claims on the eye and the reader obeys none of
-   * them. This route spent it seven times.
+   * them.
    *
-   * The one claim is the action bar's primary, which is the single thing this
-   * screen exists to do.
+   * THE ONE CLAIM IS THE REPLY. It used to be the action bar's "Take it on as
+   * a matter", which has been removed: an in-house team answers requests
+   * rather than opening matters from them. On a surface whose whole point is
+   * going back and forth, the thing that continues the conversation is what
+   * deserves the eye.
    *
-   * Mutation: give any new control btn-primary.
+   * Mutation: give any control on this route btn-primary, in a route file OR
+   * in one of the imported components. Both go red.
    */
   it('draws one accent-carrying control across the whole route', () => {
-    const files = [
-      'app/counsel/intake/[id]/page.tsx',
-      'app/counsel/intake/[id]/convert-to-matter.tsx',
-      'app/counsel/intake/[id]/decide-jump.tsx',
-      'app/counsel/intake/[id]/decide-request.tsx',
-      'app/counsel/intake/[id]/conflict-check-panel.tsx',
-      'app/counsel/intake/[id]/request-actions.tsx',
-      'app/counsel/intake/[id]/schedule-meeting.tsx',
-      'app/counsel/intake/[id]/ticket-management.tsx',
-    ];
-    const spend = files.flatMap((f) => {
+    const spend = renderedFiles().flatMap((f) => {
       const code = codeOf(f);
       return [
         ...[...code.matchAll(/btn-primary/g)].map(() => `${f}: btn-primary`),
@@ -372,7 +415,7 @@ describe('the accent is spent once', () => {
       ];
     });
     expect(spend, `the accent is claimed ${spend.length} times on one screen`).toEqual([
-      'app/counsel/intake/[id]/convert-to-matter.tsx: btn-primary',
+      'components/intake/IntakeConversation.tsx: btn-primary',
     ]);
   });
 });

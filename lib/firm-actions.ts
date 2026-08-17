@@ -479,11 +479,27 @@ export async function removeFirmLogoAction(
 // readable so the PDF generator can fetch it without auth round-
 // trips), but the upload limit is bigger because letterheads are
 // usually high-resolution scans the firm wants printed at 300 DPI.
+//
+// PDF IS ACCEPTED, and it is the best of these rather than a concession. A
+// designer delivers stationery as a vector PDF and a printer takes one; the
+// address line on a real sheet is around 6.5pt type, which is the size at which
+// rasterising shows. buildBrandedDocumentPdf embeds it with embedPdf, so the
+// artwork stays vector all the way to the recipient. A PDF letterhead used to be
+// impossible to upload here AND silently unusable if forced into the column
+// anyway: it sniffed as a PNG, threw inside embedPng, and was caught into the
+// text banner, so the firm got a document with no letterhead and no error.
+//
+// WEBP IS GONE, and dropping it is a fix rather than a restriction. pdf-lib
+// cannot draw a WebP, so every WebP accepted here produced exactly that silent
+// no-letterhead document. Accepting an upload the renderer cannot use is the
+// defect; refusing it at the moment the firm can still pick another file is the
+// fix. The renderer now also reports the failure for any letterhead already
+// stored in a format it cannot draw.
 const LETTERHEAD_MIME = new Set([
+  'application/pdf',
   'image/png',
   'image/jpeg',
   'image/jpg',
-  'image/webp',
 ]);
 
 export async function uploadFirmLetterheadAction(
@@ -499,25 +515,24 @@ export async function uploadFirmLetterheadAction(
   }
   const file = formData.get('letterhead');
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: 'Choose an image file.' };
+    return { ok: false, error: 'Choose a PDF or image file.' };
   }
   if (file.size > 8 * 1024 * 1024) {
-    return { ok: false, error: 'Image must be under 8 MB.' };
+    return { ok: false, error: 'The file must be under 8 MB.' };
   }
   if (!LETTERHEAD_MIME.has(file.type)) {
     // No SVG - pdf-lib can't embed SVG without a rasteriser step
-    // and we want the letterhead to render verbatim. The web PNG
-    // editor most lawyers have already produces a flat raster
-    // anyway.
-    return { ok: false, error: 'Use a PNG, JPG, or WebP image.' };
+    // and we want the letterhead to render verbatim. A PDF is the
+    // vector answer instead, and it is what a designer delivers.
+    return { ok: false, error: 'Use a PDF, PNG, or JPG file.' };
   }
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server not configured.' };
   const ext =
-    file.type === 'image/png'
-      ? 'png'
-      : file.type === 'image/webp'
-        ? 'webp'
+    file.type === 'application/pdf'
+      ? 'pdf'
+      : file.type === 'image/png'
+        ? 'png'
         : 'jpg';
   const path = `${firmId}/letterhead-${Date.now()}.${ext}`;
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -1811,127 +1826,6 @@ export async function setIntakeReminderAction(
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/counsel/intake/${intakeId}`);
   return { ok: true };
-}
-
-/**
- * Convert an accepted intake/request into a firm case (Product H1 fix).
- *
- * Intake used to be a terminal inbox: the only actions were set-reminder
- * and schedule-a-meeting, so an accepted matter never became a case -
- * the lifecycle had an entrance but no exit into the caseload. This
- * writes a firm-scoped `cases` row from the intake fields, links it back
- * (firm_matter_intakes.case_id), and flips the intake to 'converted'.
- * Idempotent: a second call returns the already-linked case.
- *
- * Runs via the admin client because it sets cases.firm_id (which the
- * consumer RLS write policy would reject); the caller is verified as a
- * posting-role member of the firm first.
- */
-export async function convertIntakeToCaseAction(
-  firmId: string,
-  intakeId: string,
-): Promise<{ ok: boolean; error?: string; caseId?: string }> {
-  const user = await requireUser();
-  const admin = createAdminSupabase();
-  if (!admin) return { ok: false, error: 'Server not configured.' };
-
-  // AuthZ: posting-role member of this firm (not read-only staff).
-  const supabase = createServerSupabase();
-  const { data: mem } = await supabase
-    .from('firm_members')
-    .select('role')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const role = (mem as { role?: string } | null)?.role;
-  if (!role || !['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
-    return { ok: false, error: 'You do not have permission to open a matter.' };
-  }
-  // The OTHER way a matter gets created. createFirmCaseAction is gated, and
-  // gating one of a pair while its twin stays open enforces nothing: an
-  // organization whose access ended could keep opening matters straight off
-  // its intake queue.
-  await requireActiveFirm(firmId);
-
-  const { data: row } = await admin
-    .from('firm_matter_intakes')
-    .select(
-      'firm_id, case_id, client_name, matter_type, matter_summary, jurisdiction_state',
-    )
-    .eq('id', intakeId)
-    .maybeSingle();
-  const intake = row as {
-    firm_id: string;
-    case_id: string | null;
-    client_name: string | null;
-    matter_type: string | null;
-    matter_summary: string | null;
-    jurisdiction_state: string | null;
-  } | null;
-  if (!intake || intake.firm_id !== firmId) {
-    return { ok: false, error: 'Request not found.' };
-  }
-  // Idempotent: already converted.
-  if (intake.case_id) return { ok: true, caseId: intake.case_id };
-
-  const title =
-    (intake.matter_type || '').trim() ||
-    (intake.client_name ? `${intake.client_name} matter` : '') ||
-    'New matter';
-
-  const { data: created, error: caseErr } = await admin
-    .from('cases')
-    .insert({
-      firm_id: firmId,
-      user_id: user.id,
-      title,
-      subject_name: (intake.client_name || title).trim(),
-      subject_type: 'person',
-      case_type: (intake.matter_type || 'other').trim() || 'other',
-      status: 'open',
-      posture: 'claimant',
-      description: intake.matter_summary || '',
-      jurisdiction_country: 'US',
-      jurisdiction_state: intake.jurisdiction_state || '',
-      jurisdiction_city: '',
-      sandbox: false,
-    })
-    .select('id')
-    .single();
-  if (caseErr || !created) {
-    return { ok: false, error: caseErr?.message ?? 'Could not open the matter.' };
-  }
-  const caseId = (created as { id: string }).id;
-
-  // Never let this fail silently: if the intake cannot be marked converted,
-  // the partner webhook announces a stale status and the companion app shows
-  // the request stuck forever (this exact bug shipped once, via a status
-  // CHECK constraint that predated the partner lifecycle).
-  const { error: convErr } = await admin
-    .from('firm_matter_intakes')
-    .update({
-      case_id: caseId,
-      status: 'converted',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', intakeId);
-  if (convErr) {
-    console.error('intake convert update failed:', convErr.message);
-    return { ok: false, error: `Matter created, but the request could not be marked converted: ${convErr.message}` };
-  }
-
-  // Partner-born tickets: tell the partner app (webhook) and the
-  // employee (email) that their request became a matter. Best-effort.
-  try {
-    const { partnerTicketEvent } = await import('./partner-notify');
-    await partnerTicketEvent(intakeId, 'ticket.status_changed');
-  } catch {
-    /* best-effort */
-  }
-
-  revalidatePath(`/counsel/intake/${intakeId}`);
-  revalidatePath('/counsel/cases');
-  return { ok: true, caseId };
 }
 
 // =====================================================================
@@ -5534,12 +5428,13 @@ export type CreateFirmCaseInput = {
 
 /**
  * Creates a firm-owned matter from the minimal "New matter" form on
- * /counsel/cases. Until now a firm could only get a case via Import or
- * intake-conversion; there was no way to hand-open one.
+ * /counsel/cases. This and Import are now the ways a firm gets a case:
+ * intake-conversion was removed deliberately, because an in-house team
+ * answers requests rather than taking them on as matters.
  *
  * Writes through the service-role client (like every other firm-case
- * write in this codebase - see convertIntakeToCaseAction / import
- * lanes) after confirming the caller is a member of `firmId`. RLS on
+ * write in this codebase - see the import lanes) after confirming the
+ * caller is a member of `firmId`. RLS on
  * public.cases only lets the row OWNER write, so a firm member creating
  * a matter on the firm's behalf must go through admin.
  *
