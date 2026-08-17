@@ -241,7 +241,63 @@ export type PadMode = (typeof PAD_MODES)[number];
  * only the phone leaves this empty on purpose, and the signer uses the QR card
  * instead. Restoring a tab there would offer a method the firm forbade and
  * the server would refuse.
+ *
+ * THAT IS STILL TRUE OF A DESK AND IS NOT TRUE OF A PHONE, which is why this
+ * function stayed exactly as it was and signatureMethodsOnDevice was added in
+ * front of it. A caller holding a phone resolves the restriction first, so
+ * 'phone' has already become 'draw' by the time it arrives here and this
+ * function never has to know what device it is on. The empty list still means
+ * what it always meant: nothing this pad can produce is allowed.
  */
+/**
+ * What a restriction permits ON THE DEVICE THE VIEWER IS HOLDING.
+ *
+ * The module header settles that the phone is a METHOD and that the method
+ * delivers a DRAWN mark: a firm that forbids 'draw' but allows 'phone' still
+ * receives a drawn signature. The QR handoff was never the method. It is the
+ * errand a DESK has to run to borrow a touchscreen it does not have.
+ *
+ * On a phone that errand is already done, because the screen the mark would be
+ * drawn on is the screen in the person's hand. So a template restricted to
+ * 'phone' is satisfied there by drawing directly, and padModesFor over this
+ * gives that template a canvas instead of the empty list it used to return. Its
+ * only route before this existed was a code to scan with the device displaying
+ * it, which is not a route.
+ *
+ * TWO THINGS THIS MUST NEVER DO, because a user agent is the caller's own
+ * string and is trivially set to anything.
+ *
+ * It never REFUSES. Everything here either returns the restriction untouched or
+ * adds 'draw' to it, so a spoofed or misread device can only ever open a door.
+ * lib/template-submissions.ts records in the header of guardSignatureMethod a
+ * deliberate refusal to reject signatures on user-agent grounds, because that
+ * heuristic would wrongly refuse real phones; this function keeps that promise
+ * by construction rather than by care.
+ *
+ * It never sets 'phone'. Being on a phone widens what may be DRAWN and does not
+ * manufacture the attestation: 'phone' is still recorded only where a handoff
+ * burned a one-time token and bound a cookie to the scanning device. See
+ * claimedSignatureMethod, whose `attestedPhone` this does not touch.
+ *
+ * AND `[]` STAYS `[]`. A restriction naming no method names no phone either, so
+ * there is nothing here to resolve. Being on a phone must not be the thing that
+ * quietly turns a document nobody can sign into one anybody can, which is the
+ * asymmetry the module header exists to protect.
+ */
+export function signatureMethodsOnDevice(
+  allowed: SignatureMethod[] | null,
+  viewerOnPhone: boolean,
+): SignatureMethod[] | null {
+  // No restriction stays no restriction. Turning null into a list of four here
+  // would make an unrestricted template compare unequal to itself and would
+  // stop a fifth method added later from widening it.
+  if (allowed === null) return null;
+  if (!viewerOnPhone) return allowed;
+  if (!allowed.includes('phone') || allowed.includes('draw')) return allowed;
+  // Canonical order, so a resolved list and a stored one compare equal.
+  return SIGNATURE_METHODS.filter((m) => m === 'draw' || allowed.includes(m));
+}
+
 export function padModesFor(allowed: SignatureMethod[] | null): PadMode[] {
   if (allowed === null) return [...PAD_MODES];
   return PAD_MODES.filter((mode) => {

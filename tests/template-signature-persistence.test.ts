@@ -173,13 +173,30 @@ function makeAdmin() {
 
 const createNotification = vi.fn(async () => undefined);
 
+/**
+ * The submitting request's user agent.
+ *
+ * Settable because the method gate now reads it, for one purpose only: a
+ * template restricted to the phone is satisfied by a mark drawn ON a phone, and
+ * the phone is where that request comes from. It is never read to REFUSE
+ * anything. See the header of guardSignatureMethod, which sets out at length why
+ * a user agent must not close a door in this path.
+ *
+ * The default is a desktop, so every test written before this mattered keeps
+ * exercising exactly what it did.
+ */
+const DESKTOP_UA = 'Mozilla/5.0 (a real browser)';
+const PHONE_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+let requestUserAgent = DESKTOP_UA;
+
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('next/headers', () => ({
   headers: () => ({
     get: (name: string) =>
       ({
         'x-forwarded-for': '203.0.113.7, 70.41.3.18',
-        'user-agent': 'Mozilla/5.0 (a real browser)',
+        'user-agent': requestUserAgent,
       })[name.toLowerCase()] ?? null,
   }),
 }));
@@ -335,6 +352,7 @@ beforeEach(() => {
   templateSignatureMethods = undefined;
   phoneAttested = false;
   attestationAsks.length = 0;
+  requestUserAgent = DESKTOP_UA;
   store.row = {};
 });
 
@@ -750,5 +768,107 @@ describe('the signature method the firm agreed to accept', () => {
     );
 
     expect(res.ok).toBe(true);
+  });
+});
+
+/**
+ * A phone-only template signed BY a phone, with no handoff in it.
+ *
+ * The page stopped offering the QR to somebody already holding a phone, because
+ * scanning a code with the device displaying it is not a handoff. That leaves a
+ * phone-only template with one route on a phone, drawing directly, and this gate
+ * has to accept it or the page would offer a pad whose every mark the server
+ * refuses. lib/signature-methods.ts already held that a phone signature IS a
+ * drawn mark; signatureMethodsOnDevice is where the two vocabularies meet.
+ *
+ * WHAT IS NOT BEING RELAXED, and this is the important half. 'phone' is still
+ * the one method the server establishes for itself, and a user agent is still
+ * not evidence of anything: it is the signer's own string. So the header is read
+ * to WIDEN what the firm allows and never to narrow it, and it never sets
+ * attestedPhone. A mark drawn directly on a phone is recorded as a drawn mark by
+ * a request whose real user agent is on the row beside it; only a burned handoff
+ * token still yields 'phone'.
+ *
+ * The residual is therefore unchanged from the one guardSignatureMethod already
+ * documents and accepts: an employee can satisfy their own firm's phone-only
+ * restriction without picking up a phone. It was already reachable by decoding
+ * the QR off their own screen. No tenant or user boundary is involved.
+ */
+describe('a phone-only template signed on a phone', () => {
+  it('accepts a mark drawn on the phone itself, with no handoff', async () => {
+    templateSignatureMethods = ['phone'];
+    phoneAttested = false;
+    requestUserAgent = PHONE_UA;
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'drawn' }),
+    );
+
+    expect(res.ok).toBe(true);
+    expect(store.row.signature_mode).toBe('drawn');
+  });
+
+  /** Nothing is spent, because nothing was claimed. */
+  it('does not go looking for a handoff', async () => {
+    templateSignatureMethods = ['phone'];
+    requestUserAgent = PHONE_UA;
+
+    await submitTemplateForApprovalAction('firm-1', 'tpl-1', input({ signatureMode: 'drawn' }));
+
+    expect(attestationAsks).toEqual([]);
+  });
+
+  /**
+   * The desk is unchanged, which is what makes the widening narrow. A browser
+   * that is not a phone still needs the handoff for a phone-only template.
+   */
+  it('still refuses the same mark from a desktop', async () => {
+    templateSignatureMethods = ['phone'];
+    phoneAttested = false;
+    requestUserAgent = DESKTOP_UA;
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'drawn' }),
+    );
+
+    expect(res.ok).toBe(false);
+    expect(store.row).toEqual({});
+  });
+
+  /**
+   * Being on a phone is not a permission of its own. A template that forbade
+   * uploading forbids it on a phone too.
+   */
+  it('does not let a phone past a restriction that never named the phone', async () => {
+    templateSignatureMethods = ['type'];
+    requestUserAgent = PHONE_UA;
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'uploaded' }),
+    );
+
+    expect(res.ok).toBe(false);
+    expect(store.row).toEqual({});
+  });
+
+  /** A restriction naming no method refuses everything, on a phone as well. */
+  it('still refuses a restriction that names nothing', async () => {
+    templateSignatureMethods = [];
+    requestUserAgent = PHONE_UA;
+
+    const res = await submitTemplateForApprovalAction(
+      'firm-1',
+      'tpl-1',
+      input({ signatureMode: 'drawn' }),
+    );
+
+    expect(res.ok).toBe(false);
+    expect(store.row).toEqual({});
   });
 });

@@ -32,10 +32,20 @@ vi.mock('../app/portal/forms/[id]/mark-handoff-actions', () => ({
 const { FormFillClient } = await import('../app/portal/forms/[id]/form-fill-client');
 const { PhoneMarkHandoff } = await import('../app/portal/forms/[id]/phone-mark-handoff');
 
+/**
+ * Every case in this file is a DESK, said explicitly rather than left to a
+ * falsy default.
+ *
+ * The form asks a third question now, whether the person is already holding a
+ * phone, because offering them a code to scan with the device displaying it is
+ * not a handoff. tests/employee-form-on-a-phone.test.ts is that side. This file
+ * is the desk, which is where the QR belongs and where nothing about it changed.
+ */
 function page(signatureMethods: unknown, phoneHandoffAvailable = true): string {
   const html = renderToStaticMarkup(
     createElement(FormFillClient as never, {
       phoneHandoffAvailable,
+      viewerOnPhone: false,
       template: {
         id: 't1',
         firmId: 'f1',
