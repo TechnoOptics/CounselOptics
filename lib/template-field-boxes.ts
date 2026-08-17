@@ -60,6 +60,12 @@
  * coordinate against the page it was recorded on, and a second copy of the
  * page size is exactly the drift this module exists to prevent. The renderer
  * imports these.
+ *
+ * ONE PAGE SIZE, AND A BLANK THAT SAYS SO ANYWAY. Every document this renderer
+ * produces is US Letter and there is no setting that changes it. The blanks
+ * nonetheless record the page they were measured on, because these two constants
+ * are the yardstick parseFieldBoxes bounds against, and a yardstick that is
+ * implied rather than recorded is only correct until it is not. See FieldBox.
  */
 export const RENDERED_PAGE_WIDTH_PT = 612;
 export const RENDERED_PAGE_HEIGHT_PT = 792;
@@ -197,6 +203,25 @@ export type FieldBox = {
   y: number;
   widthPt: number;
   heightPt: number;
+  /**
+   * The page this blank was recorded on, in points.
+   *
+   * Recorded because the coordinate above is meaningless without it. A blank at
+   * x = 700 is legitimate on a landscape sheet and corrupt on a portrait one, and
+   * parseFieldBoxes cannot tell which without being told.
+   *
+   * OPTIONAL, AND ABSENT IS NOT MISSING. Every row written before the renderer
+   * started recording this was US Letter, so a row with no page size gets the
+   * Letter constants and is correct. Inventing a size for those rows would make
+   * them indistinguishable from rows the renderer actually measured.
+   *
+   * WHY RECORD IT WHILE THERE IS ONLY ONE PAGE SIZE. Because it is free exactly
+   * now and never again: firm_template_submissions.field_boxes has 0 populated
+   * rows in production, so there is no backfill to do and no legacy row to
+   * misread. It is written as hardening rather than to serve a feature.
+   */
+  pageWidthPt?: number;
+  pageHeightPt?: number;
 };
 
 /**
@@ -422,9 +447,20 @@ export function fieldBoxKeys(boxes: readonly FieldBox[]): string[] {
  * throws, because a signing page that will not render is a worse failure than
  * a blank that is not offered.
  *
- * Coordinates are bounded to the page the renderer draws. That is a real
- * bound and not a formality: these boxes are produced by one renderer with
- * one fixed page size, so a coordinate outside it is corrupt by definition.
+ * Coordinates are bounded to the page the blank was recorded on, which the blank
+ * now carries. That is a real bound and not a formality: a coordinate outside its
+ * own page is corrupt by definition.
+ *
+ * IT USED TO BE BOUNDED TO THIS MODULE'S LETTER CONSTANT UNCONDITIONALLY, which is
+ * right for exactly as long as every document is Letter, and every document is
+ * Letter today. This is hardening against the day one is not: the instant a second
+ * page size exists, an unqualified clamp stops bounding corruption and starts
+ * MOVING valid geometry, and a blank recorded at x = 700 on a landscape sheet comes
+ * back at 612, 88 points to the left, on the page the counterparty types into and
+ * on the executed instrument, with nothing thrown and nothing logged. The bound was
+ * never wrong, the yardstick was implied. A blank that does not name its page still
+ * gets the Letter constants, because that is the page every such row was rendered
+ * on.
  */
 export function parseFieldBoxes(raw: unknown): FieldBox[] {
   if (!Array.isArray(raw)) return [];
@@ -446,14 +482,27 @@ export function parseFieldBoxes(raw: unknown): FieldBox[] {
       continue;
     }
     if (page < 1 || widthPt <= 0 || heightPt <= 0) continue;
-    out.push({
+    // A page size that is not a page is DROPPED rather than repaired, exactly as
+    // a malformed coordinate is, and the box then falls back to the Letter
+    // default. Bounding against a stored 0 or a stored "wide" would collapse
+    // every blank on the document to the left edge.
+    const pageWidthPt = pagePt(o.pageWidthPt);
+    const pageHeightPt = pagePt(o.pageHeightPt);
+    const boundW = pageWidthPt ?? RENDERED_PAGE_WIDTH_PT;
+    const boundH = pageHeightPt ?? RENDERED_PAGE_HEIGHT_PT;
+    const box: FieldBox = {
       key,
       page: Math.floor(page),
-      x: clamp(x, 0, RENDERED_PAGE_WIDTH_PT),
-      y: clamp(y, 0, RENDERED_PAGE_HEIGHT_PT),
-      widthPt: clamp(widthPt, 0, RENDERED_PAGE_WIDTH_PT),
-      heightPt: clamp(heightPt, 0, RENDERED_PAGE_HEIGHT_PT),
-    });
+      x: clamp(x, 0, boundW),
+      y: clamp(y, 0, boundH),
+      widthPt: clamp(widthPt, 0, boundW),
+      heightPt: clamp(heightPt, 0, boundH),
+    };
+    // Assigned only when present, so a legacy box parses back EQUAL to itself
+    // rather than gaining two undefined keys that a deep comparison would see.
+    if (pageWidthPt !== null) box.pageWidthPt = pageWidthPt;
+    if (pageHeightPt !== null) box.pageHeightPt = pageHeightPt;
+    out.push(box);
   }
   return out;
 }
@@ -464,14 +513,29 @@ export function parseFieldBoxes(raw: unknown): FieldBox[] {
  * float's last few meaningless digits into a column a human may read.
  */
 export function serializeFieldBoxes(boxes: readonly FieldBox[]): unknown {
-  return boxes.map((b) => ({
-    key: b.key,
-    page: Math.floor(b.page),
-    x: round2(b.x),
-    y: round2(b.y),
-    widthPt: round2(b.widthPt),
-    heightPt: round2(b.heightPt),
-  }));
+  return boxes.map((b) => {
+    const out: Record<string, unknown> = {
+      key: b.key,
+      page: Math.floor(b.page),
+      x: round2(b.x),
+      y: round2(b.y),
+      widthPt: round2(b.widthPt),
+      heightPt: round2(b.heightPt),
+    };
+    // Written only when the caller measured one. An unconditional pair would
+    // stamp the Letter default onto rows nobody measured, which is the guess this
+    // column must not carry.
+    const pw = pagePt(b.pageWidthPt);
+    const ph = pagePt(b.pageHeightPt);
+    if (pw !== null) out.pageWidthPt = round2(pw);
+    if (ph !== null) out.pageHeightPt = round2(ph);
+    return out;
+  });
+}
+
+/** A page dimension out of the jsonb, or null. Zero and NaN are not pages. */
+function pagePt(n: unknown): number | null {
+  return isFinite(n) && n > 0 ? n : null;
 }
 
 function round2(n: number): number {

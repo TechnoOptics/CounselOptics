@@ -77,6 +77,25 @@ export type WatermarkSource = 'text' | 'logo';
 /** The page a layout is resolved against, in points. */
 export type PageSize = { widthPt: number; heightPt: number };
 
+/**
+ * How the letterhead artwork meets the page.
+ *
+ *   band  The artwork is a strip across the top, scaled to 100 points tall. This
+ *         is what the renderer has always done and remains the default.
+ *   page  The artwork IS the sheet: full-page stationery, drawn to the page
+ *         rather than into a band, with the body text laid out inside the
+ *         margins on top of it.
+ *
+ * 'page' exists because 'band' cannot render full-page stationery at any page
+ * size. Fed a full sheet the band path produces artwork about 77 points wide by
+ * 100 tall on a Letter page, centred at the top: the logo is illegible and the
+ * address line is a grey smudge, on every page. That was measured by rendering
+ * it, not inferred.
+ */
+export type LetterheadFit = 'band' | 'page';
+
+export const LETTERHEAD_FITS: readonly LetterheadFit[] = ['band', 'page'];
+
 export type DocumentMargins = {
   topPt: number;
   rightPt: number;
@@ -87,8 +106,10 @@ export type DocumentMargins = {
 export type LetterheadPlacement = {
   show: boolean;
   pages: PageRule;
-  /** How far below the top edge of the page the band begins, in points. */
+  /** How far below the top edge of the page the band begins, in points.
+   *  Ignored when `fit` is 'page': a full sheet has no band to hang from. */
   topPt: number;
+  fit: LetterheadFit;
 };
 
 export type WatermarkPlacement = {
@@ -183,7 +204,7 @@ const FOOTER_SEPARATOR = '  -  ';
  */
 export const DEFAULT_DOCUMENT_LAYOUT: DocumentLayout = {
   margins: { topPt: 64, rightPt: 64, bottomPt: 60, leftPt: 64 },
-  letterhead: { show: true, pages: 'all', topPt: 0 },
+  letterhead: { show: true, pages: 'all', topPt: 0, fit: 'band' },
   watermark: {
     // Off. Turning it on by default would stamp DRAFT across the next document
     // every firm sends without anybody having asked for it.
@@ -262,6 +283,7 @@ export function normalizeDocumentLayout(input: unknown): DocumentLayout {
       show: asBoolean(letterhead.show, d.letterhead.show),
       pages: asPageRule(letterhead.pages, d.letterhead.pages),
       topPt: clampNumber(letterhead.topPt, 0, LETTERHEAD_TOP_MAX_PT, d.letterhead.topPt),
+      fit: asLetterheadFit(letterhead.fit, d.letterhead.fit),
     },
     watermark: {
       show: asBoolean(watermark.show, d.watermark.show),
@@ -495,6 +517,99 @@ export function resolveLetterheadBandTop(layout: DocumentLayout, page: PageSize)
   return ph - Math.min(layout.letterhead.topPt, ph);
 }
 
+/** Where the letterhead artwork is drawn, in PDF coordinates. */
+export type LetterheadArtRect = {
+  xPt: number;
+  /** BOTTOM edge, measured up from the bottom of the page. */
+  yPt: number;
+  widthPt: number;
+  heightPt: number;
+};
+
+/**
+ * The band the artwork is scaled into when `fit` is 'band'. These three numbers
+ * are the ones lib/branded-document-pdf.ts drew before this function existed, and
+ * they are exported so a test can state them rather than restate them: 100 points
+ * tall, 16 points clear of each page edge, 24 points above the artwork.
+ */
+export const LETTERHEAD_BAND_HEIGHT_PT = 100;
+export const LETTERHEAD_BAND_SIDE_INSET_PT = 32;
+export const LETTERHEAD_BAND_GAP_PT = 24;
+
+/**
+ * WHERE THE LETTERHEAD ARTWORK GOES, for both fits, in one place.
+ *
+ * The band arithmetic moved here verbatim from the renderer. It is not repeated
+ * there, and it must not be: this is the module lib/signature-geometry.ts is a
+ * cautionary tale for, where one rectangle lived in three hand-written copies
+ * that each claimed to agree and drifted twice in opposite directions.
+ *
+ * 'page' CONTAINS, IT DOES NOT COVER AND IT DOES NOT STRETCH. The artwork is
+ * scaled by the smaller of the two ratios and centred, so it always fits on the
+ * page whole. That decides the three cases that matter:
+ *
+ *   - Artwork drawn for this page fits exactly, and "contain" is full bleed. This
+ *     is the intended configuration: stationery supplied at 612 x 792 for a
+ *     612 x 792 document, which is what the delivered article measures.
+ *   - Artwork a hair off the page loses a fraction of a point at one pair of
+ *     edges, under anything visible.
+ *   - Artwork drawn for a different sheet entirely, A4 on Letter, is letterboxed
+ *     rather than cropped or stretched. All three were rendered on the A4 draft of
+ *     this artwork before Letter artwork was supplied: cropping loses the address
+ *     line off the bottom, and stretching makes a registered square trademark
+ *     8.8% wider than tall. A white band is the only one of the three that is
+ *     honest about the artwork being drawn for another page, and it is the one a
+ *     firm can see and fix by supplying the right artwork.
+ *
+ * The band top is deliberately not consulted in 'page' mode. A full sheet has no
+ * band, so a firm that had pushed its band down and then switches to full-page
+ * artwork does not get the artwork pushed off the bottom of the page.
+ */
+export function resolveLetterheadArt(input: {
+  layout: DocumentLayout;
+  page: PageSize;
+  /** The artwork's own width, in points. */
+  artWidthPt: number;
+  /** The artwork's own height, in points. */
+  artHeightPt: number;
+}): LetterheadArtRect {
+  const aw = positivePt(input.artWidthPt);
+  const ah = positivePt(input.artHeightPt);
+  const pw = positivePt(input.page?.widthPt);
+  const ph = positivePt(input.page?.heightPt);
+  // Nothing rather than NaN. A zero-size rectangle is skipped by the caller,
+  // where a NaN one is a rectangle pdf-lib draws somewhere unpredictable.
+  if (aw === 0 || ah === 0 || pw === 0 || ph === 0) {
+    return { xPt: 0, yPt: 0, widthPt: 0, heightPt: 0 };
+  }
+
+  if (input.layout.letterhead.fit === 'page') {
+    const scale = Math.min(pw / aw, ph / ah);
+    const widthPt = aw * scale;
+    const heightPt = ah * scale;
+    return {
+      xPt: (pw - widthPt) / 2,
+      yPt: (ph - heightPt) / 2,
+      widthPt,
+      heightPt,
+    };
+  }
+
+  // The band, exactly as the renderer scaled it: 100 points tall, and no wider
+  // than the page less its inset, which only bites for artwork wider than 5.8:1.
+  const widthPt = Math.min(
+    pw - LETTERHEAD_BAND_SIDE_INSET_PT,
+    aw * (LETTERHEAD_BAND_HEIGHT_PT / ah),
+  );
+  const heightPt = widthPt * (ah / aw);
+  return {
+    xPt: (pw - widthPt) / 2,
+    yPt: resolveLetterheadBandTop(input.layout, input.page) - LETTERHEAD_BAND_GAP_PT - heightPt,
+    widthPt,
+    heightPt,
+  };
+}
+
 export type WatermarkPlacementResult = {
   /** The pdf-lib draw anchor: the baseline start of the run, about which
    *  pdf-lib rotates. */
@@ -644,6 +759,15 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
 
 function asPageRule(value: unknown, fallback: PageRule): PageRule {
   return value === 'first' || value === 'all' || value === 'all_except_first' ? value : fallback;
+}
+
+function asLetterheadFit(value: unknown, fallback: LetterheadFit): LetterheadFit {
+  return value === 'band' || value === 'page' ? value : fallback;
+}
+
+/** A dimension, or zero. Infinity is not a dimension. */
+function positivePt(n: unknown): number {
+  return isFiniteNumber(n) && n > 0 ? n : 0;
 }
 
 function asAlign(value: unknown, fallback: HorizontalAlign): HorizontalAlign {
