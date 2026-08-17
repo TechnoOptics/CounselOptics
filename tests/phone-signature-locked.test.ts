@@ -172,6 +172,29 @@ describe('the page puts the panel where the pad was', () => {
   });
 
   /**
+   * The gate sentence belongs to the pad, so it goes with the pad.
+   *
+   * Found by rendering the page and reading it, which is the only way it could
+   * have been: every assertion in this file was green while the completed
+   * panel sat under the words "The signature options turn on once you tick the
+   * box above", with no options on screen to turn on. The person has already
+   * signed, and is being told how to start.
+   *
+   * Structural rather than a second condition. A sentence that lives on the
+   * pad's arm of the branch cannot be shown beside the panel by anybody later
+   * forgetting to add `&& !phoneMark` to it.
+   */
+  it('keeps the gate sentence on the pad arm, not beside the finished mark', () => {
+    const branch = SRC.indexOf('{phoneMark ? (');
+    const otherArm = SRC.indexOf(') : (', branch);
+    const gate = SRC.indexOf('turn on once you tick the box');
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate, 'the gate sentence must sit with the controls it gates').toBeGreaterThan(
+      otherArm,
+    );
+  });
+
+  /**
    * Signing again has to drop the pad's own state as well as the phone's.
    *
    * `markSrc` prefers the phone's bytes and falls back to the pad's, so

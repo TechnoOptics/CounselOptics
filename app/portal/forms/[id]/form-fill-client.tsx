@@ -583,14 +583,6 @@ export function FormFillClient({
             </label>
             )}
 
-            {/* Said out loud, because a section of controls that are all shut
-                and nothing explaining why is a page that reads as broken. */}
-            {!noWayToSign && signatureLocked && (
-              <p className="text-[12.5px] leading-relaxed text-muted">
-                <T>The signature options turn on once you tick the box above.</T>
-              </p>
-            )}
-
             {phoneMark ? (
               /* Signed on the phone. The pad is REPLACED, not covered: see the
                  header of phone-mark-complete.tsx for why a canvas that is
@@ -602,6 +594,20 @@ export function FormFillClient({
               />
             ) : (
             <>
+            {/* Said out loud, because a section of controls that are all shut
+                with nothing explaining why is a page that reads as broken.
+
+                It lives on THIS arm of the branch deliberately. Written above
+                the branch it also appeared beside a finished phone signature,
+                telling somebody who had already signed how to turn on options
+                that were no longer on the page. A condition would have fixed
+                that once; sitting with the controls it describes fixes it for
+                good. */}
+            {!noWayToSign && signatureLocked && (
+              <p className="text-[12.5px] leading-relaxed text-muted">
+                <T>The signature options turn on once you tick the box above.</T>
+              </p>
+            )}
             {(padModes.length > 0 || phoneOffered) && (
               <SignaturePad
                 defaultTypedName={signature}
