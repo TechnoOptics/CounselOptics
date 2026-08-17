@@ -9,6 +9,7 @@ import {
   composeFooterText,
   resolveContentBox,
   resolveFooterPlacement,
+  resolveLetterheadArt,
   resolveLetterheadBandTop,
   resolveWatermark,
   resolveWatermarkPlacement,
@@ -191,8 +192,70 @@ const MARK_GAP = 12;
  */
 const SIG_BLOCK_LINES = 3;
 
+/** What a letterhead's bytes say it is, regardless of what its server claimed. */
+type ArtworkKind = 'pdf' | 'png' | 'jpg' | 'unsupported';
+
+/**
+ * Identify the artwork from its leading bytes.
+ *
+ * Preferred over the Content-Type header because storage serves back whatever it
+ * was handed at upload time: a firm's PDF stationery uploaded through a form that
+ * did not set the type arrives as application/octet-stream, and a header-only
+ * decision sends it to embedPng, which throws. Magic numbers cannot be mis-tagged.
+ *
+ * Null means "these bytes are not one of the three", which is not the same as
+ * unsupported: the caller falls back to the declared type, because a truncated
+ * read should not masquerade as a WebP.
+ */
+function sniffArtwork(bytes: Uint8Array): ArtworkKind | null {
+  if (bytes.length < 4) return null;
+  // %PDF
+  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
+    return 'pdf';
+  }
+  // \x89 P N G
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return 'png';
+  }
+  // JPEG SOI + marker
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpg';
+  // RIFF....WEBP. Named rather than lumped in with the unknown, because WebP is
+  // the type a real firm reaches this path with: the upload action accepts it and
+  // pdf-lib cannot draw it.
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return 'unsupported';
+  }
+  return null;
+}
+
+/** The declared type, used only when the bytes were inconclusive. */
+function kindFromMime(mime: string): ArtworkKind {
+  if (mime.includes('pdf')) return 'pdf';
+  if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+  if (mime.includes('png')) return 'png';
+  return 'unsupported';
+}
+
 export type BrandedDocumentOutput = {
   bytes: Uint8Array;
+  /**
+   * Why the firm's letterhead is not on this document, when it should have been.
+   *
+   * Undefined in the two ordinary cases: the letterhead was drawn, or the firm has
+   * none. Set only when a letterhead was configured and could not be used, which
+   * is a defect the firm has to learn about. See the comment at the fetch.
+   */
+  letterheadError?: string;
   /**
    * Where every counterparty blank landed, in the order they were drawn.
    * Empty for every document with no counterparty fields on its template,
@@ -262,44 +325,100 @@ export async function buildBrandedDocumentPdf(
   const accentInk = rgb(accentInkRgb.r, accentInkRgb.g, accentInkRgb.b);
   const ink = rgb(0.1, 0.1, 0.1);
 
-  // Letterhead image, if any. Fetched once, embedded once, and
-  // painted on every page that calls header(). Robust to a missing
-  // / failed URL: we just fall back to the text-only banner. The
-  // image is normalised to a tight strip 1.4" tall so the first-page
-  // body still fits the normal text content underneath.
-  type Embedded = {
-    img: Awaited<ReturnType<PDFDocument['embedPng']>>;
-    width: number;
-    height: number;
-  };
-  let letterhead: Embedded | null = null;
+  /**
+   * The firm's stationery: a raster image, or a PDF page.
+   *
+   * A PDF IS EMBEDDED AS VECTOR, not rasterised. The address line on real
+   * stationery is around 6.5pt type, which is exactly the size at which
+   * rasterising shows, and rasterising would also put a canvas rasteriser into a
+   * latency-sensitive serverless render path. embedPdf keeps the artwork's own
+   * curves and text.
+   *
+   * The artwork's own dimensions travel with it, because resolveLetterheadArt
+   * needs them and because a PDF page and an image report them differently.
+   */
+  type Artwork =
+    | {
+        kind: 'image';
+        image: Awaited<ReturnType<PDFDocument['embedPng']>>;
+        artWidthPt: number;
+        artHeightPt: number;
+      }
+    | {
+        kind: 'page';
+        page: Awaited<ReturnType<PDFDocument['embedPdf']>>[number];
+        artWidthPt: number;
+        artHeightPt: number;
+      };
+
+  let letterhead: Artwork | null = null;
+  /**
+   * WHY A FAILED LETTERHEAD IS REPORTED.
+   *
+   * This block used to catch everything and fall through to the text banner, and
+   * that silence is how a firm's stationery could vanish from an executed
+   * document with nothing recorded anywhere. A PDF forced into letterhead_url
+   * sniffed as a PNG, threw inside embedPng, was caught here, and produced a
+   * document that was indistinguishable from one belonging to a firm that had
+   * never uploaded a letterhead at all.
+   *
+   * It is still not thrown. A document that renders without its letterhead is
+   * recoverable; a document that does not render is not, and the counterparty is
+   * waiting on it. So the render continues and the reason travels back to the
+   * caller on the output, and to the operator through the log line below.
+   */
+  let letterheadError: string | undefined;
   if (input.letterheadUrl && /^https?:\/\//i.test(input.letterheadUrl)) {
     try {
       const r = await fetch(input.letterheadUrl);
-      if (r.ok) {
+      if (!r.ok) {
+        letterheadError = `The letterhead could not be fetched (HTTP ${r.status}).`;
+      } else {
         const buf = new Uint8Array(await r.arrayBuffer());
-        const mime = (r.headers.get('content-type') ?? '').toLowerCase();
-        // pdf-lib accepts only PNG and JPG. The upload action enforces
-        // this; webp uploads would get rejected upstream so we don't
-        // try to decode them here.
-        const img = mime.includes('jpeg') || mime.includes('jpg')
-          ? await pdf.embedJpg(buf)
-          : await pdf.embedPng(buf);
-        // Scale to 1.4" tall (100 pt), max width = full page minus
-        // margins. The aspect ratio comes from the source so wide
-        // letterheads sit wider; tall vertical strips (uncommon) cap
-        // at full width.
-        const targetH = 100;
-        const ratio = targetH / img.height;
-        const drawW = Math.min(W - 32, img.width * ratio);
-        const drawH = drawW * (img.height / img.width);
-        letterhead = { img, width: drawW, height: drawH };
+        const declared = (r.headers.get('content-type') ?? '').toLowerCase();
+        // SNIFFED FROM THE BYTES FIRST, with the header only as a fallback.
+        // Storage serves back whatever contentType it was handed at upload, so a
+        // mis-tagged upload arrives as application/octet-stream and a header-only
+        // decision sends a PDF to embedPng. The bytes cannot be mis-tagged.
+        const kind = sniffArtwork(buf) ?? kindFromMime(declared);
+        if (kind === 'pdf') {
+          const [embedded] = await pdf.embedPdf(buf, [0]);
+          letterhead = {
+            kind: 'page',
+            page: embedded,
+            artWidthPt: embedded.width,
+            artHeightPt: embedded.height,
+          };
+        } else if (kind === 'jpg' || kind === 'png') {
+          const image =
+            kind === 'jpg' ? await pdf.embedJpg(buf) : await pdf.embedPng(buf);
+          letterhead = {
+            kind: 'image',
+            image,
+            artWidthPt: image.width,
+            artHeightPt: image.height,
+          };
+        } else {
+          // WebP is the case that reaches here from a real upload: the upload
+          // action accepts it and pdf-lib cannot draw it. Naming the type is the
+          // difference between a firm fixing its letterhead and a firm never
+          // knowing it has no letterhead.
+          letterheadError =
+            `This letterhead is ${declared || 'of an unrecognised type'}, which cannot be ` +
+            'drawn on a document. Upload it as a PDF, PNG or JPG.';
+        }
       }
-    } catch {
-      // Network/decode failure: fall back silently to the text
-      // banner so the user still gets a PDF.
+    } catch (err) {
       letterhead = null;
+      letterheadError =
+        'This letterhead could not be read. It may be damaged or password protected.';
+      void err;
     }
+  }
+  if (letterheadError) {
+    // The operator's half. The firm's half is the returned field, which the
+    // caller surfaces.
+    console.error('[letterhead] not drawn on a document:', letterheadError);
   }
 
   // No uploaded letterhead? Draw the one the firm designed, if it has one.
@@ -372,6 +491,16 @@ export async function buildBrandedDocumentPdf(
   // No uploaded letterhead? Synthesize one from the firm's logo (#13).
   // The logo is drawn small at the top-left with the brand name beside
   // it, over the accent rule - a clean "generated letterhead".
+  //
+  // The logo keeps its own scaled width and height rather than going through
+  // resolveLetterheadArt, because it is not stationery: it is one element of a
+  // banner this renderer composes, sized to 36pt tall and set beside the brand
+  // name. Only the firm's OWN artwork is the letterhead whose placement is shared.
+  type Embedded = {
+    img: Awaited<ReturnType<PDFDocument['embedPng']>>;
+    width: number;
+    height: number;
+  };
   let logo: Embedded | null = null;
   if (!letterhead && designLines.length === 0) {
     const img = await loadLogoImage();
@@ -487,27 +616,56 @@ export async function buildBrandedDocumentPdf(
       // only thing that can tell it where to start once the band is gone.
       y = content.topYPt;
     } else if (letterhead) {
-      // Painted letterhead path. Center horizontally, anchor near
-      // the top, then drop the body cursor below it. We skip the
-      // text-only "BRAND NAME" banner since the letterhead is
-      // already the brand statement. The thin separator line below
-      // is kept so the body still feels structurally tied to the
-      // header.
-      const x = (W - letterhead.width) / 2;
-      const yTop = BAND_TOP - 24 - letterhead.height;
-      page.drawImage(letterhead.img, {
-        x,
-        y: yTop,
-        width: letterhead.width,
-        height: letterhead.height,
+      // Painted letterhead path. WHERE the artwork goes is resolveLetterheadArt's
+      // decision, for both fits, so the preview and this renderer cannot end up
+      // with two opinions about it. The band arithmetic that used to sit inline
+      // here now lives there, unchanged.
+      const art = resolveLetterheadArt({
+        layout,
+        page: PAGE,
+        artWidthPt: letterhead.artWidthPt,
+        artHeightPt: letterhead.artHeightPt,
       });
-      page.drawLine({
-        start: { x: M, y: yTop - 14 },
-        end: { x: content.rightXPt, y: yTop - 14 },
-        thickness: 0.5,
-        color: rgb(0.8, 0.8, 0.8),
-      });
-      y = yTop - 38;
+      const box = {
+        x: art.xPt,
+        y: art.yPt,
+        width: art.widthPt,
+        height: art.heightPt,
+      };
+      // A zero-size rectangle is artwork with no dimensions. Skipped rather than
+      // handed to pdf-lib, which would draw it somewhere unpredictable.
+      if (art.widthPt > 0 && art.heightPt > 0) {
+        if (letterhead.kind === 'page') {
+          page.drawPage(letterhead.page, box);
+        } else {
+          page.drawImage(letterhead.image, box);
+        }
+      }
+      if (layout.letterhead.fit === 'page') {
+        // FULL-PAGE STATIONERY GETS NO RULE AND NO CURSOR OF ITS OWN. The sheet
+        // already says where the body starts, in ink the firm's designer chose,
+        // so the body starts at the top margin like it does on a page with no
+        // band at all. A separator line drawn across somebody's stationery would
+        // be this renderer editing their design.
+        //
+        // It follows that the margins are what keep the body clear of the
+        // artwork: the delivered Zinpro sheet carries its logo down to 124pt from
+        // the top, so that firm's layout sets a top margin past it. There is
+        // nothing here that could find that number on its own, and a renderer
+        // guessing at where somebody's logo ends is worse than a setting.
+        y = content.topYPt;
+      } else {
+        // The thin separator below the band is kept so the body still feels
+        // structurally tied to the header.
+        const yTop = art.yPt;
+        page.drawLine({
+          start: { x: M, y: yTop - 14 },
+          end: { x: content.rightXPt, y: yTop - 14 },
+          thickness: 0.5,
+          color: rgb(0.8, 0.8, 0.8),
+        });
+        y = yTop - 38;
+      }
     } else if (designLines.length > 0) {
       // The designed letterhead, drawn as real text. It stays crisp at any
       // zoom and needs no image asset at all. The order and the weights come
@@ -789,6 +947,12 @@ export async function buildBrandedDocumentPdf(
           endsLine: rest.trim() === '',
         }),
         heightPt: LEAD,
+        // The page this blank was measured on, recorded beside it. Every document
+        // is Letter today, so this says what the constants already imply; it is
+        // recorded because parseFieldBoxes bounds against it, and a yardstick that
+        // is implied rather than written down is only correct until it is not.
+        pageWidthPt: W,
+        pageHeightPt: H,
       };
       fieldBoxes.push(box);
       page.drawLine({
@@ -850,5 +1014,12 @@ export async function buildBrandedDocumentPdf(
   }
   footer();
 
-  return { bytes: await pdf.save(), fieldBoxes };
+  // letterheadError is spread rather than always set, so a document whose
+  // letterhead was fine carries no key at all and the two states stay
+  // distinguishable to a caller that serializes this.
+  return {
+    bytes: await pdf.save(),
+    fieldBoxes,
+    ...(letterheadError ? { letterheadError } : {}),
+  };
 }

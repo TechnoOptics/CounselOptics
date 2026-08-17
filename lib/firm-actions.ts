@@ -479,11 +479,27 @@ export async function removeFirmLogoAction(
 // readable so the PDF generator can fetch it without auth round-
 // trips), but the upload limit is bigger because letterheads are
 // usually high-resolution scans the firm wants printed at 300 DPI.
+//
+// PDF IS ACCEPTED, and it is the best of these rather than a concession. A
+// designer delivers stationery as a vector PDF and a printer takes one; the
+// address line on a real sheet is around 6.5pt type, which is the size at which
+// rasterising shows. buildBrandedDocumentPdf embeds it with embedPdf, so the
+// artwork stays vector all the way to the recipient. A PDF letterhead used to be
+// impossible to upload here AND silently unusable if forced into the column
+// anyway: it sniffed as a PNG, threw inside embedPng, and was caught into the
+// text banner, so the firm got a document with no letterhead and no error.
+//
+// WEBP IS GONE, and dropping it is a fix rather than a restriction. pdf-lib
+// cannot draw a WebP, so every WebP accepted here produced exactly that silent
+// no-letterhead document. Accepting an upload the renderer cannot use is the
+// defect; refusing it at the moment the firm can still pick another file is the
+// fix. The renderer now also reports the failure for any letterhead already
+// stored in a format it cannot draw.
 const LETTERHEAD_MIME = new Set([
+  'application/pdf',
   'image/png',
   'image/jpeg',
   'image/jpg',
-  'image/webp',
 ]);
 
 export async function uploadFirmLetterheadAction(
@@ -499,25 +515,24 @@ export async function uploadFirmLetterheadAction(
   }
   const file = formData.get('letterhead');
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: 'Choose an image file.' };
+    return { ok: false, error: 'Choose a PDF or image file.' };
   }
   if (file.size > 8 * 1024 * 1024) {
-    return { ok: false, error: 'Image must be under 8 MB.' };
+    return { ok: false, error: 'The file must be under 8 MB.' };
   }
   if (!LETTERHEAD_MIME.has(file.type)) {
     // No SVG - pdf-lib can't embed SVG without a rasteriser step
-    // and we want the letterhead to render verbatim. The web PNG
-    // editor most lawyers have already produces a flat raster
-    // anyway.
-    return { ok: false, error: 'Use a PNG, JPG, or WebP image.' };
+    // and we want the letterhead to render verbatim. A PDF is the
+    // vector answer instead, and it is what a designer delivers.
+    return { ok: false, error: 'Use a PDF, PNG, or JPG file.' };
   }
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server not configured.' };
   const ext =
-    file.type === 'image/png'
-      ? 'png'
-      : file.type === 'image/webp'
-        ? 'webp'
+    file.type === 'application/pdf'
+      ? 'pdf'
+      : file.type === 'image/png'
+        ? 'png'
         : 'jpg';
   const path = `${firmId}/letterhead-${Date.now()}.${ext}`;
   const bytes = Buffer.from(await file.arrayBuffer());
