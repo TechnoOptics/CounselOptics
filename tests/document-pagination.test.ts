@@ -920,3 +920,36 @@ describe('the rebuild is not starved by re-renders', () => {
     expect(m![1], 'the mark does not trigger a rebuild').toContain('markSrc');
   });
 });
+
+describe('the preview says why it failed', () => {
+  /**
+   * Four rounds of diagnosis were spent on the wrong causes for one bug: the
+   * release gate, a 403 from a probe with fake ids, and a pdf worker that was
+   * never the problem. Every one of them would have been settled in seconds by
+   * the error these catches used to swallow.
+   *
+   * A silent catch on a surface that renders a contract is not defensive. It
+   * converts a diagnosable failure into a mystery, and this component has now
+   * shipped a defect in the build path AND one in the paint path.
+   */
+  const DECK = readFileSync(join(process.cwd(), 'components/DocumentPdfDeck.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('neither the build nor the paint swallows its error silently', () => {
+    // The bare form is the defect. Binding the error is not enough on its own,
+    // so the log is asserted separately below.
+    expect(DECK, 'a catch is discarding its error again').not.toMatch(/\} catch \{\s*\n\s*(?!\s*return;)/);
+  });
+
+  it('names the build failure', () => {
+    expect(DECK).toMatch(/console\.error\('\[preview\] build failed:', err\)/);
+  });
+
+  it('names the paint failure separately from the build', () => {
+    // A build that succeeds and a paint that fails look identical from the
+    // outside. Telling them apart is the point.
+    expect(DECK).toMatch(/console\.error\('\[preview\] paint failed:', err\)/);
+  });
+});

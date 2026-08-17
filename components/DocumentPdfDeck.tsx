@@ -151,7 +151,16 @@ export function DocumentPdfDeck({
 
         opened.current = { doc, generation: mine };
         setStatus('ready');
-      } catch {
+      } catch (err) {
+        // SAY WHY. This catch is how four rounds of diagnosis got spent on the
+        // wrong causes: the release gate, a 403 from a probe with fake ids, and
+        // a pdf worker that was never the problem. Every one of those would
+        // have been settled in seconds by the error this used to swallow.
+        //
+        // console.error rather than a UI message: the reader must not be shown
+        // a stack trace about a contract, and the person who needs this is
+        // whoever is looking at the console while it happens.
+        console.error('[preview] build failed:', err);
         // A failed build must not leave a blank frame where a contract goes. It
         // falls back to the text preview, which is always available because it
         // needs nothing but the words.
@@ -192,7 +201,12 @@ export function DocumentPdfDeck({
             devicePixelRatio: window.devicePixelRatio || 1,
           });
         }
-      } catch {
+      } catch (err) {
+        // The paint, separately named. A build that succeeds and a paint that
+        // fails look identical from the outside, and this component has
+        // already shipped a defect in each. Telling them apart is the whole
+        // value of logging here.
+        console.error('[preview] paint failed:', err);
         if (!cancelled && held.generation === generation.current) setStatus('failed');
       }
     })();
