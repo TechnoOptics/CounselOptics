@@ -12,6 +12,7 @@ import { resolveIntakeReviewGate } from '@/lib/intake-review-gate';
 import { inhouseIntakeAnswers } from '@/lib/intake-request';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { INTAKE_PRIORITIES } from '@/lib/intake-workflow';
 import {
   REQUEST_TYPES,
   requestTypesForFamily,
@@ -42,7 +43,8 @@ import {
  * JSON column.
  */
 
-const PRIORITIES = ['Low', 'Normal', 'High', 'Urgent'];
+// The one list. lib/intake-workflow.ts explains why it is not spelled here.
+const PRIORITIES = INTAKE_PRIORITIES;
 const CONFIDENTIALITY = [
   'Standard',
   'Confidential',

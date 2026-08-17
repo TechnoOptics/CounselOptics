@@ -141,7 +141,7 @@ export function ConflictCheckPanel({
               type="button"
               onClick={clear}
               disabled={pending}
-              className="btn-primary"
+              className="btn-secondary"
             >
               {pending ? <T>Clearing...</T> : <T>Clear with this reason</T>}
             </button>

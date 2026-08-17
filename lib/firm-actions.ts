@@ -56,6 +56,11 @@ import {
   type IntakeDecision,
 } from './intake-lanes';
 import {
+  INTAKE_WORKFLOW_STATES,
+  legacyStatusForWorkflow,
+  type IntakeWorkflowState,
+} from './intake-workflow';
+import {
   INTAKE_COLS,
   hydratePeople,
   insertIntakeMessage,
@@ -2176,6 +2181,130 @@ export async function reopenIntakeAction(
         warning:
           'The request was reopened, but it could not be added to the request trail.',
       };
+}
+
+/**
+ * Set how the legal team says this ticket is going, and the fields they manage
+ * it by: the follow-up date, the firm's own due date, and the priority.
+ *
+ * THE GATE IS HERE AND NOWHERE ELSE. Every export of this module is a public
+ * HTTP endpoint callable by any signed-in user with arguments of their own
+ * choosing, and the write below goes through the service-role client, which
+ * bypasses RLS entirely. A select that only offers the nine valid states is a
+ * convenience for the person using the screen, not a gate: the endpoint takes
+ * a string. FIRM_MANAGE_ROLES is the set that already decides whether the firm
+ * takes work on, which is the same judgement as declaring a matter finished.
+ *
+ * The legacy `status` moves with the workflow state, or is deliberately left
+ * alone; lib/intake-workflow.ts holds that decision and explains it. Writing
+ * one without the other is what would make a ticket vanish from the queue that
+ * counts it.
+ *
+ * `.select('id')` is what separates "wrote a row" from "matched nothing":
+ * postgrest-js resolves an UPDATE that matches zero rows with `error: null`,
+ * and an unconfirmed write reports success for a change that did not happen.
+ *
+ * Returns rather than throws on refusal, so the control can say what happened
+ * instead of the surrounding surface being replaced by an error boundary.
+ * requireActiveFirm still throws, which the client turns into calm copy.
+ */
+export async function setIntakeWorkflowAction(
+  firmId: string,
+  intakeId: string,
+  fields: {
+    workflowState?: string;
+    followUpOn?: string | null;
+    dueOn?: string | null;
+    priority?: string | null;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  if (!(await callerHasFirmRole(firmId, FIRM_MANAGE_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only firm owners, admins or attorneys can manage a request.',
+    };
+  }
+  await requireActiveFirm(firmId);
+
+  const { data: row } = await admin
+    .from('firm_matter_intakes')
+    .select('firm_id, status, intake_answers')
+    .eq('id', intakeId)
+    .maybeSingle();
+  const intake = row as {
+    firm_id: string;
+    status: string;
+    intake_answers: Record<string, unknown> | null;
+  } | null;
+  if (!intake || intake.firm_id !== firmId) {
+    return { ok: false, error: 'Request not found.' };
+  }
+
+  const update: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (fields.workflowState !== undefined) {
+    const state = fields.workflowState as IntakeWorkflowState;
+    if (!INTAKE_WORKFLOW_STATES.includes(state)) {
+      return { ok: false, error: 'That is not a state a request can be in.' };
+    }
+    const legacy = legacyStatusForWorkflow(state, intake.status);
+    if (!legacy.ok) return { ok: false, error: legacy.error };
+    update.workflow_state = state;
+    if (legacy.status !== null) update.status = legacy.status;
+  }
+
+  // A date input hands back '' for "cleared", which is a real instruction and
+  // not a missing field. Anything else has to parse, because a column typed
+  // `date` rejects free text and the failure would surface as a raw Postgres
+  // message rather than as something a person can act on.
+  for (const [key, column] of [
+    ['followUpOn', 'follow_up_on'],
+    ['dueOn', 'due_on'],
+  ] as const) {
+    const value = fields[key];
+    if (value === undefined) continue;
+    const trimmed = String(value ?? '').trim();
+    if (!trimmed) {
+      update[column] = null;
+      continue;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed) || Number.isNaN(Date.parse(trimmed))) {
+      return { ok: false, error: 'Pick a valid date.' };
+    }
+    update[column] = trimmed;
+  }
+
+  if (fields.priority !== undefined) {
+    const priority = String(fields.priority ?? '').trim().slice(0, 40);
+    const answers = { ...(intake.intake_answers ?? {}) };
+    if (priority) answers.priority = priority;
+    else delete answers.priority;
+    update.intake_answers = answers;
+  }
+
+  const { data: written, error } = await admin
+    .from('firm_matter_intakes')
+    .update(update)
+    .eq('id', intakeId)
+    .eq('firm_id', firmId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!written || written.length === 0) {
+    return {
+      ok: false,
+      error: 'That could not be saved. Nothing on the request has changed.',
+    };
+  }
+
+  revalidatePath(`/counsel/intake/${intakeId}`);
+  revalidatePath('/counsel/inbox');
+  return { ok: true };
 }
 
 /** The display name the conversation already shows for a firm member. */

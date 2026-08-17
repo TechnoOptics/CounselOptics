@@ -66,7 +66,7 @@ export function ScheduleMeetingPanel({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="btn-primary shrink-0"
+            className="btn-secondary shrink-0"
           >
             <T>Schedule meeting</T>
           </button>
@@ -170,7 +170,7 @@ export function ScheduleMeetingPanel({
             <button
               type="submit"
               disabled={pending}
-              className="btn-primary"
+              className="btn-secondary"
             >
               {pending ? <T>Scheduling...</T> : <T>Create meeting</T>}
             </button>

@@ -99,12 +99,26 @@ describe('the request detail gathers its record controls into one strip', () => 
   }
 
   it.each([
-    ['the owner select', '<IntakeOwnerSelect'],
     ['the folder select', '<FolderPicker'],
     ['the primary action that takes the matter on', '<ConvertToMatter'],
     ['the way in to declining or closing it', '<DecideJump'],
   ])('holds %s', (_label, tag) => {
     expect(actionBarSource()).toContain(tag);
+  });
+
+  /**
+   * The owner select USED to be pinned here. It is now one field of the ticket
+   * management block, alongside the status, the priority and the dates the
+   * team runs the request by, rather than being the single one of those that
+   * lived somewhere else.
+   *
+   * Pinned as an ABSENCE rather than deleted, because the failure this guards
+   * against is the control being drawn in both places: two selects over one
+   * value that can show different things. tests/ticket-workspace.test.ts pins
+   * the other half, that it is drawn exactly once.
+   */
+  it('has handed the owner select to the management block', () => {
+    expect(actionBarSource()).not.toContain('<IntakeOwnerSelect');
   });
 
   it('renders the deadline in the bar rather than leaving it to a card', () => {
@@ -115,8 +129,12 @@ describe('the request detail gathers its record controls into one strip', () => 
 describe('the request detail keeps to the DETAIL pattern', () => {
   it('puts the people and the matter in an aside, not in the record column', () => {
     expect(page).toContain('<aside');
-    // The two-column body the pattern asks for, at the pattern's own ratio.
-    expect(page).toMatch(/lg:grid-cols-\[minmax\(0,1fr\)_340px\]/);
+    // The two-column body the pattern asks for. The rail is 380 rather than
+    // the pattern's 340 because it now carries the firm's operations (the
+    // conflict check, the decision, Analyze) and not only readouts, and
+    // because collapsing the nav rail on this route gave the page the width
+    // to spend. The pattern is the two columns, not the number.
+    expect(page).toMatch(/lg:grid-cols-\[minmax\(0,1fr\)_380px\]/);
   });
 
   it('does not link out to a client record the product does not have', () => {

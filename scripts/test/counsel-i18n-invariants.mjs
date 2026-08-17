@@ -188,6 +188,14 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   // can reach it, because nothing writes into that map at runtime. A
   // FirmVocabulary field is exactly the same kind of value as the `state`
   // literals above, arrived at the same way.
+  // The workflow-state label (WORKFLOW_LABEL in lib/intake-workflow.ts). Same
+  // argument as `state` above: a frozen constant map of nine literal labels
+  // keyed by the workflow enum, naming what is happening with a ticket
+  // ("Awaiting external party", "Completed"). Nothing writes into that map at
+  // runtime, so no requester name, subject or figure can reach the wrap. The
+  // ticket's own title and the requester's name are rendered outside it,
+  // marked data-no-translate.
+  'WORKFLOW_LABEL[workflow]',
   'vocab.clients',
   'vocab.client',
   'vocab.intake',

@@ -9,6 +9,10 @@ import {
   useState,
 } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import {
+  edgeRevealDecision,
+  EDGE_DWELL_MS,
+} from '@/lib/sidebar-edge-reveal';
 
 /**
  * Counsel sidebar "focus mode".
@@ -92,6 +96,115 @@ export function RequestSidebarFocus() {
 }
 
 /**
+ * The screen edge, as a way back to a collapsed rail.
+ *
+ * Hover is an ACCELERATOR here and never the only way in. The page-keeper tab
+ * beside this is a real <button>: reachable by Tab, activated by Enter or
+ * Space, and hit-testable by a thumb. This adds a mouse shortcut on top of it
+ * and takes nothing away, which is why it arms only when the pointer can
+ * actually aim at a 6px strip.
+ *
+ * Four guards, each of which is a way this would otherwise misfire.
+ *
+ * FINE POINTERS ONLY. `(hover: hover) and (pointer: fine)` is the pair that
+ * means a mouse or a trackpad. A touch device reports `hover: none`, and on one
+ * a screen-edge trigger is both unaimable and, worse, in competition with the
+ * browser's own back-swipe. There the tab is the whole interface.
+ *
+ * NOT WHILE A BUTTON IS DOWN. A pointer crossing the left edge with
+ * `buttons !== 0` is dragging something (a document onto the page, a divider,
+ * the scrollbar) and the nav sliding out underneath that drag is a surprise in
+ * the middle of a gesture the user is committed to.
+ *
+ * NOT WHILE TEXT IS SELECTED. Sweeping a selection leftwards through the
+ * matter summary ends with the cursor past the edge of the text. The selection
+ * is live at that moment even between drags, so `buttons` alone does not cover
+ * it and the collapsed range has to be checked as well.
+ *
+ * ARMED, THEN DWELT. The tab above documents why it deliberately does not
+ * expand on hover: it renders where the cursor just was, so the rail sprang
+ * straight back open under a stationary mouse. The same trap is here, because
+ * the rail can be collapsed by the keyboard or by a route while the pointer
+ * happens to be resting at the left of the window. So the zone starts DISARMED
+ * and is armed by the pointer being seen outside it, and even then the pointer
+ * has to rest inside for EDGE_DWELL_MS. A pointer merely travelling across the
+ * edge on its way somewhere else never opens anything.
+ *
+ * There is no motion of its own to suppress under prefers-reduced-motion: this
+ * component only flips the collapse flag, and the panel it flips already
+ * carries `motion-reduce:transition-none`, so the rail arrives instantly rather
+ * than sliding. Motion drops out, it is not reduced.
+ */
+function SidebarEdgeReveal({ onReveal }: { onReveal: () => void }) {
+  useEffect(() => {
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)');
+    if (!fine.matches) return;
+
+    let armed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const cancel = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+
+    const selecting = () => {
+      const sel = window.getSelection();
+      return sel != null && sel.rangeCount > 0 && !sel.isCollapsed;
+    };
+
+    const onMove = (e: PointerEvent) => {
+      // Every rule lives in lib/sidebar-edge-reveal.ts, where it can be tested
+      // without a browser. This half is only the parts that need one.
+      const d = edgeRevealDecision(
+        { x: e.clientX, buttons: e.buttons, hasSelection: selecting() },
+        armed,
+      );
+      armed = d.armed;
+      if (d.action === 'cancel') {
+        cancel();
+        return;
+      }
+      if (d.action === 'hold') return;
+      if (timer !== null) return;
+      timer = setTimeout(() => {
+        timer = null;
+        onReveal();
+      }, EDGE_DWELL_MS);
+    };
+
+    // NOT `pointerleave` ON THE DOCUMENT, and this was measured rather than
+    // reasoned about. That listener was here to drop a pending timer when the
+    // pointer left the window, and instead it made the whole feature
+    // unreliable: the document element does not reach the left of the viewport
+    // under this shell, so it fires `pointerleave` CONTINUOUSLY at clientX 5,
+    // which is inside the 6px zone. Every dwell was cancelled on the frame it
+    // started. The reveal worked once, by a race, and then never again, with
+    // twenty-five tests green over it.
+    //
+    // Window blur is the honest signal for "they have gone". A timer still
+    // pending when the pointer exits the left edge is not worth defending
+    // against: the worst it does is open the nav a tenth of a second later,
+    // which is the thing the gesture was asking for and is one click to undo.
+    const onBlur = () => cancel();
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerdown', onBlur);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      cancel();
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerdown', onBlur);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [onReveal]);
+
+  return null;
+}
+
+/**
  * The collapsible wrapper around the server-rendered sidebar. Receives the
  * <CounselSidebar/> as children so that stays server-rendered; only the
  * collapse chrome is client-side.
@@ -99,6 +212,7 @@ export function RequestSidebarFocus() {
 export function CounselSidebarShell({ children }: { children: React.ReactNode }) {
   const t = useT();
   const { collapsed, setCollapsed } = useSidebarCollapse();
+  const reveal = useCallback(() => setCollapsed(false), [setCollapsed]);
 
   // The rail runs FLUSH: full height, its own scroll, one 1px right edge, and
   // no margin between it and the content column. That is what replaced the
@@ -135,6 +249,10 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
         height: `calc(100dvh - ${headerHeight}px)`,
       }}
     >
+      {/* Only while collapsed. An edge zone over an already open rail is a
+          listener that can only misfire. */}
+      {collapsed && <SidebarEdgeReveal onReveal={reveal} />}
+
       <div className="relative flex h-full items-stretch">
         {/* Sidebar panel */}
         <div

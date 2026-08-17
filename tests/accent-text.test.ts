@@ -1665,6 +1665,7 @@ describe('every error and warning surface can be read on both of its grounds', (
     'app/counsel/intake/[id]/page.tsx': 'counsel',
     'app/counsel/intake/[id]/convert-to-matter.tsx': 'counsel',
     'app/counsel/intake/[id]/intake-owner-select.tsx': 'counsel',
+    'app/counsel/intake/[id]/ticket-management.tsx': 'counsel',
     'app/counsel/letters/letters-studio.tsx': 'counsel',
     'app/counsel/policies/policies-manage-client.tsx': 'counsel',
     'app/counsel/signing/[id]/page.tsx': 'counsel',
