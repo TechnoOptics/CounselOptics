@@ -3,17 +3,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DOCUMENT_STATES,
+  LETTERHEAD_FITS,
   bandAppearsOnPage,
   composeFooterText,
   normalizeDocumentLayout,
   resolveContentBox,
   resolveFooterPlacement,
+  resolveLetterheadArt,
   resolveLetterheadBandTop,
+  resolveLetterheadChrome,
   resolveWatermark,
   resolveWatermarkPlacement,
   type DocumentLayout,
   type DocumentState,
   type HorizontalAlign,
+  type LetterheadFit,
   type PageRule,
   type VerticalAnchor,
 } from '@/lib/document-layout';
@@ -85,6 +89,18 @@ export type LetterheadAvailability = {
   design: LetterheadDesign | null;
   /** An uploaded letterhead image. */
   hasImage: boolean;
+  /**
+   * The uploaded artwork's own size, in points, when the caller knows it.
+   *
+   * resolveLetterheadArt needs it to say where the artwork lands, and the
+   * document is the only place it is read for certain. Absent, the preview
+   * assumes stationery drawn for this page, which is the intended
+   * configuration and the case the full-page fit exists for; artwork drawn for
+   * another sheet is centred and letterboxed on the document, and the preview
+   * will show it filling the page instead.
+   */
+  imageWidthPt?: number;
+  imageHeightPt?: number;
   /** A logo, which the renderer synthesizes a band from and which can also be
    *  the watermark. */
   hasLogo: boolean;
@@ -188,14 +204,36 @@ export function DocumentLayoutFields({
                   disabled={disabled}
                   onChange={(v) => set('letterhead', { pages: v })}
                 />
-                <Slider
-                  label={t('Distance from the top of the page')}
-                  value={layout.letterhead.topPt}
-                  min={0}
-                  max={240}
-                  disabled={disabled}
-                  onChange={(v) => set('letterhead', { topPt: v })}
-                />
+                {has.hasImage && (
+                  <FitSelect
+                    value={layout.letterhead.fit}
+                    disabled={disabled}
+                    onChange={(v) => set('letterhead', { fit: v })}
+                  />
+                )}
+                {/* The band's offset has nothing to hang from once the artwork
+                    is the sheet, and lib/document-layout.ts deliberately stops
+                    reading it in that fit. A control that moved nothing would
+                    be the panel telling the firm something untrue. */}
+                {!(has.hasImage && layout.letterhead.fit === 'page') && (
+                  <Slider
+                    label={t('Distance from the top of the page')}
+                    value={layout.letterhead.topPt}
+                    min={0}
+                    max={240}
+                    disabled={disabled}
+                    onChange={(v) => set('letterhead', { topPt: v })}
+                  />
+                )}
+                {has.hasImage && layout.letterhead.fit === 'page' && (
+                  <p className="text-[12px] leading-relaxed text-muted">
+                    <T>
+                      The body sits on top of the sheet, so the top margin is
+                      what keeps it clear of your logo. Raise it until the
+                      preview clears the artwork.
+                    </T>
+                  </p>
+                )}
               </div>
             )}
           </Band>
@@ -468,8 +506,26 @@ function Preview({
   const measure = useTextMeasure();
   const content = resolveContentBox(layout, PAGE);
   const bandTop = resolveLetterheadBandTop(layout, PAGE);
-  const bandOnPage =
-    layout.letterhead.show && bandAppearsOnPage(layout.letterhead.pages, pageNo);
+  // WHAT goes at the top of this page is resolveLetterheadChrome's decision,
+  // shared with the renderer. This panel used to draw the composed band on
+  // every letterhead it was shown, which is why a firm on full-page stationery
+  // was previewed a bar and a rule its documents did not carry.
+  const chrome = resolveLetterheadChrome({
+    layout,
+    pageNo,
+    hasArtwork: has.hasImage,
+  });
+  // WHERE the artwork lands, for both fits, from the renderer's own arithmetic.
+  const artRect =
+    chrome === 'artwork-page' || chrome === 'artwork-band'
+      ? resolveLetterheadArt({
+          layout,
+          page: PAGE,
+          artWidthPt: has.imageWidthPt ?? PAGE.widthPt,
+          artHeightPt: has.imageHeightPt ?? PAGE.heightPt,
+        })
+      : null;
+  const bandOnPage = chrome === 'composed';
   const watermark = resolveWatermark(layout, state);
   const watermarkOnPage = watermark && bandAppearsOnPage(watermark.pages, pageNo);
   const footerOnPage =
@@ -592,7 +648,7 @@ function Preview({
                     lineHeight: 1,
                   }}
                 >
-                  {has.hasImage ? t('Your letterhead') : brandName}
+                  {brandName}
                 </p>
               )}
               <div
@@ -606,14 +662,52 @@ function Preview({
             </>
           )}
 
+          {/* The firm's own artwork, in the rectangle the renderer will draw it
+              in. Marked rather than reproduced: this panel promises POSITION,
+              and it is not a second opinion about what the stationery says. */}
+          {artRect && artRect.widthPt > 0 && artRect.heightPt > 0 && (
+            <div
+              className="absolute border border-dashed border-edge bg-surface-2"
+              style={{
+                left: px(artRect.xPt),
+                top: fromTop(artRect.yPt + artRect.heightPt),
+                width: px(artRect.widthPt),
+                height: px(artRect.heightPt),
+              }}
+            >
+              <span
+                className="absolute left-1.5 top-1 text-[9px] font-medium uppercase tracking-[0.14em] text-muted"
+                data-no-translate
+              >
+                {t('Your letterhead')}
+              </span>
+            </div>
+          )}
+
+          {/* The band's separator rule. Full-page stationery gets none: the
+              sheet already says where the body starts, and a line drawn across
+              somebody's design would be this panel editing it. */}
+          {chrome === 'artwork-band' && artRect && (
+            <div
+              className="absolute border-t border-edge"
+              style={{
+                left: px(content.xPt),
+                width: px(content.widthPt),
+                top: fromTop(artRect.yPt - 14),
+              }}
+            />
+          )}
+
           {/* Body text, as grey rules. It is a stand-in for wording nobody has
               written yet, and its only job is to show where the measure is. */}
           <BodyRules
             content={content}
             startY={
-              bandOnPage
+              chrome === 'composed'
                 ? Math.min(bandLastBaseline - 36, content.topYPt)
-                : content.topYPt
+                : chrome === 'artwork-band' && artRect
+                  ? artRect.yPt - 38
+                  : content.topYPt
             }
           />
 
@@ -899,6 +993,51 @@ function PagesSelect({
         <option value="all">{t('Every page')}</option>
         <option value="first">{t('First page only')}</option>
         <option value="all_except_first">{t('Every page after the first')}</option>
+      </select>
+    </label>
+  );
+}
+
+/**
+ * Band or full sheet, for a firm that has uploaded its own artwork.
+ *
+ * Offered only when there IS artwork, because the fit describes where that
+ * artwork meets the page and nothing else. A designed or synthesized band has
+ * no sheet to fill, and lib/document-layout.ts settles it the same way.
+ *
+ * The options are read off LETTERHEAD_FITS so a fit added to the type cannot be
+ * left unreachable here.
+ */
+function FitSelect({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: LetterheadFit;
+  disabled: boolean;
+  onChange: (v: LetterheadFit) => void;
+}) {
+  const t = useT();
+  const label: Record<LetterheadFit, string> = {
+    band: t('A band across the top'),
+    page: t('The whole sheet'),
+  };
+  return (
+    <label className="block">
+      <span className="label">
+        <T>How the artwork meets the page</T>
+      </span>
+      <select
+        className="input py-1.5"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value as LetterheadFit)}
+      >
+        {LETTERHEAD_FITS.map((fit) => (
+          <option key={fit} value={fit}>
+            {label[fit]}
+          </option>
+        ))}
       </select>
     </label>
   );

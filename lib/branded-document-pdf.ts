@@ -10,6 +10,7 @@ import {
   resolveContentBox,
   resolveFooterPlacement,
   resolveLetterheadArt,
+  resolveLetterheadChrome,
   resolveLetterheadBandTop,
   resolveWatermark,
   resolveWatermarkPlacement,
@@ -611,7 +612,15 @@ export async function buildBrandedDocumentPdf(
   function header() {
     pageNo += 1;
     drawWatermark();
-    if (!layout.letterhead.show || !bandAppearsOnPage(layout.letterhead.pages, pageNo)) {
+    // WHAT goes at the top of this page is resolveLetterheadChrome's decision,
+    // not this function's, because the builder preview has to reach the same
+    // answer and a second copy of the branch is how the two drift apart.
+    const chrome = resolveLetterheadChrome({
+      layout,
+      pageNo,
+      hasArtwork: letterhead !== null,
+    });
+    if (chrome === 'none') {
       // No band on this page. The body starts at the top margin, which is the
       // only thing that can tell it where to start once the band is gone.
       y = content.topYPt;
@@ -641,7 +650,7 @@ export async function buildBrandedDocumentPdf(
           page.drawImage(letterhead.image, box);
         }
       }
-      if (layout.letterhead.fit === 'page') {
+      if (chrome === 'artwork-page') {
         // FULL-PAGE STATIONERY GETS NO RULE AND NO CURSOR OF ITS OWN. The sheet
         // already says where the body starts, in ink the firm's designer chose,
         // so the body starts at the top margin like it does on a page with no
