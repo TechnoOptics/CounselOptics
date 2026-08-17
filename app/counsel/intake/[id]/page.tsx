@@ -7,7 +7,7 @@ import { ConflictCheckPanel } from './conflict-check-panel';
 import { IntakeConversation } from '@/components/intake/IntakeConversation';
 import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
 import { RecordSection } from '@/components/intake/RecordSection';
-import { ticketRef } from '@/lib/intake-conversation-types';
+import { refFor } from '@/lib/intake-notify';
 import { loadIntakeConversationAction } from '@/lib/intake-conversation';
 import type { ThreadMessage } from '@/lib/intake-thread';
 import {
@@ -103,6 +103,9 @@ export default async function IntakeDetailPage({
       severity: string;
     }> | null;
     intake_answers: Record<string, unknown> | null;
+    // The firm allocated reference; null on requests filed before
+    // 20260817_request_number.sql. See refFor in lib/intake-notify.ts.
+    request_number: string | null;
     created_by: string | null;
     created_at: string;
     // Added by supabase/migrations/20260816_intake_workflow_state.sql. Until
@@ -192,8 +195,11 @@ export default async function IntakeDetailPage({
     loadRequesterOtherIntakes(supabase, intake),
   ]);
 
-  const ref = String((ans.partner as Record<string, unknown> | undefined)?.externalId ?? '').trim()
-    || ticketRef(intake.id);
+  // refFor, not a hand-rolled copy of it. This line WAS that copy, and it had
+  // already drifted: it knew about the partner id and the derived reference but
+  // could never have known about an allocated number, so this page would have
+  // called a request something the notification about it did not.
+  const ref = refFor(intake);
   const priority = String(ans.priority ?? '').trim();
   // What this request IS, not who filed it. Partner tickets carry their own
   // subject; everything else falls back to the matter type.

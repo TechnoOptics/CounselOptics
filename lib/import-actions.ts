@@ -7,6 +7,7 @@ import { createAdminSupabase } from './supabase/admin';
 import { getActiveFirmContext } from './firm-storage';
 import { requireActiveFirm } from './firm-authz';
 import { parseCsv } from './csv';
+import { allocateRequestNumber } from './ticket-allocator';
 
 /**
  * Onboarding / migration server actions for /counsel/import.
@@ -848,20 +849,38 @@ export async function importJsonDumpAction(input: {
       failures.push('intake: missing client_name');
       continue;
     }
-    const { error: insErr } = await admin.from('firm_matter_intakes').insert({
-      firm_id: firmId,
-      created_by: userId,
-      client_name: clientName,
-      matter_type: it.matter_type || null,
-      jurisdiction_state: it.jurisdiction_state || null,
-      matter_summary: it.matter_summary || null,
-      status: it.status || 'pending',
-      intake_answers: { imported: true, source: 'json_dump' },
-    });
-    if (insErr) {
-      failures.push(`intake ${clientName}: ${insErr.message}`);
+    const { data: insRow, error: insErr } = await admin
+      .from('firm_matter_intakes')
+      .insert({
+        firm_id: firmId,
+        created_by: userId,
+        client_name: clientName,
+        matter_type: it.matter_type || null,
+        jurisdiction_state: it.jurisdiction_state || null,
+        matter_summary: it.matter_summary || null,
+        status: it.status || 'pending',
+        intake_answers: { imported: true, source: 'json_dump' },
+      })
+      .select('id')
+      .single();
+    if (insErr || !insRow) {
+      failures.push(`intake ${clientName}: ${insErr?.message ?? 'could not be created'}`);
       continue;
     }
+    // An imported request is new to this database and has never been referenced
+    // anywhere, so it takes a number like any other new request. `firmId` is the
+    // caller's own verified firm, and the number is derived from that firm's
+    // series rather than read from the dump: a dump is untrusted input, and
+    // letting it name a reference would let it collide with, or impersonate, a
+    // reference already issued.
+    //
+    // Not checked, for the same reason as the partner path: a restore that
+    // could not number a row still restored the row, and an unnumbered request
+    // shows its derived reference.
+    await allocateRequestNumber(admin, {
+      firmId,
+      intakeId: (insRow as { id: string }).id,
+    });
     intakesCreated += 1;
   }
 

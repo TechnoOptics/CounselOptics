@@ -1,0 +1,114 @@
+-- A human-quotable reference on every legal request.
+--
+-- ======================= NOT APPLIED AS OF 2026-08-17 ====================
+-- Written on branch feat/firm-ticket-reference and NOT applied. Applying it
+-- and regenerating supabase/schema-fingerprint.sha256 are the owner's steps,
+-- and CI fails while that hash is stale.
+--
+-- This banner is accurate at the time of writing and MUST be corrected by
+-- whoever runs the migration. Three headers in this directory have already
+-- been found claiming the wrong applied state, because nothing in CI can
+-- contradict them: the schema-drift gate self-skips while the
+-- SUPABASE_DB_URL repo secret is unset, so a wrong banner and a stale
+-- fingerprint both pass green. See scripts/schema/README.md.
+--
+-- APPLY THIS BEFORE THE CODE SHIPS, NOT AFTER. lib/intake-notify.ts selects
+-- request_number as part of INTAKE_COLS, and PostgREST reports a missing
+-- column as an error on the whole request rather than as a null. Deploying
+-- the code first would fail closed on every counsel inbox and portal read.
+-- That ordering, migrations before the push, is the rule the 2026-08-07
+-- deploy settled for exactly this reason.
+-- =========================================================================
+--
+-- A legal request's reference has until now been derived from its uuid
+-- ('REQ-4F2A9C', ticketRef in lib/intake-conversation-types.ts). It is unique
+-- and it is short, but it is not sequential, it carries no sense of the firm
+-- it belongs to, and it cannot be read down a phone without spelling it.
+--
+-- The series is the one lib/ticket-allocator.ts already runs for employee
+-- submissions and for matters, pointed at a third table: read the firm's
+-- highest number, add one, write it conditional on the column still being
+-- null, and on a unique violation bump and retry. That loop is an allocator
+-- for exactly one reason, and it is the index at the bottom of this file
+-- rather than the care in the code.
+
+alter table public.firm_matter_intakes
+  -- This firm's own reference for this request, e.g. 'ZT0001000'.
+  --
+  -- Nullable, and it stays null for two different reasons that both matter.
+  -- Every request that existed before this file is applied keeps a null here
+  -- forever (see the note on backfilling below), and an allocation that could
+  -- not complete leaves a null rather than blocking the request: a colleague's
+  -- legal problem must reach the legal team even if a counter will not move.
+  --
+  -- Fixed seven-digit pad, and NO separator between the prefix and the digits
+  -- ('ZT0001000', not 'ZT-0001000'), which is the shape the owner asked for.
+  -- The width is load-bearing rather than cosmetic: the allocator finds the
+  -- next number with an ORDER BY on this TEXT column, and a text sort agrees
+  -- with a numeric one only while every number is the same width.
+  -- lib/ticket-numbers.ts refuses at 9999999 for that reason.
+  add column if not exists request_number text;
+
+alter table public.firm_settings
+  -- The letters in front of this firm's request numbers. Zinpro's is 'ZT'.
+  --
+  -- Its own column, NOT a reuse of ticket_prefix or matter_prefix, because
+  -- these are three separate counters over three separate tables. One shared
+  -- prefix would eventually issue the same reference for an employee's
+  -- document and for the request that document belongs to, and a reference
+  -- that resolves to two records of different kinds is worse than none.
+  --
+  -- Null reads as the default 'TKT' (lib/ticket-numbers.ts). Deliberately not
+  -- 'REQ': that is the submission default AND the shape of the derived
+  -- reference an unnumbered request already shows.
+  add column if not exists request_prefix text;
+
+-- ---------------------------------------------------------------------
+-- THERE IS DELIBERATELY NO BACKFILL HERE.
+-- ---------------------------------------------------------------------
+--
+-- This is the one decision in this file that cannot be reversed later, so it
+-- is written down rather than left to be inferred from the absence of an
+-- UPDATE statement.
+--
+-- A request's reference HAS ALREADY BEEN SENT TO PEOPLE. It is in notification
+-- email subject lines and bodies (lib/intake-notify.ts), in partner API
+-- payloads (lib/partner-tickets.ts), and on the portal request page, which
+-- prints it and tells the reader to quote it. Numbering an existing request
+-- now would give one request two references and leave an email sent yesterday
+-- citing a reference that no longer matches the record. For a legal record
+-- that is worse than an ugly reference.
+--
+-- It would also break the one thing that resolves a reference back to a
+-- request. The counsel inbox filters and searches on the reference string
+-- (lib/intake-list.ts). Leaving old requests unnumbered is precisely what
+-- keeps every reference already in somebody's inbox findable.
+--
+-- THIS DIFFERS FROM 20260813_matter_number.sql, WHICH DID BACKFILL, and the
+-- difference is the point rather than an inconsistency. A matter had never had
+-- a reference of its own to contradict: the uuid fragment on screen was the id
+-- itself. A request has had one, and it has been emailed out.
+--
+-- The visible consequence, stated plainly so nobody reports it as a bug: for a
+-- long time a firm's queue shows two shapes of reference side by side,
+-- REQ-4F2A9C on requests filed before this and ZT0001000 on those filed after.
+-- That is the price of never invalidating a reference that has already reached
+-- a person, and it is the right price.
+
+-- The reason the allocator's retry loop is an allocator and not a suggestion.
+-- Two employees filing at the same moment read the same highest number and
+-- compute the same next one; this index decides which write wins, and the
+-- loser bumps and takes the next. Without it, both writes succeed and two
+-- different legal requests carry one reference.
+--
+-- PER FIRM, NOT GLOBAL. The prefix is the firm's own, so two firms both on the
+-- default 'TKT' holding TKT0001000 is expected and correct, exactly as two
+-- firms both hold MAT-0000001 today. Nothing resolves a request by its
+-- reference alone: every route, link and lookup keys on the intake uuid, and
+-- the one place the reference is used to select (the inbox reference filter)
+-- already runs inside a single firm's rows.
+--
+-- Partial, so the many rows with no number do not all collide on null.
+create unique index if not exists firm_matter_intakes_request_number_idx
+  on public.firm_matter_intakes (firm_id, request_number)
+  where request_number is not null;

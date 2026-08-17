@@ -1,6 +1,6 @@
 import 'server-only';
 import { createServerSupabase } from './supabase/server';
-import { readTicketPrefix } from './ticket-allocator';
+import { readRequestPrefix, readTicketPrefix } from './ticket-allocator';
 import { FIRM_TYPES, type Firm, type FirmType } from './firm-types';
 import {
   readSurfaceOverrides,
@@ -151,4 +151,20 @@ export async function getFirmSurfaceSettings(
  */
 export async function getFirmTicketPrefix(firmId: string): Promise<string> {
   return readTicketPrefix(createServerSupabase(), firmId);
+}
+
+/**
+ * The letters in front of this firm's legal-request references, for the
+ * settings page to show.
+ *
+ * Its own read for the same reason as the one above: `request_prefix` arrives
+ * with 20260817_request_number.sql, and naming an absent column in the surface
+ * settings select would take the whole read down with it, handing back the
+ * defaults and undoing a firm's surface toggles across the workspace.
+ *
+ * The allocator owns the read so the settings page and the write path cannot
+ * disagree about what an unset or unusable prefix means.
+ */
+export async function getFirmRequestPrefix(firmId: string): Promise<string> {
+  return readRequestPrefix(createServerSupabase(), firmId);
 }

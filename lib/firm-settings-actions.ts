@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { isUnknownColumnError } from './signer-view';
-import { normalizeMatterPrefix, normalizeTicketPrefix } from './ticket-numbers';
+import {
+  normalizeMatterPrefix,
+  normalizeRequestPrefix,
+  normalizeTicketPrefix,
+} from './ticket-numbers';
 import { FIRM_TYPES, type FirmType } from './firm-types';
 import {
   WORKSPACE_SURFACES,
@@ -303,5 +307,52 @@ export async function updateFirmMatterPrefixAction(
 
   revalidatePath('/counsel/settings');
   revalidatePath('/counsel/cases');
+  return { ok: true, prefix: stored };
+}
+
+/**
+ * The letters in front of every legal-request reference this firm issues,
+ * e.g. the 'ZT' in ZT0001000.
+ *
+ * Its own column and its own action, for the reason the sibling actions give:
+ * three separate counters must not share a prefix, or one reference eventually
+ * names two different kinds of record.
+ *
+ * Changing it renumbers nothing and cannot. Every reference already issued
+ * keeps the prefix it was issued under, because the allocator only ever writes
+ * a number onto a request that has none, and those references are already in
+ * people's inboxes.
+ */
+export async function updateFirmRequestPrefixAction(
+  firmId: string,
+  prefix: string,
+): Promise<{ ok: boolean; error?: string; prefix?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can change firm settings.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const stored = normalizeRequestPrefix(prefix);
+  const { error } = await admin
+    .from('firm_settings')
+    .upsert(
+      { firm_id: firmId, request_prefix: stored, updated_at: new Date().toISOString() },
+      { onConflict: 'firm_id' },
+    );
+  if (error) {
+    if (isUnknownColumnError(error, 'request_prefix')) {
+      return {
+        ok: false,
+        error:
+          'Request reference numbers are not switched on yet. Ask your administrator to apply the pending database update.',
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath('/counsel/settings');
+  revalidatePath('/counsel/inbox');
   return { ok: true, prefix: stored };
 }

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   updateFirmMatterPrefixAction,
+  updateFirmRequestPrefixAction,
   updateFirmSurfaceOverrideAction,
   updateFirmSurfaceSettingsAction,
   updateFirmTypeAction,
@@ -45,6 +46,7 @@ export function FirmSurfaceToggles({
     hideGrowth: boolean;
     source: Record<WorkspaceSurface, SurfaceSource>;
     ticketPrefix: string;
+    requestPrefix: string;
     matterPrefix: string;
   };
 }) {
@@ -130,6 +132,20 @@ export function FirmSurfaceToggles({
           </T>
         }
         example={<T>Documents will be numbered</T>}
+      />
+      <PrefixField
+        fieldId="request-prefix"
+        initial={initial.requestPrefix}
+        save={(next) => updateFirmRequestPrefixAction(firmId, next)}
+        label={<T>Request reference prefix</T>}
+        description={
+          <T>
+            The letters in front of every legal request reference, the one your
+            colleagues quote when they ask about a request. Changing it does not
+            change a reference already issued.
+          </T>
+        }
+        example={<T>New requests will be numbered</T>}
       />
       <PrefixField
         fieldId="matter-prefix"

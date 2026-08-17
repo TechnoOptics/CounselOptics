@@ -4,12 +4,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isUnknownColumnError } from './signer-view';
 import {
   DEFAULT_MATTER_PREFIX,
+  DEFAULT_REQUEST_PREFIX,
   DEFAULT_TICKET_PREFIX,
   TICKET_MAX,
+  formatRequestNumber,
   formatTicketNumber,
+  nextRequestSeq,
   nextTicketSeq,
   normalizeMatterPrefix,
+  normalizeRequestPrefix,
   normalizeTicketPrefix,
+  type NextTicketSeq,
 } from './ticket-numbers';
 
 /**
@@ -75,6 +80,10 @@ const TICKET_COLUMN_MISSING =
 const MATTER_COLUMN_MISSING =
   'Matter reference numbers are not switched on yet. Ask your administrator to apply the pending database update.';
 
+/** The same again, for the legal-request series. */
+const REQUEST_COLUMN_MISSING =
+  'Request reference numbers are not switched on yet. Ask your administrator to apply the pending database update.';
+
 type AllocationResult =
   | { ok: true; ticketNumber: string }
   | { ok: false; error: string };
@@ -96,7 +105,7 @@ type AllocationResult =
 async function readPrefix(
   client: SupabaseClient,
   firmId: string,
-  column: 'ticket_prefix' | 'matter_prefix',
+  column: 'ticket_prefix' | 'matter_prefix' | 'request_prefix',
   normalize: (raw: unknown) => string,
   fallback: string,
 ): Promise<string> {
@@ -147,6 +156,18 @@ type Series = {
   prefix: string;
   /** What an unusable prefix falls back to. */
   fallbackPrefix: string;
+  /**
+   * How this series renders a number, and where it starts.
+   *
+   * Arguments rather than a hardcoded pair, because the request series differs
+   * from the other two in both: it has no separator and it starts at 1000. They
+   * travel together deliberately. A formatter and a parser that disagree about
+   * whether a separator is there would make the allocator read its own output
+   * back as a different number, so the two functions for a series are chosen at
+   * the same place.
+   */
+  format: (prefix: string, seq: number, fallback: string) => string;
+  next: (highest: string | null) => NextTicketSeq;
   /** Said when this series' column has not been migrated in yet. */
   columnMissing: string;
   /** Said to whoever triggered the allocation, so it names their record. */
@@ -201,7 +222,7 @@ async function allocateSeries(
   const highest =
     (highestRows?.[0] as unknown as Record<string, string | null> | undefined)?.[column] ??
     null;
-  const start = nextTicketSeq(highest);
+  const start = series.next(highest);
   if (!start.ok) return { ok: false, error: start.reason };
 
   let seq = start.seq;
@@ -216,7 +237,7 @@ async function allocateSeries(
         error: `This firm has used every ticket number up to ${TICKET_MAX}. No further numbers can be issued at this width.`,
       };
     }
-    const ticketNumber = formatTicketNumber(series.prefix, seq, series.fallbackPrefix);
+    const ticketNumber = series.format(series.prefix, seq, series.fallbackPrefix);
     const { data, error } = await admin
       .from(table)
       .update({ [column]: ticketNumber })
@@ -292,6 +313,8 @@ export async function allocateSubmissionTicket(
       column: 'ticket_number',
       prefix: await readTicketPrefix(admin, firmId),
       fallbackPrefix: DEFAULT_TICKET_PREFIX,
+      format: formatTicketNumber,
+      next: nextTicketSeq,
       columnMissing: TICKET_COLUMN_MISSING,
       writeFailed: 'This document could not be given a ticket number just now.',
       rowMissing: 'That submission could not be found.',
@@ -320,10 +343,62 @@ export async function allocateMatterNumber(
       column: 'matter_number',
       prefix: await readMatterPrefix(admin, firmId),
       fallbackPrefix: DEFAULT_MATTER_PREFIX,
+      format: formatTicketNumber,
+      next: nextTicketSeq,
       columnMissing: MATTER_COLUMN_MISSING,
       writeFailed: 'This matter could not be given a reference number just now.',
       rowMissing: 'That matter could not be found.',
     },
     { firmId, rowId: caseId },
+  );
+}
+
+/** The firm's legal-request prefix, or the default. */
+export async function readRequestPrefix(
+  client: SupabaseClient,
+  firmId: string,
+): Promise<string> {
+  return readPrefix(
+    client,
+    firmId,
+    'request_prefix',
+    normalizeRequestPrefix,
+    DEFAULT_REQUEST_PREFIX,
+  );
+}
+
+/**
+ * Give this legal request the firm's next reference number, e.g. `ZT0001000`.
+ *
+ * The reference an employee and the legal team quote at each other, and the one
+ * that goes out in notification email and to partner systems. The conditional
+ * write inside allocateSeries matters more here than anywhere else in this
+ * file: a request reference that changed after it was emailed is a reference
+ * nobody can look up, and this is the series whose references are emailed the
+ * moment they exist.
+ *
+ * ONLY EVER CALLED FOR A REQUEST BEING CREATED. Requests that already existed
+ * when this shipped are deliberately never numbered: they keep the derived
+ * REQ- reference they were already emailed under, so no request is ever handed
+ * a second reference. See displayRequest in lib/ticket-numbers.ts.
+ */
+export async function allocateRequestNumber(
+  admin: SupabaseClient,
+  { firmId, intakeId }: { firmId: string; intakeId: string },
+): Promise<AllocationResult> {
+  return allocateSeries(
+    admin,
+    {
+      table: 'firm_matter_intakes',
+      column: 'request_number',
+      prefix: await readRequestPrefix(admin, firmId),
+      fallbackPrefix: DEFAULT_REQUEST_PREFIX,
+      format: formatRequestNumber,
+      next: nextRequestSeq,
+      columnMissing: REQUEST_COLUMN_MISSING,
+      writeFailed: 'This request could not be given a reference number just now.',
+      rowMissing: 'That request could not be found.',
+    },
+    { firmId, rowId: intakeId },
   );
 }

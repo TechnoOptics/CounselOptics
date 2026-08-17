@@ -7,8 +7,8 @@ import { sendEmail, buildIntakeActivityEmailHtml } from './email';
 import { portalStatusLabel } from './portal-status';
 import { intakeTitle } from './intake-request';
 import { emailOptedOutUserIds } from './notify-prefs';
+import { displayRequest } from './ticket-numbers';
 import {
-  ticketRef,
   type IntakeAttachment,
   type IntakeMessage,
   type IntakePerson,
@@ -40,10 +40,15 @@ export type IntakeRow = {
   status: string;
   assigned_to: string | null;
   intake_answers: Record<string, unknown> | null;
+  /**
+   * The firm's allocated reference, or null for every request filed before
+   * 20260817_request_number.sql. Null is permanent for those: see refFor.
+   */
+  request_number: string | null;
 };
 
 export const INTAKE_COLS =
-  'id, firm_id, created_by, client_name, client_email, matter_type, status, assigned_to, intake_answers';
+  'id, firm_id, created_by, client_name, client_email, matter_type, status, assigned_to, intake_answers, request_number';
 
 /** Display name + avatar for a set of user ids, firm members and employees alike. */
 export async function hydratePeople(
@@ -154,21 +159,34 @@ export function ticketTitle(intake: IntakeRow): string {
 }
 
 /**
- * Partner tickets keep their own reference; everything else gets
- * REQ-XXXXXX.
+ * What one legal request is called, everywhere. Three forms, in order.
  *
- * Takes the two fields it actually reads rather than a whole IntakeRow,
- * so the employee's own request page can show the same reference the
- * notifications use without selecting columns it has no use for. A
- * second copy of this rule is how the portal and the email would come
- * to call one request two different things.
+ * 1. A PARTNER'S OWN EXTERNAL ID, when the request came from a partner system.
+ *    That is the partner's record key, not ours; their system quotes it and
+ *    expects it back, so it keeps winning even now that we can allocate a
+ *    number of our own for the same request.
+ * 2. THE FIRM'S ALLOCATED NUMBER, e.g. 'ZT0001000'. Per firm, sequential and
+ *    immutable once written (lib/ticket-allocator.ts).
+ * 3. THE DERIVED REFERENCE, 'REQ-4F2A9C', for every request filed before the
+ *    allocator existed. Those are never backfilled, so this is not a
+ *    transitional case that goes away: it is what those requests are called
+ *    for the rest of their lives, because that is what was emailed out.
+ *
+ * Takes the three fields it actually reads rather than a whole IntakeRow, so
+ * the employee's own request page can show the same reference the notifications
+ * use without selecting columns it has no use for. A second copy of this rule
+ * is how the portal and the email would come to call one request two different
+ * things.
  */
 export function refFor(
-  intake: Pick<IntakeRow, 'id' | 'intake_answers'>,
+  intake: Pick<IntakeRow, 'id' | 'intake_answers' | 'request_number'>,
 ): string {
   const answers = (intake.intake_answers ?? {}) as Record<string, unknown>;
   const partner = (answers.partner ?? null) as { externalId?: string | null } | null;
-  return (partner?.externalId ?? '').trim() || ticketRef(intake.id);
+  return (
+    (partner?.externalId ?? '').trim() ||
+    displayRequest({ requestNumber: intake.request_number, id: intake.id })
+  );
 }
 
 export function revalidateIntake(intakeId: string): void {

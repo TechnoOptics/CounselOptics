@@ -49,7 +49,7 @@ export default async function PortalRequestPage({
   const { data } = await admin
     .from('firm_matter_intakes')
     .select(
-      'id, firm_id, created_by, client_name, matter_type, matter_summary, status, created_at, intake_answers',
+      'id, firm_id, created_by, client_name, matter_type, matter_summary, status, created_at, intake_answers, request_number',
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -64,6 +64,10 @@ export default async function PortalRequestPage({
     status: string;
     created_at: string;
     intake_answers: Record<string, unknown> | null;
+    // The reference this page prints and tells the employee to quote. Null on
+    // requests filed before 20260817_request_number.sql, which then show the
+    // derived REQ- reference they were originally emailed under.
+    request_number: string | null;
   };
   // Access gate: your own request, or one you were explicitly invited onto.
   // Anything else is a 404: never leak that the row exists. The rule itself
