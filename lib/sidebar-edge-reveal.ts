@@ -85,3 +85,115 @@ export function edgeRevealDecision(
   }
   return { armed, action: 'start' };
 }
+
+/* ------------------------------------------------------------------ *
+ * Leaving the rail alone, which is the other half of the same feature.
+ * ------------------------------------------------------------------ */
+
+/**
+ * How long the rail may sit untouched before it hides itself.
+ *
+ * Five seconds, which is the figure the owner asked for, and it is named here
+ * rather than spelled at the call site because it is exactly the kind of number
+ * somebody comes back to tune. Two things it is balanced against, so a future
+ * reader knows what moving it costs. Shorter and the panel leaves while a
+ * person is still reading the nav to decide where to go, which reads as the
+ * product being twitchy. Longer and it never fires during the short gaps that
+ * are the whole point, so the rail may as well be pinned open.
+ *
+ * It is measured from the last interaction with the PANEL, not with the page.
+ * A timer any activity anywhere reset would never fire while somebody worked in
+ * the content column, which is precisely when the extra width is wanted.
+ */
+export const IDLE_HIDE_MS = 5_000;
+
+/** The state of the panel at the moment its idle deadline comes up. */
+export type IdleSample = {
+  /** True when focus is inside the panel. */
+  focusWithin: boolean;
+  /** True when the pointer is over the panel. */
+  pointerOver: boolean;
+  /** The PointerEvent `buttons` bitmask. Non-zero means a drag is in flight. */
+  buttons: number;
+  /** True while a menu or popover inside the panel is open. */
+  menuOpen: boolean;
+  /** True when a non-collapsed text selection exists. */
+  hasSelection: boolean;
+};
+
+/** Why the panel must not hide right now. */
+export type IdleBlocker = 'focus' | 'pointer' | 'drag' | 'menu' | 'selection';
+
+/**
+ * Why the panel must not hide right now, or null when it may.
+ *
+ * FOCUS IS FIRST AND IS NOT NEGOTIABLE. The panel unmounts its children when it
+ * collapses, so a keyboard user tabbing through the nav would not merely lose
+ * the panel: the focus ring would land on `<body>` in the middle of their
+ * navigation. Hover is the same rule for a mouse, one step less severe.
+ *
+ * THE OTHER THREE ARE ONE IDEA. A held button is a drag heading for the rail,
+ * an open menu is a decision in progress inside it, and a live selection is a
+ * sweep that has not finished. Each is a commitment the person has already
+ * made, and the panel leaving from under it is the same surprise the edge
+ * zone's own refusals exist to prevent.
+ *
+ * A single ordered answer rather than a set, so a caller (and a test) has one
+ * value to compare. The order is severity: the reader would be most surprised
+ * to see focus overruled.
+ *
+ * WHAT THE CALLER MUST DO WITH A BLOCKER. Schedule another deadline, never give
+ * up. `edgeRevealDecision` says the same thing about its own refusals: if a
+ * blocked deadline cancelled instead, letting go of a drag over the rail would
+ * disable the auto-hide until the next time somebody touched the panel.
+ */
+export function idleHideBlocker(sample: IdleSample): IdleBlocker | null {
+  if (sample.focusWithin) return 'focus';
+  if (sample.pointerOver) return 'pointer';
+  if (sample.buttons !== 0) return 'drag';
+  if (sample.menuOpen) return 'menu';
+  if (sample.hasSelection) return 'selection';
+  return null;
+}
+
+/**
+ * What counts as a menu or popover being open inside the panel.
+ *
+ * QUALIFIED BY `aria-haspopup` ON PURPOSE, and this is a defect that only
+ * rendering the page found. A bare `[aria-expanded="true"]` also matches a
+ * DISCLOSURE control, and the panel contains one: its own Collapse button
+ * carries `aria-expanded` because it reports the state of the panel itself. So
+ * the unqualified selector matched on every tick, the menu blocker was
+ * permanently true, and the rail never hid once. Every unit test was green over
+ * it, because the decision is handed a boolean and the boolean is arrived at
+ * here.
+ *
+ * `[data-state="open"]` is the headless-UI convention and `details[open]` is
+ * the platform's own. Neither can be satisfied by a control that merely
+ * describes the panel it sits in.
+ */
+export const OPEN_OVERLAY_SELECTOR =
+  '[aria-haspopup][aria-expanded="true"],[data-state="open"],details[open]';
+
+/**
+ * Whether the idle watch should run at all.
+ *
+ * A FINE POINTER ONLY, and this is the touch answer rather than an oversight.
+ * The auto-hide and the edge reveal are one feature: the panel goes away
+ * quietly because there is a fast way back, and that way back is a 6px strip at
+ * the left of the window. On a touch device that strip is unaimable and it
+ * competes with the browser's own back-swipe, so a thumb would be left with a
+ * panel that hides itself and only the page-keeper tab to recover it. That is
+ * worse than a panel that stays. Below 768px the rail is not rendered at all
+ * (`hidden md:block`) and a separate mobile nav is in play, but a tablet above
+ * that width is real and this is what covers it.
+ *
+ * NOT WHILE ALREADY COLLAPSED. There is nothing to hide, and a timer over a
+ * collapsed rail could only fight the edge reveal trying to bring it back.
+ */
+export function shouldWatchForIdle(input: {
+  finePointer: boolean;
+  collapsed: boolean;
+}): boolean {
+  return input.finePointer && !input.collapsed;
+}

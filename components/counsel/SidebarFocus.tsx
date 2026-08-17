@@ -11,7 +11,11 @@ import {
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import {
   edgeRevealDecision,
+  idleHideBlocker,
+  shouldWatchForIdle,
+  OPEN_OVERLAY_SELECTOR,
   EDGE_DWELL_MS,
+  IDLE_HIDE_MS,
 } from '@/lib/sidebar-edge-reveal';
 
 /**
@@ -205,6 +209,93 @@ function SidebarEdgeReveal({ onReveal }: { onReveal: () => void }) {
 }
 
 /**
+ * The rail hiding itself once it has been left alone.
+ *
+ * The rules are in lib/sidebar-edge-reveal.ts beside the edge zone's, because
+ * they are two halves of one feature and because a decision with a timer in it
+ * cannot be tested: an automated tab reports `visibilityState: 'hidden'` and
+ * Chrome freezes a hidden tab's timers. This half is only what needs a browser.
+ *
+ * THE STATE IS READ FROM THE DOM AT THE DEADLINE, not tracked in refs as it
+ * happens. `contains(document.activeElement)` and `:hover` are the truth;
+ * a pair of flags maintained across enter, leave, focus and blur is a second
+ * model of the same thing that drifts the first time an event is missed, and
+ * "focus is inside" is the one fact here that may never be wrong. The handlers
+ * therefore do one job: push the deadline back.
+ *
+ * The one fact the DOM cannot answer is whether a button is held, since there
+ * is no event to read at the moment the timer fires, so that is tracked.
+ */
+function useIdleHide(collapsed: boolean, onHide: () => void) {
+  const panel = useRef<HTMLDivElement | null>(null);
+  const arm = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)');
+    if (!shouldWatchForIdle({ finePointer: fine.matches, collapsed })) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let dragging = false;
+
+    const selecting = () => {
+      const sel = window.getSelection();
+      return sel != null && sel.rangeCount > 0 && !sel.isCollapsed;
+    };
+
+    // A real query rather than a hardcoded false. The rail carries no menu
+    // today; the day one lands, an open popover already blocks the hide
+    // instead of closing under whoever opened it. What the selector may and
+    // may not match is in lib/sidebar-edge-reveal.ts, where the reason is: an
+    // unqualified aria-expanded matched the panel's OWN collapse button and
+    // the rail never hid at all.
+    const menuOpen = () =>
+      panel.current?.querySelector(OPEN_OVERLAY_SELECTOR) != null;
+
+    const schedule = () => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        const el = panel.current;
+        const blocked = idleHideBlocker({
+          focusWithin: el != null && el.contains(document.activeElement),
+          pointerOver: el != null && el.matches(':hover'),
+          buttons: dragging ? 1 : 0,
+          menuOpen: menuOpen(),
+          hasSelection: selecting(),
+        });
+        // A refused deadline waits for another one. Giving up here would mean
+        // one drag over the rail disables the hide for the rest of the session.
+        if (blocked !== null) return schedule();
+        onHide();
+      }, IDLE_HIDE_MS);
+    };
+
+    const down = () => {
+      dragging = true;
+      schedule();
+    };
+    const up = () => {
+      dragging = false;
+      schedule();
+    };
+
+    arm.current = schedule;
+    schedule();
+    window.addEventListener('pointerdown', down);
+    window.addEventListener('pointerup', up);
+    return () => {
+      arm.current = () => {};
+      if (timer !== null) clearTimeout(timer);
+      window.removeEventListener('pointerdown', down);
+      window.removeEventListener('pointerup', up);
+    };
+  }, [collapsed, onHide]);
+
+  const keepOpen = useCallback(() => arm.current(), []);
+  return { panel, keepOpen };
+}
+
+/**
  * The collapsible wrapper around the server-rendered sidebar. Receives the
  * <CounselSidebar/> as children so that stays server-rendered; only the
  * collapse chrome is client-side.
@@ -213,6 +304,8 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
   const t = useT();
   const { collapsed, setCollapsed } = useSidebarCollapse();
   const reveal = useCallback(() => setCollapsed(false), [setCollapsed]);
+  const hide = useCallback(() => setCollapsed(true), [setCollapsed]);
+  const { panel, keepOpen } = useIdleHide(collapsed, hide);
 
   // The rail runs FLUSH: full height, its own scroll, one 1px right edge, and
   // no margin between it and the content column. That is what replaced the
@@ -254,8 +347,22 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
       {collapsed && <SidebarEdgeReveal onReveal={reveal} />}
 
       <div className="relative flex h-full items-stretch">
-        {/* Sidebar panel */}
+        {/* Sidebar panel.
+
+            The handlers push the idle deadline back; they never decide
+            anything. Every rule about whether the panel MAY go lives in
+            lib/sidebar-edge-reveal.ts and is read from the DOM when the
+            deadline arrives, so a missed event costs a later hide rather than
+            a panel that leaves under somebody's hands. */}
         <div
+          ref={panel}
+          onPointerEnter={keepOpen}
+          onPointerLeave={keepOpen}
+          onPointerMove={keepOpen}
+          onFocus={keepOpen}
+          onBlur={keepOpen}
+          onClick={keepOpen}
+          onKeyDown={keepOpen}
           className={
             'h-full overflow-hidden border-r border-edge bg-surface transition-[width] duration-300 ease-out motion-reduce:transition-none ' +
             (collapsed ? 'w-0 border-r-0' : 'w-56')

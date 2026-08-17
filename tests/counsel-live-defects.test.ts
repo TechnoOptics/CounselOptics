@@ -106,7 +106,6 @@ describe('one definition of the intake queue', () => {
 
 describe('the counting surfaces all read from that one definition', () => {
   const dashboard = read('app/counsel/page.tsx');
-  const inbox = read('components/counsel/IntakeInbox.tsx');
   const inboxPage = read('app/counsel/inbox/page.tsx');
   const analytics = read('lib/counsel-analytics.ts');
 
@@ -115,13 +114,31 @@ describe('the counting surfaces all read from that one definition', () => {
     expect(dashboard).not.toContain("=== 'in_review'");
   });
 
-  it('the inbox lanes come from the shared map', () => {
-    expect(inbox).toContain('intake-lanes');
+  it('Impact measures open requests with the shared test', () => {
+    expect(analytics).toContain('isIntakeOpen');
   });
 
-  it('the inbox tab badge and Impact use the same "open" test', () => {
-    expect(inboxPage).toContain('isIntakeOpen');
-    expect(analytics).toContain('isIntakeOpen');
+  it('the request queue reads its own notion of finished from one set', () => {
+    // The queue moved off `isIntakeOpen` deliberately. That test is the
+    // SEVEN-value lane measure, and a converted request that is waiting on the
+    // other side's signature is `accepted` to the employee while still being
+    // live work to the legal team; a work queue must not hide live work. So it
+    // reads DECIDED_WORKFLOW_STATES, the nine-value set built for this screen's
+    // question, and tests/ticket-workspace.test.ts pins the invariant that
+    // stops the two contradicting each other: every state meaning the firm is
+    // finished writes a legacy status the employee also reads as finished.
+    //
+    // Comments are stripped, because the paragraph above contains every string
+    // this asserts on.
+    const list = read('lib/intake-list.ts')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
+    expect(list).toContain('DECIDED_WORKFLOW_STATES');
+    expect(
+      list,
+      'the three decided states have been written out again here',
+    ).not.toMatch(/'completed'[\s,]*'closed'[\s,]*'cancelled'/);
+    expect(inboxPage).not.toContain('isIntakeOpen');
   });
 
   it('the Action center totals work items, not the number of rows it drew', () => {
