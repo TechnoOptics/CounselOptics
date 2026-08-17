@@ -154,7 +154,7 @@ export function ApproachBuilder({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={t('Codename for this theory (e.g. Constructive eviction)')}
-                className="w-full rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2 text-sm text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
+                className="w-full rounded-lg border border-cream-50/10 bg-forest-950/70 px-3 py-2 text-sm text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
                 data-no-translate
               />
               <textarea
@@ -164,7 +164,7 @@ export function ApproachBuilder({
                   'The theory you are proving. Example: The landlord knew about the mold for months and failed to act. Tie together the inspection report (EX-03), the tenant emails, and the maintenance logs.',
                 )}
                 rows={4}
-                className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
+                className="w-full resize-y rounded-lg border border-cream-50/10 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
                 data-no-translate
               />
               <div>
@@ -178,7 +178,7 @@ export function ApproachBuilder({
                     'Who is connected and how: parties, witnesses, roles. Example: Jane Doe (tenant, claimant); Acme Property LLC (landlord, defendant); Bob Smith (building super, saw the leak).',
                   )}
                   rows={3}
-                  className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
+                  className="w-full resize-y rounded-lg border border-cream-50/10 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
                   data-no-translate
                 />
               </div>
@@ -440,7 +440,7 @@ function ApproachCard({
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2 text-sm text-cream-50 outline-none focus:border-gold-metal/50"
+              className="w-full rounded-lg border border-cream-50/10 bg-forest-950/70 px-3 py-2 text-sm text-cream-50 outline-none focus:border-gold-metal/50"
               data-no-translate
             />
             <textarea
@@ -448,7 +448,7 @@ function ApproachCard({
               onChange={(e) => setPrompt(e.target.value)}
               rows={4}
               placeholder={t('The theory you are proving')}
-              className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 outline-none focus:border-gold-metal/50"
+              className="w-full resize-y rounded-lg border border-cream-50/10 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 outline-none focus:border-gold-metal/50"
               data-no-translate
             />
             <textarea
@@ -456,7 +456,7 @@ function ApproachCard({
               onChange={(e) => setConnections(e.target.value)}
               rows={3}
               placeholder={t('Connected parties: who is involved and how')}
-              className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 outline-none focus:border-gold-metal/50"
+              className="w-full resize-y rounded-lg border border-cream-50/10 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 outline-none focus:border-gold-metal/50"
               data-no-translate
             />
             <div className="flex justify-end gap-2">
@@ -937,7 +937,7 @@ function TimelinePanel({ timeline, hideHeading }: { timeline: ApproachTimelineEn
     <div>
       <div className={`mb-2 flex items-center gap-2 ${hideHeading ? 'justify-end' : 'justify-between'}`}>
         {!hideHeading && <ConsoleLabel><T>Supporting timeline</T></ConsoleLabel>}
-        <div className="inline-flex overflow-hidden rounded-md border border-cream-50/12 font-mono text-[10px] uppercase tracking-[0.14em]">
+        <div className="inline-flex overflow-hidden rounded-md border border-cream-50/10 font-mono text-[10px] uppercase tracking-[0.14em]">
           {(['list', 'calendar'] as const).map((m) => (
             <button
               key={m}

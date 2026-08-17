@@ -85,7 +85,7 @@ export function CaseActivityStream({
       </div>
 
       {events.length === 0 ? (
-        <p className="mt-4 rounded-lg border border-dashed border-cream-50/12 px-4 py-6 text-center text-[13px] text-cream-100/45">
+        <p className="mt-4 rounded-lg border border-dashed border-cream-50/10 px-4 py-6 text-center text-[13px] text-cream-100/45">
           No activity yet. When co-counsel signs in and works the matter, it shows up here.
         </p>
       ) : (

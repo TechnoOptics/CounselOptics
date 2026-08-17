@@ -598,7 +598,7 @@ function AttachmentScanPanel({ scan }: { scan: AttachmentScan }) {
         <div className="card p-0 ring-1 ring-white/10 overflow-hidden">
           <table className="w-full text-[11.5px]">
             <thead>
-              <tr className="text-left text-cream-100/45 border-b border-white/8">
+              <tr className="text-left text-cream-100/45 border-b border-white/10">
                 <th className="px-3 py-2 font-medium">Risk</th>
                 <th className="px-3 py-2 font-medium">Source</th>
                 <th className="px-3 py-2 font-medium">File</th>
