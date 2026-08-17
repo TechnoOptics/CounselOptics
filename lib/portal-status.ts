@@ -9,7 +9,13 @@
  * place and emerald in the other.
  *
  * Employees never see the firm's conflict-check vocabulary. Statuses collapse
- * onto three legible milestones: Received -> In review -> Decision.
+ * onto four legible labels: Received, In review, Accepted, Closed.
+ *
+ * There used to be a PORTAL_STEPS / portalStepIndex pair here as well, for a
+ * three-node milestone stepper on the ticket page. That stepper is gone (see
+ * components/portal/RequestHeader.tsx for why), and with the page that drew
+ * it went the only caller either export ever had, so they went too rather
+ * than sitting here looking like part of the interface.
  *
  * Colour is now one hex per state rather than a triple of Tailwind classes;
  * StatusPill derives the background and border from it. That is why this file
@@ -19,9 +25,6 @@
 // Relative, not '@/': lib modules are imported by the test runner without
 // the Next.js path alias, so an aliased import here breaks the suite.
 import { PILL_COLORS } from './pill-colors';
-
-/** The employee-facing milestones, in order. */
-export const PORTAL_STEPS = ['Received', 'In review', 'Decision'] as const;
 
 export type PortalStatusLabel = 'Received' | 'In review' | 'Accepted' | 'Closed';
 
@@ -61,10 +64,4 @@ export function portalStatusColor(label: PortalStatusLabel): string {
 /** True once the firm has made a call either way. */
 export function isPortalDecision(label: PortalStatusLabel): boolean {
   return label === 'Accepted' || label === 'Closed';
-}
-
-/** Index into PORTAL_STEPS for the milestone strip. */
-export function portalStepIndex(label: PortalStatusLabel): number {
-  if (isPortalDecision(label)) return 2;
-  return label === 'In review' ? 1 : 0;
 }
