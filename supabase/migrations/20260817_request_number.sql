@@ -1,23 +1,26 @@
 -- A human-quotable reference on every legal request.
 --
--- ======================= NOT APPLIED AS OF 2026-08-17 ====================
--- Written on branch feat/firm-ticket-reference and NOT applied. Applying it
--- and regenerating supabase/schema-fingerprint.sha256 are the owner's steps,
--- and CI fails while that hash is stale.
+-- ==================== APPLIED TO PRODUCTION 2026-08-17 ===================
+-- Applied before this code was pushed, which is the ordering the 2026-08-07
+-- deploy settled: lib/intake-notify.ts selects request_number as part of
+-- INTAKE_COLS, and PostgREST reports a missing column as an error on the
+-- WHOLE request rather than as a null, so shipping the code first would have
+-- failed closed on every counsel inbox and portal read.
 --
--- This banner is accurate at the time of writing and MUST be corrected by
--- whoever runs the migration. Three headers in this directory have already
--- been found claiming the wrong applied state, because nothing in CI can
--- contradict them: the schema-drift gate self-skips while the
--- SUPABASE_DB_URL repo secret is unset, so a wrong banner and a stale
--- fingerprint both pass green. See scripts/schema/README.md.
+-- Verified after applying, by reading information_schema rather than by
+-- trusting the apply call: both columns exist and are nullable, and the
+-- partial unique index exists.
 --
--- APPLY THIS BEFORE THE CODE SHIPS, NOT AFTER. lib/intake-notify.ts selects
--- request_number as part of INTAKE_COLS, and PostgREST reports a missing
--- column as an error on the whole request rather than as a null. Deploying
--- the code first would fail closed on every counsel inbox and portal read.
--- That ordering, migrations before the push, is the rule the 2026-08-07
--- deploy settled for exactly this reason.
+-- supabase/schema-fingerprint.sha256 was regenerated in the same commit
+-- (8b266abd -> 53efa72c). The hash is computed server side by
+-- scripts/schema/fingerprint-hash.sql.
+--
+-- This banner replaced a NOT APPLIED one, which is the correction that file
+-- asked whoever ran the migration to make. Nothing in CI can contradict a
+-- banner: the schema-drift gate self-skips while the SUPABASE_DB_URL repo
+-- secret is unset, so a wrong banner and a stale fingerprint both pass
+-- green. Three headers in this directory have already been found claiming
+-- the wrong state. See scripts/schema/README.md.
 -- =========================================================================
 --
 -- A legal request's reference has until now been derived from its uuid
