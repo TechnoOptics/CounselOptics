@@ -33,6 +33,7 @@
 
 import {
   DECIDED_INTAKE_STATUSES,
+  INTAKE_STATUSES,
   type IntakeLane,
   type IntakeStatus,
 } from './intake-lanes';
@@ -280,4 +281,59 @@ export function legacyStatusForWorkflow(
       );
     }
   }
+}
+
+/**
+ * The six states that mean the ticket is still on the legal team's desk: the
+ * nine, less the three that mean it is finished.
+ *
+ * Derived rather than written out. A tenth state added to INTAKE_WORKFLOW_STATES
+ * lands here automatically, which is the difference between one definition and
+ * two lists that agree until somebody edits one of them.
+ */
+const LIVE_WORKFLOW_STATES: readonly IntakeWorkflowState[] =
+  INTAKE_WORKFLOW_STATES.filter((s) => !DECIDED_WORKFLOW_STATES.includes(s));
+
+/**
+ * The legacy statuses that mean a row with no `workflow_state` is finished.
+ *
+ * Obtained by ASKING workflowStateOf, rather than by restating its switch, so
+ * the two cannot come apart. Today this is `rejected` and `closed`.
+ */
+const DECIDED_LEGACY_STATUSES: readonly IntakeStatus[] = INTAKE_STATUSES.filter(
+  (s) => DECIDED_WORKFLOW_STATES.includes(workflowStateOf(null, s)),
+);
+
+/**
+ * The PostgREST `.or()` argument that selects exactly the open tickets, for
+ * the surfaces that COUNT the queue rather than tally rows they have read.
+ *
+ * This exists for the same reason lib/intake-lanes.ts grew intakeLaneFilter: a
+ * total over a bounded read is a floor with a total's label on it, so a surface
+ * that states the queue's size has to ask the database for it, and the
+ * expression it asks with belongs beside the definition rather than inline on
+ * the page.
+ *
+ * THREE BRANCHES, and each one is a row that would otherwise be miscounted.
+ * `workflow_state` is nullable and was deliberately never backfilled (see
+ * supabase/migrations/20260816_intake_workflow_state.sql), so for a legacy row
+ * the derivation in workflowStateOf is the only thing that knows whether the
+ * request is finished:
+ *
+ *   1. A stored state, live.
+ *   2. No stored state, and a status that is not one of the decided ones.
+ *   3. No stored state and no status at all. Named on its own because SQL's
+ *      `NOT IN` over NULL is NULL rather than true, so branch 2 drops this row
+ *      and it would vanish from a queue it has every reason to be in.
+ *
+ * Anything unrecognised therefore counts as OPEN, which is the direction
+ * lib/intake-lanes.ts chose for the same reason: a request the code cannot
+ * place should reach a person rather than disappear into a finished bucket.
+ */
+export function openIntakeOrFilter(): string {
+  return [
+    `workflow_state.in.(${LIVE_WORKFLOW_STATES.join(',')})`,
+    `and(workflow_state.is.null,status.not.in.(${DECIDED_LEGACY_STATUSES.join(',')}))`,
+    'and(workflow_state.is.null,status.is.null)',
+  ].join(',');
 }

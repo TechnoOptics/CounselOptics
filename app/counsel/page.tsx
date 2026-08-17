@@ -39,6 +39,7 @@ import {
   matterCountFor,
 } from '@/lib/counsel-metrics';
 import { intakeLaneFilter, type IntakeLane } from '@/lib/intake-lanes';
+import { openIntakeOrFilter } from '@/lib/intake-workflow';
 import { PageHeader, EmptyState, StatCard } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -174,7 +175,7 @@ export default async function CounselDashboard() {
   );
   const metricsOn = new Set(visibleMetrics);
   const headlineOn =
-    metricsOn.has('headline-open-matters') ||
+    metricsOn.has('headline-open-tickets') ||
     metricsOn.has('headline-signatures-out') ||
     metricsOn.has('headline-clients') ||
     metricsOn.has('headline-documents');
@@ -265,6 +266,7 @@ export default async function CounselDashboard() {
     reviewRes,
     acceptedRes,
     closedRes,
+    openTicketsRes,
     newTodayRes,
     recentRes,
   ] = await Promise.all([
@@ -272,6 +274,24 @@ export default async function CounselDashboard() {
     intakeCount('review'),
     intakeCount('accepted'),
     intakeCount('closed'),
+    // The headline figure: open TICKETS, counted the way the queue defines
+    // open rather than by adding the two lanes above.
+    //
+    // Those are not the same measure and the difference is a real ticket. The
+    // lanes are the seven-value `status`, where `converted` sits in the
+    // ACCEPTED lane and so counts as neither attention nor review; the
+    // nine-state `workflow_state` calls a converted ticket open, and
+    // /counsel/inbox's default "All open" view shows it. A sum of lanes here
+    // would state a number the queue this tile opens does not agree with.
+    //
+    // openIntakeOrFilter is that view's definition expressed for the
+    // database, so the figure and its destination cannot come apart. Exact
+    // and unbounded, like every other figure on this strip.
+    supabase
+      .from('firm_matter_intakes')
+      .select('id', { count: 'exact', head: true })
+      .eq('firm_id', ctx.firm.id)
+      .or(openIntakeOrFilter()),
     supabase
       .from('firm_matter_intakes')
       .select('id', { count: 'exact', head: true })
@@ -292,6 +312,13 @@ export default async function CounselDashboard() {
     accepted: acceptedRes.count ?? 0,
     closed: closedRes.count ?? 0,
   };
+  const openTickets = openTicketsRes.count ?? 0;
+  // The firm's whole queue, under the open figure. The four lanes PARTITION
+  // the table by construction, because intakeLaneFilter spells `attention` as
+  // the complement of the other three, so their sum is the total exactly and
+  // needs no seventh query. Every term is itself an exact count.
+  const intakeTotal =
+    lanes.needsAttention + lanes.inReview + lanes.accepted + lanes.closed;
   const newToday = newTodayRes.count ?? 0;
   const recentNew = ((recentRes.data ?? []) as Array<{
     id: string;
@@ -649,20 +676,22 @@ export default async function CounselDashboard() {
         only. Every one of them is a count over a set this page read in
         full, and every one of them now OPENS the list that holds it:
 
-          Open matters      matterCountFor over listFirmCases  -> /counsel/cases
+          Open tickets      openIntakeOrFilter, exact count -> /counsel/inbox
           Signatures out    listFirmSigningRequests, sent|partial
                                                         -> /counsel/signing?view=out
           Active clients    listFirmClients, status active -> /counsel/clients?view=active
           Documents         listFirmDocuments             -> /counsel/documents
 
         Each destination shows the same set the number counts. "Open
-        matters" is the one that had to move to get there: it was a set of
-        four statuses written on this page, and /counsel/cases calls a
-        draft matter live, so the two disagreed for any firm with a draft.
-        It is now the caseload page's own default view, counted by the
-        caseload page's own filter. Active clients is the one place a link
-        is conditional, because /counsel/clients drops a view no client is
-        in; see clientsHref.
+        tickets" leads because a request is what this team is actually
+        asked for; a matter is the rarer outcome where a file gets
+        opened, and it kept the smaller number in the larger position.
+        Its definition of open is the inbox's own ("All open" is that
+        page's default view), expressed for the database in
+        lib/intake-workflow.ts rather than restated here, which is what
+        stops the figure and the queue it opens from disagreeing. Active
+        clients is the one place a link is conditional, because
+        /counsel/clients drops a view no client is in; see clientsHref.
 
         The intake lane counts are exact now, so the cap that used to
         keep them off this strip is gone. They still stay off it, for a
@@ -674,14 +703,14 @@ export default async function CounselDashboard() {
       */}
       {headlineOn && (
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {metricsOn.has('headline-open-matters') && (
-        <StripLink href="/counsel/cases">
+        {metricsOn.has('headline-open-tickets') && (
+        <StripLink href="/counsel/inbox">
           <StatCard
-            label={<T>Open matters</T>}
-            value={openMatters}
+            label={<T>Open tickets</T>}
+            value={openTickets}
             sub={
               <>
-                {cases.length} <T>at the firm in total</T>
+                {intakeTotal} <T>requests in total</T>
               </>
             }
             color="var(--accent-text)"
