@@ -492,10 +492,16 @@ export default async function IntakeDetailPage({
                 title="Documents"
                 count={conv.documents.length}
               >
+                {/* `signing` is what puts "Send for signature" beside each
+                    document that is a real firm_documents row, so the team
+                    never leaves the ticket to send one. The employee's copy of
+                    this panel in app/portal/[id]/page.tsx passes nothing, so
+                    the control does not exist there. */}
                 <IntakeWorkPanel
                   intakeId={intake.id}
                   canManage
                   embedded
+                  signing={{ firmId: ctx.firm.id }}
                   sections={['documents', 'requests']}
                   assignee={conv.assignee}
                   participants={conv.participants}
