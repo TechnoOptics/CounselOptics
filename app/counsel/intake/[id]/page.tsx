@@ -15,14 +15,20 @@ import {
   readIntakeFolder,
 } from '@/lib/request-folders';
 import { FolderPicker } from './folder-picker';
-import { IntakeOwnerSelect } from './intake-owner-select';
 import { ConvertToMatter } from './convert-to-matter';
 import { DecideJump } from './decide-jump';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
 import { DecideRequest } from './decide-request';
 import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
-import { StatusPill, PILL_COLORS, PILL_DEFAULT } from '@/components/counsel/StatusPill';
+import { StatusPill } from '@/components/counsel/StatusPill';
+import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
+import { TicketManagement } from './ticket-management';
+import {
+  WORKFLOW_LABEL,
+  workflowColor,
+  workflowStateOf,
+} from '@/lib/intake-workflow';
 import { ActionBar, Chip, MonoRef, PanelCard, relativeTime } from '@/components/counsel/patterns';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
@@ -37,23 +43,15 @@ import {
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
 
-// One hex per status; StatusPill derives the fill and the border from
-// it. An unlisted status falls back to gold rather than to silence.
+// The pill now says the WORKFLOW state, not the lifecycle status, and its
+// colour comes from lib/intake-workflow.ts with the rest of that vocabulary.
 //
-// `converted`, `rejected` and `closed` were all missing, so a request the
-// team had taken on and one it had turned down both wore the gold fallback,
-// which reads as the accent rather than as a state. The two decided statuses
-// share `quiet` because that is the grey lib/portal-status.ts already paints
-// "Closed" with, so the employee's chip and the firm's chip agree.
-const STATUS_COLOR: Record<string, string> = {
-  in_progress: PILL_COLORS.neutral,
-  conflict_check_passed: PILL_COLORS.good,
-  conflict_check_flagged: PILL_COLORS.flagged,
-  engaged: PILL_COLORS.good,
-  converted: PILL_COLORS.good,
-  rejected: PILL_COLORS.quiet,
-  closed: PILL_COLORS.quiet,
-};
+// It used to hold a hex-per-status map of its own. Two status words on one
+// screen would be two things to reconcile before doing any work, and the one
+// the legal team manages by is the finer of the two: "awaiting external party"
+// is actionable and "conflict check passed" is history. The lifecycle status
+// has not gone anywhere, it is what the queue, the employee's portal and the
+// partner API still read, and every write here keeps it in the right lane.
 
 /** The decision panel's props, read out of the schema-less answers column. */
 function readDecision(answers: Record<string, unknown>) {
@@ -109,10 +107,16 @@ export default async function IntakeDetailPage({
     intake_answers: Record<string, unknown> | null;
     created_by: string | null;
     created_at: string;
+    // Added by supabase/migrations/20260816_intake_workflow_state.sql. Until
+    // that is applied these read as undefined, which workflowStateOf and the
+    // date fields all treat as "nobody has set one", so the page renders.
+    workflow_state?: string | null;
+    follow_up_on?: string | null;
+    due_on?: string | null;
   };
   if (intake.firm_id !== ctx.firm.id) notFound();
 
-  const statusColor = STATUS_COLOR[intake.status] ?? PILL_DEFAULT;
+  const workflow = workflowStateOf(intake.workflow_state, intake.status);
 
   // In-house metadata captured by the typed intake form. Stored in the
   // schema-less intake_answers JSON column so it renders without a
@@ -200,6 +204,12 @@ export default async function IntakeDetailPage({
 
   return (
     <div className="space-y-6 animate-fade-up">
+      {/* The rail collapses on entry so the ticket gets the width, and the
+          prior state is restored on the way out. The way back in is the Menu
+          tab (a button, so Tab and Enter reach it) or, on a mouse, resting the
+          pointer at the left edge of the window. */}
+      <RequestSidebarFocus />
+
       <nav
         aria-label="Breadcrumb"
         className="flex flex-wrap items-center gap-2 text-[12.5px]"
@@ -229,16 +239,20 @@ export default async function IntakeDetailPage({
             pills it reads as what it is, the last and quietest fact in a
             row that gets quieter left to right. */}
         <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-          <StatusPill dot color={statusColor}>
-            {intake.status.replace(/_/g, ' ')}
+          <StatusPill dot color={workflowColor(workflow)}>
+            <T>{WORKFLOW_LABEL[workflow]}</T>
           </StatusPill>
           {priority && (
             <Chip>
               <span data-no-translate>{priority}</span>
             </Chip>
           )}
+          {/* Neutral, not accent. The accent is spent once on this screen and
+              it is spent on the action bar's primary, which is the thing the
+              screen exists to do. A gold chip beside a gold button is two
+              claims and the reader obeys neither. */}
           {isEmployeeReq && (
-            <Chip tone="accent">
+            <Chip>
               <T>In-house</T> · <span data-no-translate>{submittedBy}</span>
             </Chip>
           )}
@@ -304,13 +318,11 @@ export default async function IntakeDetailPage({
           </>
         }
       >
-        {conv.ok && (
-          <IntakeOwnerSelect
-            intakeId={intake.id}
-            assignee={conv.assignee}
-            people={conv.mentionables}
-          />
-        )}
+        {/* The owner select used to sit here. It is now one field of the
+            management block below, with the rest of the fields the team runs
+            this ticket by, rather than being the one of them that lives
+            somewhere else. It is not in both places: a control drawn twice is
+            two controls that can disagree about what they show. */}
         <FolderPicker
           firmId={ctx.firm.id}
           intakeId={intake.id}
@@ -319,8 +331,32 @@ export default async function IntakeDetailPage({
         />
       </ActionBar>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+      {/* ONE RULE SPLITS THESE TWO COLUMNS. What the EMPLOYEE wrote is on the
+          left. What the FIRM does about it is on the right.
+
+          So the left is now the matter, the intake questions, the documents
+          they attached and the conversation, and nothing else. The conflict
+          check, the decision, the analysis, Analyze and scheduling a meeting
+          were all in that column and are all operations rather than anything
+          the employee said, so they have moved.
+
+          The rail is wider than it was (380 rather than 340) because it now
+          carries controls rather than only readouts, and because the nav rail
+          collapsing on this route gave the page the width to spend. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="min-w-0 space-y-6">
+          <TicketManagement
+            firmId={ctx.firm.id}
+            intakeId={intake.id}
+            state={workflow}
+            assignee={conv.ok ? conv.assignee : null}
+            people={conv.ok ? conv.mentionables : []}
+            priority={priority}
+            followUpOn={intake.follow_up_on ?? ''}
+            dueOn={intake.due_on ?? ''}
+            reminderAt={String(ans.reminder_at ?? '')}
+          />
+
           {/* The record, as one card of collapsible sections. The sections
               keep their per-reader collapsed state; the card is what stops
               nine of them reading as nine separate documents. */}
@@ -361,27 +397,6 @@ export default async function IntakeDetailPage({
               </RecordSection>
             )}
 
-            <RecordSection id="conflict" title="Conflict check">
-              <ConflictCheckPanel
-                firmId={ctx.firm.id}
-                intakeId={intake.id}
-                status={intake.status}
-                results={intake.conflict_results}
-                notes={intake.conflict_check_notes}
-              />
-            </RecordSection>
-
-            {/* The other end of the fork the action bar's primary starts.
-                The bar's secondary opens this, because declining writes a
-                reason the requester reads and the reason is required. */}
-            <RecordSection id="decide" title="Decline or close">
-              <DecideRequest
-                firmId={ctx.firm.id}
-                intakeId={intake.id}
-                decision={decision}
-              />
-            </RecordSection>
-
             {conv.ok && (
               <RecordSection
                 id="documents"
@@ -402,55 +417,6 @@ export default async function IntakeDetailPage({
               </RecordSection>
             )}
 
-            <RecordSection
-              id="next"
-              title="Reminders and signatures"
-              defaultOpen={false}
-            >
-              <RequestActions
-                firmId={ctx.firm.id}
-                intakeId={intake.id}
-                currentReminder={String(ans.reminder_at ?? '')}
-              />
-            </RecordSection>
-
-            <RecordSection
-              id="meeting"
-              title="Schedule a meeting"
-              defaultOpen={false}
-            >
-              <ScheduleMeetingPanel
-                firmId={ctx.firm.id}
-                intakeId={intake.id}
-                defaultTitle={`Advottic: ${ticketTitle}`}
-              />
-            </RecordSection>
-
-            {ans.review != null &&
-              typeof ans.review === 'object' &&
-              'grade' in (ans.review as object) && (
-                <RecordSection
-                  id="review"
-                  title="Advottic Review"
-                  defaultOpen={false}
-                >
-                  <ReviewScorecard
-                    data={ans.review as DocScorecard}
-                    audience="legal"
-                  />
-                </RecordSection>
-              )}
-
-            <RecordSection id="analyze" title="Analyze" defaultOpen={false}>
-              <p className="mb-2 text-[12px] text-muted">
-                <T>Run an AI breakdown of what the submitted document means, how the law
-                applies, its bias, and the risky clauses.</T>
-              </p>
-              <AnalyzeStudio
-                embedded
-                initialText={String(intake.matter_summary ?? '')}
-              />
-            </RecordSection>
           </div>
 
           {conv.ok && (
@@ -467,10 +433,17 @@ export default async function IntakeDetailPage({
           )}
         </div>
 
-        {/* The aside is the people and the matter. The reference product
-            puts a device and its installed software here; counsel does not
-            track either, and a column of borrowed telemetry would be worse
-            than a shorter column. */}
+        {/* The aside is what the firm knows about this request and what the
+            firm does about it, in that order: the people and the matter
+            first, because they are read, then the operations, because they
+            are acted on and a reader who wanted them came looking.
+
+            The operations are ONE card of collapsible sections rather than
+            five more panels. RecordSection is what the record itself uses and
+            it keeps each section's state per reader, so a team that never
+            runs a conflict check on employee requests collapses it once. Five
+            separate cards would have been five headers and a rail nobody
+            reaches the bottom of. */}
         <aside className="space-y-4">
           <PanelCard title={<T>{vocab.client}</T>}>
             <p
@@ -484,19 +457,24 @@ export default async function IntakeDetailPage({
                 <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                   <T>Email</T>
                 </dt>
-                <dd
-                  data-no-translate
-                  className="break-words text-[13px] text-foreground"
-                >
-                  {intake.client_email ?? '—'}
+                <dd className="break-words text-[13px] text-foreground">
+                  {intake.client_email ? (
+                    <span data-no-translate>{intake.client_email}</span>
+                  ) : (
+                    <T>Not set</T>
+                  )}
                 </dd>
               </div>
               <div>
                 <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                   <T>Phone</T>
                 </dt>
-                <dd data-no-translate className="text-[13px] text-foreground">
-                  {intake.client_phone ?? '—'}
+                <dd className="text-[13px] text-foreground">
+                  {intake.client_phone ? (
+                    <span data-no-translate>{intake.client_phone}</span>
+                  ) : (
+                    <T>Not set</T>
+                  )}
                 </dd>
               </div>
             </dl>
@@ -511,7 +489,7 @@ export default async function IntakeDetailPage({
               caseId ? (
                 <Link
                   href={`/counsel/cases/${caseId}`}
-                  className="text-[12px] text-accent-text hover:underline"
+                  className="text-[12px] text-muted hover:text-foreground hover:underline"
                 >
                   <T>Open the matter &rarr;</T>
                 </Link>
@@ -571,16 +549,28 @@ export default async function IntakeDetailPage({
                   <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                     <T>Other parties</T>
                   </dt>
-                  <dd data-no-translate className="text-[13px] text-foreground">
-                    {intake.opposing_parties?.join(', ') || '—'}
+                  <dd className="text-[13px] text-foreground">
+                    {intake.opposing_parties?.length ? (
+                      <span data-no-translate>
+                        {intake.opposing_parties.join(', ')}
+                      </span>
+                    ) : (
+                      <T>None</T>
+                    )}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
                     <T>Related parties</T>
                   </dt>
-                  <dd data-no-translate className="text-[13px] text-foreground">
-                    {intake.related_parties?.join(', ') || '—'}
+                  <dd className="text-[13px] text-foreground">
+                    {intake.related_parties?.length ? (
+                      <span data-no-translate>
+                        {intake.related_parties.join(', ')}
+                      </span>
+                    ) : (
+                      <T>None</T>
+                    )}
                   </dd>
                 </div>
               </dl>
@@ -678,6 +668,82 @@ export default async function IntakeDetailPage({
               </ul>
             </PanelCard>
           )}
+
+          {/* WHAT THE FIRM DOES ABOUT THIS REQUEST. Every one of these was in
+              the main column, among the employee's own words, which is what
+              this change is for. */}
+          <div className="card overflow-hidden">
+            <div className="border-b border-edge px-4 py-2.5">
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+                <T>Legal team actions</T>
+              </h2>
+            </div>
+
+            <RecordSection id="conflict" title="Conflict check">
+              <ConflictCheckPanel
+                firmId={ctx.firm.id}
+                intakeId={intake.id}
+                status={intake.status}
+                results={intake.conflict_results}
+                notes={intake.conflict_check_notes}
+              />
+            </RecordSection>
+
+            {/* The other end of the fork the action bar's primary starts.
+                The bar's secondary opens this, because declining writes a
+                reason the requester reads and the reason is required. It
+                still opens from there: RecordSection listens for the jump on
+                the window, so moving the section did not break the link. */}
+            <RecordSection id="decide" title="Decline or close">
+              <DecideRequest
+                firmId={ctx.firm.id}
+                intakeId={intake.id}
+                decision={decision}
+              />
+            </RecordSection>
+
+            {ans.review != null &&
+              typeof ans.review === 'object' &&
+              'grade' in (ans.review as object) && (
+                <RecordSection
+                  id="review"
+                  title="Advottic Review"
+                  defaultOpen={false}
+                >
+                  <ReviewScorecard
+                    data={ans.review as DocScorecard}
+                    audience="legal"
+                  />
+                </RecordSection>
+              )}
+
+            <RecordSection id="analyze" title="Analyze" defaultOpen={false}>
+              <p className="mb-2 text-[12px] text-muted">
+                <T>Run an AI breakdown of what the submitted document means, how the law
+                applies, its bias, and the risky clauses.</T>
+              </p>
+              <AnalyzeStudio
+                embedded
+                initialText={String(intake.matter_summary ?? '')}
+              />
+            </RecordSection>
+
+            <RecordSection id="signing" title="Send for signature" defaultOpen={false}>
+              <RequestActions />
+            </RecordSection>
+
+            <RecordSection
+              id="meeting"
+              title="Schedule a meeting"
+              defaultOpen={false}
+            >
+              <ScheduleMeetingPanel
+                firmId={ctx.firm.id}
+                intakeId={intake.id}
+                defaultTitle={`Advottic: ${ticketTitle}`}
+              />
+            </RecordSection>
+          </div>
 
           {meta.length > 0 && (
             <PanelCard title={<T>Request details</T>}>
