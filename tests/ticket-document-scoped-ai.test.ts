@@ -129,12 +129,24 @@ describe('the ticket analysis route takes no content from the caller', () => {
   );
 
   /**
-   * Mutation: remove either eq() and this goes red.
+   * Scoped to the ATTACHMENT query specifically, not to the file.
+   *
+   * The first version of this asserted the file contained `eq('firm_id'`
+   * anywhere. Deleting the firm scope from the document query left it green,
+   * because the policy query further down carries a firm scope too and
+   * satisfied the search. A guard that any other query can satisfy is not
+   * guarding this one.
+   *
+   * Mutation: remove either eq() from the firm_documents chain. Goes red.
    */
   it('scopes the attachment query by both the ticket and the firm', () => {
     const code = codeOf(ROUTE);
-    expect(code).toContain("eq('intake_id'");
-    expect(code).toContain("eq('firm_id'");
+    const start = code.indexOf("from('firm_documents')");
+    expect(start).toBeGreaterThan(-1);
+    // The chain ends at its await/assignment terminator.
+    const chain = code.slice(start, code.indexOf(';', start));
+    expect(chain).toContain("eq('intake_id'");
+    expect(chain).toContain("eq('firm_id'");
   });
 
   it('derives the target through the shared selector rather than trusting the query', () => {
@@ -143,6 +155,41 @@ describe('the ticket analysis route takes no content from the caller', () => {
 
   it('refuses when the ticket carries no document', () => {
     expect(codeOf(ROUTE)).toContain('NO_DOCUMENT');
+  });
+
+  /**
+   * The analysis is measured against the firm's own written policies, read
+   * from the SAME table and through the SAME corpus builder the employee
+   * document checker uses. A second policy store is the failure this guards
+   * against.
+   *
+   * Mutation: drop the firm_policies read. This goes red.
+   */
+  it('reads the firm\'s policies from the one policy table', () => {
+    const code = codeOf(ROUTE);
+    expect(code).toContain("from('firm_policies')");
+    expect(code).toContain('buildPolicyCorpus');
+  });
+
+  /**
+   * Mutation: delete the enqueue of the provenance line, or hand the job to
+   * the model by putting "list your sources" in the prompt instead. Either
+   * goes red.
+   */
+  it('states what the answer was measured against, from the server', () => {
+    const code = codeOf(ROUTE);
+    expect(code).toContain('policyProvenanceLine');
+    /**
+     * Compared INSIDE the stream body. The first version of this compared
+     * positions across the whole file and so measured import order, where
+     * `streamBella` is imported first and the assertion was meaningless.
+     */
+    const body = code.slice(code.indexOf('new ReadableStream'));
+    const provenance = body.indexOf('policyProvenanceLine');
+    const modelCall = body.indexOf('streamBella');
+    expect(provenance).toBeGreaterThan(-1);
+    expect(modelCall).toBeGreaterThan(-1);
+    expect(provenance).toBeLessThan(modelCall);
   });
 });
 
@@ -198,6 +245,19 @@ describe('the ticket only offers the AI controls once a document is attached', (
    * would empty the card. This also keeps the card's header from standing over
    * nothing.
    */
+  /**
+   * The owner asked for a place to refer to the firm's policies from a
+   * ticket. It points at the EXISTING library, because a second policy store
+   * is the thing worth not building.
+   *
+   * Mutation: drop the link. This goes red.
+   */
+  it('reaches the firm\'s policies from the ticket', () => {
+    expect(codeOf('app/counsel/intake/[id]/analyze-attachments.tsx')).toContain(
+      '/counsel/policies',
+    );
+  });
+
   it('leaves the sections that do not depend on a document ungated', () => {
     const gated = gatedSectionIds(codeOf(PAGE));
     for (const id of ['decide', 'signing', 'meeting']) {

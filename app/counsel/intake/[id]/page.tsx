@@ -15,7 +15,6 @@ import {
   readIntakeFolder,
 } from '@/lib/request-folders';
 import { FolderPicker } from './folder-picker';
-import { ConvertToMatter } from './convert-to-matter';
 import { DecideJump } from './decide-jump';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
@@ -329,12 +328,14 @@ export default async function IntakeDetailPage({
                 <span data-no-translate>{formatDate(new Date(deadline.at))}</span>
               </p>
             )}
+            {/* Taking the request on as a matter used to be the bar's
+                primary. It is gone deliberately: an in-house team answers
+                requests, it does not open matters from them. The link to a
+                matter a request produced BEFORE that change still lives in
+                the Matter panel below, drawn only when case_id is set, which
+                is what keeps the already-converted requests connected to
+                their cases. */}
             <DecideJump decided={decision != null} />
-            <ConvertToMatter
-              firmId={ctx.firm.id}
-              intakeId={intake.id}
-              caseId={caseId}
-            />
           </>
         }
       >

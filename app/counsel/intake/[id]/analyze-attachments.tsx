@@ -102,6 +102,21 @@ export function AnalyzeAttachments({
         {busy ? <T>Reading the documents...</T> : <T>Analyze the attachments</T>}
       </button>
 
+      {/* The way to the firm's policies from the ticket. It is the existing
+          Policy library and not a second store: the same rows this analysis
+          is measured against, and the same ones the employee document checker
+          reads. */}
+      <p className="text-[12px] text-muted">
+        <T>Measured against your</T>{' '}
+        <a
+          href="/counsel/policies"
+          className="underline underline-offset-2 transition-colors hover:text-foreground"
+        >
+          <T>Policy library</T>
+        </a>
+        <T>. Keep it current and every analysis follows.</T>
+      </p>
+
       {error && (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-800 dark:border-rose-700/40 dark:bg-rose-950/30 dark:text-rose-200">
           {error}

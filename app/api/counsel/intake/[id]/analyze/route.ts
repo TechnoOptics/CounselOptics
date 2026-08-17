@@ -15,6 +15,7 @@ import {
   NO_DOCUMENT,
   type TicketDocumentRow,
 } from '@/lib/intake-analysis';
+import { buildPolicyCorpus, policyProvenanceLine } from '@/lib/policy-corpus';
 
 /**
  * Analyse the documents submitted with one ticket.
@@ -43,6 +44,8 @@ const MAX_PER_DOC = 12_000;
 const MAX_TOTAL = 24_000;
 /** Bytes. Larger attachments are named in the analysis but not read. */
 const MAX_BYTES = 10_000_000;
+/** Matches the employee checker's cap, against libraries under 2,000 today. */
+const MAX_POLICY_CHARS = 60_000;
 
 export async function POST(
   _req: NextRequest,
@@ -188,6 +191,25 @@ export async function POST(
     );
   }
 
+  /**
+   * The firm's own written policies, so the analysis knows what THIS company
+   * accepts. Same table and the same shared corpus builder the employee
+   * document checker uses, rather than a second policy store.
+   *
+   * The cap is well above what any firm has today (the largest live library is
+   * under 2,000 characters against a 60,000 cap), so this is headroom rather
+   * than a limit anyone is expected to hit.
+   */
+  const { data: policyRows } = await admin
+    .from('firm_policies')
+    .select('name, content')
+    .eq('firm_id', ctx.firm.id)
+    .order('name');
+  const policies = buildPolicyCorpus(
+    (policyRows ?? []) as { name: string; content: string }[],
+    MAX_POLICY_CHARS,
+  );
+
   const states =
     ctx.firm.jurisdictions.join(', ') || 'the stated governing jurisdiction';
 
@@ -230,6 +252,18 @@ export async function POST(
     '  Specific redline-style edits, most important first, with the',
     '  reason and suggested replacement language where useful.',
     '',
+    policies.corpus
+      ? [
+          'AGAINST COMPANY POLICY',
+          '  Compare the document to the company policies supplied below.',
+          '  Say what conflicts with them, what they permit, and what they',
+          '  do not address at all. Quote the policy you are relying on.',
+          '  Never invent policy text: if the policies are silent on a',
+          '  point, say they are silent rather than guessing the company',
+          '  position.',
+          '',
+        ].join('\n')
+      : '',
     'Rules: never use an em-dash or en-dash; use commas or colons.',
     'No markdown, no emoji, no AI preamble or sign-off. This is',
     'analysis for licensed counsel, not advice to a consumer.',
@@ -238,6 +272,9 @@ export async function POST(
       ? `Note: these attachments could not be read and are not covered: ${skipped.join(', ')}.`
       : '',
     '',
+    policies.corpus
+      ? `--- COMPANY POLICIES ---${policies.corpus}\n--- END OF COMPANY POLICIES ---\n`
+      : '',
     parts.join('\n\n'),
   ]
     .filter((line) => line !== '')
@@ -246,6 +283,20 @@ export async function POST(
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      /**
+       * What this answer was measured against, written by the SERVER before a
+       * token of model output. The reader has to be able to see which policies
+       * informed the analysis: one that silently used two of three reads as
+       * complete and is worse than one that used none.
+       *
+       * Not delegated to the model on purpose. Asked to report its own
+       * sources, a model reports the ones it wishes it had.
+       */
+      controller.enqueue(
+        encoder.encode(
+          `SOURCES\n  Documents: ${targets.map((t) => t.name).join(', ')}\n  ${policyProvenanceLine(policies)}\n\n`,
+        ),
+      );
       try {
         /**
          * `portal` and `firmId` are passed, which /api/counsel/analyze does
