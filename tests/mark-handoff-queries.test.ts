@@ -179,22 +179,32 @@ describe('spendPhoneMarkAttestation', () => {
 describe('collectMarkForOwner', () => {
   const input = { handoffId: 'h1', userId: 'u1', firmId: 'f1' };
 
-  it('hands the picture only to the session that owns the row', async () => {
+  it('finds the row under the caller session on BOTH of its statements', async () => {
     nextResult = { mark_png: PNG };
-    expect(await collectMarkForOwner(input)).toEqual({ mark: PNG });
+    expect(await collectMarkForOwner(input)).toEqual({
+      mark: PNG,
+      scanned: true,
+      collected: false,
+    });
 
-    const update = only('update')[0];
-    expect(update.filters).toContain('eq id=h1');
-    expect(update.filters).toContain('eq user_id=u1');
-    expect(update.filters).toContain('eq firm_id=f1');
+    // The read and the claim are separate statements now (see the note on the
+    // function: reading a column in the statement that nulls it returned the
+    // null). That makes the scoping two chains rather than one, and a chain
+    // nothing exercises is a chain somebody deletes.
+    for (const call of [only('select')[0], only('update')[0]]) {
+      expect(call.table).toBe('firm_mark_handoffs');
+      expect(call.filters).toContain('eq id=h1');
+      expect(call.filters).toContain('eq user_id=u1');
+      expect(call.filters).toContain('eq firm_id=f1');
+    }
   });
 
   it('hands it over once', async () => {
     nextResult = { mark_png: PNG };
     await collectMarkForOwner(input);
     const update = only('update')[0];
-    // The collection IS the read, so a second poll after a successful one
-    // matches nothing rather than returning the image again.
+    // Two overlapping polls both read the picture; only one can satisfy this
+    // filter, and the update is read back, so only one is told it has it.
     expect(update.filters).toContain('is collected_at=null');
     expect(update.payload?.collected_at).toEqual(expect.any(String));
   });
@@ -207,15 +217,31 @@ describe('collectMarkForOwner', () => {
    * nothing to sweep it. What stays behind is the fingerprint, which is all
    * the submission gate needs.
    */
-  it('clears the picture in the same statement that reads it', async () => {
+  it('clears the picture on the statement that claims the row', async () => {
     nextResult = { mark_png: PNG };
     await collectMarkForOwner(input);
     expect(only('update')[0].payload).toHaveProperty('mark_png', null);
+    // And reads the picture on an EARLIER statement, which is the whole fix:
+    // an UPDATE ... RETURNING reports the row as it is after the update.
+    expect(calls.map((c) => c.op)).toEqual(['select', 'update']);
+    expect(only('update')[0].selected).toBe('id');
   });
 
-  it('says nothing when the phone has not drawn yet', async () => {
+  it('writes nothing at all when the phone has not drawn yet', async () => {
     nextResult = null;
-    expect(await collectMarkForOwner(input)).toBe(null);
+    expect(await collectMarkForOwner(input)).toEqual({
+      mark: null,
+      scanned: false,
+      collected: false,
+    });
+    // Not merely "no picture returned". A handoff that is asked about must not
+    // be spent by the asking, or every poll would burn the code.
+    expect(only('update')).toEqual([]);
+  });
+
+  it('never stamps a row that has no picture as collected', async () => {
+    nextResult = { mark_png: PNG };
+    await collectMarkForOwner(input);
     expect(only('update')[0].filters).toContain('not mark_png is null');
   });
 });

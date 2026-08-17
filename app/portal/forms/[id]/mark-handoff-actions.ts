@@ -115,20 +115,38 @@ export async function mintPhoneMarkAction(
  * The row is found only under this session's own user and firm, and the image
  * is handed over once. A second call after a successful one returns nothing,
  * which is what the desk wants anyway.
+ *
+ * It answers three things rather than one, because "no picture" used to mean
+ * all three at once and the desk could only sit on it. `scanned` says a phone
+ * has the code, which is what takes the QR off the screen. `collected` says
+ * this row has already given up its picture, which is not a wait, it is a
+ * signature that went missing, and the caller says so out loud.
  */
+export type PhoneMarkPollResult = {
+  mark: string | null;
+  scanned: boolean;
+  collected: boolean;
+  error?: string;
+};
+
+const NO_HANDOFF: PhoneMarkPollResult = {
+  mark: null,
+  scanned: false,
+  collected: false,
+};
+
 export async function collectPhoneMarkAction(
   handoffId: string,
-): Promise<{ mark: string | null; error?: string }> {
+): Promise<PhoneMarkPollResult> {
   const session = await employeeSession();
-  if (!session.ok) return { mark: null, error: session.error };
+  if (!session.ok) return { ...NO_HANDOFF, error: session.error };
 
   const id = typeof handoffId === 'string' ? handoffId.trim() : '';
-  if (!id) return { mark: null };
+  if (!id) return NO_HANDOFF;
 
-  const found = await collectMarkForOwner({
+  return collectMarkForOwner({
     handoffId: id,
     userId: session.userId,
     firmId: session.firmId,
   });
-  return { mark: found?.mark ?? null };
 }

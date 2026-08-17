@@ -4,7 +4,36 @@ import { PhoneHandoffCard } from '@/components/signing/PhoneHandoffCard';
 import {
   collectPhoneMarkAction,
   mintPhoneMarkAction,
+  type PhoneMarkPollResult,
 } from './mark-handoff-actions';
+
+/**
+ * Is a poll that carried no signature a wait, or a loss?
+ *
+ * The poll below used to answer that with `if (!mark) return false`, and the
+ * laptop that lost a signature in production had a completely clean console
+ * because of it. A desk polling a row the server has already stamped collected
+ * is not waiting for anything: the picture existed, it went somewhere, and it
+ * is not coming back. That deserves a sentence, and so does a server that said
+ * plainly what was wrong.
+ *
+ * The ordinary wait returns null and stays quiet. It runs every 1200ms, and a
+ * console.error on that cadence is how a real one stops being read.
+ *
+ * A separate function because a branch inside a JSX arrow is a branch nothing
+ * can test, and every silent failure in this path has been in one.
+ */
+export function phoneMarkProblem(result: PhoneMarkPollResult): string | null {
+  if (result.mark) return null;
+  // The server's own words first. "Sign in again" explains a row this session
+  // can no longer read better than any guess made out here, and it is the one
+  // somebody can act on.
+  if (result.error) return `[phone-mark] ${result.error}`;
+  if (result.collected) {
+    return '[phone-mark] this handoff is already collected and returned no signature. A signature drawn on a phone has been lost. Check firm_mark_handoffs for this row.';
+  }
+  return null;
+}
 
 /**
  * Sign on your phone, from the desk the employee is already signed in at.
@@ -84,10 +113,14 @@ export function PhoneMarkHandoff({
       }}
       poll={async (handoffId) => {
         if (!handoffId) return false;
-        const { mark } = await collectPhoneMarkAction(handoffId);
-        if (!mark) return false;
-        onMark(mark, handoffId);
-        return true;
+        const result = await collectPhoneMarkAction(handoffId);
+        if (result.mark) {
+          onMark(result.mark, handoffId);
+          return true;
+        }
+        const problem = phoneMarkProblem(result);
+        if (problem) console.error(problem);
+        return false;
       }}
       onFinished={() => {}}
       copy={{

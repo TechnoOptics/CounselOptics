@@ -198,49 +198,109 @@ export async function createMarkHandoff(owner: {
   return { ok: true, rawToken, handoffId: (data as { id: string }).id };
 }
 
+export type MarkCollection = {
+  /** The picture, on the one call that carries it out. Null every other time. */
+  mark: string | null;
+  /** A phone has claimed this code. The desk stops offering it to scan. */
+  scanned: boolean;
+  /** This row has already handed its picture over and never will again. */
+  collected: boolean;
+};
+
 /**
  * The desk collecting the picture its own phone drew.
  *
- * Scoped by user AND firm in the statement. A handoff id is a uuid a caller
+ * Scoped by user AND firm in both statements. A handoff id is a uuid a caller
  * supplies, and this is a 'use server' path, so the id alone proves nothing:
  * the filter is what stops one employee reading another's mark, and it is a
  * filter rather than a comparison so a row belonging to somebody else is never
  * loaded at all.
  *
- * The image is handed over once and cleared in the same statement. What stays
- * behind is mark_sha256, which is what the submission gate checks the desk's
- * eventual upload against.
+ * WHY THIS IS TWO STATEMENTS AND NOT ONE.
+ *
+ * It was one, and it destroyed a signature in production. The read and the
+ * clearing were the same statement: `.update({ mark_png: null }).select(
+ * 'mark_png')`. `UPDATE ... RETURNING` reports the row as it is AFTER the
+ * statement, so the read-back was the null this function had just written, and
+ * it returned "no mark yet" while stamping the row collected. The desk polled
+ * on, showed nothing, logged nothing, and the picture was unreachable forever.
+ * The row that proved it: created 02:26:30, consumed 02:26:48, marked 02:26:54,
+ * collected 02:26:55, and a laptop with an empty preview and a live QR on it.
+ *
+ * So the order is now: read the picture, then claim the row, then return the
+ * picture the read produced. THE INVARIANT IS THAT collected_at IS STAMPED
+ * ONLY ON A CALL THAT CARRIES THE PICTURE OUT. Anything that goes wrong before
+ * the claim leaves the mark exactly where it was, because the alternative is
+ * deleting somebody's signature from a legal document.
+ *
+ * Concurrency is still the claim's, not the read's. Two overlapping polls both
+ * read the picture; only one can satisfy `.is('collected_at', null)` on the
+ * update, and the loser is told it has nothing, which is true of it. That is
+ * why the claim is conditional and read back rather than fired and trusted.
+ *
+ * What stays behind after a claim is mark_sha256, which is what the submission
+ * gate checks the desk's eventual upload against. The image is in flight, not
+ * at rest: 20260815_mark_handoffs.sql justifies holding a signature PNG in a
+ * column on exactly that basis, so the nulling stays.
  */
 export async function collectMarkForOwner(input: {
   handoffId: string;
   userId: string;
   firmId: string;
-}): Promise<{ mark: string } | null> {
+}): Promise<MarkCollection> {
+  const nothing: MarkCollection = { mark: null, scanned: false, collected: false };
   const admin = createAdminSupabase();
-  if (!admin) return null;
+  if (!admin) return nothing;
 
+  // No state predicate on this read. It asks what the row IS, including the
+  // two states the desk needs to hear about and cannot infer from silence: a
+  // code somebody is signing on right now, and a row whose picture has already
+  // gone. Filtering those out here is what made both of them look identical to
+  // "nothing has happened yet".
   const { data } = await admin
     .from('firm_mark_handoffs')
-    // Cleared in the same statement that reads it. The image is in flight,
-    // not at rest: what stays behind is mark_sha256, which is all the
-    // submission gate needs. This was written as `collected_at` alone, while
-    // the comment above and 20260815_mark_handoffs.sql both said the picture
-    // was nulled here, so every employee signature ever handed off would have
-    // sat in this column indefinitely with nothing to sweep it.
+    .select('mark_png, consumed_at, collected_at')
+    .eq('id', input.handoffId)
+    .eq('user_id', input.userId)
+    .eq('firm_id', input.firmId)
+    .maybeSingle();
+
+  const found = data as {
+    mark_png: string | null;
+    consumed_at: string | null;
+    collected_at: string | null;
+  } | null;
+  if (!found) return nothing;
+
+  const state = {
+    mark: null,
+    scanned: Boolean(found.consumed_at),
+    collected: Boolean(found.collected_at),
+  } satisfies MarkCollection;
+
+  const mark = found.collected_at ? null : found.mark_png;
+  if (!mark) return state;
+
+  const { data: claimed } = await admin
+    .from('firm_mark_handoffs')
     .update({ collected_at: new Date().toISOString(), mark_png: null })
     .eq('id', input.handoffId)
     .eq('user_id', input.userId)
     .eq('firm_id', input.firmId)
-    // Only a row that has a mark and has not already handed it over. The
-    // update is the read, so a second poll after a successful one matches
-    // nothing and returns null rather than the picture a second time.
+    // Both filters are load-bearing on the way past a race. collected_at is
+    // what makes this the one caller that may have the picture; mark_png keeps
+    // the stamp off a row that has none, so the column can never say a
+    // signature was collected when none existed.
     .is('collected_at', null)
     .not('mark_png', 'is', null)
-    .select('mark_png')
+    .select('id')
     .maybeSingle();
 
-  const mark = (data as { mark_png: string | null } | null)?.mark_png;
-  return mark ? { mark } : null;
+  // The claim is read back rather than assumed, because PostgREST resolves
+  // with { error } and counts zero matched rows as a success. No row means
+  // another poll got there first, and it is carrying the picture.
+  if (!claimed) return state;
+  return { mark, scanned: true, collected: false };
 }
 
 /**
