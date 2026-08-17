@@ -546,6 +546,24 @@ export function actionCenterWorkItems(items: ActionCenterItem[]): number {
   return items.reduce((sum, i) => sum + i.workItems, 0);
 }
 
+/**
+ * The words after the number.
+ *
+ * "a human" is gone from it. The owner's objection was that the workspace is
+ * only ever used by people, so naming one says nothing, and the sentence reads
+ * as though the software had tried and given up. What the reader needs is
+ * whose desk the work is on, which is theirs.
+ *
+ * A function rather than a ternary inside the JSX because the JSX had it split
+ * across two lines, which is why the phrase survived a search for it. Whole
+ * phrases also keep `<T>` matching the dictionary, per lib/firm-vocabulary.ts.
+ */
+export function actionCenterHeadline(workItems: number): string {
+  return workItems === 1
+    ? 'thing needs your attention'
+    : 'things need your attention';
+}
+
 function ActionCenterTile({ data }: { data: DashboardTileData }) {
   const items = actionCenterItems(data);
   const workItems = actionCenterWorkItems(items);
@@ -559,11 +577,7 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
         ) : (
           <>
             {workItems}{' '}
-            <T>
-              {workItems === 1
-                ? 'thing needs a human'
-                : 'things need a human'}
-            </T>
+            <T>{actionCenterHeadline(workItems)}</T>
           </>
         )
       }

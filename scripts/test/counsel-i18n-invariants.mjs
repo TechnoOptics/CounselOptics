@@ -268,7 +268,11 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   "emptyMessage ?? 'No requests here yet.'",
   "allDocs.length === 1 ? 'document' : 'documents'",
   "data.counts.members === 1 ? 'member' : 'members'",
-  "workItems === 1 ? 'thing needs a human' : 'things need a human'",
+  // The action center's headline, now a named function over a number rather
+  // than a ternary inline in the JSX. Both of its branches are string
+  // literals in components/counsel/CounselDashboardTiles.tsx and its only
+  // argument is a count, so nothing a firm typed can reach the translator.
+  'actionCenterHeadline(workItems)',
   "total === 1 ? 'thing in your name' : 'things in your name'",
   "preview.totalRows === 1 ? 'client' : 'clients'",
   "preview.totalRows === 1 ? 'case' : 'cases'",

@@ -418,7 +418,10 @@ describe('the dashboard page counts in the database, not in a page of rows', () 
 
   it('opens each headline metric at the list behind it', () => {
     for (const href of [
-      'href="/counsel/cases"',
+      // The first figure is open TICKETS now, so it opens the ticket queue.
+      // /counsel/inbox's default view is "All open", which is the same set
+      // the figure counts; see openIntakeOrFilter in lib/intake-workflow.ts.
+      'href="/counsel/inbox"',
       'href="/counsel/signing?view=out"',
       'href="/counsel/documents"',
     ]) {

@@ -114,7 +114,7 @@ export const COUNSEL_TILES: CounselTileMeta[] = [
     id: 'action-center',
     label: 'Action center',
     description:
-      'New intakes waiting on triage, signing requests sitting on someone, anything that needs a human now.',
+      'New intakes waiting on triage, signing requests sitting on someone, anything that needs your attention now.',
     category: 'work',
     span: 4,
   },
@@ -412,11 +412,23 @@ export const COUNSEL_METRIC_GROUPS: {
  */
 export const COUNSEL_METRICS: CounselMetricMeta[] = [
   // ---- the strip
+  /*
+   * Open TICKETS, not open matters.
+   *
+   * The strip leads with the thing the legal team is actually asked for. A
+   * request arrives as a ticket and most are answered as one; a matter is the
+   * comparatively rare outcome where a file gets opened. Leading with matters
+   * put the smaller number in the larger position.
+   *
+   * NO `requires` capability, and that is checked rather than assumed:
+   * supabase/migrations/20260731_staff_role_read_scope.sql scopes `staff` out
+   * of public.cases and public.firm_documents ONLY, so a staff member reads
+   * firm_matter_intakes normally and this figure is a real number for them.
+   */
   {
-    id: 'headline-open-matters',
-    label: 'Open matters',
+    id: 'headline-open-tickets',
+    label: 'Open tickets',
     group: 'headline',
-    requires: 'matters',
   },
   { id: 'headline-signatures-out', label: 'Signatures out', group: 'headline' },
   { id: 'headline-clients', label: 'Clients', group: 'headline' },

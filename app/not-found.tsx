@@ -58,7 +58,7 @@ const NOT_FOUND_LINKS: Record<
     { href: '/feedback', title: 'Report a broken link', blurb: 'If you got here from inside Advottic.' },
   ],
   firm: [
-    { href: '/counsel', title: 'Firm dashboard', blurb: 'Open matters, recent activity, team.' },
+    { href: '/counsel', title: 'Firm dashboard', blurb: 'Open tickets, recent activity, team.' },
     { href: '/counsel/cases', title: 'Cases', blurb: 'Every matter linked to the firm.' },
     { href: '/counsel/intake', title: 'New intake', blurb: 'Open a new matter with conflict check.' },
     { href: '/counsel/settings', title: 'Firm settings', blurb: 'Name, brand, jurisdictions, webhooks.' },

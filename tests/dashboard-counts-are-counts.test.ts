@@ -49,11 +49,18 @@ describe('the dashboard states intake counts, not intake floors', () => {
   const queries = intakeQueries(dashboard);
 
   it('finds the intake reads at all, so an empty sweep cannot pass', () => {
-    // Three query sites: the lane counter (one builder, run for each of
-    // the four lanes), the 24-hour arrival count, and the recent-five
-    // list. The four lanes share a site by design - a second spelling of
-    // the same query is a second chance for the lanes to drift.
-    expect(queries).toHaveLength(3);
+    // Four query sites: the lane counter (one builder, run for each of
+    // the four lanes), the open-ticket count behind the headline figure,
+    // the 24-hour arrival count, and the recent-five list. The four lanes
+    // share a site by design - a second spelling of the same query is a
+    // second chance for the lanes to drift.
+    //
+    // The open-ticket count is its own site rather than a sum of lanes on
+    // purpose: the lanes are the seven-value `status`, which files a
+    // `converted` request under Accepted, and the nine-state queue calls
+    // that request open. Adding lanes would state a figure /counsel/inbox
+    // disagrees with.
+    expect(queries).toHaveLength(4);
   });
 
   it('bounds exactly the one read that is a list rather than a total', () => {
@@ -67,7 +74,7 @@ describe('the dashboard states intake counts, not intake floors', () => {
 
   it('asks the database for every figure it states as a total', () => {
     const totals = queries.filter((q) => !q.includes('.limit('));
-    expect(totals).toHaveLength(2);
+    expect(totals).toHaveLength(3);
     for (const q of totals) {
       expect(q, `a total read without an exact count: ${q}`).toContain(
         "count: 'exact'",
