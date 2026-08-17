@@ -111,13 +111,30 @@ describe('the poll actually reports it', () => {
     expect(POLL![1]).toMatch(/console\.error\([^)]*problem/);
   });
 
-  it('never leaves the poll without consulting it', () => {
-    // Every `return false` in the callback must sit after the problem has been
-    // looked at. There is exactly one, and it is the branch that lost the
-    // signature.
+  it('never leaves the poll empty-handed without consulting it', () => {
+    // Once the server has answered, every way out of this callback either
+    // carries the picture or has been past phoneMarkProblem. That is the whole
+    // property: the branch that lost a signature was an exit taken before
+    // anybody had looked at what came back.
     const body = POLL![1];
-    expect(body.indexOf('phoneMarkProblem(result)')).toBeLessThan(
-      body.lastIndexOf('return false'),
+    const answered = body.indexOf('collectPhoneMarkAction');
+    const consult = body.indexOf('phoneMarkProblem(result)');
+    expect(answered, 'the poll no longer asks the server').toBeGreaterThan(-1);
+    expect(consult, 'the poll no longer consults phoneMarkProblem').toBeGreaterThan(
+      -1,
     );
+
+    const exits = [...body.matchAll(/return [^;\n]*/g)];
+    for (const exit of exits) {
+      const at = exit.index;
+      if (at > answered && at < consult) {
+        // Allowed only if it is the branch that has the picture in hand.
+        expect(
+          exit[0],
+          'an exit between the server answering and the problem being looked at',
+        ).toContain("'done'");
+      }
+    }
+    expect(exits.length).toBeGreaterThan(1);
   });
 });

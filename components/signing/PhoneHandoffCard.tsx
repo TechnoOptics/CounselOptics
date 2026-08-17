@@ -45,12 +45,49 @@ export type PhoneHandoffMint =
     }
   | { ok: false; error: string };
 
+/**
+ * What a poll found. Three answers rather than two, because "a phone is
+ * holding this code and is being signed on right now" is neither of the other
+ * ones and used to be reported as waiting.
+ */
+export type PhoneHandoffProgress = 'waiting' | 'scanned' | 'done';
+
 type Phase =
   | { kind: 'idle' }
   | { kind: 'minting' }
-  | { kind: 'showing'; svg: string; expiresInMs: number; ref: string | null }
+  | { kind: 'showing'; svg: string; expiresAtMs: number; ref: string | null }
+  /** Claimed by a phone. The code is gone from the screen; the poll is not. */
+  | { kind: 'scanned'; expiresAtMs: number; ref: string | null }
   | { kind: 'expired' }
   | { kind: 'unavailable'; message: string };
+
+/**
+ * The lifecycle rule, as a pure function so it can be tested.
+ *
+ * The card stayed on a scanned code because there was no state to move it to,
+ * and the server had known about the scan for six seconds. Two properties are
+ * the whole point and both are one-way:
+ *
+ *  - a code that has been scanned never goes back on screen. The polls that
+ *    follow a scan answer 'waiting' until the phone is finished, and treating
+ *    that as "nothing has happened" would flicker the QR back up over somebody
+ *    who is mid-signature.
+ *  - the deadline travels as the absolute instant it always was, so changing
+ *    phase cannot hand out a fresh window on a row that dies at its own time.
+ *
+ * 'done' lands here too. Both callers unmount the card on it, so what this
+ * returns is the frame before it disappears; what matters is that the frame is
+ * not the QR.
+ */
+export function nextHandoffPhase(phase: Phase, progress: PhoneHandoffProgress): Phase {
+  if (progress === 'waiting') return phase;
+  if (phase.kind === 'showing') {
+    return { kind: 'scanned', expiresAtMs: phase.expiresAtMs, ref: phase.ref };
+  }
+  // Anything else is expired, unavailable, already scanned, or a card that is
+  // not showing a code at all. None of them is improved by a late poll.
+  return phase;
+}
 
 /**
  * How often the desk asks whether the phone has finished.
@@ -81,6 +118,22 @@ export type PhoneHandoffCopy = {
   scan: string;
   /** Under that: the route that stays open while the code is up. */
   alsoHere: string;
+  /**
+   * In place of the code, once a phone has claimed it.
+   *
+   * Supplied by each surface rather than written once here, because what
+   * happens next genuinely differs: the employee's phone hands a picture back
+   * to the desk, and the outside signer's phone finishes the signature. A
+   * single sentence would have to be vague enough to be true of both, and the
+   * person reading it is waiting on one of them specifically.
+   *
+   * Nothing here is a refusal, so it is not bound by the rule in
+   * lib/mark-handoff.ts that keeps every refusal identically worded. That rule
+   * protects the PHONE's screen, where a stranger holding a photographed code
+   * must not learn whether it was ever live. This is the screen that minted
+   * the code, in front of the person who minted it.
+   */
+  scanned: string;
 };
 
 export function PhoneHandoffCard({
@@ -92,9 +145,9 @@ export function PhoneHandoffCard({
 }: {
   /** Asks the server for a code. */
   mint: () => Promise<PhoneHandoffMint>;
-  /** True once the other device has finished. Called only while a code is up,
-   *  with the `ref` the mint returned. */
-  poll: (ref: string | null) => Promise<boolean>;
+  /** How far the other device has got. Called only while a code is live, with
+   *  the `ref` the mint returned. */
+  poll: (ref: string | null) => Promise<PhoneHandoffProgress>;
   onFinished: () => void;
   /** Whether pressing the button could reach the mint at all. */
   available: boolean;
@@ -133,26 +186,45 @@ export function PhoneHandoffCard({
         // The server's own lifetime, travelling with the code, because the
         // module holding the constant imports node:crypto and cannot be pulled
         // into a browser bundle. A constant retyped here is one that drifts.
-        expiresInMs: result.expiresInSeconds * 1000,
+        //
+        // Held as the instant it runs out rather than a duration, so that
+        // moving to the scanned phase carries the deadline instead of
+        // restarting it.
+        expiresAtMs: Date.now() + result.expiresInSeconds * 1000,
       });
     } catch {
       setPhase({ kind: 'unavailable', message: HANDOFF_UNREACHABLE });
     }
   }, []);
 
-  const showing = phase.kind === 'showing';
-  const showingRef = phase.kind === 'showing' ? phase.ref : null;
+  // A code is live from the moment it is on screen until the other device is
+  // finished with it, and that now spans two phases. Polling only while the QR
+  // was visible would stop the moment a phone claimed it, which is one state
+  // later than the bug this pair of phases exists to fix.
+  const polling = phase.kind === 'showing' || phase.kind === 'scanned';
+  const liveRef =
+    phase.kind === 'showing' || phase.kind === 'scanned' ? phase.ref : null;
+  const liveUntil =
+    phase.kind === 'showing' || phase.kind === 'scanned' ? phase.expiresAtMs : 0;
 
-  // While a code is on screen, watch for the other device finishing. Polled
-  // rather than pushed on both surfaces: the signer's page is
-  // unauthenticated, so a realtime channel there would subscribe successfully
-  // and then silently never fire.
+  // Watch for the other device getting on with it. Polled rather than pushed
+  // on both surfaces: the signer's page is unauthenticated, so a realtime
+  // channel there would subscribe successfully and then silently never fire.
   useEffect(() => {
-    if (!showing) return;
+    if (!polling) return;
     let stopped = false;
     const check = async () => {
       try {
-        if ((await pollRef.current(showingRef)) && !stopped) finishedRef.current();
+        const progress = await pollRef.current(liveRef);
+        if (stopped) return;
+        // Once, not once per tick. The caller's onFinished tears this card
+        // down on both surfaces, but a poll already in flight would otherwise
+        // fire it again on the way out.
+        if (progress === 'done') {
+          stopped = true;
+          finishedRef.current();
+        }
+        setPhase((current) => nextHandoffPhase(current, progress));
       } catch {
         // A dropped poll is not worth telling anyone about. The next one is
         // POLL_MS away and the pad on this page still works.
@@ -167,17 +239,21 @@ export function PhoneHandoffCard({
       stopped = true;
       clearInterval(timer);
     };
-  }, [showing, showingRef]);
+  }, [polling, liveRef]);
 
   // The row dies on its own at expires_at, so the screen stops offering a code
-  // the server would refuse. This clock is cosmetic: the row is the authority
-  // and a phone scanning a stale code is turned away by it whatever this
-  // component believes.
+  // the server would refuse, and stops promising somebody their phone is still
+  // connected to it. This clock is cosmetic: the row is the authority and a
+  // phone presenting a stale code is turned away by it whatever this component
+  // believes.
   useEffect(() => {
-    if (phase.kind !== 'showing') return;
-    const timer = setTimeout(() => setPhase({ kind: 'expired' }), phase.expiresInMs);
+    if (!polling) return;
+    const timer = setTimeout(
+      () => setPhase({ kind: 'expired' }),
+      Math.max(0, liveUntil - Date.now()),
+    );
     return () => clearTimeout(timer);
-  }, [phase]);
+  }, [polling, liveUntil]);
 
   const messageId = useId();
 
@@ -199,6 +275,21 @@ export function PhoneHandoffCard({
           <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-2 leading-relaxed max-w-sm">
             {copy.alsoHere}
           </p>
+        </div>
+      ) : phase.kind === 'scanned' ? (
+        // No code, and no button to show another one. A phone is holding this
+        // one and the person is presumably looking at it; offering to replace
+        // it here is offering to invalidate the thing in their hand.
+        <div className="flex items-start gap-2.5" role="status">
+          <PhoneMark />
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium text-ink-800 dark:text-cream-100/90">
+              Signing on your phone
+            </p>
+            <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+              {copy.scanned}
+            </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -244,6 +335,28 @@ export function PhoneHandoffCard({
  * it is hidden from the reading order: the sentence beside it already says
  * everything.
  */
+/** The same weight and size as QrMark, so the card does not jump when the two
+ *  swap over. Decorative: the heading beside it says the same thing. */
+function PhoneMark() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+      className="w-5 h-5 shrink-0 mt-0.5 text-ink-400 dark:text-cream-100/45"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+      <path d="M10.5 5.5h3" />
+      <path d="M10 18.5h4" />
+    </svg>
+  );
+}
+
 function QrMark() {
   return (
     <svg

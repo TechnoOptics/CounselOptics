@@ -60,7 +60,16 @@ export function MobileHandoff({
     <PhoneHandoffCard
       available={handoffCodeAvailable(consent)}
       mint={() => mintSigningHandoffAction(signerToken, consent)}
-      poll={async () => (await signingCompletedAction(signerToken)).signed}
+      poll={async () => {
+        // Done here means the SIGNATURE exists, which is this surface's whole
+        // difference from the employee's desk: that phone hands a picture back
+        // to a session that files it, and this one completes the ceremony
+        // itself. Scanned is the state in between, and it is the same state on
+        // both.
+        const { signed, scanned } = await signingCompletedAction(signerToken);
+        if (signed) return 'done';
+        return scanned ? 'scanned' : 'waiting';
+      }}
       onFinished={onSigned}
       copy={{
         offer: 'Prefer to sign with your finger? Use your phone.',
@@ -70,6 +79,11 @@ export function MobileHandoff({
         notYet:
           'You can finish this on your phone. Agree to the disclosure above and continue, then ask for a code to scan on step 2.',
         scan: 'Scan with your phone to sign with your finger. The code works once and expires in fifteen minutes.',
+        // This phone finishes the signature, so there is nothing further to do
+        // here and the sentence says so rather than implying a next step. The
+        // page still moves on by itself when the signature lands.
+        scanned:
+          'Finish signing on your phone. This page updates on its own when you are done.',
         alsoHere:
           'You can keep signing on this page instead. Whichever you finish first is the one that counts.',
       }}

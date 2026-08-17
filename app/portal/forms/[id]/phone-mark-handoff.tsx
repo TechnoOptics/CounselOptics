@@ -112,15 +112,18 @@ export function PhoneMarkHandoff({
           : res;
       }}
       poll={async (handoffId) => {
-        if (!handoffId) return false;
+        if (!handoffId) return 'waiting';
         const result = await collectPhoneMarkAction(handoffId);
+        // Done means the picture is HERE, not that the phone claims to have
+        // drawn one. This desk is the only thing that files anything, so
+        // anything short of holding the bytes is still waiting.
         if (result.mark) {
           onMark(result.mark, handoffId);
-          return true;
+          return 'done';
         }
         const problem = phoneMarkProblem(result);
         if (problem) console.error(problem);
-        return false;
+        return result.scanned ? 'scanned' : 'waiting';
       }}
       onFinished={() => {}}
       copy={{
@@ -133,6 +136,11 @@ export function PhoneMarkHandoff({
         // button is not an explanation.
         notYet: 'Signing on your phone is not available yet.',
         scan: 'Scan with your phone and draw your signature there. The code works once and expires in fifteen minutes.',
+        // What this desk is waiting for is a picture coming back to it, and
+        // the form is still here to be finished afterwards. Said plainly, so
+        // somebody who put their phone down knows the page has not stalled.
+        scanned:
+          'Draw your signature on your phone. It appears here when you are done, and you finish the form on this page.',
         alsoHere: onlyRoute
           ? 'Your signature comes back to this page, and you finish the form here.'
           : 'Your signature comes back to this page, and you can still sign here instead.',

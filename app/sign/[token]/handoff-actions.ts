@@ -123,20 +123,48 @@ export async function mintSigningHandoffAction(
  */
 export async function signingCompletedAction(
   signerToken: string,
-): Promise<{ signed: boolean }> {
+): Promise<{ signed: boolean; scanned: boolean }> {
+  const nothing = { signed: false, scanned: false };
   const token = typeof signerToken === 'string' ? signerToken.trim() : '';
-  if (!token) return { signed: false };
+  if (!token) return nothing;
 
   const admin = createAdminSupabase();
-  if (!admin) return { signed: false };
+  if (!admin) return nothing;
 
   const { data } = await admin
     .from('firm_signatures')
-    .select('signed_at')
+    .select('id, signed_at')
     .eq('token', token)
     .maybeSingle();
 
-  return {
-    signed: Boolean((data as { signed_at: string | null } | null)?.signed_at),
-  };
+  const row = data as { id: string; signed_at: string | null } | null;
+  if (!row) return nothing;
+  if (row.signed_at) return { signed: true, scanned: true };
+
+  // Has a phone taken the code this page is showing?
+  //
+  // A second read, and only while a code is up, because that is the only time
+  // this is polled. It answers the one thing the laptop cannot see: the card
+  // used to have no state between "a code is on screen" and "the signature is
+  // finished", so a signer who was drawing on their phone left a live-looking
+  // QR on the laptop behind them.
+  //
+  // Found under the signature the durable token resolved to, never under
+  // anything the caller passed. Expiry is part of the question: a consumed row
+  // that has run out is not a phone in progress, it is a dead code, and the
+  // card has its own reason to stop showing that.
+  //
+  // Tolerated entirely. A failed read is data:null and reads as "no scan",
+  // which is exactly the behaviour this surface had before, so a database
+  // without the handoff table degrades to the old card rather than to an error.
+  const { data: claimed } = await admin
+    .from('firm_signature_handoffs')
+    .select('id')
+    .eq('signature_id', row.id)
+    .not('consumed_at', 'is', null)
+    .gt('expires_at', new Date().toISOString())
+    .limit(1)
+    .maybeSingle();
+
+  return { signed: false, scanned: Boolean(claimed) };
 }
