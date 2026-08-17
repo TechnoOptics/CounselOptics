@@ -29,6 +29,10 @@ import type { DocScorecard } from '@/lib/doc-review';
 import { T } from '@/components/i18n/LocaleProvider';
 import { intakeChannel, intakeDeadline } from '@/lib/intake-detail';
 import { formatDate } from '@/lib/format';
+import {
+  loadTicketSigningActivity,
+  loadRequesterOtherIntakes,
+} from '@/lib/intake-context';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -168,6 +172,15 @@ export default async function IntakeDetailPage({
 
   // The live conversation, the people on it, and its documents.
   const conv = await loadIntakeConversationAction(intake.id);
+
+  // Context for the rail. Both go through `supabase`, the RLS-enforced user
+  // client, deliberately: the live policies are the access control, and
+  // lib/intake-context.ts explains why the signed-documents lookup must
+  // start at firm_documents rather than at firm_signing_requests.
+  const [signing, requesterHistory] = await Promise.all([
+    loadTicketSigningActivity(supabase, intake.id),
+    loadRequesterOtherIntakes(supabase, intake),
+  ]);
 
   const ref = String((ans.partner as Record<string, unknown> | undefined)?.externalId ?? '').trim()
     || ticketRef(intake.id);
@@ -571,6 +584,98 @@ export default async function IntakeDetailPage({
                   </dd>
                 </div>
               </dl>
+            </PanelCard>
+          )}
+
+          {/* Signing on this ticket's own documents. Rendered only when
+              there is some: a header over "None" would imply the firm had
+              looked and found nothing, when the ordinary case is that
+              nothing was ever sent.
+
+              TITLED "Signing", NOT "Signed documents", which is what it
+              said until it was rendered and looked at. The list contains
+              documents that are signed, documents that were sent and are
+              still waiting, and documents with a request that has not gone
+              out, so a heading promising signatures was describing a third
+              of its own rows. */}
+          {signing.length > 0 && (
+            <PanelCard title={<T>Signing</T>}>
+              <ul className="space-y-2.5">
+                {signing.map((d) => (
+                  <li key={d.documentId}>
+                    <span
+                      data-no-translate
+                      className="block truncate text-[13px] text-foreground"
+                      title={d.name}
+                    >
+                      {d.name}
+                    </span>
+                    <span className="mt-0.5 block text-[11.5px] text-muted">
+                      {d.completedAt ? (
+                        <>
+                          <T>Signed</T>{' '}
+                          <span data-no-translate>
+                            {formatDate(new Date(d.completedAt))}
+                          </span>
+                        </>
+                      ) : d.sentAt ? (
+                        <>
+                          <T>Sent</T>{' '}
+                          <span data-no-translate>
+                            {formatDate(new Date(d.sentAt))}
+                          </span>
+                          {' · '}
+                          <T>not signed yet</T>
+                        </>
+                      ) : (
+                        <T>Not sent yet</T>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </PanelCard>
+          )}
+
+          {/* What else this person has brought the legal team. Firm members
+              can already list every intake in the firm; this saves the
+              search on the screen where the question comes up. */}
+          {requesterHistory.length > 0 && (
+            <PanelCard
+              title={<T>Their other requests</T>}
+              action={
+                <Link
+                  href="/counsel/intake"
+                  className="text-[12px] text-muted hover:text-foreground hover:underline"
+                >
+                  <T>See all</T>
+                </Link>
+              }
+            >
+              <ul className="space-y-2.5">
+                {requesterHistory.map((r) => (
+                  <li key={r.id}>
+                    <Link
+                      href={`/counsel/intake/${r.id}`}
+                      className="group block"
+                    >
+                      <span
+                        data-no-translate
+                        className="block truncate text-[13px] text-foreground group-hover:underline"
+                      >
+                        {r.title}
+                      </span>
+                      <span className="mt-0.5 block text-[11.5px] text-muted">
+                        <span data-no-translate>
+                          {r.status.replace(/_/g, ' ')}
+                        </span>
+                        {' · '}
+                        {relativeTime(r.createdAt)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </PanelCard>
           )}
 

@@ -3054,10 +3054,8 @@ select:focus-visible,
   }
 }
 
-/* The counsel nav rail sizes itself from the viewport, so on a pinned
-   two-pane workspace it ended up taller than the panes and kept the
-   document scrolling behind them. When a workspace is on the page it
-   publishes its own height and the rail matches it. */
-body:has([data-workspace-shell]) #counsel-sidebar-panel {
-  max-height: var(--adv-workspace-h, calc(100dvh - 8rem));
-}
+/* Removed with components/intake/WorkspaceShell.tsx: this rule existed only
+   to stop the counsel nav rail out-growing that shell's pinned two-pane
+   region and scrolling the document behind it. No page pins itself to the
+   viewport any more, so the rail needs no compensation and the
+   --adv-workspace-h custom property it read has no writer. */
