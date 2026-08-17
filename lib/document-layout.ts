@@ -610,6 +610,51 @@ export function resolveLetterheadArt(input: {
   };
 }
 
+/**
+ * What the letterhead actually puts on a given page.
+ *
+ *   none          Nothing. Switched off, or this is not one of its pages.
+ *   artwork-page  The firm's own artwork, drawn to the whole sheet. No
+ *                 separator rule and no cursor of its own: the stationery
+ *                 already says where the body starts, so the body starts at the
+ *                 top margin.
+ *   artwork-band  The firm's own artwork, scaled into the strip across the top,
+ *                 with the thin rule under it and the body below that.
+ *   composed      A band this renderer composes itself, from a design typed into
+ *                 the letterhead settings, from the firm's logo, or from its
+ *                 name alone.
+ */
+export type LetterheadChrome = 'none' | 'artwork-page' | 'artwork-band' | 'composed';
+
+/**
+ * THE BRANCH, SETTLED ONCE.
+ *
+ * The renderer and the builder preview both have to answer "what goes at the
+ * top of this page?", and they answered it separately: the renderer learned
+ * full-page stationery and the preview did not, so a firm on a full sheet was
+ * shown a top bar and a rule its documents would never carry. That is the
+ * defect this module exists to prevent, so the branch lives here and both ends
+ * read it.
+ *
+ * THE FIT DESCRIBES THE FIRM'S OWN ARTWORK AND NOTHING ELSE. A composed band is
+ * text this renderer lays out, with no sheet to fill, so 'page' does not reach
+ * it. Honouring the fit there would mean promising a full-page letterhead that
+ * does not exist.
+ */
+export function resolveLetterheadChrome(input: {
+  layout: DocumentLayout;
+  /** 1-indexed. */
+  pageNo: number;
+  /** Whether the firm has uploaded artwork that was successfully embedded. */
+  hasArtwork: boolean;
+}): LetterheadChrome {
+  const lh = input.layout.letterhead;
+  if (!lh.show) return 'none';
+  if (!bandAppearsOnPage(lh.pages, input.pageNo)) return 'none';
+  if (!input.hasArtwork) return 'composed';
+  return lh.fit === 'page' ? 'artwork-page' : 'artwork-band';
+}
+
 export type WatermarkPlacementResult = {
   /** The pdf-lib draw anchor: the baseline start of the run, about which
    *  pdf-lib rotates. */
