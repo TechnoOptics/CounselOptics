@@ -149,7 +149,7 @@ describe('collecting the mark the phone drew', () => {
     // scanned by anybody.
     row = { ...drawn(), mark_png: null, mark_sha256: null, mark_at: null };
     const res = await collectMarkForOwner(OWNER);
-    expect(res).toEqual({ mark: null, scanned: true, collected: false });
+    expect(res).toEqual({ mark: null, markAt: null, scanned: true, collected: false });
     // And nothing was written: an unscanned, undrawn handoff is not spent by
     // being asked about.
     expect(statements.filter((s) => s.op === 'update')).toEqual([]);
@@ -159,6 +159,7 @@ describe('collecting the mark the phone drew', () => {
     row = { ...drawn(), consumed_at: null, mark_png: null, mark_at: null };
     expect(await collectMarkForOwner(OWNER)).toEqual({
       mark: null,
+      markAt: null,
       scanned: false,
       collected: false,
     });

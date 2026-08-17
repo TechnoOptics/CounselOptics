@@ -81,6 +81,14 @@ export type PhoneHandoffCopy = {
   scan: string;
   /** Under that: the route that stays open while the code is up. */
   alsoHere: string;
+  /**
+   * Offered, and the mint would work, but the surface is holding it shut until
+   * something else happens first. Distinct from `notYet`, which is about this
+   * deployment being unable to do it at all: one is a step the person can
+   * take, the other is not, and telling them apart is the difference between a
+   * sentence they can act on and a dead end.
+   */
+  locked?: string;
 };
 
 export function PhoneHandoffCard({
@@ -88,6 +96,7 @@ export function PhoneHandoffCard({
   poll,
   onFinished,
   available,
+  disabled = false,
   copy,
 }: {
   /** Asks the server for a code. */
@@ -98,6 +107,20 @@ export function PhoneHandoffCard({
   onFinished: () => void;
   /** Whether pressing the button could reach the mint at all. */
   available: boolean;
+  /**
+   * Whether the surface is ready for a code yet.
+   *
+   * The employee's form holds this shut until the signer has affirmed their
+   * intent. A QR is the way around a disabled pad, so shutting the pad and
+   * leaving the mint live would be no gate at all: the phone would draw and
+   * hand a mark back with the desk's ceremony never having happened.
+   *
+   * Separate from `available` on purpose. That answers whether the mint COULD
+   * work in this deployment and is not the person's business; this answers
+   * whether it may be asked for yet and is entirely the person's business, and
+   * each gets its own sentence above.
+   */
+  disabled?: boolean;
   copy: PhoneHandoffCopy;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
@@ -113,12 +136,17 @@ export function PhoneHandoffCard({
   finishedRef.current = onFinished;
   const availableRef = useRef(available);
   availableRef.current = available;
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   const showCode = useCallback(async () => {
     // The disabled button says this; this says it again, so the property
     // survives someone re-enabling the button for a reason that seemed good at
     // the time. The server says it a third time, and that one is the control.
     if (!availableRef.current) return;
+    // And the same again for the surface's own gate, for the same reason. A
+    // button that is merely faded is a button, and this is the mint.
+    if (disabledRef.current) return;
     setPhase({ kind: 'minting' });
     try {
       const result = await mintRef.current();
@@ -212,15 +240,17 @@ export function PhoneHandoffCard({
                 ? 'That code has expired. You can show a new one, or sign on this page.'
                 : phase.kind === 'unavailable'
                   ? phase.message
-                  : available
-                    ? copy.offer
-                    : copy.notYet}
+                  : !available
+                    ? copy.notYet
+                    : disabled && copy.locked
+                      ? copy.locked
+                      : copy.offer}
             </p>
           </div>
           <button
             type="button"
             onClick={showCode}
-            disabled={phase.kind === 'minting' || !available}
+            disabled={phase.kind === 'minting' || !available || disabled}
             aria-describedby={messageId}
             className="btn-ghost text-sm ring-1 ring-ink-200 dark:ring-forest-700/60 disabled:opacity-55 disabled:cursor-not-allowed"
           >

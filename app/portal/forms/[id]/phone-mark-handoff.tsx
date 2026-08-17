@@ -59,6 +59,7 @@ export function PhoneMarkHandoff({
   templateId,
   available,
   onlyRoute,
+  disabled,
   onMark,
 }: {
   templateId: string;
@@ -84,6 +85,15 @@ export function PhoneMarkHandoff({
    */
   onlyRoute?: boolean;
   /**
+   * True until the employee has affirmed their intent to sign.
+   *
+   * The affirmation is asked above the whole signature section and gates it.
+   * Without this the QR would be the hole in that gate: the pad would be shut
+   * and a code could still be minted, scanned and drawn on, and a mark would
+   * come back having been made before anybody affirmed anything.
+   */
+  disabled?: boolean;
+  /**
    * The phone's drawing and the handoff it came from.
    *
    * Both, because the picture alone would let this page claim a phone
@@ -91,12 +101,19 @@ export function PhoneMarkHandoff({
    * submission, which finds that row under this session's own user and firm
    * and checks the bytes against the fingerprint the bound phone left. See
    * spendPhoneMarkAttestation in lib/mark-handoff-queries.ts.
+   *
+   * `markAt` is the third, and it is the SERVER'S instant rather than this
+   * browser's. The desk prints a date and a time beside the returned
+   * signature, and a clock the client chose is the client's word for when it
+   * signed. It is null when the row carries none, and the desk then prints no
+   * time rather than reaching for `new Date()`.
    */
-  onMark: (dataUrl: string, handoffId: string) => void;
+  onMark: (dataUrl: string, handoffId: string, markAt: string | null) => void;
 }) {
   return (
     <PhoneHandoffCard
       available={available}
+      disabled={disabled}
       mint={async () => {
         const res = await mintPhoneMarkAction(templateId);
         // The handoff id becomes the card's `ref` and comes back to the poll
@@ -115,7 +132,7 @@ export function PhoneMarkHandoff({
         if (!handoffId) return false;
         const result = await collectPhoneMarkAction(handoffId);
         if (result.mark) {
-          onMark(result.mark, handoffId);
+          onMark(result.mark, handoffId, result.markAt);
           return true;
         }
         const problem = phoneMarkProblem(result);
@@ -132,6 +149,18 @@ export function PhoneMarkHandoff({
         // phone-only template says why in its own words, because a disabled
         // button is not an explanation.
         notYet: 'Signing on your phone is not available yet.',
+        // The gate, said where somebody looking at the shut button is looking.
+        // The button carries aria-describedby to this sentence, so it is what
+        // a screen reader hears instead of an unexplained disabled control.
+        //
+        // The phone-only wording keeps the orienting half of `offer`. That
+        // sentence is the only thing telling this employee their form cannot
+        // be signed on the laptop at all, and on a phone-only template this
+        // card is what greets them, so replacing it wholesale with the gate
+        // would answer a question they have not asked yet.
+        locked: onlyRoute
+          ? 'This form is signed on a phone. Tick the box above to confirm your intent, then show a code.'
+          : 'Tick the box above to confirm your intent, then you can show a code.',
         scan: 'Scan with your phone and draw your signature there. The code works once and expires in fifteen minutes.',
         alsoHere: onlyRoute
           ? 'Your signature comes back to this page, and you finish the form here.'
