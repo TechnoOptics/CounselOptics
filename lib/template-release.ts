@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getFirmByIdAdmin } from './firm-storage';
 import { buildBrandedDocumentPdf } from './branded-document-pdf';
 import { firmLetterheadDesign } from './letterhead-design';
+import { firmDocumentTypeface } from './document-typeface';
 import { firmDocumentLayoutInput, resolveDocumentLayout } from './document-layout';
 import { sendEmail, buildShareLinkEmailHtml, buildShareKeyEmailHtml } from './email';
 import { siteUrl } from './intake-notify';
@@ -180,6 +181,7 @@ export async function releaseApprovedSubmission(
       accent: firm?.accentColor ?? undefined,
       letterheadUrl: firm?.letterheadUrl ?? undefined,
       letterheadDesign: firmLetterheadDesign(firm?.metadata),
+      typeface: firmDocumentTypeface(firm?.metadata),
       logoUrl: firm?.logoUrl ?? undefined,
       signatureImage: markBytes ? { png: markBytes } : undefined,
       // This share path renders from the firm's own layout only. It has no

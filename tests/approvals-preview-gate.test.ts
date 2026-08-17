@@ -218,6 +218,7 @@ describe('the preview draws the delivery that approving would actually perform',
     accent: '#123456',
     letterheadUrl: null,
     letterheadDesign: undefined as never,
+    typeface: null,
     logoUrl: null,
     layout: {} as never,
   };

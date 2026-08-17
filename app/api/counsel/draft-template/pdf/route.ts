@@ -6,6 +6,7 @@ import { callerFirmRole, FIRM_TEMPLATE_AUTHOR_ROLES } from '@/lib/firm-authz';
 import { authorizeFirmActor } from '@/lib/portal-entitlements';
 import { buildBrandedDocumentPdf } from '@/lib/branded-document-pdf';
 import { firmLetterheadDesign } from '@/lib/letterhead-design';
+import { firmDocumentTypeface } from '@/lib/document-typeface';
 import {
   firmDocumentLayoutInput,
   resolveDocumentLayout,
@@ -201,6 +202,7 @@ async function renderTemplate(
       accent: firm?.accentColor ?? undefined,
       letterheadUrl: firm?.letterheadUrl ?? undefined,
       letterheadDesign: firmLetterheadDesign(firm?.metadata),
+      typeface: firmDocumentTypeface(firm?.metadata),
       logoUrl: firm?.logoUrl ?? undefined,
       signatureImage: decoded.ok ? { png: decoded.bytes } : undefined,
       // The firm's layout with this template's partial override on top, which
@@ -252,6 +254,7 @@ async function renderFreeText(body: {
       // body, so this one field cannot be dictated by the request. That is the
       // whole of what this line claims; see above for what still can be.
       letterheadDesign: firmLetterheadDesign(ctx.firm.metadata),
+      typeface: firmDocumentTypeface(ctx.firm.metadata),
       logoUrl: body.logoUrl,
       // Read off the caller's own active firm rather than the body, exactly as
       // the design above is, so this one cannot be dictated by the request
@@ -344,6 +347,7 @@ async function renderTemplateDraft(
       accent: firm?.accentColor ?? undefined,
       letterheadUrl: firm?.letterheadUrl ?? undefined,
       letterheadDesign: firmLetterheadDesign(firm?.metadata),
+      typeface: firmDocumentTypeface(firm?.metadata),
       logoUrl: firm?.logoUrl ?? undefined,
       // The firm's layout with THIS DRAFT's override on top, sanitized by the
       // same function the save runs. It is the point of the whole preview: the

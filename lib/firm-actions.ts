@@ -30,6 +30,12 @@ import {
   type LetterheadDesign,
 } from './letterhead-design';
 import {
+  DOCUMENT_TYPEFACE_METADATA_KEY,
+  normalizeDocumentTypeface,
+  sniffFontFormat,
+  typefaceUploadRejection,
+} from './document-typeface';
+import {
   DOCUMENT_LAYOUT_METADATA_KEY,
   normalizeDocumentLayout,
 } from './document-layout';
@@ -691,6 +697,172 @@ export async function removeFirmLetterheadDesignAction(
   if (!current.ok) return { ok: false, error: current.error };
   const next = { ...current.metadata };
   delete next[LETTERHEAD_DESIGN_METADATA_KEY];
+  const { error } = await admin
+    .from('firms')
+    .update({ metadata: next, updated_at: new Date().toISOString() })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+// =====================================================================
+// The firm's TYPEFACE
+// =====================================================================
+//
+// The letterhead above controls the sheet a document is printed on. This
+// controls the words on it, which were Times on every document this product has
+// produced. A firm whose brand face is something else was getting its own
+// stationery under a body set in somebody else's font.
+//
+// SAME BUCKET, SAME SHAPE, DELIBERATELY. The files go to `firm-branding` beside
+// the logo and the letterhead, and the record goes to firms.metadata under
+// lib/document-typeface.ts's key, exactly as the designed letterhead does. The
+// bucket's allowed_mime_types does have to be widened for font types, and that
+// migration is written and NOT applied.
+//
+// THE LICENCE QUESTION. Embedding a typeface into a PDF is governed by that
+// typeface's licence, and many commercial licences either forbid embedding or
+// require a specific tier. Gotham, the face this was built for, is one of the
+// commercial ones. Advottic cannot verify what a firm bought and there is no
+// registry to check, so the upload does not pretend to validate anything: it
+// asks the firm to confirm it holds a licence permitting embedding, asks who
+// holds it, and keeps both answers next to the font. The reasoning is on
+// typefaceUploadRejection in lib/document-typeface.ts, and the residual risk is
+// recorded in docs/compliance/policies/risk-register.md.
+
+const TYPEFACE_DENIED = 'Only an owner or admin can change the typeface.';
+
+/**
+ * Store one weight of the firm's typeface.
+ *
+ * `weight` is 'regular' or 'bold'. The regular weight is what the body is set
+ * in; the bold is optional and headings fall back to the regular one when it is
+ * absent (see resolveDocumentFaces in lib/branded-document-pdf.ts).
+ *
+ * THE BYTES ARE CHECKED, NOT THE CONTENT-TYPE OR THE EXTENSION. A browser
+ * reports whatever it feels like for a font, and the letterhead work measured
+ * that a mis-tagged upload arrives as application/octet-stream. A file that is
+ * refused is refused with the reason, never accepted and quietly dropped later,
+ * which is the failure mode that let a WebP letterhead be stored and never
+ * drawn.
+ */
+export async function uploadFirmTypefaceAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; url?: string }> {
+  const user = await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: TYPEFACE_DENIED };
+  }
+
+  const weight = String(formData.get('weight') ?? 'regular');
+  if (weight !== 'regular' && weight !== 'bold') {
+    return { ok: false, error: 'Choose the regular or the bold weight.' };
+  }
+
+  const file = formData.get('font');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'Choose a TTF or OTF file.' };
+  }
+
+  const licenceAcknowledged = String(formData.get('licenceAcknowledged') ?? '') === 'true';
+  const licenceHolder = String(formData.get('licenceHolder') ?? '').trim().slice(0, 200);
+  const familyName = String(formData.get('familyName') ?? '').trim().slice(0, 120);
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const rejection = typefaceUploadRejection({ bytes, licenceAcknowledged, licenceHolder });
+  if (rejection) return { ok: false, error: rejection };
+
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const format = sniffFontFormat(bytes);
+  const ext = format === 'opentype' ? 'otf' : 'ttf';
+  const path = `${firmId}/typeface-${weight}-${Date.now()}.${ext}`;
+  const { error: upErr } = await admin.storage
+    .from('firm-branding')
+    .upload(path, Buffer.from(bytes), {
+      // font/ttf and font/otf are the registered types (RFC 8081). The renderer
+      // does not read this back - it sniffs the bytes - but storage stores what
+      // it is told and a wrong type here would be a wrong type forever.
+      contentType: ext === 'otf' ? 'font/otf' : 'font/ttf',
+      upsert: true,
+    });
+  if (upErr) return { ok: false, error: upErr.message };
+  const {
+    data: { publicUrl },
+  } = admin.storage.from('firm-branding').getPublicUrl(path);
+
+  const current = await readFirmMetadataForMerge(admin, firmId);
+  if (!current.ok) return { ok: false, error: current.error };
+  const existing = normalizeDocumentTypeface(
+    current.metadata[DOCUMENT_TYPEFACE_METADATA_KEY],
+  );
+
+  // A BOLD WEIGHT CANNOT BE THE FIRST THING UPLOADED. The record is invalid
+  // without a regular weight (normalizeDocumentTypeface refuses it), so storing
+  // one would leave the firm looking at an uploaded file that no document will
+  // ever use.
+  if (weight === 'bold' && !existing) {
+    return { ok: false, error: 'Upload the regular weight first.' };
+  }
+
+  const record = {
+    regularUrl: weight === 'regular' ? publicUrl : existing?.regularUrl,
+    boldUrl: weight === 'bold' ? publicUrl : (existing?.boldUrl ?? null),
+    familyName: familyName || existing?.familyName || 'Custom typeface',
+    licence: {
+      acknowledgedAt: new Date().toISOString(),
+      acknowledgedBy: user.id,
+      holder: licenceHolder,
+    },
+  };
+
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: { ...current.metadata, [DOCUMENT_TYPEFACE_METADATA_KEY]: record },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true, url: publicUrl };
+}
+
+/**
+ * Drop the firm's typeface, or just its bold weight.
+ *
+ * Removing the whole typeface returns every future document to Times. Removing
+ * only the bold returns headings to the regular weight. Neither touches a
+ * document that already exists: rendered bytes are stored once, at the moment
+ * they were drawn, and nothing re-renders them.
+ */
+export async function removeFirmTypefaceAction(
+  firmId: string,
+  weight: 'all' | 'bold' = 'all',
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: TYPEFACE_DENIED };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const current = await readFirmMetadataForMerge(admin, firmId);
+  if (!current.ok) return { ok: false, error: current.error };
+
+  const next = { ...current.metadata };
+  if (weight === 'bold') {
+    const existing = normalizeDocumentTypeface(next[DOCUMENT_TYPEFACE_METADATA_KEY]);
+    if (!existing) return { ok: true };
+    next[DOCUMENT_TYPEFACE_METADATA_KEY] = { ...existing, boldUrl: null };
+  } else {
+    delete next[DOCUMENT_TYPEFACE_METADATA_KEY];
+  }
+
   const { error } = await admin
     .from('firms')
     .update({ metadata: next, updated_at: new Date().toISOString() })

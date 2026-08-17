@@ -6,13 +6,16 @@ import { updateFirmAction } from '@/lib/firm-actions';
 import { LogoUploader } from './logo-uploader';
 import { LetterheadUploader } from './letterhead-uploader';
 import { LetterheadDesigner } from './letterhead-designer';
+import { TypefaceUploader } from './typeface-uploader';
 import type { FirmVocabulary } from '@/lib/firm-vocabulary';
 import type { LetterheadDesign } from '@/lib/letterhead-design';
+import type { DocumentTypeface } from '@/lib/document-typeface';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function SettingsForm({
   firmId,
   letterheadDesign,
+  documentTypeface,
   defaultValues,
   vocab,
 }: {
@@ -25,6 +28,8 @@ export function SettingsForm({
   vocab: FirmVocabulary;
   /** The designed letterhead, already normalized on the server. */
   letterheadDesign: LetterheadDesign | null;
+  /** The typeface the firm's documents are set in, normalized on the server. */
+  documentTypeface: DocumentTypeface | null;
   defaultValues: {
     name: string;
     accentColor: string;
@@ -78,6 +83,11 @@ export function SettingsForm({
           </T>
         </p>
         <LetterheadDesigner firmId={firmId} initial={letterheadDesign} />
+      </div>
+
+      {/* The letterhead controls the sheet; this controls the words on it. */}
+      <div className="pt-2 border-t border-edge">
+        <TypefaceUploader firmId={firmId} current={documentTypeface} />
       </div>
 
       <form action={submit} className="space-y-5">
