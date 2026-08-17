@@ -254,28 +254,43 @@ function Hero({
             scrollbar - the right edge of the H1, the sub-paragraph, the CTA
             row and the trust row were simply gone (live audit 2026-08-01). */}
         <div className="min-w-0 lg:col-span-7">
-          <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">
-            <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
-            A quiet place to build your story
-          </p>
           {/*
-            Audit V7 CR-42 (expanded scope): the previous markup
-            placed a hard <br/> directly between the words "happen"
-            and "all", so innerText collapsed to "happenall" - a
-            screen-reader and SEO-crawler regression on the highest-
-            traffic page on the site. Explicit trailing space after
-            "happen " before the <br/> and a leading space inside the
-            <span> keep the text legible to assistive tech AND to
-            anything that strips line breaks, while the visual
-            wrap is unchanged (leading-[0.95] still hard-wraps at
-            the <br/>).
+            THE ACCENT IS SPENT ONCE ON THIS SCREEN, AND IT IS SPENT ON
+            THE BUTTON. docs/DESIGN.md: "A gold button and a gold heading
+            and a gold rule in the same viewport is three claims on the
+            eye and the reader obeys none of them."
+
+            Measured on a production build before this change, the hero
+            made five claims in light and eight in dark. Three are gone
+            from here:
+
+            1. An eyebrow ("A quiet place to build your story") that
+               spent the accent TWICE, as gold words plus a gold rule,
+               and then said what the paragraph below it already says.
+               Removed rather than recoloured: a line that repeats the
+               next line is not worth a line.
+            2. The headline's gold. It was `bg-gold-shine-ink` clipped to
+               the text, which on the light ground reads as muddy olive
+               rather than gold, so it was not even buying the brand hit
+               it cost. Size already makes an 80px display heading the
+               loudest thing here; it does not need colour too.
+            3. The `italic` on that span. next/font loads Fraunces with
+               weights only and no `style: ['italic']`, so all 13
+               registered faces are style:"normal" and the browser was
+               SYNTHESISING the slant: a mechanically sheared roman at
+               80px. Faux italic on a high-contrast serif shears the
+               stems and distorts the bowls. Setting real italic would
+               mean shipping another font file for one phrase.
+
+            The hard <br/> is gone with it, which also retires the
+            "happenall" hazard the old comment here described (a <br/>
+            between two words with no space collapsed them in innerText
+            for screen readers and crawlers). There is no manual break
+            left to get wrong; `text-balance` wraps the line instead,
+            which is what docs/DESIGN.md asks of headings.
           */}
-          <h1 className="mt-5 font-display text-[44px] sm:text-[60px] lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.95] text-forest-900 dark:text-cream-100">
-            Big things rarely happen{' '}
-            <br />
-            <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">
-              {' '}all at once.
-            </span>
+          <h1 className="font-display text-[44px] sm:text-[60px] lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.95] text-balance text-forest-900 dark:text-cream-100">
+            Walk in with everything in order.
           </h1>
           <p className="mt-6 text-[17px] sm:text-lg leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">
             Most cases are built quietly, one note and one document at a time. Advottic gives
@@ -327,33 +342,45 @@ function Hero({
             </span>
           </div>
 
-          {/* Numeric proof strip. Anchors the abstract pitch above with
-              concrete benchmarks. Borrowed from Stripe / Mercury, where
-              every claim is paired with a specific number. */}
+          {/* Three plain-language proofs: how often you touch it, what it
+              does with your uploads, and who owns the result.
+
+              THESE ARE NOT FIGURES, AND THE NOTE HERE USED TO SAY THEY
+              WERE. It described them as concrete benchmarks, each one
+              paired with a hard figure, which was false in a way that
+              had a cost: all three values ("Daily",
+              "A -> Z+", "Yours") carried `tabular-nums`, a property whose
+              only job is to make DIGITS share a column width. Not one of
+              them contains a digit, so the property did nothing, and the
+              comment was the reason nobody noticed. `tabular-nums` is
+              removed rather than the words changed, because the words are
+              honest and inventing numbers to match a comment would be
+              the worse repair. docs/DESIGN.md keeps `tabular-nums` for
+              "numbers that line up in a column", which these are not. */}
           <dl className="mt-6 sm:mt-10 grid grid-cols-3 gap-6 max-w-lg border-t border-forest-700/30 dark:border-forest-700/40 pt-4 sm:pt-6">
             <div>
-              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-cream-100/70 min-h-[2.6em] sm:min-h-0">
                 On your time
               </dt>
-              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+              <dd className="mt-1 font-display text-xl sm:text-[28px] font-medium whitespace-nowrap text-forest-900 dark:text-cream-100">
                 Daily
               </dd>
               <dd className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">a few minutes is plenty</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-cream-100/70 min-h-[2.6em] sm:min-h-0">
                 Exhibits per case
               </dt>
-              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+              <dd className="mt-1 font-display text-xl sm:text-[28px] font-medium whitespace-nowrap text-forest-900 dark:text-cream-100">
                 A → Z+
               </dd>
               <dd className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">auto-numbered as you go</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-cream-100/70 min-h-[2.6em] sm:min-h-0">
                 Your data
               </dt>
-              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+              <dd className="mt-1 font-display text-xl sm:text-[28px] font-medium whitespace-nowrap text-forest-900 dark:text-cream-100">
                 Yours
               </dd>
               <dd className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">encrypted and exportable</dd>
@@ -366,20 +393,20 @@ function Hero({
           {process.env.NEXT_PUBLIC_HERO_SCREENSHOT_URL ? (
             <ProductPreview />
           ) : (
-            <div className="relative">
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -inset-6 rounded-[3rem] opacity-60 blur-3xl"
-                style={{
-                  background:
-                    'radial-gradient(60% 50% at 60% 40%, rgba(213,187,126,0.45), transparent 70%)',
-                }}
-              />
-              <div className="relative animate-float">
-                <BrowserFrame url="advottic.com/cases/security-deposit">
-                  <PersonalCaseRoomMock />
-                </BrowserFrame>
-              </div>
+            /* The gold halo that used to sit behind this frame is gone.
+               It was a fourth claim on the accent in a viewport that is
+               allowed one, and it was written as a raw
+               `rgba(213,187,126,0.45)` inside the component, which
+               docs/DESIGN.md forbids outright ("Use the tokens. Never a
+               raw hex in a component."). Nothing replaces it: the frame
+               already separates itself from the ground with its own ring
+               and shadow, so the halo was spending the one accent this
+               screen has on decoration behind the product rather than on
+               the button the reader is meant to find. */
+            <div className="relative animate-float">
+              <BrowserFrame url="advottic.com/cases/security-deposit">
+                <PersonalCaseRoomMock />
+              </BrowserFrame>
             </div>
           )}
         </div>
@@ -397,48 +424,91 @@ function ProductPreview() {
   // with the Advottic Holdings sample, captured at 1440x1080 in light
   // mode (or both modes - see the dark variant block below).
   const heroUrl = process.env.NEXT_PUBLIC_HERO_SCREENSHOT_URL;
+  const heroUrlDark =
+    process.env.NEXT_PUBLIC_HERO_SCREENSHOT_URL_DARK ?? heroUrl;
   if (heroUrl) {
+    const shot =
+      'w-full h-auto rounded-2xl ring-1 ring-forest-700/30 shadow-card-hover';
     return (
-      <div className="relative aspect-[4/5] sm:aspect-[5/6] lg:aspect-[4/5]">
-        <div
-          aria-hidden
-          className="absolute -inset-6 rounded-[3rem] opacity-60 blur-3xl pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(60% 50% at 60% 40%, rgba(213,187,126,0.45), transparent 70%)',
-          }}
+      /*
+        TWO DEFECTS WERE FIXED HERE, BOTH VISIBLE ONLY ON A RENDER.
+
+        1. THE THEME AND THE IMAGE DISAGREED. This used to be a
+           <picture> whose <source> matched `(prefers-color-scheme:
+           dark)`. But nothing else on this page themes that way:
+           components/ThemeBoot.tsx resolves
+           `localStorage['advottic-theme'] || serverTheme || 'system'`
+           and toggles a `dark` CLASS on <html>, and an anonymous
+           visitor is handed serverTheme='light', so the OS preference
+           is never even consulted for the rest of the page. Two
+           mechanisms deciding one question is the defect. Measured
+           across all four combinations, two were wrong: OS light with
+           the reader having chosen dark loaded the LIGHT screenshot
+           onto the dark hero (a glaring white slab), and OS dark with
+           light chosen loaded the DARK screenshot onto the cream page.
+           Now both images are in the markup and the `dark` class picks
+           between them, so the image follows the same authority as
+           every other themed thing on the page.
+
+           The dark copy is `loading="lazy"` on purpose. A hidden <img>
+           is still fetched if it is eager, and light is the default for
+           every anonymous visitor, so this keeps the common case to one
+           download instead of two.
+
+        2. FORTY PERCENT OF THE IMAGE WAS CROPPED AWAY. The frame was
+           `aspect-[4/5]` (portrait) with `object-cover`, and the source
+           PNGs are 2880x2160 (4:3, landscape). `object-cover` fills the
+           box and centre-crops the overflow, which sliced 20% off each
+           side: the wordmark read "OTTIC" and the matter title read
+           "ent lease" instead of "Apartment lease". docs/DESIGN.md
+           lists this exact failure ("thumbnails cropped instead of
+           scaled") among the defects that were green in the suite and
+           obvious on the rendered page.
+
+           Fixed by removing the fixed aspect box rather than by
+           choosing a better ratio: `w-full h-auto` lets the image's own
+           intrinsic ratio set the height, so nothing is cropped and
+           nothing is letterboxed no matter what shape a future
+           screenshot is dropped in at. A hard-coded `aspect-[4/3]`
+           would have fixed today's PNG and re-broken on the next one.
+
+        The gold halo that used to sit behind this is gone for the
+        reason given at the other branch: one accent per view, and it
+        was a raw rgba() in a component either way.
+      */
+      <div className="relative">
+        <img
+          src={heroUrl}
+          alt="Advottic case file with exhibits, Advottic Review, and an upcoming hearing in five days"
+          className={`${shot} dark:hidden`}
+          loading="eager"
+          fetchPriority="high"
         />
-        <picture>
-          <source
-            media="(prefers-color-scheme: dark)"
-            srcSet={
-              process.env.NEXT_PUBLIC_HERO_SCREENSHOT_URL_DARK ?? heroUrl
-            }
-          />
-          <img
-            src={heroUrl}
-            alt="Advottic case file with exhibits, Advottic Review, and an upcoming hearing in five days"
-            className="relative w-full h-full object-cover rounded-2xl ring-1 ring-forest-700/30 shadow-card-hover"
-            loading="eager"
-            fetchPriority="high"
-          />
-        </picture>
+        <img
+          src={heroUrlDark}
+          alt="Advottic case file with exhibits, Advottic Review, and an upcoming hearing in five days"
+          className={`${shot} hidden dark:block`}
+          loading="lazy"
+        />
       </div>
     );
   }
 
+  /* NOTE: THIS BRANCH IS CURRENTLY UNREACHABLE. `ProductPreview` is only
+     rendered by Hero when NEXT_PUBLIC_HERO_SCREENSHOT_URL is set, and the
+     `if (heroUrl)` above returns on exactly that condition, so this
+     layered card stack (and `Sparkline`, `Tile` and `Stat`, which nothing
+     else uses) cannot be reached. It is left in place rather than deleted
+     because removing it is a larger change than this one is scoped for,
+     but it should not be treated as live code.
+
+     Its gold halo WAS removed, because a raw
+     `rgba(213,187,126,0.45)` sitting in a component contradicts
+     docs/DESIGN.md whether or not it currently paints, and leaving the
+     exact pattern this change exists to remove sitting one env var away
+     from rendering is how it comes back. */
   return (
     <div className="relative aspect-[4/5] sm:aspect-[5/6] lg:aspect-[4/5]">
-      {/* Soft glow halo */}
-      <div
-        aria-hidden
-        className="absolute -inset-6 rounded-[3rem] opacity-60 blur-3xl pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(60% 50% at 60% 40%, rgba(213,187,126,0.45), transparent 70%)',
-        }}
-      />
-
       {/* Back card: case detail mock */}
       <div className="absolute right-0 top-0 w-[78%] rotate-[3deg] rounded-2xl bg-gradient-to-br from-forest-800 via-forest-900 to-forest-950 ring-1 ring-forest-700/40 shadow-card-hover p-5 text-cream-100 hidden sm:block">
         <p className="text-[9px] tracking-[0.28em] uppercase font-semibold text-gold-300">
