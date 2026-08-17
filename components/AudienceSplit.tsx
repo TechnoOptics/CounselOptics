@@ -33,12 +33,29 @@ export function AudienceSplit({
   return (
     <section id="audience" className="relative -mt-2 animate-fade-up">
       <header className="max-w-2xl mb-7 sm:mb-10">
+        {/* TWO ACCENT CLAIMS WERE REMOVED FROM THIS HEADER, AND ONLY THOSE
+            TWO. This block is not the subject of the hero change, but it
+            renders ABOVE the hero and therefore owns the fold: measured on
+            a production build, the first viewport made 11 to 16 accent
+            claims depending on width, and none of them were the hero's,
+            because the hero starts 1637px down at 1280px wide and 2607px
+            down at 375px. docs/DESIGN.md allows the accent once per view,
+            so a disciplined hero underneath a louder chooser would have
+            inverted the page's hierarchy rather than fixed it.
+
+            Gone: the gold rule that preceded the label, and the
+            `gold-shine-ink ... italic` treatment on "how you work". The
+            label itself keeps its gold, and that is now the fold's single
+            claim. The italic went for the same reason as the hero's:
+            Fraunces is loaded with no italic face, so it was a
+            browser-synthesised slant, not a typeface.
+
+            Everything else here is deliberately untouched. */}
         <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">
-          <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
           Built for two audiences. Pick yours.
         </p>
         <h2 className="mt-4 font-display text-[34px] sm:text-[44px] lg:text-[52px] font-medium tracking-[-0.02em] leading-[1.02] text-forest-900 dark:text-cream-100">
-          The same calm software, sized to <span className="bg-gold-shine-ink dark:bg-gold-shine bg-clip-text text-transparent gold-pan italic">how you work</span>.
+          The same calm software, sized to how you work.
         </h2>
         <p className="mt-3 sm:mt-4 text-[15px] sm:text-[16px] leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">
           Whether you&apos;re tracking a matter that just landed in your lap, or a firm running
