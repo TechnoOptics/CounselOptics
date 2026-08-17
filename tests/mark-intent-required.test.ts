@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { affirmedAt, MARK_INTENT_REQUIRED } from '../lib/mark-handoff-queries';
+import { stripComments } from './support/strip-comments';
 
 /**
  * A signature with no affirmation of intent is not a signature.
@@ -75,9 +76,15 @@ describe('storeMarkForHandoff actually calls it', () => {
   // producing, and the mutation that removed the call site left every test
   // above green. Source-reading, and says so: driving the real function needs
   // a Supabase admin client, and the decision under test is one line.
-  const SOURCE = readFileSync(
-    join(process.cwd(), 'lib/mark-handoff-queries.ts'),
-    'utf8',
+  //
+  // COMMENTS STRIPPED FIRST. The block comment above the guard in that file
+  // quotes the very expression these assertions look for, so an unstripped
+  // read is satisfied by the prose explaining the fix rather than by the fix.
+  // That has now happened twice in this repository, in both directions: a ban
+  // going red against correct code, and a requirement going green against
+  // deleted code.
+  const SOURCE = stripComments(
+    readFileSync(join(process.cwd(), 'lib/mark-handoff-queries.ts'), 'utf8'),
   );
 
   it('refuses an unaffirmed mark', () => {
@@ -109,6 +116,39 @@ describe('storeMarkForHandoff actually calls it', () => {
     // The exact expression that shipped. Its presence means an unaffirmed
     // mark can land again.
     expect(SOURCE).not.toMatch(/mark_intent_at:\s*\n?\s*typeof input\.intentAffirmedAt === 'string'/);
+  });
+});
+
+/**
+ * The endpoint in front of it.
+ *
+ * The validator and its call site are pinned above. This pins the one link
+ * between them: the route has to actually pass the caller's field down. A
+ * route that read the body and dropped this key would leave every assertion
+ * above green while the endpoint accepted an unaffirmed mark again, because
+ * `undefined` is exactly the value the shipped defect stored null for.
+ *
+ * Reordering the UI so the affirmation gates the pad does not touch any of
+ * this, and is not allowed to. The browser's ordering is a courtesy; this is
+ * the control.
+ */
+describe('the route hands the affirmation to the gate', () => {
+  const ROUTE = stripComments(
+    readFileSync(join(process.cwd(), 'app/api/firm/mark/route.ts'), 'utf8'),
+  );
+
+  it('passes the caller field through to storeMarkForHandoff', () => {
+    const call = ROUTE.indexOf('storeMarkForHandoff({');
+    expect(call).toBeGreaterThan(-1);
+    const args = ROUTE.slice(call, ROUTE.indexOf('});', call));
+    expect(args).toContain('intentAffirmedAt: payload.intentAffirmedAt');
+  });
+
+  it('does not decide for itself whether the affirmation is good enough', () => {
+    // One gate, in one place. A second opinion here is how the two drift and
+    // the weaker one wins.
+    expect(ROUTE).not.toMatch(/intentAffirmedAt\s*(\?\?|\|\||&&)/);
+    expect(ROUTE).not.toMatch(/typeof payload\.intentAffirmedAt/);
   });
 });
 

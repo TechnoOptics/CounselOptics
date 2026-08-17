@@ -1021,13 +1021,29 @@ hover:bg-ink-50 hover:bg-ink-100 border-ink-100 border-ink-200 border-forest-200
   );
   const overridden = new Set(OVERRIDDEN);
 
+  /**
+   * COMMENTS STRIPPED BEFORE MATCHING.
+   *
+   * A CALL SITE is a class in the class list. A class NAMED IN A COMMENT is
+   * the opposite: it is almost always a note explaining why that class was not
+   * used, which is exactly the reasoning this guard wants written down. Read
+   * raw, the guard punished the explanation and pushed authors towards
+   * deleting it, which is how the next person repeats the mistake.
+   *
+   * It cannot hide a real offender. A class that paints something is in a JSX
+   * className, and stripComments only removes comments; the danger it
+   * documents runs the other way, and its own header explains the one shape it
+   * would eat.
+   */
+  const swept = (rel: string) =>
+    stripComments(
+      readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), 'utf8'),
+    );
+
   it('leaves no palette call site behind except the two documented ones', () => {
     const offenders: string[] = [];
     for (const rel of sweptFiles()) {
-      const src = readFileSync(
-        fileURLToPath(new URL(`../${rel}`, import.meta.url)),
-        'utf8',
-      );
+      const src = swept(rel);
       for (const m of src.matchAll(pattern)) {
         const cls = m[1] + m[2];
         if (!overridden.has(cls)) continue;
@@ -1046,10 +1062,11 @@ hover:bg-ink-50 hover:bg-ink-100 border-ink-100 border-ink-200 border-forest-200
     // will silently cover the next one added to that file.
     for (const [key, why] of ALLOWED) {
       const [rel, cls] = key.split('|');
-      const src = readFileSync(
-        fileURLToPath(new URL(`../${rel}`, import.meta.url)),
-        'utf8',
-      );
+      // The same stripped read as the sweep above. An exemption is only
+      // earned by a real call site, and measuring it against a different
+      // string from the one the sweep measures is how an exemption outlives
+      // the code it was granted for.
+      const src = swept(rel);
       const hits = [...src.matchAll(pattern)].filter(
         (m) => m[1] + m[2] === cls,
       );

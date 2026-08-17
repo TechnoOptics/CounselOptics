@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { stripComments } from './support/strip-comments';
 import { handoffCodeAvailable } from '../lib/signing-handoff-consent';
 import {
   mintSigningHandoff,
@@ -152,10 +153,48 @@ describe('the button in front of the mint', () => {
   });
 
   it('is disabled until a code could actually be minted', () => {
+    // `|| disabled` was added for the employee's desk, where the affirmation
+    // gates the section and a mint would otherwise be the way around a shut
+    // pad. It only ever ADDS a reason to refuse, so the signer's own gate
+    // below is untouched: !available still disables the button on its own.
     expect(read(CARD)).toContain(
-      "disabled={phase.kind === 'minting' || !available}",
+      "disabled={phase.kind === 'minting' || !available || disabled}",
     );
     expect(read(HANDOFF)).toContain('handoffCodeAvailable(consent)');
+  });
+
+  /**
+   * The surface's gate is re-checked inside the mint, not only on the button.
+   *
+   * The twin of the availability check above, and it needs its own guard for
+   * the reason that check has one: a faded button is still a button. The
+   * employee's affirmation is the only thing holding this shut, and a QR is
+   * precisely the way around a shut pad, so a mint that trusted the disabled
+   * attribute would hand back a signature made before anybody affirmed
+   * anything.
+   *
+   * It is read from a ref rather than the prop so that the callback, which is
+   * built once with an empty dependency list, cannot answer with the value
+   * `disabled` had when the card first rendered.
+   *
+   * Deleting this whole re-check left all 4150 tests green, which is why the
+   * assertion exists. Comments stripped before matching, because the lines
+   * above the check explain it using the same words.
+   */
+  it('re-checks the surface gate inside the mint, not just on the button', () => {
+    const card = stripComments(read(CARD));
+
+    // Held in a ref and kept current, so a stale closure cannot reopen it.
+    expect(card).toContain('const disabledRef = useRef(disabled);');
+    expect(card).toContain('disabledRef.current = disabled;');
+
+    const guard = card.indexOf('if (disabledRef.current) return;');
+    const call = card.indexOf('await mintRef.current()');
+    expect(guard, 'the mint no longer re-checks the surface gate').toBeGreaterThan(-1);
+    expect(call).toBeGreaterThan(-1);
+    // Ahead of the only call, so no ordering of clicks reaches the mint first.
+    expect(guard).toBeLessThan(call);
+    expect(card.match(/mintRef\.current\(\)/g)).toHaveLength(1);
   });
 });
 

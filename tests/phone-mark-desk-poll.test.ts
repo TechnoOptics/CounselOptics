@@ -23,6 +23,7 @@ import { join } from 'node:path';
 vi.mock('../app/portal/forms/[id]/mark-handoff-actions', () => ({
   collectPhoneMarkAction: async () => ({
     mark: null,
+    markAt: null,
     scanned: false,
     collected: false,
   }),
@@ -32,7 +33,7 @@ const { phoneMarkProblem } = await import(
   '../app/portal/forms/[id]/phone-mark-handoff'
 );
 
-const waiting = { mark: null, scanned: false, collected: false };
+const waiting = { mark: null, markAt: null, scanned: false, collected: false };
 
 describe('what the desk says when a poll comes back with no signature', () => {
   it('stays quiet while the phone has simply not drawn yet', () => {
@@ -67,6 +68,7 @@ describe('what the desk says when a poll comes back with no signature', () => {
     expect(
       phoneMarkProblem({
         mark: null,
+        markAt: null,
         scanned: true,
         collected: true,
         error: 'Please sign in again.',

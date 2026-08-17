@@ -34,6 +34,7 @@ import {
 } from '@/lib/template-field-formats';
 import { padModesFor } from '@/lib/signature-methods';
 import { PhoneMarkHandoff } from './phone-mark-handoff';
+import { PhoneMarkComplete } from './phone-mark-complete';
 
 /**
  * Employee fill-and-sign for a firm template. Fields render as inputs, the
@@ -117,7 +118,43 @@ export function FormFillClient({
   const [phoneMark, setPhoneMark] = useState<{
     dataUrl: string;
     handoffId: string;
+    /** The server's instant, shown beside the returned mark. Never this
+     *  browser's clock: see PhoneMarkComplete. */
+    markAt: string | null;
   } | null>(null);
+
+  /**
+   * The affirmation gates the signature section, and this is that gate.
+   *
+   * Asked FIRST and enforced, rather than asked underneath a pad somebody has
+   * already drawn on. The affirmation is what makes a mark a signature under
+   * 15 USC 7006(5) and UETA 2(8), and collecting it afterwards invites the
+   * answer "I had already signed, I only clicked the box later".
+   *
+   * It is not decoration and it is not opacity. Every control the section
+   * offers is genuinely disabled while this is true, the canvas refuses
+   * pointers, and the QR cannot be minted, which is the one route that would
+   * otherwise go around a shut pad entirely.
+   *
+   * NONE OF THIS IS A CONTROL. It is an ordering, in a browser. The server
+   * refuses an unaffirmed mark on its own account in storeMarkForHandoff, and
+   * that gate is untouched by this file.
+   */
+  const signatureLocked = !intentAffirmed;
+
+  /**
+   * Drop the mark and go back to an empty section.
+   *
+   * Both halves matter. Clearing only the phone's mark would uncover whatever
+   * the pad last reported, because markSrc prefers the phone's bytes and falls
+   * back to the pad's, and the person would then send a stale picture they had
+   * already replaced. The pad itself unmounts while a phone mark is showing,
+   * so it comes back empty on its own.
+   */
+  const signAgain = () => {
+    setPhoneMark(null);
+    setMark({ dataUrl: null, mode: 'drawn', hasInk: false, typedName: null });
+  };
 
   // What this template may be signed with, and therefore what the pad may
   // offer. An empty list is a real answer and not a missing one: it is what a
@@ -502,11 +539,80 @@ export function FormFillClient({
 
           <section className="space-y-3 rounded-xl border border-edge bg-surface p-4">
             <SectionTitle>Your signature</SectionTitle>
+
+            {/* The intent affirmation, and it comes FIRST.
+                This is the definitional element of an electronic signature
+                under 15 USC 7006(5) and UETA 2(8), and it used to sit at the
+                foot of this section, under the pad. So a person drew their
+                name and was asked afterwards whether they had meant it to be a
+                signature, which is the ceremony backwards.
+
+                The consumer disclosure in
+                app/sign/[token]/signature-capture.tsx still does not carry
+                over: an employee signing their employer's own paper is not a
+                consumer under 15 USC 7006(1), so the paper-copy right and the
+                withdrawal notice are addressed to a situation that is not this
+                one.
+
+                Not asked when there is no way to make a mark. Affirming that
+                "the mark above" be a signature, above an apology and no pad,
+                asks somebody to attest to something that cannot exist. */}
+            {!noWayToSign && (
+            <label className="flex items-start gap-3 text-[13px] text-foreground">
+              <input
+                type="checkbox"
+                checked={intentAffirmed}
+                onChange={(e) => setIntentAffirmed(e.currentTarget.checked)}
+                className="mt-1"
+              />
+              <span>
+                {/* The words come from lib/signing-intent.ts, which the outside
+                    signer's checkbox reads too. This page kept its own copy of
+                    the sentence until that module existed; the two had already
+                    started to differ in their typography, which is exactly the
+                    drift a shared constant prevents. Neither surface holds the
+                    words now.
+
+                    The signer's own name stays in its own element so the
+                    runtime translation layer does not machine-translate a
+                    person's name in the operative clause. */}
+                {SIGNING_INTENT_PREFIX}
+                <strong data-no-translate>{signature || employeeName || employeeEmail}</strong>
+                {signingIntentSuffix(template.name)}
+              </span>
+            </label>
+            )}
+
+            {phoneMark ? (
+              /* Signed on the phone. The pad is REPLACED, not covered: see the
+                 header of phone-mark-complete.tsx for why a canvas that is
+                 still mounted is still a canvas. */
+              <PhoneMarkComplete
+                dataUrl={phoneMark.dataUrl}
+                markAt={phoneMark.markAt}
+                onSignAgain={signAgain}
+              />
+            ) : (
+            <>
+            {/* Said out loud, because a section of controls that are all shut
+                with nothing explaining why is a page that reads as broken.
+
+                It lives on THIS arm of the branch deliberately. Written above
+                the branch it also appeared beside a finished phone signature,
+                telling somebody who had already signed how to turn on options
+                that were no longer on the page. A condition would have fixed
+                that once; sitting with the controls it describes fixes it for
+                good. */}
+            {!noWayToSign && signatureLocked && (
+              <p className="text-[12.5px] leading-relaxed text-muted">
+                <T>The signature options turn on once you tick the box above.</T>
+              </p>
+            )}
             {(padModes.length > 0 || phoneOffered) && (
               <SignaturePad
                 defaultTypedName={signature}
                 allowedModes={padModes}
-                externalMark={phoneMark?.dataUrl ?? null}
+                disabled={signatureLocked}
                 onChange={setMark}
                 onError={setError}
                 // The fourth way, in the strip with the other three. It used
@@ -517,7 +623,7 @@ export function FormFillClient({
                 // when this deployment has no handoff to give, because an
                 // offer that would be refused on scanning is worse than none.
                 phoneTab={
-                  phoneOffered && !phoneMark
+                  phoneOffered
                     ? {
                         label: 'Phone',
                         panel: (
@@ -525,8 +631,9 @@ export function FormFillClient({
                             templateId={template.id}
                             available={phoneHandoffAvailable}
                             onlyRoute={padModes.length === 0}
-                            onMark={(dataUrl, handoffId) =>
-                              setPhoneMark({ dataUrl, handoffId })
+                            disabled={signatureLocked}
+                            onMark={(dataUrl, handoffId, markAt) =>
+                              setPhoneMark({ dataUrl, handoffId, markAt })
                             }
                           />
                         ),
@@ -565,52 +672,7 @@ export function FormFillClient({
               </p>
             )}
 
-            {/* The mark came back. Said here rather than in the tab,
-                because at this point the tab is gone: there is nothing left
-                to scan and the pad below is showing what the phone drew. */}
-            {phoneOffered && phoneMark && (
-              <p className="rounded-lg border border-edge bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-foreground">
-                <T>
-                  Your signature came back from your phone and is on the
-                  document. Tick the box below and send the form from here.
-                </T>
-              </p>
-            )}
-            {/* The intent affirmation. This is the definitional element of an
-                electronic signature under 15 USC 7006(5) and UETA 2(8), and it
-                is the part of the outside signer's ceremony that genuinely
-                carries over. The consumer disclosure in
-                app/sign/[token]/signature-capture.tsx does not: an employee
-                signing their employer's own paper is not a consumer under
-                15 USC 7006(1), so the paper-copy right and the withdrawal
-                notice are addressed to a situation that is not this one. */}
-            {/* Not asked when there is no way to make a mark. Affirming intent
-                that "the mark above" be a signature, above an apology and no
-                pad, asks somebody to attest to something that cannot exist. */}
-            {!noWayToSign && (
-            <label className="flex items-start gap-3 text-[13px] text-foreground">
-              <input
-                type="checkbox"
-                checked={intentAffirmed}
-                onChange={(e) => setIntentAffirmed(e.currentTarget.checked)}
-                className="mt-1"
-              />
-              <span>
-                {/* The words come from lib/signing-intent.ts, which the outside
-                    signer's checkbox reads too. This page kept its own copy of
-                    the sentence until that module existed; the two had already
-                    started to differ in their typography, which is exactly the
-                    drift a shared constant prevents. Neither surface holds the
-                    words now.
-
-                    The signer's own name stays in its own element so the
-                    runtime translation layer does not machine-translate a
-                    person's name in the operative clause. */}
-                {SIGNING_INTENT_PREFIX}
-                <strong data-no-translate>{signature || employeeName || employeeEmail}</strong>
-                {signingIntentSuffix(template.name)}
-              </span>
-            </label>
+            </>
             )}
           </section>
 

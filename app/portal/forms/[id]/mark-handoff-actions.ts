@@ -124,6 +124,8 @@ export async function mintPhoneMarkAction(
  */
 export type PhoneMarkPollResult = {
   mark: string | null;
+  /** When the phone signed, as the server stamped it. See MarkCollection. */
+  markAt: string | null;
   scanned: boolean;
   collected: boolean;
   error?: string;
@@ -131,6 +133,7 @@ export type PhoneMarkPollResult = {
 
 const NO_HANDOFF: PhoneMarkPollResult = {
   mark: null,
+  markAt: null,
   scanned: false,
   collected: false,
 };
