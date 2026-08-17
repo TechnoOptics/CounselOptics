@@ -201,6 +201,17 @@ export async function createMarkHandoff(owner: {
 export type MarkCollection = {
   /** The picture, on the one call that carries it out. Null every other time. */
   mark: string | null;
+  /**
+   * When the phone signed, as this server stamped it, or null.
+   *
+   * Carried out with the picture so the desk can print a date and a time
+   * beside it without inventing one. It is deliberately the row's instant and
+   * not the collecting browser's: everything else on this path is server time
+   * for the reason given on storeMarkForHandoff, and a desk printing
+   * `new Date()` would be a fourth clock in a ceremony that has already been
+   * bitten by two of them disagreeing about the calendar day.
+   */
+  markAt: string | null;
   /** A phone has claimed this code. The desk stops offering it to scan. */
   scanned: boolean;
   /** This row has already handed its picture over and never will again. */
@@ -248,7 +259,12 @@ export async function collectMarkForOwner(input: {
   userId: string;
   firmId: string;
 }): Promise<MarkCollection> {
-  const nothing: MarkCollection = { mark: null, scanned: false, collected: false };
+  const nothing: MarkCollection = {
+    mark: null,
+    markAt: null,
+    scanned: false,
+    collected: false,
+  };
   const admin = createAdminSupabase();
   if (!admin) return nothing;
 
@@ -259,7 +275,7 @@ export async function collectMarkForOwner(input: {
   // "nothing has happened yet".
   const { data } = await admin
     .from('firm_mark_handoffs')
-    .select('mark_png, consumed_at, collected_at')
+    .select('mark_png, mark_at, consumed_at, collected_at')
     .eq('id', input.handoffId)
     .eq('user_id', input.userId)
     .eq('firm_id', input.firmId)
@@ -267,6 +283,7 @@ export async function collectMarkForOwner(input: {
 
   const found = data as {
     mark_png: string | null;
+    mark_at: string | null;
     consumed_at: string | null;
     collected_at: string | null;
   } | null;
@@ -274,6 +291,7 @@ export async function collectMarkForOwner(input: {
 
   const state = {
     mark: null,
+    markAt: null,
     scanned: Boolean(found.consumed_at),
     collected: Boolean(found.collected_at),
   } satisfies MarkCollection;
@@ -300,7 +318,10 @@ export async function collectMarkForOwner(input: {
   // with { error } and counts zero matched rows as a success. No row means
   // another poll got there first, and it is carrying the picture.
   if (!claimed) return state;
-  return { mark, scanned: true, collected: false };
+  // The instant travels with the picture and only with it. A caller that did
+  // not win the claim above is not the one showing this signature, so handing
+  // it a time would invite a second surface to print one.
+  return { mark, markAt: found.mark_at, scanned: true, collected: false };
 }
 
 /**

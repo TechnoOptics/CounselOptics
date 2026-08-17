@@ -46,6 +46,7 @@ export function SignaturePad({
   externalMark,
   allowedModes,
   phoneTab = null,
+  disabled = false,
 }: {
   /** Sits to the left of the mode tabs, so a caller keeps its own section
    *  label on the same row rather than stacking a second one above. */
@@ -104,6 +105,28 @@ export function SignaturePad({
    * changes, and signatureMethodFromPadMode still refuses the string 'phone'.
    */
   phoneTab?: { label: string; panel: React.ReactNode } | null;
+  /**
+   * Hold every control shut, because the caller's ceremony is not ready.
+   *
+   * The employee's form ticks this until the signer has affirmed their intent,
+   * so the affirmation is asked BEFORE a mark can be made rather than after
+   * one already has been.
+   *
+   * It is real disabling and not a fade. The obvious version of this is
+   * `opacity-50` on the wrapper, which changes nothing at all: the canvas
+   * still takes a pointer, the tabs still take a click and a Tab key, the file
+   * input still opens a picker, and a screen reader announces every one of
+   * them as ordinary live controls. So each control carries the `disabled`
+   * attribute that actually stops it and actually gets announced, and the
+   * canvas, which has no such attribute, refuses in its handlers and says
+   * `aria-disabled` for the readers that would otherwise never be told.
+   *
+   * The caller still has to shut its own `phoneTab` panel. This component only
+   * lends that panel a place in the strip and cannot reach inside it, so the
+   * tab button here is disabled and the panel's own button is the caller's to
+   * hold. See the `disabled` prop on components/signing/PhoneHandoffCard.
+   */
+  disabled?: boolean;
 }) {
   const ALL_MODES: readonly SignatureMode[] = ['drawn', 'typed', 'uploaded'];
   const offered = allowedModes ?? ALL_MODES;
@@ -218,7 +241,7 @@ export function SignaturePad({
   }
 
   function down(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mode !== 'drawn') return;
+    if (disabled || mode !== 'drawn') return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const { x, y } = getXY(e);
     const ctx = e.currentTarget.getContext('2d');
@@ -227,7 +250,7 @@ export function SignaturePad({
     setDrawing(true);
   }
   function move(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing || mode !== 'drawn') return;
+    if (disabled || !drawing || mode !== 'drawn') return;
     const { x, y } = getXY(e);
     const ctx = e.currentTarget.getContext('2d');
     ctx?.lineTo(x, y);
@@ -256,6 +279,7 @@ export function SignaturePad({
   // so nothing is cropped; for an opaque photo of a signature on paper the PNG
   // carries whatever the signer supplied.
   function onUploadFile(file: File | null) {
+    if (disabled) return;
     onError?.(null);
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -294,6 +318,7 @@ export function SignaturePad({
   const tab = (m: SignatureMode, label: string) => (
     <button
       type="button"
+      disabled={disabled}
       onClick={() => {
         setOnPhoneTab(false);
         setMode(m);
@@ -301,7 +326,7 @@ export function SignaturePad({
         // read as a drawing the person did not make.
         if (m !== 'typed') clear();
       }}
-      className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === m ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+      className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center disabled:opacity-55 disabled:cursor-not-allowed ${mode === m ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
     >
       {label}
     </button>
@@ -331,13 +356,14 @@ export function SignaturePad({
           {phoneTab && (
             <button
               type="button"
+              disabled={disabled}
               onClick={() => {
                 // Leaving a pad mark behind while the phone draws would put
                 // two signatures in play and send whichever won the race.
                 clear();
                 setOnPhoneTab(true);
               }}
-              className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${onPhoneTab ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+              className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center disabled:opacity-55 disabled:cursor-not-allowed ${onPhoneTab ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
             >
               {phoneTab.label}
             </button>
@@ -358,8 +384,9 @@ export function SignaturePad({
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           placeholder="Type your full name"
-          className="input"
+          className="input disabled:opacity-55 disabled:cursor-not-allowed"
           maxLength={80}
+          disabled={disabled}
         />
       )}
 
@@ -369,7 +396,8 @@ export function SignaturePad({
             type="file"
             accept="image/png,image/jpeg,image/webp"
             onChange={(e) => onUploadFile(e.currentTarget.files?.[0] ?? null)}
-            className="block w-full text-[12px] file:mr-3 file:min-h-[40px] file:rounded-md file:border-0 file:bg-forest-900 file:px-3 file:text-white dark:file:bg-gold-metal dark:file:text-forest-950"
+            disabled={disabled}
+            className="block w-full text-[12px] file:mr-3 file:min-h-[40px] file:rounded-md file:border-0 file:bg-forest-900 file:px-3 file:text-white disabled:opacity-55 disabled:cursor-not-allowed dark:file:bg-gold-metal dark:file:text-forest-950"
           />
         </label>
       )}
@@ -381,12 +409,21 @@ export function SignaturePad({
           onPointerMove={move}
           onPointerUp={up}
           onPointerLeave={up}
-          className="w-full h-32 sm:h-40 touch-none cursor-crosshair rounded-md"
+          // A canvas takes no `disabled` attribute, so this is the only way it
+          // is announced as unavailable at all. The handlers above refuse
+          // independently: this attribute tells a reader, it does not enforce.
+          aria-disabled={disabled || undefined}
+          className={`w-full h-32 sm:h-40 touch-none rounded-md ${disabled ? 'cursor-not-allowed opacity-55' : 'cursor-crosshair'}`}
           style={{ display: 'block' }}
         />
       </div>
       <div className="flex items-center justify-between">
-        <button type="button" onClick={clear} className="btn-ghost text-sm">
+        <button
+          type="button"
+          onClick={clear}
+          disabled={disabled}
+          className="btn-ghost text-sm disabled:opacity-55 disabled:cursor-not-allowed"
+        >
           Clear
         </button>
         <span className="text-[11px] text-ink-500 dark:text-cream-100/55">

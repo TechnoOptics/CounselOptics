@@ -180,9 +180,10 @@ describe('collectMarkForOwner', () => {
   const input = { handoffId: 'h1', userId: 'u1', firmId: 'f1' };
 
   it('finds the row under the caller session on BOTH of its statements', async () => {
-    nextResult = { mark_png: PNG };
+    nextResult = { mark_png: PNG, mark_at: '2026-03-03T12:00:00.000Z' };
     expect(await collectMarkForOwner(input)).toEqual({
       mark: PNG,
+      markAt: '2026-03-03T12:00:00.000Z',
       scanned: true,
       collected: false,
     });
@@ -227,10 +228,33 @@ describe('collectMarkForOwner', () => {
     expect(only('update')[0].selected).toBe('id');
   });
 
+  /**
+   * The instant the phone signed, carried back to the desk.
+   *
+   * The desk shows a date and a time beside the returned signature, and it has
+   * to be the SERVER'S recorded instant rather than the browser's clock. Every
+   * other timestamp on this path is server time for the reason stated on
+   * storeMarkForHandoff: the client's clock is unverifiable. A desk that
+   * printed `new Date()` would be a fourth clock in a ceremony that has
+   * already been bitten by two disagreeing about the calendar day.
+   */
+  it('carries back the instant the phone signed', async () => {
+    nextResult = { mark_png: PNG, mark_at: '2026-03-03T12:00:00.000Z' };
+    const out = await collectMarkForOwner(input);
+    expect(out.markAt).toBe('2026-03-03T12:00:00.000Z');
+    expect(only('select')[0].selected).toContain('mark_at');
+  });
+
+  it('reports no instant rather than guessing one', async () => {
+    nextResult = { mark_png: PNG, mark_at: null };
+    expect((await collectMarkForOwner(input)).markAt).toBe(null);
+  });
+
   it('writes nothing at all when the phone has not drawn yet', async () => {
     nextResult = null;
     expect(await collectMarkForOwner(input)).toEqual({
       mark: null,
+      markAt: null,
       scanned: false,
       collected: false,
     });

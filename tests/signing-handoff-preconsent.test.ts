@@ -152,8 +152,12 @@ describe('the button in front of the mint', () => {
   });
 
   it('is disabled until a code could actually be minted', () => {
+    // `|| disabled` was added for the employee's desk, where the affirmation
+    // gates the section and a mint would otherwise be the way around a shut
+    // pad. It only ever ADDS a reason to refuse, so the signer's own gate
+    // below is untouched: !available still disables the button on its own.
     expect(read(CARD)).toContain(
-      "disabled={phase.kind === 'minting' || !available}",
+      "disabled={phase.kind === 'minting' || !available || disabled}",
     );
     expect(read(HANDOFF)).toContain('handoffCodeAvailable(consent)');
   });
