@@ -10,6 +10,7 @@ import {
   normalizeIntakePriority,
   workflowStateOf,
 } from '@/lib/intake-workflow';
+import { readSignatureDirection } from '@/lib/intake-signature-direction';
 import {
   INTAKE_LIST_READ_LIMIT,
   parseIntakeListParams,
@@ -127,6 +128,10 @@ export default async function CounselInboxPage({
       // traffic; intakeTitle above is what stops it being read as the subject.
       requesterName: submittedBy || (r.client_name ?? '').trim() || 'Not given',
       inHouse,
+      // Null on every request filed before the question existed, and on
+      // anything a future writer puts in that jsonb key that is not one of the
+      // two words. The queue reads those exactly as "not a signature question".
+      signatureDirection: readSignatureDirection(answers.signature_direction),
       priority: normalizeIntakePriority(answers.priority),
       state: workflowStateOf(r.workflow_state, r.status),
       assignedTo: r.assigned_to,

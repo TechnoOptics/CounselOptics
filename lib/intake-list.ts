@@ -41,6 +41,7 @@ import {
   type IntakePriority,
   type IntakeWorkflowState,
 } from './intake-workflow';
+import type { SignatureDirection } from './intake-signature-direction';
 
 /**
  * One row of the queue, as the page hands it down.
@@ -62,6 +63,14 @@ export type IntakeListRow = {
   requesterName: string;
   /** Filed by one of the client's own people, from the Hub or a partner app. */
   inHouse: boolean;
+  /**
+   * Which way a signature runs on this request, or null for the requests that
+   * are not a signature question, which is every request filed before the
+   * question existed. Read from `intake_answers` by readSignatureDirection -
+   * see lib/intake-signature-direction.ts, which is also why it is not a
+   * status.
+   */
+  signatureDirection: SignatureDirection | null;
   priority: IntakePriority;
   state: IntakeWorkflowState;
   assignedTo: string | null;

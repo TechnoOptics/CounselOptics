@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createMatterIntakeAction } from '@/lib/conflict-check';
 import {
@@ -10,6 +10,31 @@ import {
 import type { DocScorecard } from '@/lib/doc-review';
 import { resolveIntakeReviewGate } from '@/lib/intake-review-gate';
 import { inhouseIntakeAnswers } from '@/lib/intake-request';
+import {
+  listFirmTemplatesAction,
+  listPortalTemplatesAction,
+} from '@/lib/firm-templates';
+import { groupByCategory } from '@/lib/document-category';
+import {
+  INBOUND_ATTACHMENT_HELP,
+  INBOUND_ATTACHMENT_LABEL,
+  SIGNATURE_DIRECTION_CHOICES,
+  SIGNATURE_DIRECTION_KEY,
+  SIGNATURE_DIRECTION_QUESTION,
+  isInboundSignature,
+  readSignatureDirection,
+} from '@/lib/intake-signature-direction';
+import {
+  TEMPLATE_ID_KEY,
+  TEMPLATE_NAME_KEY,
+  TEMPLATE_STEP_EMPTY,
+  TEMPLATE_STEP_HELP,
+  TEMPLATE_STEP_QUESTION,
+  deliveryModeLabel,
+  filterTemplates,
+  requestTypeInvolvesDocument,
+  type PickableTemplate,
+} from '@/lib/intake-template-picker';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { INTAKE_PRIORITIES } from '@/lib/intake-workflow';
@@ -111,7 +136,15 @@ export function CreateIntakeForm({
   const [related, setRelated] = useState<string[]>(['']);
   const [summary, setSummary] = useState('');
   const [fileNames, setFileNames] = useState<string[]>([]);
+  // Which way a signature runs on this request, or '' for the third answer,
+  // which is the same fact as the key being absent. See
+  // lib/intake-signature-direction.ts.
+  const [directionChoice, setDirectionChoice] = useState('');
+  const [template, setTemplate] = useState<PickableTemplate | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  // The attachment field, so the template step's "nothing matched" branch can
+  // put the person on it rather than leaving them at a dead end.
+  const attachmentRef = useRef<HTMLInputElement>(null);
   const [reviewing, setReviewing] = useState(false);
   const [scorecard, setScorecard] = useState<DocScorecard | null>(null);
   const [reviewErr, setReviewErr] = useState<string | null>(null);
@@ -135,6 +168,20 @@ export function CreateIntakeForm({
     REQUEST_TYPES.find((r) => r.value === requestType)?.mode ?? 'client';
   // In employee mode every request is an in-house request, period.
   const inhouse = employeeMode || mode === 'inhouse';
+
+  // The counterparty's own file IS the request, so the attachment field is
+  // what this form is for and the template search is not: searching the firm's
+  // own paperwork answers a question nobody asked here.
+  const inbound = isInboundSignature(directionChoice);
+  const showTemplateStep =
+    inhouse && !inbound && requestTypeInvolvesDocument(requestType);
+
+  function focusAttachment() {
+    const el = attachmentRef.current;
+    if (!el) return;
+    el.scrollIntoView({ block: 'center' });
+    el.focus();
+  }
 
   function submit(formData: FormData) {
     setError(null);
@@ -170,6 +217,19 @@ export function CreateIntakeForm({
       // `client_name` below, but that column holds the requester's name on
       // the partner path, so no reader can use it to name a request.
       Object.assign(intakeAnswers, inhouseIntakeAnswers(formData, subject));
+      // Null for "not a signature question", which is what every request
+      // filed before this question existed already says by having no key at
+      // all. It goes in the jsonb and nowhere near `status`, whose seven-value
+      // CHECK ten importers and two crons read.
+      intakeAnswers[SIGNATURE_DIRECTION_KEY] =
+        readSignatureDirection(directionChoice);
+      // The firm's own document, if one was chosen. The name is stored beside
+      // the id because a template can be renamed or archived later and the
+      // request has to keep saying what was actually picked.
+      if (template) {
+        intakeAnswers[TEMPLATE_ID_KEY] = template.id;
+        intakeAnswers[TEMPLATE_NAME_KEY] = template.name;
+      }
     } else {
       clientEmail = String(formData.get('clientEmail') ?? '').trim() || null;
       clientPhone = String(formData.get('clientPhone') ?? '').trim() || null;
@@ -482,15 +542,78 @@ export function CreateIntakeForm({
         />
       </label>
 
-      <div className="space-y-3 rounded-xl ring-1 ring-edge p-4">
+      {/* The signature question sits here, immediately above the attachment
+          field, because that is what its answers change. On "sent to us to
+          sign" the field below IS the request; on "we need someone outside to
+          sign" the template search opens between the two. */}
+      {inhouse && (
+        <fieldset className="block">
+          <legend className="block text-sm font-medium text-foreground mb-1.5">
+            <T>{SIGNATURE_DIRECTION_QUESTION}</T>
+          </legend>
+          <div className="space-y-1.5">
+            {SIGNATURE_DIRECTION_CHOICES.map((choice) => (
+              <label
+                key={choice.value || 'none'}
+                className="flex items-start gap-2 text-[13px] text-foreground"
+              >
+                <input
+                  type="radio"
+                  name="signatureDirection"
+                  value={choice.value}
+                  checked={directionChoice === choice.value}
+                  onChange={() => {
+                    setDirectionChoice(choice.value);
+                    // The template step is not offered on an inbound request,
+                    // so a choice made before that answer must not survive it.
+                    if (choice.value === 'inbound') setTemplate(null);
+                  }}
+                  className="mt-[3px] h-3.5 w-3.5 flex-none accent-[var(--accent)]"
+                />
+                <span><T>{choice.label}</T></span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      {showTemplateStep && (
+        <TemplateStep
+          firmId={firmId}
+          employeeMode={employeeMode}
+          selected={template}
+          onSelect={setTemplate}
+          onAttachInstead={focusAttachment}
+        />
+      )}
+
+      <div
+        className={`space-y-3 rounded-xl p-4 ${
+          inbound
+            ? 'ring-2 ring-[var(--accent)] bg-surface-2'
+            : 'ring-1 ring-edge'
+        }`}
+      >
         <label className="block">
           <span className="block text-sm font-medium text-foreground mb-1.5">
-            <T>Attach documents</T>{' '}
-            <span className="text-muted font-normal">
-              <T>(optional, up to 8 files / 25 MB each)</T>
-            </span>
+            {inbound ? (
+              <T>{INBOUND_ATTACHMENT_LABEL}</T>
+            ) : (
+              <>
+                <T>Attach documents</T>{' '}
+                <span className="text-muted font-normal">
+                  <T>(optional, up to 8 files / 25 MB each)</T>
+                </span>
+              </>
+            )}
           </span>
+          {inbound && (
+            <span className="block text-[12px] text-muted mb-2 leading-relaxed">
+              <T>{INBOUND_ATTACHMENT_HELP}</T>
+            </span>
+          )}
           <input
+            ref={attachmentRef}
             name="attachments"
             type="file"
             multiple
@@ -598,6 +721,193 @@ export function CreateIntakeForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * The firm's own standard documents, searched at the moment a request is
+ * filed.
+ *
+ * WHO SEES WHAT. An employee sees the published list, which is what
+ * listPortalTemplatesAction returns and is gated on their portal entitlement.
+ * The legal team sees every status, because a lawyer filing on a colleague's
+ * behalf has to be able to reach a draft they are still writing. If that call
+ * is refused - listFirmTemplatesAction is gated to FIRM_TEMPLATE_AUTHOR_ROLES,
+ * and a firm member outside those four roles can still open this form - the
+ * published list is asked for instead, so the step degrades to fewer results
+ * rather than to an error about permissions nobody asked about.
+ *
+ * WHAT IS NOT HERE, deliberately: any upload. This step reads a list and
+ * records a choice. Nothing on it reaches the template library's import path,
+ * which is gated to those same four roles and rewrites a document's blanks
+ * into placeholders. A person's own document goes on the attachment field
+ * below, unaltered.
+ */
+function TemplateStep({
+  firmId,
+  employeeMode,
+  selected,
+  onSelect,
+  onAttachInstead,
+}: {
+  firmId: string;
+  employeeMode: boolean;
+  selected: PickableTemplate | null;
+  onSelect: (next: PickableTemplate | null) => void;
+  onAttachInstead: () => void;
+}) {
+  const t = useT();
+  const [rows, setRows] = useState<PickableTemplate[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [q, setQ] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      let res = employeeMode
+        ? await listPortalTemplatesAction(firmId)
+        : await listFirmTemplatesAction(firmId);
+      if (!employeeMode && !res.ok) {
+        res = await listPortalTemplatesAction(firmId);
+      }
+      if (!alive) return;
+      if (!res.ok || !res.templates) {
+        setFailed(true);
+        setRows([]);
+        return;
+      }
+      setRows(
+        res.templates.map((tpl) => ({
+          id: tpl.id,
+          name: tpl.name,
+          description: tpl.description,
+          category: tpl.category,
+          deliveryMode: tpl.deliveryMode,
+        })),
+      );
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [firmId, employeeMode]);
+
+  const matched = filterTemplates(rows ?? [], q);
+  // The same grouping the legal team's own queues use, so the two sides of the
+  // product never disagree about what counts as one category.
+  const groups = groupByCategory(matched, (tpl) => tpl.category);
+
+  return (
+    <div className="space-y-3 rounded-xl ring-1 ring-edge p-4">
+      <div>
+        <p className="text-sm font-medium text-foreground">
+          <T>{TEMPLATE_STEP_QUESTION}</T>
+        </p>
+        <p className="text-[12px] text-muted mt-1 leading-relaxed">
+          <T>{TEMPLATE_STEP_HELP}</T>
+        </p>
+      </div>
+
+      {selected ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-edge bg-surface-2 px-3 py-2">
+          <span
+            className="text-[13px] font-semibold text-foreground"
+            data-no-translate
+          >
+            {selected.name}
+          </span>
+          <span className="text-[11.5px] text-muted">
+            <T>{deliveryModeLabel(selected.deliveryMode)}</T>
+          </span>
+          <button
+            type="button"
+            onClick={() => onSelect(null)}
+            className="ml-auto text-[12px] underline text-foreground"
+          >
+            <T>Choose a different one</T>
+          </button>
+        </div>
+      ) : (
+        <>
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label={t("Search your legal team's documents")}
+            placeholder={t('Search by name, description, or category')}
+            className="input"
+            data-no-translate
+          />
+
+          {rows === null ? (
+            <p className="text-[12px] text-muted">
+              <T>Looking at what your legal team has prepared…</T>
+            </p>
+          ) : matched.length === 0 ? (
+            <div className="space-y-2">
+              <p className="text-[12.5px] text-foreground leading-relaxed">
+                {failed ? (
+                  <T>
+                    Your legal team&rsquo;s documents could not be listed just
+                    now. Attach the document you have below and they will take
+                    it from there.
+                  </T>
+                ) : (
+                  <T>{TEMPLATE_STEP_EMPTY}</T>
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={onAttachInstead}
+                className="text-[12px] underline text-foreground"
+              >
+                <T>Attach a document instead</T>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {groups.map((group) => (
+                <div key={group.category}>
+                  <p className="eyebrow mb-1.5" data-no-translate>
+                    {group.category}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {group.rows.map((tpl) => (
+                      <li key={tpl.id}>
+                        <button
+                          type="button"
+                          onClick={() => onSelect(tpl)}
+                          className="block w-full rounded-lg border border-edge px-3 py-2 text-left transition-colors hover:border-edge-bright"
+                        >
+                          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span
+                              className="text-[13px] font-semibold text-foreground"
+                              data-no-translate
+                            >
+                              {tpl.name}
+                            </span>
+                            <span className="text-[11px] text-muted">
+                              <T>{deliveryModeLabel(tpl.deliveryMode)}</T>
+                            </span>
+                          </span>
+                          {tpl.description && (
+                            <span
+                              className="mt-0.5 block text-[12px] text-muted"
+                              data-no-translate
+                            >
+                              {tpl.description}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
