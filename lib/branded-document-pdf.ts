@@ -22,6 +22,7 @@ import {
   letterheadDesignLines,
   type LetterheadDesign,
 } from './letterhead-design';
+import { fontRejectionReason, type DocumentTypeface } from './document-typeface';
 import {
   COUNTERPARTY_BLOCK_LINES,
   findCounterpartyBlockLine,
@@ -179,6 +180,18 @@ export type BrandedDocumentInput = {
    * Absent means 'unsigned', the honest default: nothing has been signed.
    */
   state?: DocumentState;
+  /**
+   * The face the BODY of the document is set in, read out of firms.metadata by
+   * firmDocumentTypeface(). Absent or null means Times, which is what every
+   * document this product has produced was set in.
+   *
+   * A TYPEFACE CANNOT RESTYLE A DOCUMENT THAT ALREADY EXISTS, for the same
+   * reason a layout cannot: a rendered document's bytes and the geometry of its
+   * counterparty blanks are both stored at the one moment it was drawn
+   * (lib/submission-document.ts), and nothing re-renders a stored document. A
+   * firm changing its typeface changes only what the NEXT document looks like.
+   */
+  typeface?: DocumentTypeface | null;
 };
 
 /** The box the mark is fitted inside, in points. */
@@ -239,6 +252,147 @@ function sniffArtwork(bytes: Uint8Array): ArtworkKind | null {
   return null;
 }
 
+/** The pair of faces a document is set in: body, and headings. */
+type DocumentFaces = {
+  regular: Awaited<ReturnType<PDFDocument['embedFont']>>;
+  bold: Awaited<ReturnType<PDFDocument['embedFont']>>;
+  /** Why the firm's own typeface is not on this document, when it should be. */
+  error?: string;
+};
+
+/**
+ * The faces this document is set in.
+ *
+ * TIMES UNLESS THE FIRM HAS UPLOADED ITS OWN, AND TIMES AGAIN WHENEVER THE
+ * FIRM'S CANNOT BE USED. The decision is made BEFORE anything is embedded, on
+ * purpose: pdf-lib writes every font handed to embedFont into the saved file
+ * whether or not a single glyph of it was drawn, so embedding Times first and
+ * the firm's face afterwards would ship both in every document and leave the
+ * file claiming a typeface it never used.
+ *
+ * SUBSET, NOT THE WHOLE FILE. Measured on a real face: 6,080 bytes against
+ * 32,322 for the same one-page document. It is also the narrower licensing
+ * position, because only the glyphs the document actually uses travel with it
+ * rather than the firm's complete commercial font.
+ *
+ * The risk subsetting carries in THIS codebase is text extraction, and it is
+ * why lib/signature-anchor-text.ts exists at all: a subset face stores text as
+ * glyph indices, so a reader that cannot map them back finds no signature line
+ * and opens a signed document on the wrong page. pdf-lib writes a ToUnicode
+ * CMap for custom fonts, so components/DocumentPdfDeck.tsx still finds every
+ * label. That is not taken on trust; it is asserted against a real embedded
+ * font in tests/branded-document-typeface.test.ts.
+ *
+ * A REFUSAL CARRIES A REASON. Every path that cannot use the firm's face
+ * returns Times AND a reason, on the output and in an operator log line, which
+ * is exactly the contract letterheadError has.
+ *
+ * BE CLEAR ABOUT WHAT THAT DOES AND DOES NOT BUY TODAY. Nothing in app/ or
+ * components/ reads letterheadError, and nothing reads this either: grep both
+ * before believing otherwise. So the reason currently reaches an operator
+ * reading logs, and NOT the firm. That is a real gap for both fields and it is
+ * worth closing, but closing it is a UI change to the callers rather than
+ * something this module can do, and shipping the field is what makes it
+ * possible at all.
+ *
+ * It is still not THROWN, for the reason every other fallback in this renderer
+ * is not thrown: a document in the wrong face is recoverable, and a document
+ * that does not render is not, and the counterparty is waiting on it.
+ *
+ * fontkit is imported dynamically so a firm that has set no typeface, which is
+ * every firm today, never pulls it into the render path at all.
+ */
+async function resolveDocumentFaces(
+  pdf: PDFDocument,
+  typeface: DocumentTypeface | null | undefined,
+): Promise<DocumentFaces> {
+  const times = async (error?: string): Promise<DocumentFaces> => ({
+    regular: await pdf.embedFont(StandardFonts.TimesRoman),
+    bold: await pdf.embedFont(StandardFonts.TimesRomanBold),
+    ...(error ? { error } : {}),
+  });
+
+  if (!typeface?.regularUrl) return times();
+
+  /** Fetch one weight and check its BYTES, never its Content-Type. */
+  async function fetchFace(
+    url: string,
+  ): Promise<{ bytes: Uint8Array } | { reason: string }> {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) {
+        return { reason: `The typeface could not be fetched (HTTP ${r.status}).` };
+      }
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      // Storage serves back whatever contentType it was handed at upload, so a
+      // mis-tagged font arrives as application/octet-stream. The bytes cannot
+      // be mis-tagged. Same rule as the letterhead above.
+      const rejection = fontRejectionReason(bytes);
+      return rejection ? { reason: rejection } : { bytes };
+    } catch {
+      return {
+        reason: 'The typeface could not be read. The file may be damaged.',
+      };
+    }
+  }
+
+  const regular = await fetchFace(typeface.regularUrl);
+  if ('reason' in regular) return times(regular.reason);
+
+  let fontkit: unknown;
+  try {
+    fontkit = (await import('@pdf-lib/fontkit')).default;
+  } catch {
+    return times('This server cannot embed custom typefaces.');
+  }
+
+  let regularFont: DocumentFaces['regular'];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pdf.registerFontkit(fontkit as any);
+    regularFont = await pdf.embedFont(regular.bytes, { subset: true });
+  } catch {
+    // A file whose magic bytes are right but whose tables are not. Reported
+    // rather than thrown, and the document still goes out.
+    return times('This typeface could not be embedded. The file may be damaged.');
+  }
+
+  // THE BOLD WEIGHT IS OPTIONAL AND FALLS BACK TO THE REGULAR ONE.
+  //
+  // Not synthesised. pdf-lib has no synthetic-bold API, and faking one by
+  // stroking the glyphs changes their advance widths, which would move every
+  // heading and every counterparty blank measured after it. A heading set in
+  // the regular weight is a mild loss; a smeared heading on an instrument
+  // somebody is being asked to sign is a different kind of problem.
+  //
+  // Falling back to the REGULAR weight rather than to Times-Bold is the other
+  // half of the same judgement: one firm face throughout reads as a typographic
+  // choice, whereas the firm's face for the body and Times for the headings
+  // reads as a rendering fault.
+  if (!typeface.boldUrl) return { regular: regularFont, bold: regularFont };
+
+  const boldBytes = await fetchFace(typeface.boldUrl);
+  if ('reason' in boldBytes) {
+    return {
+      regular: regularFont,
+      bold: regularFont,
+      error: `The bold weight was not used. ${boldBytes.reason}`,
+    };
+  }
+  try {
+    return {
+      regular: regularFont,
+      bold: await pdf.embedFont(boldBytes.bytes, { subset: true }),
+    };
+  } catch {
+    return {
+      regular: regularFont,
+      bold: regularFont,
+      error: 'The bold weight could not be embedded. The file may be damaged.',
+    };
+  }
+}
+
 /** The declared type, used only when the bytes were inconclusive. */
 function kindFromMime(mime: string): ArtworkKind {
   if (mime.includes('pdf')) return 'pdf';
@@ -257,6 +411,16 @@ export type BrandedDocumentOutput = {
    * is a defect the firm has to learn about. See the comment at the fetch.
    */
   letterheadError?: string;
+  /**
+   * Why the firm's typeface is not on this document, when it should have been.
+   *
+   * Undefined in the two ordinary cases: the firm's face was used, or the firm
+   * has not set one. Set only when a typeface was configured and could not be
+   * used. Same contract as letterheadError above, INCLUDING its current limit:
+   * no caller reads either field yet, so the reason reaches the operator log
+   * and not the firm. See resolveDocumentFaces.
+   */
+  typefaceError?: string;
   /**
    * Where every counterparty blank landed, in the order they were drawn.
    * Empty for every document with no counterparty fields on its template,
@@ -281,8 +445,15 @@ export async function buildBrandedDocumentPdf(
   const pdf = await PDFDocument.create();
   pdf.setTitle(title);
   pdf.setProducer(brand);
-  const font = await pdf.embedFont(StandardFonts.TimesRoman);
-  const bold = await pdf.embedFont(StandardFonts.TimesRomanBold);
+  // The faces, decided before anything is embedded. See resolveDocumentFaces.
+  const faces = await resolveDocumentFaces(pdf, input.typeface);
+  const font = faces.regular;
+  const bold = faces.bold;
+  const typefaceError = faces.error;
+  if (typefaceError) {
+    // The operator's half. The firm's half is the returned field.
+    console.error('[typeface] not used on a document:', typefaceError);
+  }
 
   // Imported rather than declared, because lib/template-field-boxes.ts has to
   // bound a stored coordinate against the page it was recorded on and two
@@ -1030,5 +1201,6 @@ export async function buildBrandedDocumentPdf(
     bytes: await pdf.save(),
     fieldBoxes,
     ...(letterheadError ? { letterheadError } : {}),
+    ...(typefaceError ? { typefaceError } : {}),
   };
 }

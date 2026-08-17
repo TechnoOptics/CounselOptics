@@ -4,6 +4,7 @@ import { firmVocabulary } from '@/lib/firm-vocabulary';
 import { listFirmWebhooksAction } from '@/lib/firm-actions';
 import { readMenuConfig } from '@/lib/menu-config';
 import { firmLetterheadDesign } from '@/lib/letterhead-design';
+import { firmDocumentTypeface } from '@/lib/document-typeface';
 import {
   firmDocumentLayoutInput,
   normalizeDocumentLayout,
@@ -70,6 +71,7 @@ export default async function CounselSettingsPage() {
         firmId={ctx.firm.id}
         vocab={firmVocabulary(ctx.firm.firmType)}
         letterheadDesign={letterheadDesign}
+        documentTypeface={firmDocumentTypeface(ctx.firm.metadata)}
         defaultValues={{
           name: ctx.firm.name,
           accentColor: ctx.firm.accentColor,

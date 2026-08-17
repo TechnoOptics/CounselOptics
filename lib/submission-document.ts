@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getFirmByIdAdmin } from './firm-storage';
 import { buildBrandedDocumentPdf } from './branded-document-pdf';
 import { firmLetterheadDesign } from './letterhead-design';
+import { firmDocumentTypeface } from './document-typeface';
 import { firmDocumentLayoutInput, resolveDocumentLayout } from './document-layout';
 import { sha256 } from './esign-audit';
 import { isUnknownColumnError } from './signer-view';
@@ -118,6 +119,7 @@ export async function materializeSubmissionDocument(
     accent: firm?.accentColor ?? undefined,
     letterheadUrl: firm?.letterheadUrl ?? undefined,
     letterheadDesign: firmLetterheadDesign(firm?.metadata),
+    typeface: firmDocumentTypeface(firm?.metadata),
     logoUrl: firm?.logoUrl ?? undefined,
     layout,
     // 'signed', DELIBERATELY, on the one path where a document is stored.

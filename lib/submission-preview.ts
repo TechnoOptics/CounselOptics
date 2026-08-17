@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getFirmByIdAdmin } from './firm-storage';
 import { buildBrandedDocumentPdf } from './branded-document-pdf';
 import { firmLetterheadDesign } from './letterhead-design';
+import { firmDocumentTypeface } from './document-typeface';
 import { firmDocumentLayoutInput, resolveDocumentLayout } from './document-layout';
 import { loadSubmissionMark } from './template-signature';
 import type { DeliveryMode } from './submission-dispatch';
@@ -67,6 +68,7 @@ export function submissionPreviewInput(args: {
   accent?: string | null;
   letterheadUrl?: string | null;
   letterheadDesign: ReturnType<typeof firmLetterheadDesign>;
+  typeface: ReturnType<typeof firmDocumentTypeface>;
   logoUrl?: string | null;
   /** The firm layout with the template override already folded in, or without. */
   layout: ReturnType<typeof resolveDocumentLayout>;
@@ -81,6 +83,7 @@ export function submissionPreviewInput(args: {
     accent: args.accent ?? undefined,
     letterheadUrl: args.letterheadUrl ?? undefined,
     letterheadDesign: args.letterheadDesign,
+    typeface: args.typeface,
     logoUrl: args.logoUrl ?? undefined,
     // The signature path draws no mark: the counterparty's values and every
     // mark are stamped onto the stored bytes later by lib/signature-render.ts.
@@ -113,6 +116,7 @@ export async function renderSubmissionPreview(
       accent: firm?.accentColor,
       letterheadUrl: firm?.letterheadUrl,
       letterheadDesign: firmLetterheadDesign(firm?.metadata),
+      typeface: firmDocumentTypeface(firm?.metadata),
       logoUrl: firm?.logoUrl,
       layout: resolveDocumentLayout(
         firmDocumentLayoutInput(firm?.metadata),
