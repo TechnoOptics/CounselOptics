@@ -82,6 +82,37 @@ describe('both ends of the layout read lib/document-layout', () => {
   }
 });
 
+describe('the letterhead artwork rectangle is not computed twice', () => {
+  /**
+   * The band arithmetic used to be inline in the renderer: a target height of
+   * 100, a width capped at `W - 32`, and a top at `BAND_TOP - 24 - height`. It
+   * moved to resolveLetterheadArt when full-page stationery was added, and the
+   * point of moving it is lost the moment anything writes it out again. This is
+   * the same guard the content box and the footer line already have above, for
+   * the rectangle that carries the firm's own artwork.
+   *
+   * Comments are stripped by `read` before any of this is matched, which matters
+   * here more than usual: the renderer's prose SAYS it asks the shared module and
+   * names the numbers it no longer uses, so a guard over the raw text would be
+   * satisfied by the explanation rather than by the code.
+   */
+  it('the PDF renderer asks where the artwork goes', () => {
+    expect(read('lib/branded-document-pdf.ts')).toMatch(/resolveLetterheadArt\s*\(/);
+  });
+
+  it('the PDF renderer does not restate the band numbers', () => {
+    const source = read('lib/branded-document-pdf.ts');
+    // The 100pt target height and the 32pt total side inset, in the forms they
+    // were written in when they lived here.
+    expect(source).not.toMatch(/targetH\s*=\s*100\b/);
+    expect(source).not.toMatch(/\bW\s*-\s*32\b/);
+    // The band top offset. `BAND_TOP` is still read for the designed and
+    // synthesized letterheads, which are composed here rather than being the
+    // firm's own artwork; what must not come back is the artwork's own offset.
+    expect(source).not.toMatch(/BAND_TOP\s*-\s*24\b/);
+  });
+});
+
 describe('the pure module stays pure', () => {
   it('imports nothing at all', () => {
     // The preview is a client component and the renderer is a server module,
