@@ -5,7 +5,7 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
 import { cleanLegalText } from '@/lib/legal-templates';
 
 /**
- * Analyse the documents submitted with this ticket.
+ * Analyze the documents submitted with this ticket.
  *
  * What this replaced, because it is the point of the change: the ticket
  * embedded AnalyzeStudio, whose textarea was seeded with the request summary
@@ -67,7 +67,7 @@ export function AnalyzeAttachments({
       <p className="text-[12px] text-muted leading-relaxed">
         <T>
           Reads the documents attached to this request and reports what they
-          mean, how the law applies, which side they favour, and the clauses
+          mean, how the law applies, which side they favor, and the clauses
           worth changing.
         </T>
       </p>
@@ -99,7 +99,7 @@ export function AnalyzeAttachments({
         disabled={busy}
         className="btn-secondary disabled:opacity-60"
       >
-        {busy ? <T>Reading the documents...</T> : <T>Analyse the attachments</T>}
+        {busy ? <T>Reading the documents...</T> : <T>Analyze the attachments</T>}
       </button>
 
       {error && (
