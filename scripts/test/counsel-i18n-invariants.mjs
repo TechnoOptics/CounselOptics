@@ -242,6 +242,13 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   'at',
   // render-site label props over static arrays / objects
   'a.label',
+  // `recordFacts` on the counsel request detail. Reviewed on the same grounds
+  // as the rest of this family: the five labels are hard-coded literals in
+  // app/counsel/intake/[id]/page.tsx ('Type', 'Jurisdiction', 'Request type',
+  // 'Confidentiality', 'Expiry'). Only the label is wrapped; the VALUE beside
+  // it is request data and is rendered outside the wrap, marked
+  // data-no-translate.
+  'f.label',
   'l.label',
   'm.label',
   'r.label',

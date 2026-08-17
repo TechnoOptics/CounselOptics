@@ -315,17 +315,41 @@ describe('what the employee wrote stays in the main column', () => {
 
   /**
    * Mutation: leave any one of these in the main column. Conflict check,
-   * decline or close, analyze and the analysis are things the FIRM does about
-   * the request, not things the employee wrote.
+   * analyze and the analysis are things the FIRM does about the request, not
+   * things the employee wrote.
+   *
+   * 'decide' USED TO BE IN THIS LIST and is deliberately gone from it. The
+   * owner asked for declining to be a popup raised by the button at the top
+   * rather than a standing panel in the right side menu, so there is no
+   * decide SECTION anywhere now. The case below pins that absence.
    */
   it('puts every firm operation in the rail', () => {
     const code = codeOf(PAGE);
     const aside = code.indexOf('<aside');
-    for (const id of ['conflict', 'decide', 'analyze', 'review', 'meeting']) {
+    for (const id of ['conflict', 'analyze', 'review', 'meeting']) {
       const at = code.indexOf(`id="${id}"`);
       expect(at, `the ${id} section is missing`).toBeGreaterThan(-1);
       expect(at, `${id} is a firm operation and belongs in the rail`).toBeGreaterThan(aside);
     }
+  });
+
+  /**
+   * The decision is the one firm operation that is NOT a section, because it
+   * is a modal off the action bar. Pinned as an absence so nobody restores
+   * the panel believing they are repairing a gap.
+   *
+   * Mutation: put <DecideRequest> back in a RecordSection in the aside. This
+   * goes red. tests/ticket-decline-dialog.test.ts carries the rest.
+   */
+  it('raises the decision from the action bar, not from a rail section', () => {
+    const code = codeOf(PAGE);
+    const aside = code.indexOf('<aside');
+    expect(code).not.toContain('id="decide"');
+    expect(code.indexOf('<DecideRequest')).toBeGreaterThan(-1);
+    expect(
+      code.indexOf('<DecideRequest'),
+      'the decision is raised from the action bar, which is above the rail',
+    ).toBeLessThan(aside);
   });
 
   /**
