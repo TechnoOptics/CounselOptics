@@ -332,7 +332,7 @@ export function IntakeWorkPanel({
                       return res;
                     })
                   }
-                  className="btn-primary !py-1.5 text-[12.5px] disabled:opacity-50"
+                  className="btn-secondary !py-1.5 text-[12.5px] disabled:opacity-50"
                 >
                   {pending ? 'Creating…' : 'Create link'}
                 </button>

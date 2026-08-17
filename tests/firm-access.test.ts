@@ -1398,7 +1398,9 @@ describe('the enforcement wiring', () => {
       'createSigningRequestAction',
       'createFirmCaseAction',
       'setFirmCaseStatusAction',
-      'convertIntakeToCaseAction',
+      // convertIntakeToCaseAction was here. It is deleted, not merely
+      // ungated: an in-house team does not take a request on as a matter.
+      // See tests/ticket-not-a-matter.test.ts.
       'addFirmEmployeeAction',
       'sendFirmMessageAction',
       'scheduleStandaloneMeetingAction',
