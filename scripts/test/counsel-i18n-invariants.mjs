@@ -196,6 +196,14 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   // ticket's own title and the requester's name are rendered outside it,
   // marked data-no-translate.
   'WORKFLOW_LABEL[workflow]',
+  // The request queue's tab names (INTAKE_LIST_VIEW_LABEL in lib/intake-list.ts).
+  // Reviewed on the same grounds as WORKFLOW_LABEL directly above: a frozen
+  // constant map of seven literal labels keyed by the view enum ("All open",
+  // "Awaiting others", "Everything"), which nothing writes into at runtime, so
+  // no requester name, subject, reference or figure can reach the wrap. The
+  // count beside each label is rendered outside it by ViewStrip, and every
+  // piece of firm data in the table below carries data-no-translate.
+  'INTAKE_LIST_VIEW_LABEL[key]',
   'vocab.clients',
   'vocab.client',
   'vocab.intake',

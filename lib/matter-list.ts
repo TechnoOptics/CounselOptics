@@ -21,6 +21,7 @@
  */
 
 import { displayMatterNumber } from './ticket-numbers';
+import { paginate, type Paged } from './list-paging';
 
 export type MatterRow = {
   id: string;
@@ -393,45 +394,21 @@ export function sortMatters(
   });
 }
 
-export type MatterPage = {
-  /** The rows on this page. */
-  rows: MatterRow[];
-  /** Rows the view and filters select, across all pages. */
-  total: number;
-  /** The page actually shown, clamped into range. */
-  page: number;
-  pageCount: number;
-  /** 1-based index of the first row shown, or 0 when there are none. */
-  from: number;
-  /** 1-based index of the last row shown, or 0 when there are none. */
-  to: number;
-};
+export type MatterPage = Paged<MatterRow>;
 
 /**
  * Slice a sorted set into the requested page.
  *
- * The page is clamped rather than trusted: `?page=99` on a four-row
- * list shows the last page, not an empty table with a Prev button as
- * the only way out.
+ * The arithmetic itself lives in lib/list-paging.ts, because the request queue
+ * wants it verbatim and two copies of it is two chances for a pager to read
+ * `26-50 of 30`. This keeps the name the table and its tests already call.
  */
 export function paginateMatters(
   rows: MatterRow[],
   page: number,
   pageSize = PAGE_SIZE,
 ): MatterPage {
-  const total = rows.length;
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const current = Math.min(Math.max(1, page), pageCount);
-  const start = (current - 1) * pageSize;
-  const slice = rows.slice(start, start + pageSize);
-  return {
-    rows: slice,
-    total,
-    page: current,
-    pageCount,
-    from: slice.length ? start + 1 : 0,
-    to: slice.length ? start + slice.length : 0,
-  };
+  return paginate(rows, page, pageSize);
 }
 
 /** True when anything narrows the set beyond the chosen view. */

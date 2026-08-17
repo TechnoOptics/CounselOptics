@@ -105,8 +105,12 @@ describe('both ends are wired to it', () => {
     expect(src).toContain('inhouseIntakeAnswers(formData, subject)');
   });
 
-  it('the counsel request inbox titles a row with intakeTitle', () => {
-    const src = source('components/counsel/IntakeInbox.tsx');
-    expect(src).toContain('intakeTitle(i)');
+  it('the counsel request queue titles a row with intakeTitle', () => {
+    // The queue is a table now and the title is resolved on the server, so
+    // this reads the page that builds the rows rather than the component that
+    // draws them. Same rule, same reason: `client_name` holds the REQUESTER on
+    // the partner path, so it can never be the subject.
+    const src = source('app/counsel/inbox/page.tsx');
+    expect(src).toContain('intakeTitle(r)');
   });
 });

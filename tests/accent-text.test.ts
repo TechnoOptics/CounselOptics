@@ -1513,14 +1513,19 @@ describe('the signer page is a registered surface, not an assumed one', () => {
  * on the saturated fills it sits on. That was true of the fills it was
  * checked against and not of these.
  *
- * The map is written out three times, identically, so this reads all
- * three files rather than trusting that they still agree.
+ * The grade map is written out twice, identically, so this reads both
+ * files rather than trusting that they still agree. A third copy lived in
+ * the counsel request inbox until that list became a table; the table has no
+ * grade badge (four coloured marks on a row across twenty-five rows is the
+ * siren docs/DESIGN.md warns about), and it is swept here for the priority
+ * chip, which is a solid fill with a hardcoded foreground of exactly the same
+ * shape.
  */
 describe('every solid badge pairs a fill with a foreground that can be read on it', () => {
   const FILES = [
     'app/counsel/intake/create-intake-form.tsx',
     'components/ReviewScorecard.tsx',
-    'components/counsel/IntakeInbox.tsx',
+    'app/counsel/inbox/requests-table.tsx',
   ];
 
   /**
@@ -1575,9 +1580,11 @@ describe('every solid badge pairs a fill with a foreground that can be read on i
   );
 
   it('finds the badges at all, so an empty sweep cannot pass', () => {
-    // Five grades in three files, plus each file's fallback badge and
-    // the inbox priority tones.
-    expect(found.length).toBeGreaterThanOrEqual(18);
+    // Five grades plus a fallback badge in each of the two grade files,
+    // plus the two filled priority chips on the request queue. The other
+    // two priorities are outlined rather than filled, so they have no pair
+    // to measure and are deliberately not counted here.
+    expect(found.length).toBeGreaterThanOrEqual(14);
   });
 
   it('knows the paint behind every class it swept', () => {

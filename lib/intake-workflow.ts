@@ -146,6 +146,27 @@ export function workflowColor(state: IntakeWorkflowState): string {
  */
 export const INTAKE_PRIORITIES = ['Low', 'Normal', 'High', 'Urgent'] as const;
 
+export type IntakePriority = (typeof INTAKE_PRIORITIES)[number];
+
+/** The word a request's priority is, given whatever is stored. */
+export function normalizeIntakePriority(raw: unknown): IntakePriority {
+  const v = String(raw ?? '').trim();
+  return (INTAKE_PRIORITIES as readonly string[]).includes(v)
+    ? (v as IntakePriority)
+    : 'Normal';
+}
+
+/**
+ * How urgent a priority is, as a number a queue can sort by.
+ *
+ * Read off INTAKE_PRIORITIES rather than written out again, because the array
+ * is already ordered least to most urgent and a hand-written rank map is the
+ * copy that drifts: an unranked priority sorts as Normal whatever it says.
+ */
+export function intakePriorityRank(p: IntakePriority): number {
+  return INTAKE_PRIORITIES.indexOf(p);
+}
+
 function isWorkflowState(v: unknown): v is IntakeWorkflowState {
   return INTAKE_WORKFLOW_STATES.includes(v as IntakeWorkflowState);
 }

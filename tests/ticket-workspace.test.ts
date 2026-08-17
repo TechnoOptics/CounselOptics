@@ -23,7 +23,12 @@ import {
   edgeRevealDecision,
   EDGE_ZONE_PX,
   EDGE_DWELL_MS,
+  IDLE_HIDE_MS,
+  idleHideBlocker,
+  shouldWatchForIdle,
+  OPEN_OVERLAY_SELECTOR,
   type EdgeSample,
+  type IdleSample,
 } from '../lib/sidebar-edge-reveal';
 
 /**
@@ -608,5 +613,210 @@ describe('the migration is written and not assumed', () => {
   it('does not add a second reminder', () => {
     const sql = stripSql(read('supabase/migrations/20260816_intake_workflow_state.sql'));
     expect(sql.toLowerCase()).not.toContain('reminder');
+  });
+});
+
+/**
+ * The rail hides itself when it is left alone, and comes back at the edge.
+ *
+ * The owner asked for a panel that slides away after five seconds with no
+ * click, no hover and no focus. The rules join edgeRevealDecision in
+ * lib/sidebar-edge-reveal.ts rather than becoming a second timer inside an
+ * effect, for the reason that module's own docblock gives: driven through an
+ * automation harness the tab reports `visibilityState: 'hidden'` and Chrome
+ * freezes a hidden tab's timers, so a decision with a timer in it cannot be
+ * tested at all. A decision with no timer in it has nothing to freeze.
+ */
+describe('the rail decides for itself whether it may hide', () => {
+  const quiet: IdleSample = {
+    focusWithin: false,
+    pointerOver: false,
+    buttons: 0,
+    menuOpen: false,
+    hasSelection: false,
+  };
+
+  it('hides when nothing is happening in it', () => {
+    expect(idleHideBlocker(quiet)).toBeNull();
+  });
+
+  /**
+   * The one that is not negotiable. The panel unmounts its children when it
+   * collapses, so a keyboard user tabbing through the nav would not merely
+   * lose the panel, they would lose the focus ring to <body> mid-navigation.
+   *
+   * Mutation: drop the focusWithin arm and the nav vanishes under a Tab key.
+   */
+  it('refuses while focus is inside it', () => {
+    expect(idleHideBlocker({ ...quiet, focusWithin: true })).toBe('focus');
+  });
+
+  /**
+   * "No hover" is the owner's second condition. A pointer resting on the rail
+   * is a person about to use it.
+   *
+   * Mutation: drop the pointerOver arm and the rail closes under the cursor.
+   */
+  it('refuses while the pointer is over it', () => {
+    expect(idleHideBlocker({ ...quiet, pointerOver: true })).toBe('pointer');
+  });
+
+  /**
+   * Mid-interaction, three ways. A held button is a drag towards the rail, an
+   * open menu is a decision in progress inside it, and a live selection is a
+   * sweep that is not finished. Each one is a commitment the person has
+   * already made and the panel leaving underneath it is a surprise.
+   *
+   * Mutation: remove any one arm and that interaction loses its panel halfway
+   * through.
+   */
+  it('refuses mid-drag, mid-menu and mid-selection', () => {
+    expect(idleHideBlocker({ ...quiet, buttons: 1 })).toBe('drag');
+    expect(idleHideBlocker({ ...quiet, menuOpen: true })).toBe('menu');
+    expect(idleHideBlocker({ ...quiet, hasSelection: true })).toBe('selection');
+  });
+
+  it('names focus first when several reasons hold at once', () => {
+    // Not cosmetic: the component logs nothing, but a single ordered answer is
+    // what lets a test assert one value rather than a set, and focus is the
+    // reason a reader would be most surprised to see overruled.
+    expect(
+      idleHideBlocker({
+        ...quiet,
+        focusWithin: true,
+        pointerOver: true,
+        buttons: 1,
+        menuOpen: true,
+        hasSelection: true,
+      }),
+    ).toBe('focus');
+  });
+
+  /**
+   * Five seconds is a number somebody will want to tune, so it is named where
+   * the reasoning is.
+   *
+   * Mutation: inline 5000 at the call site and the constant becomes a comment.
+   */
+  it('names the idle delay rather than spelling it at the call site', () => {
+    expect(IDLE_HIDE_MS).toBe(5_000);
+    const code = codeOf(SIDEBAR);
+    expect(code, 'the delay is a literal in the component').not.toMatch(/\b5000\b/);
+    expect(code).toContain('IDLE_HIDE_MS');
+  });
+
+  /**
+   * The auto-hide is only offered where the way back is usable. The rail is
+   * `hidden md:block`, so below 768px it does not exist and a separate mobile
+   * nav is in play; above it a device can still be touch-only, and there a
+   * screen-edge gesture is unaimable and competes with the browser's own
+   * back-swipe. A panel that hid itself on a phone-shaped tablet would leave a
+   * thumb with a tab and no shortcut, which is worse than a panel that stays.
+   *
+   * Mutation: return true for a coarse pointer and the nav starts vanishing on
+   * touch devices.
+   */
+  /**
+   * The defect that only the rendered page found, pinned so it cannot come
+   * back. The panel's own Collapse button carries `aria-expanded`, because it
+   * reports the state of the panel. A bare `[aria-expanded="true"]` therefore
+   * matched on every tick, the menu blocker was permanently true, and the rail
+   * never hid once - under a suite that was entirely green, because the pure
+   * decision is handed a boolean and the boolean was wrong.
+   *
+   * Mutation: drop the `[aria-haspopup]` qualifier and the auto-hide stops
+   * working altogether while every unit test above still passes.
+   */
+  it('does not mistake the panel’s own collapse control for an open menu', () => {
+    expect(
+      OPEN_OVERLAY_SELECTOR,
+      'a bare aria-expanded clause matches a disclosure, not only a menu',
+    ).not.toMatch(/(^|,)\s*\[aria-expanded/);
+    expect(OPEN_OVERLAY_SELECTOR).toContain('[aria-haspopup]');
+    // And the component asks for the shared selector rather than spelling a
+    // second one, which is how the first copy came to be wrong on its own.
+    const code = codeOf(SIDEBAR);
+    expect(code).toContain('OPEN_OVERLAY_SELECTOR');
+    expect(code, 'a second selector has been written in the component').not.toContain(
+      'aria-expanded="true"',
+    );
+  });
+
+  it('watches for idleness only on a fine pointer, and only while open', () => {
+    expect(shouldWatchForIdle({ finePointer: true, collapsed: false })).toBe(true);
+    expect(shouldWatchForIdle({ finePointer: false, collapsed: false })).toBe(false);
+    // Already collapsed: there is nothing to hide, and a timer over it could
+    // only fight the edge reveal that is trying to bring it back.
+    expect(shouldWatchForIdle({ finePointer: true, collapsed: true })).toBe(false);
+  });
+});
+
+describe('the component wires the idle rule without re-implementing it', () => {
+  /**
+   * Mutation: inline the blocker checks in the effect. A second copy of "is
+   * focus inside, is a button down" beside the tested one is the drift this
+   * repo keeps paying for, and the copy in the component is the one no test
+   * can reach.
+   */
+  it('defers every idle rule to the tested decision', () => {
+    const code = codeOf(SIDEBAR);
+    expect(code).toContain('idleHideBlocker(');
+    expect(code).toContain('shouldWatchForIdle(');
+  });
+
+  /**
+   * A refused deadline must RE-ARM, not cancel. Otherwise letting go of a drag
+   * over the rail, or leaving a menu open once, disables the auto-hide until
+   * the next interaction with it, which is the same trap the edge zone's
+   * "neither refusal disarms" rule exists for.
+   *
+   * Mutation: return without rescheduling and the panel stops hiding for the
+   * rest of the session after one blocked deadline.
+   */
+  it('re-arms rather than gives up when a deadline is refused', () => {
+    const code = codeOf(SIDEBAR);
+    const block = code.slice(code.indexOf('idleHideBlocker('));
+    expect(
+      block.slice(0, 400),
+      'a blocked deadline does not schedule another one',
+    ).toMatch(/arm\(\)|schedule\(\)/);
+  });
+
+  /**
+   * The panel still has a deliberate way back for every reader: the tab when
+   * collapsed and the collapse control when open, both real buttons.
+   *
+   * Mutation: turn either into a div and the keyboard loses the panel for
+   * good, which is the one thing an auto-hiding panel may not do.
+   */
+  it('keeps an explicit control that a keyboard can reach', () => {
+    const code = codeOf(SIDEBAR);
+    expect(
+      [...code.matchAll(/<button\s+type="button"/g)].length,
+      'the collapse control and the page-keeper tab are not both real buttons',
+    ).toBeGreaterThanOrEqual(2);
+    expect(code).toContain("aria-controls=\"counsel-sidebar-panel\"");
+  });
+
+  /**
+   * Idleness is measured on the PANEL, not on the page. The owner's words were
+   * that the panel has had no click, no hover and no focus, and a timer reset
+   * by any activity anywhere would never fire while somebody typed in the
+   * content column.
+   *
+   * Mutation: move the listeners to `window` and the rail never hides.
+   */
+  it('measures idleness from events on the panel itself', () => {
+    // Each handler named on its own. Spelled as an alternation these passed
+    // with one of the pair deleted, which is a panel that never notices the
+    // pointer arriving and hides itself under somebody reaching for it.
+    const code = codeOf(SIDEBAR);
+    expect(code, 'the panel does not notice the pointer arriving').toContain(
+      'onPointerEnter=',
+    );
+    expect(code, 'the panel does not notice the pointer leaving').toContain(
+      'onPointerLeave=',
+    );
+    expect(code, 'the panel does not notice focus').toContain('onFocus=');
   });
 });
