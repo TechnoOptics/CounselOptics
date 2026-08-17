@@ -39,7 +39,9 @@ import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
 import {
   claimedSignatureMethod,
   decideSignatureMethod,
+  signatureMethodsOnDevice,
 } from './signature-methods';
+import { isPhoneUserAgent } from './platform';
 import { spendPhoneMarkAttestation } from './mark-handoff-queries';
 import { employeeFieldsOf } from './counterparty-fields';
 import { fieldFormatRefusal } from './template-field-formats';
@@ -278,6 +280,16 @@ function seenRevision(value: unknown): number {
  * would wrongly refuse real phones and strand the employee on exactly the
  * template this whole change exists to unblock.
  *
+ * THE USER AGENT IS NOW READ, AND ONLY EVER TO WIDEN. The paragraph above still
+ * stands: nothing is refused on the strength of a header. What the header does
+ * is resolve what 'phone' permits on a device that already IS one, because the
+ * page stopped offering a phone a code to scan with itself and a phone-only
+ * template must still be signable. signatureMethodsOnDevice adds 'draw' and
+ * takes nothing away, so a spoofed or misread user agent cannot cost anybody a
+ * submission, and it never sets attestedPhone: 'phone' is still written only
+ * where a handoff was spent. The residual is the one already accepted two
+ * paragraphs up, reached by a second route of the same size.
+ *
  * Called immediately before the write and not earlier, because verifying the
  * attestation spends it: one phone mark signs one document. Everything that
  * can refuse a submission for a reason unrelated to signing has already run by
@@ -313,7 +325,28 @@ async function guardSignatureMethod(input: {
     : false;
 
   const decision = decideSignatureMethod({
-    allowed: input.allowed ?? null,
+    // Resolved against the device this request came from, which is the ONLY
+    // thing the user agent is read for here and it is read in one direction.
+    //
+    // The page no longer offers a phone the QR handoff, because scanning a code
+    // with the device displaying it is not a handoff. A template restricted to
+    // 'phone' therefore has exactly one route on a phone, drawing directly on
+    // it, and a gate that refused that would have the page offering a pad whose
+    // every mark this function throws away. lib/signature-methods.ts has always
+    // held that the phone is a method delivering a DRAWN mark and that the
+    // handoff is the errand a desk runs to borrow a touchscreen.
+    //
+    // signatureMethodsOnDevice only ever ADDS 'draw', so this cannot refuse a
+    // submission it would have accepted, which is what the paragraph above about
+    // user-agent heuristics requires. It does not touch attestedPhone either: a
+    // header is the caller's own string and does not become the server's word
+    // for anything. 'phone' is still written only where a handoff burned a
+    // one-time token, and the request's real user agent goes on the row beside
+    // the mark regardless.
+    allowed: signatureMethodsOnDevice(
+      input.allowed ?? null,
+      isPhoneUserAgent(headers().get('user-agent')),
+    ),
     claimed: claimedSignatureMethod({
       attestedPhone,
       padMode: input.submission.signatureMode,

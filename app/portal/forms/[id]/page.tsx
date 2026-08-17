@@ -1,4 +1,6 @@
 import { redirect, notFound } from 'next/navigation';
+import { headers } from 'next/headers';
+import { isPhoneUserAgent } from '@/lib/platform';
 import { getWorkspacePersona } from '@/lib/persona';
 import { getPortalTemplateAction } from '@/lib/firm-templates';
 import { markHandoffFeatureAvailable } from '@/lib/mark-handoff-queries';
@@ -27,6 +29,27 @@ export default async function PortalFormFillPage({ params }: { params: { id: str
    */
   const phoneHandoffAvailable = await markHandoffFeatureAvailable();
 
+  /**
+   * Whether the person reading this is already holding a phone, established
+   * HERE, from the request, and passed down as a boolean.
+   *
+   * The third of three questions, and until now only two were asked. The
+   * template's signature_methods says whether the firm ALLOWS the phone; the
+   * probe above says whether the handoff is POSSIBLE in this database; neither
+   * says whether there is any point. Offering to show a QR code for the
+   * employee to scan with their phone, on their phone, asks them to scan a code
+   * with the device displaying it.
+   *
+   * It is read off the request rather than resolved in the browser, and that is
+   * the whole of the care here. app/billing/tier-card.tsx resolved the device in
+   * a client effect that runs once with no retry; on the remote-URL WebView the
+   * first paint beat it, so the page rendered the wrong control and shipped,
+   * which was the 5th App Store rejection (2.1(b), 2026-07-02). A header is
+   * present before the first byte of HTML, so this cannot be raced, cannot
+   * hydrate to something else, and cannot flicker.
+   */
+  const viewerOnPhone = isPhoneUserAgent(headers().get('user-agent'));
+
   return (
     <FormFillClient
       template={res.template}
@@ -35,6 +58,7 @@ export default async function PortalFormFillPage({ params }: { params: { id: str
       employeeName={persona.employee.displayName ?? ''}
       employeeEmail={persona.employee.email ?? ''}
       phoneHandoffAvailable={phoneHandoffAvailable}
+      viewerOnPhone={viewerOnPhone}
     />
   );
 }

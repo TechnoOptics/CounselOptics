@@ -32,7 +32,7 @@ import {
   invalidFieldValues,
   templateFieldInputAttributes,
 } from '@/lib/template-field-formats';
-import { padModesFor } from '@/lib/signature-methods';
+import { padModesFor, signatureMethodsOnDevice } from '@/lib/signature-methods';
 import { PhoneMarkHandoff } from './phone-mark-handoff';
 import { PhoneMarkComplete } from './phone-mark-complete';
 
@@ -56,6 +56,7 @@ export function FormFillClient({
   employeeName,
   employeeEmail,
   phoneHandoffAvailable,
+  viewerOnPhone,
   submission,
 }: {
   template: FirmTemplate;
@@ -71,6 +72,21 @@ export function FormFillClient({
    * type error rather than a page that quietly offers the route again.
    */
   phoneHandoffAvailable: boolean;
+  /**
+   * Whether the person reading this is already holding a phone, established by
+   * the server from the request's user agent.
+   *
+   * NOT RESOLVED HERE, and that is the point. app/billing/tier-card.tsx decided
+   * the device in a client effect that runs once with no retry; the first paint
+   * beat it and the wrong control shipped, which was the 5th App Store rejection
+   * (2.1(b), 2026-07-02). A prop filled in on the server is correct on the first
+   * paint, hydrates to itself, and has no window in which it is wrong.
+   *
+   * Not optional and not defaulted, for the same reason phoneHandoffAvailable is
+   * not: a caller that forgets it should be a type error rather than a page that
+   * quietly puts the QR back in front of somebody holding a phone.
+   */
+  viewerOnPhone: boolean;
   /** Set when the employee is fixing a submission legal sent back. */
   submission?: TemplateSubmission;
 }) {
@@ -156,13 +172,26 @@ export function FormFillClient({
     setMark({ dataUrl: null, mode: 'drawn', hasInk: false, typedName: null });
   };
 
-  // What this template may be signed with, and therefore what the pad may
-  // offer. An empty list is a real answer and not a missing one: it is what a
-  // template restricted to the phone produces, and the pad says so rather than
-  // widening back to all three. The QR below is the route that case leaves
-  // open, which is why it is rendered whenever the phone is permitted and not
-  // only when the pad has nothing.
-  const padModes = padModesFor(template.signatureMethods);
+  // What this template may be signed with ON THIS DEVICE, and therefore what
+  // the pad may offer.
+  //
+  // An empty list is a real answer and not a missing one: it is what a
+  // restriction naming no method produces, and the pad says so rather than
+  // widening back to all three.
+  //
+  // signatureMethodsOnDevice is what stops a phone-only template becoming a
+  // dead end on a phone. That template's only route used to be the QR below,
+  // and the QR is withdrawn here for anybody already holding a phone. The
+  // resolution is not a loosening: lib/signature-methods.ts has always held
+  // that the phone is a method delivering a DRAWN mark, and that the handoff is
+  // the errand a desk runs to borrow a touchscreen. This screen is one. On a
+  // desk it changes nothing at all, so the empty list and the QR still mean
+  // exactly what they meant there.
+  const methodsHere = signatureMethodsOnDevice(
+    template.signatureMethods,
+    viewerOnPhone,
+  );
+  const padModes = padModesFor(methodsHere);
   const phonePermitted =
     template.signatureMethods === null ||
     template.signatureMethods.includes('phone');
@@ -177,7 +206,23 @@ export function FormFillClient({
   // 20260815_mark_handoffs.sql is unapplied as well, so that default was also
   // answering "does the phone handoff exist", which it knows nothing about.
   // The card rendered, and the employee found out by tapping it.
-  const phoneOffered = phonePermitted && phoneHandoffAvailable;
+  //
+  // And a third authority, the request itself: whether there is any POINT.
+  // Handing a phone a code to scan with itself is not a handoff, it is a loop,
+  // and the employee's way out of it was to work out that the tab labelled
+  // Phone was not for them. Whoever is on a phone draws on the screen they are
+  // already holding, which padModes above has just made sure they can.
+  const phoneOffered = phonePermitted && phoneHandoffAvailable && !viewerOnPhone;
+  // The pad has a drawn tab HERE ONLY BECAUSE this device is the phone the firm
+  // asked for. Worth its own sentence: the employee is looking at a single
+  // option on a form whose settings say phone, and without this the page never
+  // says why. It is not shown when the firm allowed drawing anyway, because then
+  // the tab needs no explaining.
+  const drawingStandsInForThePhone =
+    viewerOnPhone &&
+    template.signatureMethods !== null &&
+    template.signatureMethods.includes('phone') &&
+    !template.signatureMethods.includes('draw');
   // No pad, and no phone either. Two ways to arrive here and they are told
   // apart below, because one is the firm's decision and one is not.
   //
@@ -650,6 +695,18 @@ export function FormFillClient({
                 <T>
                   Draw it, type it, or upload an image of your signature. A typed name is a valid
                   signature; drawing one is simply closer to signing on paper.
+                </T>
+              </p>
+            )}
+
+            {/* The firm asked for this one to be signed on a phone, and this is
+                one. Said plainly, so a single tab reads as the answer rather
+                than as something missing. */}
+            {drawingStandsInForThePhone && (
+              <p className="text-[12.5px] text-muted">
+                <T>
+                  This form is signed on a phone, and you are on one. Draw your
+                  signature on this screen.
                 </T>
               </p>
             )}

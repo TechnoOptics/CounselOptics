@@ -1,5 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import Link from 'next/link';
+import { isPhoneUserAgent } from '@/lib/platform';
 import { getWorkspacePersona } from '@/lib/persona';
 import { getPortalTemplateAction } from '@/lib/firm-templates';
 import { getTemplateSubmissionAction } from '@/lib/template-submissions';
@@ -69,6 +71,12 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
         // only on the branch that renders the form, so a status page nobody is
         // signing on does not probe.
         phoneHandoffAvailable={await markHandoffFeatureAvailable()}
+        // And the same third question, for the same reason: an employee fixing
+        // a returned form on their phone must not be offered a code to scan
+        // with the device displaying it. Read off the request here rather than
+        // in the browser, so it is right on the first paint. See the prop's own
+        // comment in form-fill-client.tsx for the rejection that taught us that.
+        viewerOnPhone={isPhoneUserAgent(headers().get('user-agent'))}
         submission={submission}
       />
     );
