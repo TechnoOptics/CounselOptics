@@ -130,6 +130,9 @@ const INTAKE = {
   status: 'in_progress',
   assigned_to: null,
   intake_answers: { subject: 'Contractor NDA for the Denver office' },
+  // Filed before 20260817_request_number.sql, so it keeps the derived
+  // reference it was originally emailed under rather than an allocated number.
+  request_number: null,
 };
 
 const MESSAGE = {

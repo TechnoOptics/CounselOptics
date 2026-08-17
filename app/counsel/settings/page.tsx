@@ -8,7 +8,11 @@ import {
   firmDocumentLayoutInput,
   normalizeDocumentLayout,
 } from '@/lib/document-layout';
-import { getFirmSurfaceSettings, getFirmTicketPrefix } from '@/lib/firm-settings';
+import {
+  getFirmRequestPrefix,
+  getFirmSurfaceSettings,
+  getFirmTicketPrefix,
+} from '@/lib/firm-settings';
 import { getFirmMatterPrefix } from '@/lib/matter-numbers';
 import { readPartnerConfig } from '@/lib/partner-config-core';
 import { SettingsForm } from './settings-form';
@@ -41,6 +45,9 @@ export default async function CounselSettingsPage() {
   // Same reasoning again for the matter prefix, which arrives with
   // supabase/migrations/20260813_matter_number.sql.
   const matterPrefix = await getFirmMatterPrefix(ctx.firm.id);
+  // And again for the legal-request prefix, which arrives with
+  // supabase/migrations/20260817_request_number.sql.
+  const requestPrefix = await getFirmRequestPrefix(ctx.firm.id);
   const partnerConfig = readPartnerConfig(ctx.firm.metadata);
   const letterheadDesign = firmLetterheadDesign(ctx.firm.metadata);
   // Null when the firm has never configured one, which is what lets the builder
@@ -135,7 +142,7 @@ export default async function CounselSettingsPage() {
         </p>
         <FirmSurfaceToggles
           firmId={ctx.firm.id}
-          initial={{ ...surface, ticketPrefix, matterPrefix }}
+          initial={{ ...surface, ticketPrefix, requestPrefix, matterPrefix }}
         />
       </PanelCard>
 

@@ -57,6 +57,34 @@ export const DEFAULT_TICKET_PREFIX = 'REQ';
  */
 export const DEFAULT_MATTER_PREFIX = 'MAT';
 
+/**
+ * What a firm's LEGAL REQUESTS are numbered under before it chooses.
+ *
+ * A third default for a third counter, and distinct from both of the above for
+ * the reason DEFAULT_MATTER_PREFIX gives at length: these are separate series
+ * over separate tables, so a shared prefix would eventually issue one reference
+ * for an employee's document and the same reference for the request that
+ * document belongs to.
+ *
+ * 'TKT' rather than 'REQ' specifically. REQ is the submission series, and it is
+ * also the shape of the derived reference a request carried before it could
+ * have a number of its own (ticketRef in lib/intake-conversation-types.ts), so
+ * it is the one prefix in the product that is already spoken for twice.
+ */
+export const DEFAULT_REQUEST_PREFIX = 'TKT';
+
+/**
+ * The number a firm's first legal request gets: 1000, not 1.
+ *
+ * From the owner's example, ZT0001000. A firm's first request reading
+ * ZT0000001 announces to everyone who receives it that the system was switched
+ * on that morning, and these references go out to counterparties.
+ *
+ * ONE CONSTANT ON PURPOSE. Whether every firm should start at 1000 or only the
+ * first one was not confirmed with the owner; this is the line to change.
+ */
+export const FIRST_REQUEST_SEQ = 1000;
+
 const PREFIX_MIN = 2;
 const PREFIX_MAX = 8;
 
@@ -88,6 +116,72 @@ export function normalizeTicketPrefix(raw: unknown): string {
 /** The prefix in front of a matter number. */
 export function normalizeMatterPrefix(raw: unknown): string {
   return normalizePrefix(raw, DEFAULT_MATTER_PREFIX);
+}
+
+/** The prefix in front of a legal request's number. */
+export function normalizeRequestPrefix(raw: unknown): string {
+  return normalizePrefix(raw, DEFAULT_REQUEST_PREFIX);
+}
+
+/**
+ * `ZT0001000`. The request series, which has NO separator.
+ *
+ * The owner's example is written without one, so this series is written
+ * without one. The two older series keep their hyphen: changing them would put
+ * two widths inside one live series and break the text ordering the allocator
+ * reads its next number from.
+ *
+ * The missing hyphen is not free, and parseRequestSeq below pays for it.
+ */
+export function formatRequestNumber(
+  prefix: string,
+  seq: number,
+  fallback: string = DEFAULT_REQUEST_PREFIX,
+): string {
+  return `${normalizePrefix(prefix, fallback)}${String(seq).padStart(TICKET_PAD, '0')}`;
+}
+
+/**
+ * The sequence inside a request reference, read as a FIXED WIDTH.
+ *
+ * NOT the `/(\d+)\s*$/` the other two series use, and the difference is forced
+ * by the missing separator rather than being a preference. A prefix may contain
+ * digits, so with nothing between it and the number, "every trailing digit"
+ * reads the prefix as part of the sequence: a firm on prefix 'A1' would have
+ * 'A10001000' parsed as 10,000,000, which is past the end of the series, and
+ * its very first request would exhaust the counter.
+ *
+ * Reading exactly the last seven characters, and only when all seven are
+ * digits, is unambiguous for any prefix this module will produce. Anything else
+ * reads as 0, which is how a firm with nothing filed yet, and a request holding
+ * an old derived REQ- reference, both read.
+ */
+export function parseRequestSeq(number: string | null | undefined): number {
+  const tail = String(number ?? '').slice(-TICKET_PAD);
+  if (tail.length !== TICKET_PAD || !/^\d+$/.test(tail)) return 0;
+  const parsed = Number.parseInt(tail, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * One past this firm's highest request number, or its first one, or a refusal.
+ *
+ * A firm with nothing numbered starts at FIRST_REQUEST_SEQ rather than at 1.
+ * The refusal at the end of the series is the same stop nextTicketSeq enforces
+ * and exists for the same reason: an eighth digit would sort below every
+ * seven-digit number and the allocator would start handing out numbers that are
+ * already on requests people have been emailed about.
+ */
+export function nextRequestSeq(highest: string | null): NextTicketSeq {
+  const current = parseRequestSeq(highest);
+  const seq = current === 0 ? FIRST_REQUEST_SEQ : current + 1;
+  if (seq > TICKET_MAX) {
+    return {
+      ok: false,
+      reason: `This firm has used every request number up to ${TICKET_MAX}. No further numbers can be issued at this width.`,
+    };
+  }
+  return { ok: true, seq };
 }
 
 /**
@@ -162,6 +256,35 @@ export function nextTicketSeq(highest: string | null): NextTicketSeq {
  */
 export function displayTicket(row: { ticketNumber?: string | null; id: string }): string {
   const stored = (row.ticketNumber ?? '').trim();
+  return stored || ticketRef(row.id);
+}
+
+/**
+ * The one place a LEGAL REQUEST's reference is turned into something to show.
+ *
+ * A request that has a number shows it. A request filed before the allocator
+ * existed shows the derived REQ- reference it has always had.
+ *
+ * NEVER BACKFILLED, AND THAT IS THE POINT OF THIS FUNCTION. A request's
+ * reference has already been sent to people: it is in notification email
+ * subject lines and bodies, in partner API payloads, and on the portal page
+ * that tells the reader to quote it. Numbering an existing request later would
+ * give one request two references and leave yesterday's email citing something
+ * that no longer matches the record, which for a legal record is worse than an
+ * ugly reference. So which of the two forms a request shows is fixed for its
+ * whole life.
+ *
+ * It is also what keeps an already-sent reference RESOLVABLE. The counsel
+ * inbox filters and searches on this string (lib/intake-list.ts), so an old
+ * request keeping its old reference is the reason somebody holding last week's
+ * email can still find it.
+ *
+ * This follows firm_template_submissions.ticket_number, not cases.matter_number.
+ * The matter series was backfilled, because a matter had never had a reference
+ * of its own to contradict. A request has.
+ */
+export function displayRequest(row: { requestNumber?: string | null; id: string }): string {
+  const stored = (row.requestNumber ?? '').trim();
   return stored || ticketRef(row.id);
 }
 

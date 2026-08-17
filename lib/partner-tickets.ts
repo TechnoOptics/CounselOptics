@@ -7,6 +7,7 @@ import { checkRateLimit } from './rate-limit';
 import type { ThreadMessage } from './intake-thread';
 import { readPartnerConfig, type PartnerQuestion } from './partner-config-core';
 import { partnerTicketEvent } from './partner-notify';
+import { allocateRequestNumber } from './ticket-allocator';
 import {
   INTAKE_COLS as CONV_INTAKE_COLS,
   insertIntakeMessage,
@@ -313,6 +314,23 @@ export async function createPartnerTicket(
   if (error || !created) {
     return { ok: false, status: 500, error: error?.message ?? 'Could not create the ticket.' };
   }
+  // Give the request its firm-scoped reference BEFORE anything announces it,
+  // so the bell, the email and the portal all quote the same number rather
+  // than the notification going out under the derived reference and the page
+  // showing a different one a moment later.
+  //
+  // The firm comes from the verified token, never from the request body, so a
+  // partner cannot allocate against another firm's series. The number itself is
+  // not accepted from the caller at all: it is derived from this firm's series
+  // inside the allocator.
+  //
+  // Best effort, and deliberately not checked. An employee's legal request must
+  // reach the legal team even if a counter would not move; a request that could
+  // not be numbered simply shows its derived reference instead (refFor).
+  await allocateRequestNumber(admin, {
+    firmId: auth.firmId,
+    intakeId: (created as IntakeRow).id,
+  });
   // Wake the legal team (bell + email) because an API-born ticket has no one
   // staring at a screen when it lands. Best-effort, never fails the create.
   await partnerTicketEvent((created as IntakeRow & { firm_id: string }).id, 'ticket.created', {

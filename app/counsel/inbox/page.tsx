@@ -60,7 +60,7 @@ export default async function CounselInboxPage({
     supabase
       .from('firm_matter_intakes')
       .select(
-        'id, client_name, matter_type, jurisdiction_state, status, workflow_state, assigned_to, created_at, updated_at, intake_answers',
+        'id, client_name, matter_type, jurisdiction_state, status, workflow_state, assigned_to, created_at, updated_at, intake_answers, request_number',
       )
       .eq('firm_id', ctx.firm.id)
       .order('created_at', { ascending: false })
@@ -96,6 +96,10 @@ export default async function CounselInboxPage({
     created_at: string;
     updated_at: string | null;
     intake_answers: Record<string, unknown> | null;
+    // The firm's allocated reference. Null on every request filed before
+    // 20260817_request_number.sql, which is permanent and is what keeps a
+    // reference already emailed out still findable in this queue's filter.
+    request_number: string | null;
   };
 
   const read = (rows ?? []) as IntakeReadRow[];
