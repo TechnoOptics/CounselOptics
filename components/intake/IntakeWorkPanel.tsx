@@ -18,7 +18,12 @@ import {
   type IntakePerson,
   type IntakeUploadRequest,
 } from '@/lib/intake-conversation-types';
+import {
+  SEND_FOR_SIGNATURE_LABEL,
+  ticketDocumentSendState,
+} from '@/lib/intake-signature-send';
 import { RelativeTime } from './RelativeTime';
+import { SendForSignatureDialog } from './SendForSignatureDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { KindIcon } from '@/components/counsel/KindIcon';
 
@@ -38,6 +43,7 @@ export function IntakeWorkPanel({
   sections = ['people', 'documents', 'requests'],
   embedded = false,
   showOwner = true,
+  signing = null,
 }: {
   intakeId: string;
   canManage: boolean;
@@ -56,6 +62,17 @@ export function IntakeWorkPanel({
    * same field in two places is two places to disagree.
    */
   showOwner?: boolean;
+  /**
+   * THE LEGAL TEAM'S SURFACE ONLY. Set this and each document that is a real
+   * `firm_documents` row gets a control that opens the signing composer over
+   * the ticket. Left null (the default, and what app/portal/[id]/page.tsx
+   * passes by saying nothing) the documents list is exactly what it was.
+   *
+   * It carries the firm id rather than a boolean because the composer needs
+   * one, and a panel that had to guess it would be a second place for the
+   * firm scope to be wrong.
+   */
+  signing?: { firmId: string } | null;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +86,8 @@ export function IntakeWorkPanel({
   // client's inbox. Neither is undone by clicking again.
   const [removingParticipant, setRemovingParticipant] = useState<IntakeParticipant | null>(null);
   const [revokingRequest, setRevokingRequest] = useState<IntakeUploadRequest | null>(null);
+  // The document the signing composer is open over, or null for closed.
+  const [sendingDoc, setSendingDoc] = useState<IntakeDocument | null>(null);
 
   const legalPeople = people.filter((p) => p.side === 'legal');
   const invitable = people.filter((p) => !participants.some((x) => x.userId === p.userId));
@@ -219,7 +238,14 @@ export function IntakeWorkPanel({
           </p>
         ) : (
           <ul className="space-y-1.5">
-            {documents.map((d) => (
+            {documents.map((d) => {
+              // Whether this file can be sent for signature at all, and what to
+              // say when it cannot. The rule is lib/intake-signature-send.ts,
+              // never a comparison written out here: an inline copy is a rule
+              // no test can reach, and getting it wrong shows the legal team a
+              // control that fails the moment they use it.
+              const send = ticketDocumentSendState(d);
+              return (
               <li key={d.id}>
                 <button
                   type="button"
@@ -239,8 +265,28 @@ export function IntakeWorkPanel({
                     </span>
                   </span>
                 </button>
+                {/* A sibling of the row button, not a child of it: a button
+                    inside a button is not a thing a browser will render. */}
+                {signing && (
+                  <div className="pl-[30px] pr-2">
+                    {send.canSend ? (
+                      <button
+                        type="button"
+                        onClick={() => setSendingDoc(d)}
+                        className="text-[11.5px] font-medium text-gold-700 hover:underline dark:text-gold-300"
+                      >
+                        {SEND_FOR_SIGNATURE_LABEL}
+                      </button>
+                    ) : (
+                      <p className="text-[11px] leading-snug text-ink-400 dark:text-cream-100/40">
+                        {send.note}
+                      </p>
+                    )}
+                  </div>
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
@@ -355,6 +401,19 @@ export function IntakeWorkPanel({
             </button>
           )}
         </section>
+      )}
+
+      {/* Opened only from the control above, which only exists when `signing`
+          is set, and only over a document the rule above cleared. The second
+          check on `signing` is here because the composer cannot be built
+          without a firm id. */}
+      {signing && sendingDoc && (
+        <SendForSignatureDialog
+          firmId={signing.firmId}
+          documentId={sendingDoc.id}
+          documentName={sendingDoc.name}
+          onClose={() => setSendingDoc(null)}
+        />
       )}
 
       {removingParticipant && (
