@@ -100,7 +100,11 @@ describe('the request detail gathers its record controls into one strip', () => 
 
   it.each([
     ['the folder select', '<FolderPicker'],
-    ['the way in to declining or closing it', '<DecideJump'],
+    // Was '<DecideJump', a button in this bar whose whole job was to scroll
+    // to a section in the right rail. The decision is now the modal this
+    // control raises, so the bar holds the decision itself rather than a
+    // pointer to it. See tests/ticket-decline-dialog.test.ts.
+    ['the way in to declining or closing it', '<DecideRequest'],
   ])('holds %s', (_label, tag) => {
     expect(actionBarSource()).toContain(tag);
   });

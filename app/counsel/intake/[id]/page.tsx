@@ -15,7 +15,6 @@ import {
   readIntakeFolder,
 } from '@/lib/request-folders';
 import { FolderPicker } from './folder-picker';
-import { DecideJump } from './decide-jump';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
 import { DecideRequest } from './decide-request';
@@ -123,18 +122,26 @@ export default async function IntakeDetailPage({
   const ans = (intake.intake_answers ?? {}) as Record<string, unknown>;
   const requestFolders = readRequestFolders(ctx.firm.metadata);
   const currentFolder = readIntakeFolder(intake.intake_answers);
-  const meta: Array<{ label: string; value: string }> = (
-    [
-      ['Request type', 'request_type'],
-      ['Submitted by', 'submitted_by'],
-      ['Priority', 'priority'],
-      ['Confidentiality', 'confidentiality'],
-      ['Due by', 'due_by'],
-      ['Expiry', 'expiry'],
-    ] as const
-  )
-    .map(([label, key]) => ({ label, value: String(ans[key] ?? '').trim() }))
-    .filter((m) => m.value.length > 0);
+  //
+  // These used to be two panels in the right rail, Matter (Type,
+  // Jurisdiction) and Request details. Both are gone at the owner's request
+  // and the facts came here, to the record in the left column.
+  //
+  // Submitted by, Priority and Due by are NOT in this list: the header
+  // already carries the first two as chips and the action bar carries the
+  // deadline, and docs/DESIGN.md calls a control drawn twice two controls
+  // that can disagree. The rest had no other home on this screen at all.
+  const recordFacts: Array<{ label: string; value: string }> = [
+    { label: 'Type', value: (intake.matter_type ?? '').trim() },
+    { label: 'Jurisdiction', value: (intake.jurisdiction_state ?? '').trim() },
+    ...(
+      [
+        ['Request type', 'request_type'],
+        ['Confidentiality', 'confidentiality'],
+        ['Expiry', 'expiry'],
+      ] as const
+    ).map(([label, key]) => ({ label, value: String(ans[key] ?? '').trim() })),
+  ].filter((f) => f.value.length > 0);
   // An in-house employee request (filed from /portal) carries a
   // submitted_by. Outside-client matters do not.
   const submittedBy = String(ans.submitted_by ?? '').trim();
@@ -330,12 +337,30 @@ export default async function IntakeDetailPage({
             )}
             {/* Taking the request on as a matter used to be the bar's
                 primary. It is gone deliberately: an in-house team answers
-                requests, it does not open matters from them. The link to a
-                matter a request produced BEFORE that change still lives in
-                the Matter panel below, drawn only when case_id is set, which
-                is what keeps the already-converted requests connected to
-                their cases. */}
-            <DecideJump decided={decision != null} />
+                requests, it does not open matters from them.
+
+                THE LINK TO A MATTER A REQUEST PRODUCED BEFORE THAT CHANGE IS
+                THE ONE THING THAT MUST NOT GO. It used to be the action on
+                the Matter panel in the rail, and the owner asked for that
+                panel to go. Two production requests were genuinely converted
+                while the write path existed, and this link is the only screen
+                in the product that points at their cases, so it moves here
+                rather than leaving with the panel it happened to live in.
+                Drawn only when case_id is set, so it is never an arrow to
+                nothing. */}
+            {caseId && (
+              <Link
+                href={`/counsel/cases/${caseId}`}
+                className="whitespace-nowrap text-[12.5px] text-muted transition-colors hover:text-foreground hover:underline"
+              >
+                <T>Open the matter &rarr;</T>
+              </Link>
+            )}
+            <DecideRequest
+              firmId={ctx.firm.id}
+              intakeId={intake.id}
+              decision={decision}
+            />
           </>
         }
       >
@@ -396,6 +421,28 @@ export default async function IntakeDetailPage({
                 <p className="text-[13px] text-muted">
                   <T>No summary was provided with this request.</T>
                 </p>
+              )}
+              {/* The fixed facts about the request, under the words the
+                  employee actually wrote. These were two panels in the right
+                  rail, Matter and Request details, until the owner asked for
+                  the rail to carry neither. They are here rather than gone
+                  because Jurisdiction and Confidentiality render nowhere else
+                  on this screen and Type only reaches the title when nothing
+                  supplied a subject. Only the ones that were filled are drawn,
+                  so this is never a heading over nothing. */}
+              {recordFacts.length > 0 && (
+                <dl className="mt-4 grid gap-x-6 gap-y-3 border-t border-edge pt-4 sm:grid-cols-2">
+                  {recordFacts.map((f) => (
+                    <div key={f.label}>
+                      <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                        <T>{f.label}</T>
+                      </dt>
+                      <dd data-no-translate className="text-[13.5px] text-foreground">
+                        {f.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
               )}
             </RecordSection>
 
@@ -501,49 +548,12 @@ export default async function IntakeDetailPage({
             </dl>
           </PanelCard>
 
-          {/* The arrow appears only once there is a record to open. There
-              is no client route to point the card above at, so it has no
-              arrow at all rather than a decorative one. */}
-          <PanelCard
-            title={<T>Matter</T>}
-            action={
-              caseId ? (
-                <Link
-                  href={`/counsel/cases/${caseId}`}
-                  className="text-[12px] text-muted hover:text-foreground hover:underline"
-                >
-                  <T>Open the matter &rarr;</T>
-                </Link>
-              ) : undefined
-            }
-          >
-            <dl className="space-y-2">
-              <div>
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                  <T>Type</T>
-                </dt>
-                <dd className="text-[13px] text-foreground">
-                  {intake.matter_type ? (
-                    <span data-no-translate>{intake.matter_type}</span>
-                  ) : (
-                    <T>Not set</T>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                  <T>Jurisdiction</T>
-                </dt>
-                <dd className="text-[13px] text-foreground">
-                  {intake.jurisdiction_state ? (
-                    <span data-no-translate>{intake.jurisdiction_state}</span>
-                  ) : (
-                    <T>Not set</T>
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </PanelCard>
+          {/* The Matter panel stood here, and the Request details panel at
+              the foot of this rail. Both are gone at the owner's request.
+              Their facts are not: they moved into "The matter" on the record
+              in the left column, which is where the service desk he works
+              from puts them too. The link to an already-converted case moved
+              to the action bar. */}
 
           {conv.ok && (
             <PanelCard title={<T>People</T>}>
@@ -712,18 +722,10 @@ export default async function IntakeDetailPage({
               </RecordSection>
             )}
 
-            {/* The other end of the fork the action bar's primary starts.
-                The bar's secondary opens this, because declining writes a
-                reason the requester reads and the reason is required. It
-                still opens from there: RecordSection listens for the jump on
-                the window, so moving the section did not break the link. */}
-            <RecordSection id="decide" title="Decline or close">
-              <DecideRequest
-                firmId={ctx.firm.id}
-                intakeId={intake.id}
-                decision={decision}
-              />
-            </RecordSection>
+            {/* Declining or closing out stood here as a standing section,
+                reached by a button in the action bar that only scrolled to
+                it. It is now the modal that button raises, so the way in and
+                the reason it asks for are one thing. See decide-request.tsx. */}
 
             {ans.review != null &&
               typeof ans.review === 'object' &&
@@ -770,22 +772,6 @@ export default async function IntakeDetailPage({
             </RecordSection>
           </div>
 
-          {meta.length > 0 && (
-            <PanelCard title={<T>Request details</T>}>
-              <dl className="space-y-2">
-                {meta.map((m) => (
-                  <div key={m.label}>
-                    <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                      <T>{m.label}</T>
-                    </dt>
-                    <dd data-no-translate className="text-[13px] text-foreground">
-                      {m.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </PanelCard>
-          )}
         </aside>
       </div>
     </div>
