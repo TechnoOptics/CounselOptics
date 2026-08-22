@@ -22,6 +22,12 @@ export type PacketExhibit = {
   description: string;
   source: string;
   date: string | null;
+  /**
+   * Where the date came from, in a couple of words. A bare date in this
+   * column reads as the date of the event, and an upload date is routinely
+   * months later. See lib/exhibit-chronology.
+   */
+  dateSource?: string;
 };
 
 export type PacketData = {
@@ -38,7 +44,16 @@ export type PacketData = {
   preparedFor: string;
   openedAt: string;
   exhibits: PacketExhibit[];
-  chronology: { date: string; text: string }[];
+  chronology: { date: string; text: string; dateSource?: string }[];
+  /** Items with no established date. Named, never placed on the chronology. */
+  undatedItems?: { label: string; text: string; n: number }[];
+  /**
+   * What the person needs to know before printing: exhibits nobody has read,
+   * a review that predates the evidence, a placeholder review. Shown on
+   * screen and withheld from the print, because it is about the state of the
+   * app rather than about the case.
+   */
+  notices?: string[];
 };
 
 function d(iso: string | null): string {
@@ -71,6 +86,30 @@ export function CasePacket({ data }: { data: PacketData }) {
             Print / Save as PDF
           </button>
         </div>
+
+        {/* What to know before printing. Screen only: it describes the state
+            of your file rather than the case, so it does not belong in a
+            document that goes to a court. */}
+        {data.notices && data.notices.length > 0 && (
+          <div className="print:hidden mx-auto mt-6 max-w-[820px] rounded-2xl border border-gold-300 bg-cream-50 px-5 py-4">
+            <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-gold-700">
+              Before you print
+            </p>
+            <ul className="mt-2 space-y-2">
+              {data.notices.map((n, i) => (
+                <li key={i} className="text-sm text-ink-800 leading-relaxed">
+                  {n}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href={`/cases/${data.caseId}#exhibits-upload`}
+              className="mt-3 inline-block text-sm font-semibold text-forest-800 underline"
+            >
+              Go back and scan them first
+            </Link>
+          </div>
+        )}
 
         {/* The document */}
         <div className="mx-auto my-6 print:my-0 max-w-[820px] bg-white text-ink-900 shadow-card-hover print:shadow-none">
@@ -151,6 +190,11 @@ export function CasePacket({ data }: { data: PacketData }) {
                   <li key={i} className="flex gap-5 pkt-avoid">
                     <span className="flex-none w-32 text-sm font-semibold text-forest-800 tabular-nums">
                       {c.date}
+                      {c.dateSource && (
+                        <span className="block text-[10px] font-normal text-ink-500">
+                          {c.dateSource}
+                        </span>
+                      )}
                     </span>
                     <span className="text-[15px] leading-relaxed text-ink-800">
                       {c.text}
@@ -158,6 +202,31 @@ export function CasePacket({ data }: { data: PacketData }) {
                   </li>
                 ))}
               </ol>
+            )}
+
+            {/* Items with no established date. Named here rather than being
+                placed at either end of the chronology above, because both
+                ends are a claim about when something happened. */}
+            {data.undatedItems && data.undatedItems.length > 0 && (
+              <div className="mt-8 pkt-avoid">
+                <h3 className="text-sm font-semibold text-forest-900 mb-2">
+                  Items with no established date
+                </h3>
+                <p className="text-[13px] text-ink-600 leading-relaxed mb-3">
+                  {data.undatedItems.length === 1 ? 'This item is' : 'These items are'}{' '}
+                  listed in the exhibit index but {data.undatedItems.length === 1 ? 'is' : 'are'} not
+                  placed in the chronology above, because nothing on file
+                  establishes when {data.undatedItems.length === 1 ? 'it' : 'they'} happened.
+                </p>
+                <ul className="space-y-1.5">
+                  {data.undatedItems.map((u) => (
+                    <li key={u.n} className="text-[15px] text-ink-800">
+                      <span className="font-semibold">{u.label}</span> - {u.text}{' '}
+                      (Exhibit {u.n}).
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </section>
 
@@ -207,7 +276,12 @@ export function CasePacket({ data }: { data: PacketData }) {
                       </td>
                       <td className="py-3 pr-3 text-ink-600">{e.category}</td>
                       <td className="py-3 text-ink-600 tabular-nums">
-                        {e.date ? d(e.date) : '-'}
+                        {e.date ? d(e.date) : 'Not established'}
+                        {e.dateSource && (
+                          <span className="block text-[10px] text-ink-400">
+                            {e.dateSource}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

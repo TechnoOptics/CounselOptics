@@ -10,7 +10,7 @@ import {
 } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { storageUnavailable } from '@/lib/setup-status';
-import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus, type SubjectProfile, type SubjectType } from '@/lib/types';
+import { STATUS_LABEL, SUBJECT_TYPE_LABEL, isRealScan, type CaseStatus, type SubjectProfile, type SubjectType } from '@/lib/types';
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
 import { hasFeature, isFullAccessTrial } from '@/lib/tier';
@@ -22,6 +22,10 @@ import { WitnessStatementEditor } from './witness-statement-editor';
 import { CloseCaseControl } from './close-case-control';
 import { HearingPanel } from './hearing-panel';
 import { ExhibitScan } from './exhibit-scan';
+import { BulkScanPanel } from './bulk-scan-panel';
+import { PacketReadinessNotice } from '@/components/PacketReadinessNotice';
+import { assessPacketReadiness } from '@/lib/packet-readiness';
+import { resolveExhibitDate } from '@/lib/exhibit-chronology';
 import { Tabs } from '@/components/Tabs';
 import { CaseStory, type StoryItem } from '@/components/CaseStory';
 import { OpposingCounsel } from '@/components/OpposingCounsel';
@@ -160,17 +164,31 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
       title: 'Case opened',
       detail: `${c.caseType} matter - ${c.posture}`,
     },
-    ...exhibits.map((e) => ({
-      id: `ex-${e.id}`,
-      at: e.incidentDate || e.uploadedAt,
-      kind: 'evidence' as const,
-      title: e.label,
-      detail:
-        [e.description, e.source && `Source: ${e.source}`]
-          .filter(Boolean)
-          .join(' · ') || e.fileName,
-      category: e.category ?? null,
-    })),
+    // `incidentDate || uploadedAt` used to be the whole rule here, so an
+    // exhibit with no incident date sat on the spine at the moment the file
+    // was uploaded, indistinguishable from one the person had dated. The
+    // resolved date carries its own source and the spine prints it.
+    ...exhibits.map((e) => {
+      const when = resolveExhibitDate({
+        incidentDate: e.incidentDate ?? null,
+        uploadedAt: e.uploadedAt ?? null,
+        scanDates: e.scanData?.dates ?? null,
+        scanIsReal: isRealScan(e.scanData),
+      });
+      return {
+        id: `ex-${e.id}`,
+        at: when.known ? when.iso : '',
+        undated: !when.known,
+        dateSource: when.sourceShort,
+        kind: 'evidence' as const,
+        title: e.label,
+        detail:
+          [e.description, e.source && `Source: ${e.source}`]
+            .filter(Boolean)
+            .join(' · ') || e.fileName,
+        category: e.category ?? null,
+      };
+    }),
     ...(c.hearingAt
       ? [
           {
@@ -205,6 +223,15 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
     .filter(Boolean)
     .join('\n');
   const showCueCallout = hasDecisionCue(decisionText);
+
+  // What the person has to be told before they press Court Packet or Export
+  // PDF. Computed here so the notice sits with the two buttons that build a
+  // document, rather than after one has already been built.
+  const readiness = assessPacketReadiness({
+    exhibits,
+    review,
+    now: Date.now(),
+  });
   const hearingMs = c.hearingAt ? Date.parse(c.hearingAt) : NaN;
   const daysToHearing = Number.isFinite(hearingMs)
     ? (hearingMs - Date.now()) / (24 * 60 * 60 * 1000)
@@ -252,6 +279,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           </a>
         </div>
       </div>
+
+      {!isWitness && <PacketReadinessNotice readiness={readiness} caseId={c.id} />}
 
       {/* Case header - dark forest hero with KPI strip */}
       <div className="relative overflow-hidden rounded-3xl text-cream-100 ring-1 ring-forest-700/40 shadow-card-hover hero-bg">
@@ -593,6 +622,14 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                     </div>
                   )}
 
+                  {canUpload && (
+                    <BulkScanPanel
+                      caseId={c.id}
+                      unreadCount={readiness.unread.length}
+                      totalCount={exhibits.length}
+                    />
+                  )}
+
                   {exhibits.length > 0 && (
                     <BellaPrompt
                       title="Ask Bella to make sense of these exhibits"
@@ -630,12 +667,28 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                                     {e.category}
                                   </span>
                                 )}
-                                {e.incidentDate && (
-                                  <span>
-                                    <span className="text-ink-400">Incident:</span>{' '}
-                                    {formatDateNumeric(e.incidentDate)}
-                                  </span>
-                                )}
+                                {/* The date this exhibit sits at on the
+                                    timeline, and where that date came from.
+                                    A bare date here would let an upload
+                                    timestamp read as the date of the event. */}
+                                {(() => {
+                                  const when = resolveExhibitDate({
+                                    incidentDate: e.incidentDate ?? null,
+                                    uploadedAt: e.uploadedAt ?? null,
+                                    scanDates: e.scanData?.dates ?? null,
+                                    scanIsReal: isRealScan(e.scanData),
+                                  });
+                                  return (
+                                    <span>
+                                      <span className="text-ink-400">Date:</span>{' '}
+                                      {when.known ? formatDateNumeric(when.iso) : 'not established'}
+                                      <span className="text-ink-400">
+                                        {' '}
+                                        ({when.sourceShort})
+                                      </span>
+                                    </span>
+                                  );
+                                })()}
                                 {e.source && (
                                   <span>
                                     <span className="text-ink-400">Source:</span>{' '}

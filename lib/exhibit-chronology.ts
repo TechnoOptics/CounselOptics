@@ -264,21 +264,30 @@ export function resolveExhibitDate(ex: DatableExhibit): ResolvedDate {
   return UNDATED;
 }
 
+/** A date we established. */
+export type KnownDate = Extract<ResolvedDate, { known: true }>;
+/** The absence of one. */
+export type UnknownDate = Extract<ResolvedDate, { known: false }>;
+
 /** One row of a built chronology. */
-export type ChronologyEntry<T> = {
+export type ChronologyEntry<T, D extends ResolvedDate = ResolvedDate> = {
   item: T;
-  date: ResolvedDate;
+  date: D;
 };
 
 export type Chronology<T> = {
-  /** Ordered earliest first. */
-  dated: ChronologyEntry<T>[];
+  /**
+   * Ordered earliest first. Typed as carrying a known date, so a caller
+   * reading `.date.iso` off a chronology row cannot be handed an item whose
+   * date was never established.
+   */
+  dated: ChronologyEntry<T, KnownDate>[];
   /**
    * Items we could not place. Kept in the order they were given, and kept in
    * their own list so no caller can render them as though they sat at one end
    * of the timeline.
    */
-  undated: ChronologyEntry<T>[];
+  undated: ChronologyEntry<T, UnknownDate>[];
 };
 
 /**
@@ -297,8 +306,8 @@ export function buildChronology<T>(
   items: readonly T[],
   resolve: (item: T) => ResolvedDate,
 ): Chronology<T> {
-  const dated: { entry: ChronologyEntry<T>; index: number }[] = [];
-  const undated: ChronologyEntry<T>[] = [];
+  const dated: { entry: ChronologyEntry<T, KnownDate>; index: number }[] = [];
+  const undated: ChronologyEntry<T, UnknownDate>[] = [];
 
   items.forEach((item, index) => {
     const date = resolve(item);
@@ -307,9 +316,9 @@ export function buildChronology<T>(
   });
 
   dated.sort((a, b) => {
-    const ak = a.entry.date.known ? a.entry.date.sortKey : 0;
-    const bk = b.entry.date.known ? b.entry.date.sortKey : 0;
-    if (ak !== bk) return ak - bk;
+    if (a.entry.date.sortKey !== b.entry.date.sortKey) {
+      return a.entry.date.sortKey - b.entry.date.sortKey;
+    }
     return a.index - b.index;
   });
 

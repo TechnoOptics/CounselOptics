@@ -148,15 +148,15 @@ describe('the generated case packet', () => {
     id: 'c1',
     title: 'Doe v. Roe',
     subjectName: 'John Roe',
-    subjectType: 'individual',
+    subjectType: 'person',
     jurisdiction: { city: 'Austin', state: 'TX', country: 'USA' },
-    caseType: 'Landlord/Tenant',
+    caseType: 'Landlord/tenant issue',
     description: 'A dispute over a withheld deposit.',
-    posture: 'plaintiff',
+    posture: 'claimant',
     status: 'open',
     createdAt: '2026-07-01T10:00:00.000Z',
     updatedAt: '2026-08-08T10:00:00.000Z',
-  } as Case;
+  };
 
   // Neither image nor PDF, so the builder never reaches storage for bytes.
   const exhibits: Exhibit[] = [
