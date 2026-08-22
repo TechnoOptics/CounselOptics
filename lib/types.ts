@@ -199,6 +199,21 @@ export type Exhibit = {
   category?: string | null;
   scanData?: ScanData | null;
   uploadedAt: string;
+  /**
+   * When the case owner withdrew this exhibit from their packet, if they have.
+   *
+   * NOT a delete. The row, the label and the file all stay: labels are handed
+   * out by position, so removing one silently re-points every reference that
+   * already exists to it. A withdrawn exhibit is left out of the packet, the
+   * chronology, the exhibit index and the unread count, is still shown to the
+   * owner, and can be restored. See lib/exhibit-withdrawal.ts.
+   *
+   * Undefined on a deployment where
+   * supabase/migrations/20260822_exhibit_withdrawal_and_details.sql has not
+   * been applied, which reads as not withdrawn, which is correct: nothing can
+   * have been withdrawn there.
+   */
+  withdrawnAt?: string | null;
 };
 
 export type CollaboratorRole =
