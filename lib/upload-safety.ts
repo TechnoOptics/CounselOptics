@@ -338,12 +338,21 @@ export function pdfCarriesActiveContent(buf: Buffer): boolean {
 export { MAX_EVIDENCE_BYTES, MAX_ID_PHOTO_BYTES };
 
 /**
- * Central chokepoint for AUTHENTICATED storage writes. Every server-side
- * upload of a user-supplied file should go through here rather than calling
- * `client.storage.from(bucket).upload(...)` directly, so the magic-byte /
- * dangerous-content screen (screenAuthenticatedUpload) can never be forgotten
- * on a new upload path. It also uses the caller's DECLARED content-type only
- * after that type has been confirmed against the bytes.
+ * Central chokepoint for AUTHENTICATED storage writes THAT PASS THROUGH OUR
+ * SERVER. Every server-side upload of a user-supplied file should go through
+ * here rather than calling `client.storage.from(bucket).upload(...)` directly,
+ * so the magic-byte / dangerous-content screen (screenAuthenticatedUpload) can
+ * never be forgotten on a new upload path. It also uses the caller's DECLARED
+ * content-type only after that type has been confirmed against the bytes.
+ *
+ * THERE IS NOW A SECOND CHOKEPOINT, and a new upload path must use one or the
+ * other. When the bytes never reach our server at all, because the browser
+ * sent them straight to storage with a signed upload URL, this function cannot
+ * be the gate: there is nothing to hand it. That case goes through
+ * screenStoredObject below, which runs the SAME screen against the object that
+ * landed and deletes it if it fails. The two differ only in ordering, never in
+ * what they check, because both call screenAuthenticatedUpload and neither has
+ * its own copy of the rules.
  *
  * Structural client type so this file needn't import the Supabase SDK; both
  * createServerSupabase() and createAdminSupabase() satisfy it.
@@ -383,4 +392,144 @@ export async function safeStorageUpload(input: {
     });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+/**
+ * The SECOND chokepoint: screen an object that is ALREADY IN THE BUCKET.
+ *
+ * WHY THIS EXISTS AT ALL. safeStorageUpload screens bytes before they are
+ * written, which is the strongest ordering available and is what every
+ * server-side upload path still uses. It is unavailable for one transport.
+ * A file too big for the serverless request body (about 4.5MB, see
+ * lib/upload-transport.ts) can only get to storage if the browser sends it
+ * there directly, using a short-lived signed upload URL our server mints. In
+ * that shape our server never touches the bytes on their way in, so there is
+ * no "before the write" for it to act at. The screen therefore has to run
+ * after the object lands.
+ *
+ * WHAT THE REVERSED ORDERING COSTS, stated plainly rather than waved at. The
+ * object exists in the bucket, unscreened, for the length of one download and
+ * one screen. During that window it is genuinely present. What makes that
+ * acceptable is not the duration but who can reach it:
+ *
+ *   - The bucket is private. Nothing in it is served without a signed READ
+ *     URL, and every place that mints one does so from an exhibit row.
+ *   - No exhibit row exists yet. The row is created only after this function
+ *     returns ok, so an object that fails the screen is never referenced by
+ *     anything that could produce a read URL for it.
+ *   - The signed UPLOAD URL is write-only and one-shot. Holding it does not
+ *     let the uploader read back what they sent.
+ *
+ *   So the file that gets through the door for a moment is reachable by
+ *   nobody, including the person who uploaded it, and then it is deleted.
+ *
+ * WHAT THIS FUNCTION MUST GUARANTEE, and what its tests mutate to prove:
+ *   1. A file that fails the screen is REMOVED from the bucket.
+ *   2. A file that fails the screen returns ok:false, so no row is created.
+ *   3. The size ceiling is enforced against the bytes that really landed,
+ *      never against a size the client claimed. A client that lies about its
+ *      file size gets caught here, because the number checked is
+ *      buffer.length of what was actually stored.
+ *
+ * If the removal itself fails we still refuse, and we report removed:false so
+ * the caller can log an object that needs sweeping. Refusing is the control;
+ * deleting is the cleanup. Losing the cleanup must never turn a refusal into
+ * an acceptance.
+ */
+type StorageRescreener = {
+  storage: {
+    from: (bucket: string) => {
+      info?: (
+        path: string,
+      ) => Promise<{ data: { size?: number } | null; error: { message: string } | null }>;
+      download: (
+        path: string,
+      ) => Promise<{
+        data: { arrayBuffer: () => Promise<ArrayBuffer> } | null;
+        error: { message: string } | null;
+      }>;
+      remove: (paths: string[]) => Promise<{ error: { message: string } | null }>;
+    };
+  };
+};
+
+export type StoredObjectScreenResult =
+  | { ok: true; activeContent?: 'pdf_script'; byteLength: number }
+  | { ok: false; error: string; removed: boolean };
+
+export async function screenStoredObject(input: {
+  client: StorageRescreener;
+  bucket: string;
+  path: string;
+  declaredMime: string | null;
+  maxBytes: number;
+}): Promise<StoredObjectScreenResult> {
+  const bucket = input.client.storage.from(input.bucket);
+
+  const drop = async (): Promise<boolean> => {
+    try {
+      const { error } = await bucket.remove([input.path]);
+      return !error;
+    } catch {
+      return false;
+    }
+  };
+
+  // Cheap size probe first, so a hostile or broken client cannot make us pull
+  // an arbitrarily large object into memory just to measure it. This is the
+  // storage service's own record of the object, not a client claim. When the
+  // probe is unavailable we fall through to the download, where the same
+  // ceiling is enforced on buffer.length.
+  if (typeof bucket.info === 'function') {
+    try {
+      const probe = await bucket.info(input.path);
+      const size = probe.data?.size;
+      if (typeof size === 'number' && size > input.maxBytes) {
+        const removed = await drop();
+        return {
+          ok: false,
+          error: `File is larger than the ${Math.round(input.maxBytes / (1024 * 1024))}MB limit.`,
+          removed,
+        };
+      }
+    } catch {
+      // Probe is advisory. The authoritative check is below.
+    }
+  }
+
+  let buffer: Buffer;
+  try {
+    const { data, error } = await bucket.download(input.path);
+    if (error || !data) {
+      // Nothing readable at that path. Try a removal anyway in case a partial
+      // object is sitting there, and refuse.
+      const removed = await drop();
+      return {
+        ok: false,
+        error: 'The uploaded file could not be read back for checking.',
+        removed,
+      };
+    }
+    buffer = Buffer.from(await data.arrayBuffer());
+  } catch {
+    const removed = await drop();
+    return {
+      ok: false,
+      error: 'The uploaded file could not be read back for checking.',
+      removed,
+    };
+  }
+
+  // The same screen the server-side path runs, called rather than reimplemented.
+  const screen = screenAuthenticatedUpload(buffer, input.declaredMime, input.maxBytes);
+  if (!screen.ok) {
+    const removed = await drop();
+    return { ok: false, error: screen.reason, removed };
+  }
+
+  return {
+    ok: true,
+    ...(screen.activeContent ? { activeContent: screen.activeContent } : {}),
+    byteLength: buffer.length,
+  };
 }
