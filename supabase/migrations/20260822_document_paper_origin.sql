@@ -1,15 +1,20 @@
 -- Whose paper a stored document is.
 --
--- =========================== NOT APPLIED ==================================
--- NOT APPLIED as of 2026-08-22. This file is written and committed and has
--- NOT been run against any database. Applying it is the owner's step, and so
--- is regenerating supabase/schema-fingerprint.sha256 afterwards by running
--- scripts/schema/fingerprint-hash.sql against the live database. Nothing in
--- this change applies it, and no code in this change assumes it has been.
+-- =========================== APPLIED TO PRODUCTION 2026-08-22 ==========================
+-- Applied on 2026-08-22, BEFORE this code was merged, which is the ordering
+-- the 2026-08-07 deploy settled. It matters here specifically: the write of
+-- paper_origin ABORTS rather than retrying without the column, so shipping
+-- the code first would have failed every firm document filing until the
+-- column existed.
+--
+-- Verified after applying by reading information_schema rather than by
+-- trusting the apply call. supabase/schema-fingerprint.sha256 was
+-- regenerated in the same commit, 19ea6b98 to f8b5a1b0, computed server
+-- side by scripts/schema/fingerprint-hash.sql.
 --
 -- The CI drift gate self-skips until the SUPABASE_DB_URL repo secret exists,
--- so this banner is the only record of applied state. Correcting it to say
--- APPLIED is part of applying it.
+-- so this banner is the only record of applied state, which is exactly why
+-- it was corrected here rather than left to rot.
 --
 -- WHAT THIS IS FOR
 --
