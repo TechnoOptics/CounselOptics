@@ -8,6 +8,10 @@ import { firmLetterheadDesign } from './letterhead-design';
 import { firmDocumentTypeface } from './document-typeface';
 import { firmDocumentLayoutInput, resolveDocumentLayout } from './document-layout';
 import { sha256 } from './esign-audit';
+import {
+  PAPER_ORIGIN_UNSAVED_ERROR,
+  resolvePaperOriginColumnFallback,
+} from './document-provenance';
 import { isUnknownColumnError } from './signer-view';
 import { serializeFieldBoxes } from './template-field-boxes';
 import type { SubmissionRow } from './template-submission-types';
@@ -170,11 +174,42 @@ export async function materializeSubmissionDocument(
     tags: [SUBMISSION_DOCUMENT_TAG],
     status: 'ready',
     description: null,
+    // THE ONE PLACE IN THE REPO THAT MAY CLAIM THE FIRM WROTE A DOCUMENT.
+    //
+    // These bytes came out of buildBrandedDocumentPdf, forty lines up, from a
+    // template the firm published and a colleague filled in. Nothing else
+    // knows that: an uploaded file is somebody's paper and this module is not
+    // in its path at all. So 'firm' is written here and nowhere else, and
+    // every other row in the table is left to read as 'third_party' by
+    // default, which is what readPaperOrigin does with a null and with an
+    // absent column.
+    //
+    // Naming the column unconditionally, rather than only when it exists, is
+    // deliberate and is the opposite of the field_boxes treatment below. That
+    // one omits its column so an unapplied migration stays invisible, which
+    // is right when the omitted value is what an absent column already means.
+    // This value is not: a document the firm rendered, filed without it,
+    // reads as the counterparty's forever and the surfaces will say so in
+    // words. See resolvePaperOriginColumnFallback for the full reasoning.
+    paper_origin: 'firm',
   });
   if (insertError) {
     // Remove the object before returning, the way lib/import-actions.ts does,
     // or the bucket accumulates files no row points at.
     await removeQuietly(admin, filePath);
+    // The migration is not applied yet. This does NOT retry without the
+    // column: filing it unlabelled would put a false and permanent
+    // provenance claim on a legal document, where refusing leaves the
+    // submission approved and retryable. The submission row is untouched, so
+    // approving again after the migration lands files it properly.
+    if (
+      resolvePaperOriginColumnFallback({
+        error: insertError,
+        isUnknownColumn: isUnknownColumnError,
+      }) === 'abort-origin-unsaved'
+    ) {
+      return { ok: false, error: PAPER_ORIGIN_UNSAVED_ERROR };
+    }
     return { ok: false, error: 'The document could not be filed. Try again shortly.' };
   }
 
