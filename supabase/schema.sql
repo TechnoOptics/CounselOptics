@@ -97,6 +97,14 @@ alter table public.exhibits
 create index if not exists exhibits_scan_doctype_idx
   on public.exhibits ((scan_data->>'docType'));
 
+-- When the case owner withdrew this exhibit from their packet. NOT a delete:
+-- the row, the label and the file are all kept, because labels are allocated
+-- by position and removing one silently re-points every existing reference to
+-- it. NULL means the exhibit is in use. See
+-- supabase/migrations/20260822_exhibit_withdrawal_and_details.sql.
+alter table public.exhibits
+  add column if not exists withdrawn_at timestamptz;
+
 create index if not exists exhibits_case_id_uploaded_at_idx
   on public.exhibits (case_id, uploaded_at);
 create index if not exists exhibits_user_id_idx

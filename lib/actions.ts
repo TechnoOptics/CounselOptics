@@ -23,7 +23,9 @@ import {
   removeCollaborator,
   saveExhibitScan,
   saveReview,
+  setExhibitWithdrawn,
   updateCaseHearing,
+  updateExhibitDetails,
   updateCaseStatus,
   updateWitnessStatement,
   upsertProfile,
@@ -1011,6 +1013,149 @@ export async function transcribeExhibitAction(
   }
   await saveExhibitScan(exhibitId, scan);
   revalidatePath(`/cases/${exhibit.caseId}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Changing an exhibit after it has been uploaded
+//
+// Until these existed the only exhibit actions were upload, rescan and
+// transcribe. Nothing could correct a description, nothing could state when
+// the event happened, and nothing could take a duplicate out of a packet.
+//
+// EVERY ONE OF THESE IS A PUBLIC HTTP ENDPOINT. The page decides whether to
+// draw a button; it decides nothing about who may call the action. So each one
+// resolves the exhibit, then resolves the case that exhibit belongs to, then
+// confirms the caller owns that case, through the same `loadOwnedCase` the
+// composition actions use. Passing somebody else's exhibit id gets the refusal
+// below and no write.
+//
+// They all use the USER-scoped Supabase client, never the service-role client,
+// so the exhibits RLS policy is a second independent check underneath the
+// ownership check rather than something bypassed by an admin key.
+//
+// And they all return their refusal rather than throwing it, because React
+// strips an error's message crossing the Server Action boundary in a
+// production build and the person reads a digest instead of the sentence.
+// Same shape, and same reason, as rescanExhibitAction above.
+// ---------------------------------------------------------------------------
+
+const NOT_YOUR_EXHIBIT =
+  'Only the person who opened this case can change its exhibits. Nothing was changed.';
+
+/** Resolve an exhibit and confirm the caller owns the case it sits on. */
+async function loadOwnedExhibit(
+  exhibitId: string,
+): Promise<{ ok: true; exhibit: Exhibit } | { ok: false; error: string }> {
+  if (typeof exhibitId !== 'string' || !exhibitId.trim()) {
+    return { ok: false, error: 'Missing exhibit id.' };
+  }
+  const exhibit = await getExhibitById(exhibitId);
+  if (!exhibit) return { ok: false, error: 'Exhibit not found.' };
+  const owned = await loadOwnedCase(exhibit.caseId, NOT_YOUR_EXHIBIT);
+  if (!owned.ok) return { ok: false, error: owned.error };
+  return { ok: true, exhibit };
+}
+
+/**
+ * Change what the person wrote ABOUT an exhibit: the description, the date the
+ * event happened, where the evidence came from, and its category.
+ *
+ * NOT the file and NOT the label. There is no code path in this action, in
+ * lib/storage.ts updateExhibitDetails, or in the payload builder either of
+ * them uses, that can write storage_path, file_name, file_size, file_type,
+ * label or scan_data. The bytes are the evidence. The label is how a court
+ * refers to this document, and a hand-typed label makes every existing
+ * reference to it point somewhere else.
+ *
+ * `incident_date` is the one that changes what a court sees: it is what the
+ * chronology is ordered by, and most of the exhibits on a real case have never
+ * had one. It is normalized by normalizeExhibitDetails, which parses only a
+ * date naming one specific day and returns a plain YYYY-MM-DD string built
+ * from UTC arithmetic, so the day cannot move.
+ */
+export async function updateExhibitDetailsAction(
+  exhibitId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  const owned = await loadOwnedExhibit(exhibitId);
+  if (!owned.ok) return { ok: false, error: owned.error };
+
+  const { normalizeExhibitDetails } = await import('./exhibit-withdrawal');
+  const normalized = normalizeExhibitDetails({
+    description: formData.get('description'),
+    incidentDate: formData.get('incidentDate'),
+    source: formData.get('source'),
+    category: formData.get('category'),
+    currentCategory: owned.exhibit.category ?? null,
+  });
+  if (!normalized.ok) return { ok: false, error: normalized.error };
+
+  let written;
+  try {
+    written = await updateExhibitDetails({
+      exhibitId,
+      details: normalized.value,
+    });
+  } catch (err) {
+    console.error('[updateExhibitDetailsAction] failed', err);
+    return {
+      ok: false,
+      error: 'That change could not be saved. Nothing was changed.',
+    };
+  }
+  if (!written.ok) return { ok: false, error: written.error };
+
+  // Best-effort, and it only ever follows the confirmed write above.
+  await logCaseEvent({
+    caseId: owned.exhibit.caseId,
+    eventType: 'exhibit_details_updated',
+    metadata: { label: owned.exhibit.label },
+  });
+
+  revalidatePath(`/cases/${owned.exhibit.caseId}`);
+  return { ok: true };
+}
+
+/**
+ * Withdraw an exhibit from the packet, or put it back.
+ *
+ * `withdrawn` is passed rather than toggled from what is currently stored,
+ * because a toggle read from a page the person loaded some time ago can act on
+ * a stale value and silently do the opposite of what they pressed.
+ *
+ * Nothing is deleted. See lib/exhibit-withdrawal.ts for why a delete is the
+ * wrong answer here: labels are handed out by position, so removing Exhibit K
+ * makes every document that already cites K cite a different exhibit.
+ */
+export async function setExhibitWithdrawnAction(
+  exhibitId: string,
+  withdrawn: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  const owned = await loadOwnedExhibit(exhibitId);
+  if (!owned.ok) return { ok: false, error: owned.error };
+
+  let written;
+  try {
+    written = await setExhibitWithdrawn({ exhibitId, withdrawn: withdrawn === true });
+  } catch (err) {
+    console.error('[setExhibitWithdrawnAction] failed', err);
+    return {
+      ok: false,
+      error: withdrawn
+        ? 'That exhibit was not withdrawn. Nothing was changed.'
+        : 'That exhibit was not put back. Nothing was changed.',
+    };
+  }
+  if (!written.ok) return { ok: false, error: written.error };
+
+  await logCaseEvent({
+    caseId: owned.exhibit.caseId,
+    eventType: withdrawn ? 'exhibit_withdrawn' : 'exhibit_restored',
+    metadata: { label: owned.exhibit.label },
+  });
+
+  revalidatePath(`/cases/${owned.exhibit.caseId}`);
   return { ok: true };
 }
 
@@ -2560,6 +2705,13 @@ const NOT_YOUR_CASE =
  */
 async function loadOwnedCase(
   caseId: string,
+  /**
+   * What a caller who does not own the case is told. Defaults to the wording
+   * for the account of what happened. Passed in rather than hard-coded so the
+   * exhibit actions can say what THEY refused, while the ownership rule itself
+   * stays in one function and cannot drift between them.
+   */
+  notOwnerError: string = NOT_YOUR_CASE,
 ): Promise<
   | { ok: true; caseRecord: import('./types').Case }
   | { ok: false; error: string }
@@ -2574,7 +2726,7 @@ async function loadOwnedCase(
     }
     const caseRecord = await getCase(caseId);
     if (!caseRecord) return { ok: false, error: 'Case not found.' };
-    if (caseRecord.ownerId !== user.id) return { ok: false, error: NOT_YOUR_CASE };
+    if (caseRecord.ownerId !== user.id) return { ok: false, error: notOwnerError };
     return { ok: true, caseRecord };
   }
   const caseRecord = await getCase(caseId);

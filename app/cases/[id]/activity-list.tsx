@@ -15,6 +15,9 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   collaborator_removed: 'removed a collaborator',
   witness_statement_updated: 'updated their witness statement',
   case_description_updated: 'rewrote their account of what happened',
+  exhibit_details_updated: 'changed the details on an exhibit',
+  exhibit_withdrawn: 'withdrew an exhibit from the packet',
+  exhibit_restored: 'put a withdrawn exhibit back',
   imported: 'imported from another platform',
 };
 
@@ -31,6 +34,12 @@ const EVENT_TONE: Record<CaseEventType, string> = {
   collaborator_removed: 'bg-rose-500/10 text-danger-text ring-rose-500/30',
   witness_statement_updated: 'bg-gold-500/15 text-gold-300 ring-gold-500/30',
   case_description_updated: 'bg-gold-500/15 text-gold-300 ring-gold-500/30',
+  exhibit_details_updated: 'bg-gold-500/15 text-gold-300 ring-gold-500/30',
+  // Neutral, not the rose used for deletions. Withdrawing destroys nothing,
+  // and colouring it as a loss would misread the act to somebody scanning
+  // their own case history before a hearing.
+  exhibit_withdrawn: 'bg-cream-100/15 text-cream-100/85 ring-cream-100/25',
+  exhibit_restored: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30',
   imported: 'bg-sky-500/15 text-sky-300 ring-sky-500/30',
 };
 

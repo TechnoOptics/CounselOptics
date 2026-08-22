@@ -101,6 +101,12 @@ type ExhibitRow = {
   category: string | null;
   scan_data: ScanData | null;
   uploaded_at: string;
+  /**
+   * Optional on the ROW type, not just on the domain type, because the column
+   * arrives with a migration the owner applies. Before that runs, `select('*')`
+   * simply returns a row without the field. See lib/exhibit-withdrawal.ts.
+   */
+  withdrawn_at?: string | null;
 };
 
 type ProfileRow = {
@@ -187,6 +193,7 @@ function exhibitFromRow(r: ExhibitRow): Exhibit {
     category: r.category ?? null,
     scanData: r.scan_data ?? null,
     uploadedAt: r.uploaded_at,
+    withdrawnAt: r.withdrawn_at ?? null,
   };
 }
 
@@ -789,7 +796,32 @@ export async function deleteCase(caseId: string): Promise<void> {
   await writeLocalDB(db);
 }
 
-export async function listExhibits(caseId: string): Promise<Exhibit[]> {
+/**
+ * Every exhibit on a case that is still in use.
+ *
+ * WITHDRAWN EXHIBITS ARE EXCLUDED BY DEFAULT, and that default is the safety
+ * mechanism rather than a convenience. This function is the single funnel that
+ * feeds the court packet, the packet page, the export route, the courtroom
+ * view, the review prompt, the bulk rescan and every AI route. A caller that
+ * is added later and does not think about withdrawal gets the safe answer; a
+ * caller that genuinely needs the withdrawn rows has to say so, and there is
+ * exactly one, the case page, which shows them to the owner marked.
+ *
+ * The filter runs in JavaScript rather than as `.is('withdrawn_at', null)` in
+ * the query, on purpose. The column arrives with a migration the owner
+ * applies, and a query naming a column the database does not have fails
+ * outright, which would take down every case page and every export until it
+ * ran. An absent column instead reads as "not withdrawn", which is exactly
+ * right: nothing on such a database can have been withdrawn. The reasoning is
+ * written out in full in lib/exhibit-withdrawal.ts.
+ */
+export async function listExhibits(
+  caseId: string,
+  opts?: { includeWithdrawn?: boolean },
+): Promise<Exhibit[]> {
+  const { activeExhibits } = await import('./exhibit-withdrawal');
+  const keep = (rows: Exhibit[]) =>
+    opts?.includeWithdrawn ? rows : activeExhibits(rows);
   if (usingSupabase()) {
     const user = await getCurrentUser();
     if (!user) return [];
@@ -800,12 +832,14 @@ export async function listExhibits(caseId: string): Promise<Exhibit[]> {
       .eq('case_id', caseId)
       .order('uploaded_at', { ascending: true });
     if (error) throw error;
-    return (data as ExhibitRow[]).map(exhibitFromRow);
+    return keep((data as ExhibitRow[]).map(exhibitFromRow));
   }
   const db = await readLocalDB();
-  return db.exhibits
-    .filter((e) => e.caseId === caseId)
-    .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt));
+  return keep(
+    db.exhibits
+      .filter((e) => e.caseId === caseId)
+      .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt)),
+  );
 }
 
 export async function getExhibitById(id: string): Promise<Exhibit | null> {
@@ -968,6 +1002,103 @@ export async function addExhibit(input: {
   caseRecord.updatedAt = exhibit.uploadedAt;
   await writeLocalDB(db);
   return { ok: true, exhibit };
+}
+
+/** The outcome of a write to an existing exhibit. A refusal travels as a value. */
+export type ExhibitWriteResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Change what a person wrote ABOUT an exhibit. Never the exhibit.
+ *
+ * The payload is not built here. `buildExhibitDetailsPatch` builds it, and it
+ * returns exactly four keys: description, incident_date, source, category. The
+ * call site does not write an object literal, so there is no place for
+ * `label`, `storage_path`, `file_name`, `file_size`, `file_type` or
+ * `scan_data` to be added to this statement by an edit to this function. The
+ * bytes are the evidence and the label is how a court refers to it; neither
+ * has an edit path anywhere in this codebase.
+ *
+ * CONFIRMED, per the note above saveExhibitScan. The caller reports success to
+ * somebody preparing for a hearing and then writes an audit entry saying the
+ * details were changed. An UPDATE that matches zero rows because RLS filtered
+ * it out is not an error in postgrest-js, so without asking for the affected
+ * rows back this would report a change that never happened.
+ */
+export async function updateExhibitDetails(input: {
+  exhibitId: string;
+  details: import('./exhibit-withdrawal').ExhibitDetails;
+}): Promise<ExhibitWriteResult> {
+  const { buildExhibitDetailsPatch } = await import('./exhibit-withdrawal');
+  const patch = buildExhibitDetailsPatch(input.details);
+  if (usingSupabase()) {
+    const supabase = createServerSupabase();
+    const { data: rows, error } = await supabase
+      .from('exhibits')
+      .update(patch)
+      .eq('id', input.exhibitId)
+      .select('id');
+    if (error) throw error;
+    if (!rows || rows.length === 0) return { ok: false, error: NOT_WRITTEN };
+    return { ok: true };
+  }
+  const db = await readLocalDB();
+  const e = db.exhibits.find((x) => x.id === input.exhibitId);
+  if (!e) return { ok: false, error: NOT_WRITTEN };
+  e.description = input.details.description;
+  e.incidentDate = input.details.incidentDate;
+  e.source = input.details.source;
+  e.category = input.details.category;
+  await writeLocalDB(db);
+  return { ok: true };
+}
+
+/**
+ * Withdraw an exhibit from the packet, or put it back.
+ *
+ * Writes one column and destroys nothing: the row, the label and the file in
+ * the exhibits bucket are all left exactly where they are.
+ *
+ * Two ways this can fail and both have to be told apart from success.
+ *
+ * A zero-row update means RLS filtered the row out. Reporting success there
+ * would tell somebody their duplicate is out of the packet while it is still
+ * in it, so `.select('id')` is what separates the two.
+ *
+ * A missing column means the migration has not been applied. There is no
+ * retry: the write cannot be repeated with the column left out, because the
+ * column IS the change. resolveWithdrawnColumnFallback returns
+ * 'abort-not-withdrawn' and the person is told plainly that nothing changed
+ * and the exhibit is still in their packet.
+ */
+export async function setExhibitWithdrawn(input: {
+  exhibitId: string;
+  withdrawn: boolean;
+}): Promise<ExhibitWriteResult> {
+  const { resolveWithdrawnColumnFallback, WITHDRAWN_COLUMN_MISSING_ERROR } =
+    await import('./exhibit-withdrawal');
+  const withdrawnAt = input.withdrawn ? new Date().toISOString() : null;
+  if (usingSupabase()) {
+    const supabase = createServerSupabase();
+    const { data: rows, error } = await supabase
+      .from('exhibits')
+      .update({ withdrawn_at: withdrawnAt })
+      .eq('id', input.exhibitId)
+      .select('id');
+    if (error) {
+      if (resolveWithdrawnColumnFallback({ error }) === 'abort-not-withdrawn') {
+        return { ok: false, error: WITHDRAWN_COLUMN_MISSING_ERROR };
+      }
+      throw error;
+    }
+    if (!rows || rows.length === 0) return { ok: false, error: NOT_WRITTEN };
+    return { ok: true };
+  }
+  const db = await readLocalDB();
+  const e = db.exhibits.find((x) => x.id === input.exhibitId);
+  if (!e) return { ok: false, error: NOT_WRITTEN };
+  e.withdrawnAt = withdrawnAt;
+  await writeLocalDB(db);
+  return { ok: true };
 }
 
 export async function getLatestReview(caseId: string): Promise<AIReview | null> {
