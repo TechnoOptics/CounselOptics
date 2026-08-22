@@ -9,6 +9,7 @@ import {
 } from '@/lib/firm-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { runGatedAction } from '@/lib/gated-action';
+import type { SigningDirection } from '@/lib/signing-authorization';
 
 type Signer = { email: string; name: string };
 
@@ -25,9 +26,19 @@ type Result =
 export function CreateSigningRequestForm({
   firmId,
   documentId,
+  direction = 'outbound',
 }: {
   firmId: string;
   documentId: string;
+  /**
+   * Which way this one runs, defaulting to the direction every caller meant
+   * before there were two. 'inbound' means the other party sent this document
+   * and has asked us to sign it, which creates the request with its
+   * authorisation PENDING: the link is minted so the firm's own signatory can
+   * reach the document, and app/sign/[token] refuses to open it until
+   * somebody who may bind the firm has approved it.
+   */
+  direction?: SigningDirection;
 }) {
   const t = useT();
   const router = useRouter();
@@ -73,7 +84,7 @@ export function CreateSigningRequestForm({
         documentId,
         payload,
         message.trim() || null,
-        { signerCanDownload },
+        { signerCanDownload, direction },
       ));
       if (!res.ok || !res.requestId) {
         setError(

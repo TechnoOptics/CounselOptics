@@ -32,7 +32,10 @@ import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 import { T } from '@/components/i18n/LocaleProvider';
 import { intakeChannel, intakeDeadline } from '@/lib/intake-detail';
-import { signatureDirectionLabel } from '@/lib/intake-signature-direction';
+import {
+  readSignatureDirection,
+  signatureDirectionLabel,
+} from '@/lib/intake-signature-direction';
 import { formatDate } from '@/lib/format';
 import {
   loadTicketSigningActivity,
@@ -501,7 +504,14 @@ export default async function IntakeDetailPage({
                   intakeId={intake.id}
                   canManage
                   embedded
-                  signing={{ firmId: ctx.firm.id }}
+                  signing={{
+                    firmId: ctx.firm.id,
+                    // The direction the person filing chose, carried straight
+                    // through. A ticket that is not a signature question at
+                    // all reads null here and falls back to outbound, which
+                    // is what sending one of its documents has always meant.
+                    direction: readSignatureDirection(ans.signature_direction) ?? 'outbound',
+                  }}
                   sections={['documents', 'requests']}
                   assignee={conv.assignee}
                   participants={conv.participants}
