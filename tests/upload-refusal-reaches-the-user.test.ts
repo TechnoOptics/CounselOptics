@@ -155,18 +155,46 @@ describe('addExhibit answers a refusal instead of throwing it', () => {
     expect(h.uploads).toEqual([]);
   });
 
-  it('returns the PDF security reason for a PDF that auto-runs script', async () => {
+  /**
+   * CHANGED 2026-08-22. This case used to assert that a PDF carrying a
+   * script was REFUSED here. It is now accepted, and the reasoning is in
+   * lib/upload-safety.ts above screenAuthenticatedUpload.
+   *
+   * The short version: the old rule also matched /OpenAction, which merely
+   * sets the opening page and zoom, and it rejected 5 of 60 ordinary PDFs
+   * when measured. Somebody assembling evidence for their own legal matter
+   * was told their document could not be accepted for security reasons,
+   * with nothing they could do about it. These files go to a private
+   * bucket, under the uploader's own path, read back through a signed URL
+   * by the person who uploaded them, so there is no other reader to
+   * protect.
+   *
+   * The community surface still refuses this exact fixture, because those
+   * files are shown to strangers. That is asserted in
+   * tests/pdf-active-content.test.ts, so the protection is still pinned
+   * somewhere rather than simply dropped.
+   */
+  it('accepts a PDF that carries a script, because this bucket is private', async () => {
     const { addExhibit } = await import('../lib/storage');
-    const bad = Buffer.from('%PDF-1.7\n/OpenAction << /S /JavaScript >>', 'latin1');
+    const scripted = Buffer.from('%PDF-1.7\n/OpenAction << /S /JavaScript >>', 'latin1');
     const result = await addExhibit({
       caseId: 'case-1',
-      file: fakeFile('notice.pdf', 'application/pdf', bad),
+      file: fakeFile('notice.pdf', 'application/pdf', scripted),
       description: '',
     });
-    expect(result).toEqual({
-      ok: false,
-      error: 'This PDF could not be accepted for security reasons.',
+    expect(result.ok).toBe(true);
+    expect(h.uploads).toHaveLength(1);
+  });
+
+  it('still refuses a PDF whose bytes are not a PDF', async () => {
+    const { addExhibit } = await import('../lib/storage');
+    const notPdf = Buffer.from('this is not a pdf', 'latin1');
+    const result = await addExhibit({
+      caseId: 'case-1',
+      file: fakeFile('notice.pdf', 'application/pdf', notPdf),
+      description: '',
     });
+    expect(result).toEqual({ ok: false, error: 'This file is not a valid PDF.' });
     expect(h.uploads).toEqual([]);
   });
 

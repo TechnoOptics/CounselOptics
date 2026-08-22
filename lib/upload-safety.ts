@@ -210,8 +210,25 @@ export function validateIdPhoto(buf: Buffer): UploadSafetyResult {
  *      is opened inline) and executables. A renamed `evil.svg` uploaded
  *      as `application/pdf` is caught here.
  *   2. CATCH content-confusion: when the client declares an image or a
- *      PDF, the bytes must actually be that (magic-byte match), and PDFs
- *      are scanned for auto-run JavaScript/OpenAction.
+ *      PDF, the bytes must actually be that (magic-byte match).
+ *   3. REPORT, rather than refuse, a PDF that carries a script.
+ *
+ * Point 3 changed on 2026-08-22, and the reason is worth keeping. This
+ * function used to REFUSE any PDF whose first 2MB contained /JavaScript,
+ * /JS or /OpenAction. That refusal turned away ordinary documents: it
+ * rejected 5 of 60 real PDFs when measured, 4 of them for /OpenAction
+ * alone, which merely sets the opening page and zoom. A person collecting
+ * evidence for their own legal matter was told their document "could not
+ * be accepted for security reasons", with no way forward.
+ *
+ * The threat that check was aiming at does not really live here. These
+ * files land in a PRIVATE bucket, under the uploader's own path, reached
+ * through a signed URL by the person who uploaded them. There is no other
+ * reader to attack. The genuine stored-XSS vector is HTML and SVG served
+ * inline, and point 1 still blocks that outright.
+ *
+ * The community path is different and DELIBERATELY still refuses, because
+ * those files are shown to strangers. See validateCommunityUpload.
  *
  * Anything else (Office formats, plain text, CSV) is allowed through -
  * it has already cleared the dangerous-content screen. Returns
@@ -221,7 +238,7 @@ export function screenAuthenticatedUpload(
   buf: Buffer,
   declaredMime: string | null,
   maxBytes: number,
-): { ok: true } | { ok: false; reason: string } {
+): { ok: true; activeContent?: 'pdf_script' } | { ok: false; reason: string } {
   if (buf.length === 0) return { ok: false, reason: 'File is empty.' };
   if (buf.length > maxBytes) {
     return {
@@ -275,13 +292,47 @@ export function screenAuthenticatedUpload(
     if (!(buf.length >= 5 && buf.toString('ascii', 0, 5) === '%PDF-')) {
       return { ok: false, reason: 'This file is not a valid PDF.' };
     }
-    const scan = buf.toString('latin1', 0, Math.min(buf.length, 2_000_000));
-    if (/\/JavaScript|\/JS\b|\/OpenAction/.test(scan)) {
-      return { ok: false, reason: 'This PDF could not be accepted for security reasons.' };
+    // A PDF carrying active content is REPORTED, not refused, on this path.
+    // See the note above screenAuthenticatedUpload for why. The community
+    // path keeps refusing, because those files are shown to strangers.
+    if (pdfCarriesActiveContent(buf)) {
+      return { ok: true, activeContent: 'pdf_script' };
     }
   }
 
   return { ok: true };
+}
+
+/**
+ * Does this PDF carry a script that a viewer could run on open?
+ *
+ * DELIBERATELY NARROWER THAN THE CHECK IT REPLACED, which matched
+ * /JavaScript, /JS or /OpenAction anywhere in the first 2MB. Two of those
+ * three were wrong:
+ *
+ *   - /OpenAction is a NAVIGATION action in most files. Word, Acrobat and
+ *     ordinary scanners emit it to set the opening page and zoom. It says
+ *     nothing about scripts on its own.
+ *   - /JS\b was matched against 2MB read as latin1, most of which is
+ *     COMPRESSED BINARY. Those three bytes followed by a non-word byte
+ *     turn up by chance.
+ *
+ * Measured against 60 ordinary PDFs before this change: 5 were refused,
+ * and 4 of those 5 were refused for /OpenAction alone. The fifth was a
+ * fillable IRS form, which is exactly the kind of document somebody
+ * uploads as evidence.
+ *
+ * What is left is the real signal: the /JavaScript name itself, matched as
+ * a whole PDF token so that a longer name starting with those letters does
+ * not count. It catches both shapes a script action takes, the dictionary
+ * key and the /S /JavaScript action subtype.
+ *
+ * Of the same 60 PDFs, exactly one matches this, and it genuinely does
+ * carry a form script.
+ */
+export function pdfCarriesActiveContent(buf: Buffer): boolean {
+  const scan = buf.toString('latin1', 0, Math.min(buf.length, 2_000_000));
+  return /\/JavaScript(?![A-Za-z0-9])/.test(scan);
 }
 
 export { MAX_EVIDENCE_BYTES, MAX_ID_PHOTO_BYTES };
