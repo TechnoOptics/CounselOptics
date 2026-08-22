@@ -11,6 +11,7 @@ import {
   resolveSignerDocumentAccess,
   resolveSignerDocumentDelivery,
 } from '@/lib/signer-view';
+import { resolveSignerGate } from '@/lib/signing-authorization';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,6 +61,24 @@ export async function GET(
   const data = await getSignatureByToken(token);
   if (!data) return refuse(404, 'This link is not valid.');
   const { signature, request, document } = data;
+
+  // The inbound authorisation, before a byte is read.
+  //
+  // The page refuses to render this document until the legal team has
+  // authorised signing it, and this route has to refuse in step or the
+  // refusal is decoration: anyone holding the link can call this URL
+  // directly, which is the whole reason the access decision below is made
+  // here rather than only on the page. The decision is resolveSignerGate in
+  // lib/signing-authorization.ts, the same call the page and the write path
+  // make, so the three cannot disagree.
+  //
+  // An outbound request passes unconditionally, so nothing about the existing
+  // signing flow changes.
+  const authorization = resolveSignerGate({
+    direction: request.direction,
+    authorizationStatus: request.authorizationStatus,
+  });
+  if (!authorization.ok) return refuse(403, authorization.reason);
 
   const access = resolveSignerDocumentAccess({
     accessCodeRequired: signature.accessCodeRequired,
