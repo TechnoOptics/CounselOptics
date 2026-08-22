@@ -213,6 +213,14 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   // label is rendered outside it by ViewStrip, and every piece of firm data
   // on the rows below carries data-no-translate.
   'DIRECTION_FACET_LABEL[key]',
+  // The inbound authorisation heading (INBOUND_AUTHORIZE_HEADING in
+  // lib/signing-authorization.ts). A single frozen string constant,
+  // "Authorise this signature", with nothing interpolated into it and nothing
+  // writing to it at runtime. It is a constant rather than an inline literal
+  // so the copy the owner specified is testable without a DOM. The two
+  // sentences under it in that panel carry party names and are deliberately
+  // NOT wrapped: they are marked data-no-translate instead.
+  'INBOUND_AUTHORIZE_HEADING',
   'vocab.clients',
   'vocab.client',
   'vocab.intake',

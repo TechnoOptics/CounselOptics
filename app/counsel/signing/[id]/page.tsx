@@ -40,6 +40,9 @@ import {
   shortRef,
 } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
+import { InboundAuthorization } from '@/components/counsel/InboundAuthorization';
+import { isInboundRequest } from '@/lib/signing-authorization';
+import { canApproveSubmissions } from '@/lib/template-approval';
 import { formatDateNumeric, formatDateTimeNumeric } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -207,6 +210,22 @@ export default async function SigningRequestDetail({
           )}
         </p>
       </header>
+
+      {/* THE INBOUND AUTHORISATION, ABOVE EVERYTHING ELSE ON THIS PAGE.
+          A request on the other party's document cannot be signed until
+          somebody who may bind the firm says so, and this is the only place
+          that decision can be made. It sits above the signer list because a
+          reviewer arriving here has one question and it is this one. Nothing
+          renders for an outbound request. */}
+      {isInboundRequest(data.request.direction) && (
+        <InboundAuthorization
+          requestId={data.request.id}
+          counterparty={data.signatures[0]?.signerName ?? data.signatures[0]?.signerEmail ?? null}
+          signatoryName={data.signatures[0]?.signerName ?? null}
+          authorizationStatus={data.request.authorizationStatus}
+          canDecide={canApproveSubmissions(ctx.membership.role)}
+        />
+      )}
 
       {(stalled || status === 'canceled') && (
         <section className="card p-4 text-sm leading-relaxed">
