@@ -10,6 +10,15 @@ import {
   readSigningDirection,
   type AuthorizationStatus,
 } from './signing-authorization';
+import { inboundAuthorizationRow, type ApprovalRow } from './approval-queue';
+import { hydratePeople } from './intake-notify';
+
+/**
+ * The most inbound requests one read will return. A queue page's worth and
+ * no more: the list is bounded and the surfaces that state a total say so
+ * rather than reporting the size of this page as a count.
+ */
+const INBOUND_QUEUE_LIMIT = 200;
 
 /**
  * The legal team's decision on a document somebody else sent us.
@@ -131,4 +140,115 @@ export async function decideInboundAuthorizationAction(
   revalidatePath('/counsel/forms/approvals');
   revalidatePath(`/counsel/signing/${requestId}`);
   return { ok: true };
+}
+
+/**
+ * The inbound signing requests this firm has to decide on, as rows of the
+ * shared approvals queue.
+ *
+ * WHY IT RETURNS ApprovalRow AND NOT A SHAPE OF ITS OWN. There is one queue,
+ * and a second row type would be a second thing for the strip, the search,
+ * the sort and the history to know about. lib/approval-queue.ts owns the
+ * mapping; this function's whole job is the read and the gate on it.
+ *
+ * WHAT IT DOES NOT SELECT. `authorization_note` is absent from the column
+ * list on purpose, not merely undrawn. The queue is a client component, so
+ * everything it is handed is serialized into the page, and the note is the
+ * legal team's working reasoning. The decision screen reads it; a list of
+ * names does not need it and therefore must not carry it. Same rule as
+ * toApprovalRow dropping `documentText`.
+ *
+ * THE UNAPPLIED MIGRATION. `direction` does not exist yet, so this query
+ * fails with an unknown column on every database until the owner applies
+ * 20260822_signing_request_direction.sql. An empty list is the honest answer
+ * then: no inbound request can exist either, because
+ * createSigningRequestAction aborts rather than create one. The queue simply
+ * shows the outbound half, exactly as it does today.
+ */
+export async function listInboundAuthorizationsAction(
+  firmId: string,
+): Promise<{ rows: ApprovalRow[] }> {
+  const user = await getCurrentUser();
+  if (!user) return { rows: [] };
+  const admin = createAdminSupabase();
+  if (!admin) return { rows: [] };
+  // Membership of the firm named in the argument, checked before the
+  // admin client reads anything, because this is a public endpoint and the
+  // id came from the caller.
+  const role = await callerFirmRole(firmId);
+  if (!role) return { rows: [] };
+
+  const { data, error } = await admin
+    .from('firm_signing_requests')
+    .select(
+      'id, created_at, requested_by, direction, authorization_status, authorized_at, document:firm_documents(name)',
+    )
+    .eq('firm_id', firmId)
+    .eq('direction', 'inbound')
+    .order('created_at', { ascending: false })
+    .limit(INBOUND_QUEUE_LIMIT);
+  // A missing column and a missing table both land here, and both mean the
+  // feature does not exist in this database yet. Nothing is logged as a
+  // failure, because it is not one.
+  if (error || !data) return { rows: [] };
+
+  const rows = data as Array<{
+    id: string;
+    created_at: string;
+    requested_by: string | null;
+    authorization_status?: unknown;
+    authorized_at: string | null;
+    document?: { name?: string | null } | { name?: string | null }[] | null;
+  }>;
+  if (rows.length === 0) return { rows: [] };
+
+  // Who sent it. The counterparty is the signer on the request, and the
+  // signer rows are read separately rather than joined because a request can
+  // carry several and the queue names the first one.
+  const { data: signers } = await admin
+    .from('firm_signatures')
+    .select('signing_request_id, signer_email, signer_name')
+    .in(
+      'signing_request_id',
+      rows.map((r) => r.id),
+    );
+  const signerBy = new Map<string, { email: string; name: string | null }>();
+  for (const s of ((signers ?? []) as Array<{
+    signing_request_id: string;
+    signer_email: string;
+    signer_name: string | null;
+  }>)) {
+    if (!signerBy.has(s.signing_request_id)) {
+      signerBy.set(s.signing_request_id, { email: s.signer_email, name: s.signer_name });
+    }
+  }
+
+  const people = await hydratePeople(
+    admin,
+    rows.map((r) => r.requested_by ?? '').filter(Boolean),
+  );
+
+  return {
+    rows: rows.map((r) => {
+      const doc = Array.isArray(r.document) ? r.document[0] : r.document;
+      const signer = signerBy.get(r.id) ?? null;
+      const who = r.requested_by ? people.get(r.requested_by) : null;
+      return inboundAuthorizationRow({
+        id: r.id,
+        documentName: doc?.name ?? 'Document',
+        counterpartyName: signer?.name ?? null,
+        counterpartyEmail: signer?.email ?? '',
+        requestedByName: who?.name ?? null,
+        // hydratePeople carries a display name and not an address, and the
+        // queue prints the name. Null rather than a second round trip for a
+        // field the row only uses to make the search box find a colleague by
+        // email, which their name already does.
+        requestedByEmail: null,
+        authorizationStatus: r.authorization_status,
+        createdAt: r.created_at,
+        authorizedAt: r.authorized_at,
+        ticketNumber: null,
+      });
+    }),
+  };
 }

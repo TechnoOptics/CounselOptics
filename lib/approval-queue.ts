@@ -24,6 +24,82 @@ import {
 } from './template-submission-types';
 import { displayTicket } from './ticket-numbers';
 import type { TemplateSubmission } from './template-submission-types';
+import {
+  readAuthorizationStatus,
+  type AuthorizationStatus,
+  type SigningDirection,
+} from './signing-authorization';
+
+/**
+ * WHY THE TWO DIRECTIONS SHARE ONE ROW TYPE AND ONE QUEUE.
+ *
+ * Two things now wait on the same decision by the same people. A colleague
+ * fills in one of the firm's templates for somebody outside, and nothing goes
+ * out until the legal team approves it. And somebody outside sends US their
+ * document and asks us to sign it, and nothing is signed until the legal team
+ * authorises it. They come from different tables and they read differently on
+ * screen, but they are one job: a person who may bind the firm, deciding
+ * whether the firm is bound.
+ *
+ * A second queue would be a second place to look every morning and a second
+ * gate to keep in step with the first, and the gate is the same function in
+ * both directions (canApproveSubmissions in lib/template-approval.ts). So
+ * there is ONE queue, ONE record shape, and the direction is a facet on it.
+ *
+ * The framing differs and the record does not. queueFraming below is where
+ * the words change; nothing else branches on direction.
+ */
+export type QueueDirection = SigningDirection;
+
+/** The facet, including the unnarrowed state. */
+export type QueueDirectionFacet = 'all' | QueueDirection;
+
+export const QUEUE_DIRECTION_FACETS: QueueDirectionFacet[] = ['all', 'outbound', 'inbound'];
+
+/**
+ * What each direction is called, and what the columns of a row mean in it.
+ *
+ * Outbound: a form a colleague filled in, addressed to somebody outside, and
+ * the decision releases it.
+ *
+ * Inbound: a document somebody outside sent in, and the decision lets the
+ * firm sign it. `recipient` on such a row is the party who SENT it, which is
+ * why the column heading has to change with the facet: a column labelled
+ * "Recipient" over the sender's name is a queue that misleads a reviewer
+ * about who is waiting on whom.
+ */
+export const QUEUE_FRAMING: Record<
+  QueueDirection,
+  {
+    facetLabel: string;
+    /** What the column of outside-party names is called. */
+    partyColumn: string;
+    /** What the decision does, in the words that fit this direction. */
+    decision: string;
+  }
+> = {
+  outbound: {
+    facetLabel: 'We are asking them to sign',
+    partyColumn: 'Recipient',
+    decision: 'Approving releases it to the recipient.',
+  },
+  inbound: {
+    facetLabel: 'They are asking us to sign',
+    partyColumn: 'Sent to us by',
+    decision: 'Approving lets the named signatory sign it.',
+  },
+};
+
+export function queueFraming(direction: QueueDirection) {
+  return QUEUE_FRAMING[direction];
+}
+
+/** What the facet strip calls each option. */
+export const DIRECTION_FACET_LABEL: Record<QueueDirectionFacet, string> = {
+  all: 'Everything',
+  outbound: QUEUE_FRAMING.outbound.facetLabel,
+  inbound: QUEUE_FRAMING.inbound.facetLabel,
+};
 
 /** What a queue row shows. No document wording, by construction. */
 export type ApprovalRow = {
@@ -41,6 +117,14 @@ export type ApprovalRow = {
   decidedAt: string | null;
   /** Set when a delivery was attempted after an approval and did not land. */
   releaseError: string | null;
+  /** Which way this one runs. See the note above the type. */
+  direction: QueueDirection;
+  /**
+   * The link the reviewer opens to decide. It differs by direction because
+   * the two records live in different tables, and putting it ON the row is
+   * what lets the list itself stay direction-blind.
+   */
+  href: string;
 };
 
 export function toApprovalRow(s: TemplateSubmission): ApprovalRow {
@@ -58,7 +142,76 @@ export function toApprovalRow(s: TemplateSubmission): ApprovalRow {
     submittedAt: s.submittedAt,
     decidedAt: s.decidedAt,
     releaseError: s.releaseError,
+    direction: 'outbound',
+    href: `/counsel/forms/approvals/${s.id}`,
   };
+}
+
+/**
+ * One inbound signing request, as a row of the same queue.
+ *
+ * The mapping is deliberately narrow and lossy in one direction: the
+ * authorisation NOTE is not on ApprovalRow and is not read here. The queue is
+ * a client component, so everything it is handed is serialized into the page,
+ * and the note is the legal team's working reasoning on a document. It is
+ * read on the decision screen, by the people deciding, and nowhere else. This
+ * is the same reason toApprovalRow drops `documentText`.
+ *
+ * The authorisation status is mapped onto the submission vocabulary rather
+ * than added to it, because the queue's four views, its bulk selection and
+ * its history are all defined over SubmissionStatus and a fifth value would
+ * have to be taught to every one of them. The three that overlap mean the
+ * same thing in both directions, and 'not_required' cannot occur on an
+ * inbound row: createSigningRequestAction writes 'pending' explicitly and
+ * aborts rather than fall back to the default.
+ */
+export function inboundAuthorizationRow(r: {
+  id: string;
+  documentName: string;
+  counterpartyName: string | null;
+  counterpartyEmail: string;
+  requestedByName: string | null;
+  requestedByEmail: string | null;
+  authorizationStatus: unknown;
+  createdAt: string;
+  authorizedAt: string | null;
+  ticketNumber: string | null;
+}): ApprovalRow {
+  return {
+    id: r.id,
+    ticketNumber: r.ticketNumber,
+    templateName: r.documentName,
+    category: null,
+    submitterName: r.requestedByName,
+    submitterEmail: r.requestedByEmail,
+    recipientName: r.counterpartyName,
+    recipientEmail: r.counterpartyEmail,
+    status: inboundQueueStatus(r.authorizationStatus),
+    revision: 1,
+    submittedAt: r.createdAt,
+    decidedAt: r.authorizedAt,
+    // An inbound authorisation has no delivery to fail: nothing is sent to
+    // anybody. Null keeps it out of the 'failed' view rather than putting a
+    // row there that no retry could act on.
+    releaseError: null,
+    direction: 'inbound',
+    href: `/counsel/signing/${r.id}`,
+  };
+}
+
+/**
+ * The authorisation, in the queue's own status vocabulary.
+ *
+ * 'not_required' maps to 'pending' rather than to a settled status. It cannot
+ * occur on an inbound row today, and if it ever did it would mean an
+ * authorisation nobody recorded, which belongs in front of a reviewer and not
+ * in the history where it would read as decided.
+ */
+export function inboundQueueStatus(raw: unknown): SubmissionStatus {
+  const status: AuthorizationStatus = readAuthorizationStatus(raw);
+  if (status === 'approved') return 'approved';
+  if (status === 'declined') return 'declined';
+  return 'pending';
 }
 
 /**
@@ -88,7 +241,17 @@ export type ApprovalQueueParams = {
   /** Reference, form name, colleague, recipient. */
   q: string;
   sort: QueueSort;
+  /**
+   * Which direction the reviewer is looking at. 'all' is the default,
+   * because the job is the queue and not one half of it.
+   */
+  dir: QueueDirectionFacet;
 };
+
+/** Whether a row is in the facet now in force. */
+export function matchesDirection(r: ApprovalRow, dir: QueueDirectionFacet): boolean {
+  return dir === 'all' || r.direction === dir;
+}
 
 /**
  * The finished statuses and the unfinished ones, derived from isTerminal rather
@@ -227,10 +390,12 @@ export function parseApprovalQueueParams(
 ): ApprovalQueueParams {
   const rawView = one(searchParams.view) as QueueViewKey;
   const rawSort = one(searchParams.sort);
+  const rawDir = one(searchParams.dir) as QueueDirectionFacet;
   return {
     view: QUEUE_VIEW_KEYS.includes(rawView) ? rawView : 'waiting',
     q: one(searchParams.q),
     sort: rawSort === 'newest' ? 'newest' : 'oldest',
+    dir: QUEUE_DIRECTION_FACETS.includes(rawDir) ? rawDir : 'all',
   };
 }
 
@@ -240,6 +405,7 @@ export function approvalQueueQuery(params: ApprovalQueueParams): string {
   if (params.view !== 'waiting') qs.set('view', params.view);
   if (params.q) qs.set('q', params.q);
   if (params.sort !== 'oldest') qs.set('sort', params.sort);
+  if (params.dir !== 'all') qs.set('dir', params.dir);
   return qs.toString();
 }
 
@@ -267,9 +433,32 @@ export function selectQueue(
 ): ApprovalRow[] {
   const test = queueViewTest(params.view, now);
   return sortByFiled(
-    rows.filter((r) => test(r) && matchesQuery(r, params.q)),
+    rows.filter(
+      (r) => test(r) && matchesDirection(r, params.dir) && matchesQuery(r, params.q),
+    ),
     params.sort,
   );
+}
+
+/**
+ * How many rows each facet would show, under the view and the search now in
+ * force.
+ *
+ * From selectQueue itself, the same call the list is built from, for the
+ * reason queueViewCounts is: a facet strip built from a parallel predicate
+ * agrees with the list until the day it does not, and this repo has shipped
+ * that exact defect on four surfaces.
+ */
+export function directionFacetCounts(
+  rows: ApprovalRow[],
+  params: ApprovalQueueParams,
+  now = Date.now(),
+): Record<QueueDirectionFacet, number> {
+  const counts = {} as Record<QueueDirectionFacet, number>;
+  for (const dir of QUEUE_DIRECTION_FACETS) {
+    counts[dir] = selectQueue(rows, { ...params, dir }, now).length;
+  }
+  return counts;
 }
 
 /**
@@ -308,7 +497,9 @@ export function queueViewCounts(
  * server read them in, newest decision first, which is what a history is.
  */
 export function selectHistory(rows: ApprovalRow[], params: ApprovalQueueParams): ApprovalRow[] {
-  return rows.filter((r) => isSettled(r) && matchesQuery(r, params.q));
+  return rows.filter(
+    (r) => isSettled(r) && matchesDirection(r, params.dir) && matchesQuery(r, params.q),
+  );
 }
 
 /**
@@ -374,8 +565,17 @@ export function viewTally(
 }
 
 /** The same, for the decision history, which is its own bounded read. */
-export function settledTally(rows: ApprovalRow[], counts: QueueCounts | null): QueueTally {
-  return tally(rows.filter(isSettled).length, counts?.settled ?? null);
+export function settledTally(
+  rows: ApprovalRow[],
+  counts: QueueCounts | null,
+  dir: QueueDirectionFacet = 'all',
+): QueueTally {
+  // Same rule as searchedViewTally. The server's settled count is over the
+  // outbound table only, so once the facet narrows it is describing a
+  // different set and the page's own rows are the honest answer.
+  const shown = rows.filter((r) => isSettled(r) && matchesDirection(r, dir));
+  if (dir !== 'all') return { loaded: shown.length, total: shown.length, bounded: false };
+  return tally(shown.length, counts?.settled ?? null);
 }
 
 /**
@@ -408,7 +608,16 @@ export function searchedViewTally(
   now = Date.now(),
 ): QueueTally {
   const shown = selectQueue(rows, { ...params, view }, now).length;
-  if (!params.q?.trim()) return viewTally(view, rows, counts, now);
+  // A narrowed DIRECTION is treated exactly like a search, and for the same
+  // reason spelled out above: the server counted a set the reviewer is no
+  // longer looking at. Its count query is over firm_template_submissions
+  // alone, so it does not know about inbound rows at all and it cannot be
+  // asked to describe one half of a mixed queue. The moment the facet
+  // narrows, the number has to come from the same expression that produces
+  // the list.
+  if (!params.q?.trim() && params.dir === 'all') {
+    return viewTally(view, rows, counts, now);
+  }
   const onPage = rows.filter(queueViewTest(view, now)).length;
   const inDatabase = counts?.[view] ?? onPage;
   return { loaded: shown, total: shown, bounded: inDatabase > onPage };

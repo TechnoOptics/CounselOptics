@@ -204,6 +204,15 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   // count beside each label is rendered outside it by ViewStrip, and every
   // piece of firm data in the table below carries data-no-translate.
   'INTAKE_LIST_VIEW_LABEL[key]',
+  // The approvals queue's direction facet (DIRECTION_FACET_LABEL in
+  // lib/approval-queue.ts). Reviewed on exactly the grounds of the two
+  // entries above: a frozen constant map of three literal labels keyed by the
+  // facet enum ("Everything", "We are asking them to sign", "They are asking
+  // us to sign"), which nothing writes into at runtime, so no document name,
+  // party name, reference or figure can reach the wrap. The count beside each
+  // label is rendered outside it by ViewStrip, and every piece of firm data
+  // on the rows below carries data-no-translate.
+  'DIRECTION_FACET_LABEL[key]',
   'vocab.clients',
   'vocab.client',
   'vocab.intake',
