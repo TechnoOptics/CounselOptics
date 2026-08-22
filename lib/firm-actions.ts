@@ -84,6 +84,11 @@ import {
   resolveSignatureMethodsColumnFallback,
   SIGNATURE_METHODS_UNSAVED_ERROR,
 } from './submission-dispatch';
+import {
+  INBOUND_AUTHORIZATION_UNSAVED_ERROR,
+  resolveSigningDirectionColumnFallback,
+  type SigningDirection,
+} from './signing-authorization';
 import type { SignatureMethod } from './signature-methods';
 // The link email lives in a server-only module now, because a signer
 // numbered second is invited from lib/signature-write.ts rather than
@@ -3255,6 +3260,20 @@ export async function createSigningRequestAction(
      * invited to.
      */
     signatureMethods?: SignatureMethod[] | null;
+    /**
+     * Which way this request runs. Omitted means 'outbound', which is every
+     * caller that existed before the two directions did and is what an absent
+     * `direction` column reads as, so an omitted value names no column at all
+     * and an unapplied migration stays invisible on the ordinary path.
+     *
+     * 'inbound' means the other party sent us their document and has asked us
+     * to sign it. That request is created with its authorisation PENDING and
+     * its signer link minted at the same moment, because the link is how the
+     * firm's own signatory reaches the document; app/sign/[token], the bytes
+     * route and recordSignature all refuse it until somebody who may bind the
+     * firm has approved it. See lib/signing-authorization.ts.
+     */
+    direction?: SigningDirection;
   },
 ): Promise<{
   ok: boolean;
@@ -3466,6 +3485,23 @@ export async function createSigningRequestAction(
     status: 'draft' as FirmSigningStatus,
     document_sha256: documentSha256,
   };
+  /**
+   * The direction, and the authorisation that comes with it.
+   *
+   * Named ONLY when the request is inbound, the same way `signature_methods`
+   * is named only when there is a restriction: an outbound request never
+   * touches a column that may not exist yet, so between merge and apply the
+   * ordinary path behaves exactly as it did last week.
+   *
+   * 'pending' is written explicitly rather than left to the column default,
+   * because the default is 'not_required' and an inbound request that landed
+   * on the default would have a live signer link and no gate on it.
+   */
+  const direction: SigningDirection = options?.direction ?? 'outbound';
+  const directionExtra =
+    direction === 'inbound'
+      ? { direction: 'inbound', authorization_status: 'pending' }
+      : {};
   let downloadPermissionPersisted = true;
   // Named only when there IS a restriction, so a request that restricts
   // nothing never touches a column that may not exist yet.
@@ -3478,6 +3514,7 @@ export async function createSigningRequestAction(
     .insert({
       ...requestInsert,
       ...methodsExtra,
+      ...directionExtra,
       signer_can_download: signerCanDownload,
     })
     .select('id')
@@ -3493,6 +3530,25 @@ export async function createSigningRequestAction(
   // in lib/signer-view.ts, and it is narrowly scoped to a missing
   // column so a permission or constraint failure still surfaces.
   if (reqErr) {
+    // The direction is checked FIRST, before the two restrictions below,
+    // because it is the only one of the three whose absence would create a
+    // working signing link on the other party's document with nobody having
+    // authorised it. The restrictions weaken a ceremony; this one removes the
+    // gate entirely. An outbound request cannot reach the abort branch, since
+    // it never names either column.
+    if (
+      resolveSigningDirectionColumnFallback({
+        direction,
+        error: reqErr,
+        isUnknownColumn: isUnknownColumnError,
+      }) === 'abort-authorization-unsaved'
+    ) {
+      return {
+        ok: false,
+        error: INBOUND_AUTHORIZATION_UNSAVED_ERROR,
+        errorSource: 'app',
+      };
+    }
     // The method restriction is checked first and aborts, for the reason the
     // download restriction below aborts: sending without it would put the
     // document in front of the counterparty accepting exactly the ways of
@@ -3526,6 +3582,10 @@ export async function createSigningRequestAction(
       downloadPermissionPersisted = false;
       ({ data: req, error: reqErr } = await supabase
         .from('firm_signing_requests')
+        // directionExtra is deliberately NOT carried onto the retry. It is
+        // empty on every request that can reach this line, because an inbound
+        // one aborted above, and spreading an empty object here would invite
+        // a later edit to make the retry the inbound path's escape hatch.
         .insert({ ...requestInsert, ...methodsExtra })
         .select('id')
         .single());
