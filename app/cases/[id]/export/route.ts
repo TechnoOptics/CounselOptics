@@ -11,6 +11,8 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { generateCasePdf } from '@/lib/pdf';
 import { hasFeature, isFullAccessTrial } from '@/lib/tier';
 import { currentUserTrialGrant } from '@/lib/user-trials';
+import { isRealReview, isReviewStale, lastCompositionEditAt } from '@/lib/composition';
+import { formatDateTimeShort } from '@/lib/format';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const caseRecord = await getCase(params.id);
@@ -46,10 +48,41 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const hqTrial = await currentUserTrialGrant().catch(() => undefined);
   const reviewEntitled = isTrial || hasFeature(sub, 'aiReview', hqTrial);
 
+  // What goes into the packet, and what must never go into it.
+  //
+  // A demo placeholder is dropped rather than printed. lib/pdf.ts does tag it
+  // "DEMO RESPONSE", but that tag sits above several pages of invented
+  // issue-spotting, and this document is one somebody hands to a court or to
+  // an attorney. A packet with no review section is honest; a packet with a
+  // fabricated one and a label is not worth the chance of the label being
+  // missed.
+  //
+  // A review written before the person rewrote their account is kept, because
+  // it is a real record of what was said at the time, but the packet says so
+  // in the first line anyone reads of it. The marking is prepended to the
+  // summary here, on a copy, so nothing in lib/pdf.ts changes and nothing is
+  // written back to the stored review.
+  const realReview = isRealReview(review) ? review : null;
+  const history = caseRecord.descriptionHistory ?? [];
+  const staleSince = isReviewStale(realReview, history)
+    ? lastCompositionEditAt(history)
+    : null;
+  const packetReview =
+    realReview && staleSince
+      ? {
+          ...realReview,
+          summary:
+            'NOTE: this review was written before the account of what happened was rewritten on ' +
+            `${formatDateTimeShort(staleSince)}. It reflects the earlier wording, not the account ` +
+            'as it now stands.\n\n' +
+            realReview.summary,
+        }
+      : realReview;
+
   const pdf = await generateCasePdf({
     caseRecord,
     exhibits,
-    review,
+    review: packetReview,
     profile,
     clientName,
     trial: isTrial,

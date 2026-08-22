@@ -281,9 +281,35 @@ describe('only the owner may rewrite the account', () => {
     expect(owner).toMatch(/caseRecord\.ownerId\s*!==\s*user\.id/);
   });
 
-  it('is what both write actions go through', () => {
-    const writes = actions.slice(actions.indexOf('export async function updateCaseCompositionAction'));
+  it('is what the write action goes through', () => {
+    const writes = actions.slice(
+      actions.indexOf('export async function updateCaseCompositionAction'),
+      actions.indexOf('export async function clearCaseCompositionAction'),
+    );
     expect(writes).toMatch(/\bloadOwnedCase\s*\(/);
-    expect(writes).toMatch(/\bclearCaseCompositionAction\b/);
+  });
+
+  it('is reached by clearing too, because clearing is the same write', () => {
+    // A CALL, not the export's own name. Asserting the name would have been
+    // satisfied by the `export async function clearCaseCompositionAction`
+    // line itself, which proves nothing about where it routes.
+    const clear = actions.slice(actions.indexOf('export async function clearCaseCompositionAction'));
+    expect(clear).toMatch(/\bupdateCaseCompositionAction\s*\(\s*caseId\s*,\s*''\s*\)/);
+  });
+});
+
+describe('the exported packet carries neither a placeholder nor an unmarked stale review', () => {
+  const route = stripComments(read('../app/cases/[id]/export/route.ts'));
+
+  it('drops a placeholder rather than printing it', () => {
+    // Mutation: pass `review` straight to generateCasePdf and this goes red.
+    expect(route).toMatch(/\bisRealReview\s*\(/);
+    expect(route).toContain('review: packetReview,');
+    expect(route).not.toContain('    review,\n');
+  });
+
+  it('marks a stale review inside the document itself', () => {
+    expect(route).toMatch(/\bisReviewStale\s*\(/);
+    expect(route).toMatch(/before the account of what happened was rewritten/);
   });
 });
