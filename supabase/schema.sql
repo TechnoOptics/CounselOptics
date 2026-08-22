@@ -31,6 +31,13 @@ alter table public.cases
 alter table public.cases
   add column if not exists subject_profile jsonb not null default '{}'::jsonb;
 
+-- Superseded versions of `description`, the person's own account of what
+-- happened. Written in the same update statement as `description` so an edit
+-- cannot land without the text it replaced. See
+-- supabase/migrations/20260822_case_description_history.sql.
+alter table public.cases
+  add column if not exists description_history jsonb not null default '[]'::jsonb;
+
 alter table public.cases
   add column if not exists hearing_at timestamptz;
 alter table public.cases
