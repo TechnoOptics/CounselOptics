@@ -142,6 +142,15 @@ describe('a placeholder is not a review', () => {
     expect(isRealReview({ isDemo: true, modelUsed: 'demo' })).toBe(false);
   });
 
+  it('excludes the demo flag even when the model name looks real', () => {
+    // The isDemo branch has to be exercised on its own. With only the case
+    // above, deleting `if (review.isDemo) return false;` stayed green,
+    // because modelUsed === 'demo' caught it on the way out. A row carrying
+    // is_demo = true beside a real model name is exactly what that deletion
+    // would have let through.
+    expect(isRealReview({ isDemo: true, modelUsed: 'claude-sonnet-4-5' })).toBe(false);
+  });
+
   it('excludes a demo or unsupported model even without the flag', () => {
     expect(isRealReview({ isDemo: false, modelUsed: 'demo' })).toBe(false);
     expect(isRealReview({ isDemo: false, modelUsed: 'unsupported' })).toBe(false);
@@ -212,8 +221,11 @@ describe('the review panel marks a stale review and refuses a placeholder', () =
   const panel = stripComments(read('../app/cases/[id]/review-panel.tsx'));
 
   it('renders the stale banner from staleSince', () => {
-    // Mutation: delete the banner block and this goes red.
-    expect(panel).toMatch(/realReview\s*&&\s*staleSince\s*&&/);
+    // Matched verbatim, brace included, rather than as a loose "staleSince
+    // appears in a condition somewhere". The loose form stayed green against
+    // `{false && realReview && staleSince && (`, which renders no banner at
+    // all: a guard that a disabled block satisfies is not a guard.
+    expect(panel).toContain('{realReview && staleSince && (');
     expect(panel).toMatch(/written against an earlier version of your account/);
   });
 
