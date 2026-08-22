@@ -995,8 +995,13 @@ export async function transcribeExhibitAction(
   await assertAuthIfSupabase();
   const exhibit = await getExhibitById(exhibitId);
   if (!exhibit) return { ok: false, error: 'Exhibit not found.' };
-  const ct = (exhibit.fileType || '').toLowerCase();
-  if (!ct.startsWith('audio/') && !ct.startsWith('video/')) {
+  // The same question the Scan path asks, answered by the same module rather
+  // than by a second copy of the rule. This used to test the content type
+  // alone, which refused a .m4a voice memo whenever the browser sent it with
+  // no content type or as application/octet-stream. See
+  // classifyExhibitForReading in lib/exhibit-reading.ts.
+  const mediaRoute = classifyExhibitForReading(exhibit);
+  if (mediaRoute.kind !== 'transcribe') {
     return { ok: false, error: 'Only audio or video files can be transcribed.' };
   }
   const buf = await getExhibitFileBuffer(exhibit);
@@ -1005,7 +1010,7 @@ export async function transcribeExhibitAction(
   try {
     scan = await transcribeMedia({
       fileBuffer: buf,
-      mediaType: ct,
+      mediaType: mediaRoute.mediaType,
       fileName: exhibit.fileName,
     });
   } catch (err) {

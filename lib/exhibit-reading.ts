@@ -16,8 +16,15 @@ export type ExhibitReadRoute =
   | { kind: 'vision'; mediaType: string }
   /** Text is pulled out first, then analysed. Spreadsheets and Word files. */
   | { kind: 'extract'; format: 'spreadsheet' | 'word'; label: string }
-  /** Audio and video. Handled by Transcribe, not by Scan. */
-  | { kind: 'transcribe' }
+  /**
+   * Audio and video. Handled by Transcribe, not by Scan.
+   *
+   * `mediaType` is RESOLVED rather than copied: the declared content type is
+   * used when it is one, and otherwise it is derived from the file name. A
+   * browser that uploads a voice memo with no content type would otherwise
+   * hand an empty string to the transcription service.
+   */
+  | { kind: 'transcribe'; mediaType: string }
   /** Genuinely cannot be read. `reason` is written to be read by a person. */
   | { kind: 'unsupported'; reason: string };
 
@@ -93,11 +100,78 @@ export function classifyExhibitForReading(exhibit: {
     return { kind: 'extract', format: 'word', label: 'Word document' };
   }
 
-  if (type.startsWith('audio/') || type.startsWith('video/')) {
-    return { kind: 'transcribe' };
+  if (type.startsWith('audio/') || type.startsWith('video/') || isMediaByName(name)) {
+    return { kind: 'transcribe', mediaType: transcriptionMediaType(name, type) };
   }
 
   return { kind: 'unsupported', reason: '' };
+}
+
+/**
+ * Audio and video recognised by FILE NAME, because the content type cannot be
+ * relied on for these.
+ *
+ * A voice memo is the case in point. Browsers send .m4a as audio/x-m4a,
+ * audio/m4a, audio/mp4, and sometimes with no content type at all or as
+ * application/octet-stream, which is what an upload from some phones and from
+ * a file picker with no registered handler produces. The MIME check alone
+ * therefore refused a perfectly ordinary recording with "Only audio or video
+ * files can be transcribed", which reads as a rejection of the file rather
+ * than of its label.
+ *
+ * The name is the more reliable signal here, so it is consulted as well as
+ * the type, never instead of it.
+ *
+ * DELIBERATELY NOT MAGIC BYTES. An .m4a is an MPEG-4 container whose ftyp box
+ * at offset 4 is the SAME signature family that lib/upload-safety.ts uses to
+ * recognise a HEIC photograph. Sniffing bytes here would put audio and images
+ * one brand string apart, and a misread would send a recording to the vision
+ * model or a photograph to transcription. Routing is decided by name and
+ * declared type; the bytes are screened separately, for danger, in
+ * lib/upload-safety.ts.
+ */
+const MEDIA_TYPE_BY_EXTENSION: Record<string, string> = {
+  m4a: 'audio/mp4',
+  m4b: 'audio/mp4',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  aac: 'audio/aac',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  opus: 'audio/opus',
+  flac: 'audio/flac',
+  amr: 'audio/amr',
+  aif: 'audio/aiff',
+  aiff: 'audio/aiff',
+  caf: 'audio/x-caf',
+  wma: 'audio/x-ms-wma',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  avi: 'video/x-msvideo',
+  mkv: 'video/x-matroska',
+  '3gp': 'video/3gpp',
+};
+
+/**
+ * What to tell the transcription service this file is.
+ *
+ * A declared audio or video type is trusted, because it came from the browser
+ * that had the file. Otherwise the extension decides, which is the whole point
+ * of this change: the recordings that were being refused are the ones that
+ * arrived with no content type at all.
+ */
+function transcriptionMediaType(name: string, type: string): string {
+  if (type.startsWith('audio/') || type.startsWith('video/')) return type;
+  const ext = name.slice(name.lastIndexOf('.') + 1);
+  return MEDIA_TYPE_BY_EXTENSION[ext] ?? 'application/octet-stream';
+}
+
+function isMediaByName(name: string): boolean {
+  return /\.(m4a|mp3|wav|aac|ogg|oga|opus|flac|amr|aiff?|caf|wma|m4b|mp4|m4v|mov|webm|avi|mkv|3gp)$/.test(
+    name,
+  );
 }
 
 /**
