@@ -18,11 +18,16 @@
  *
  *   1. COLUMN POSITION IS PRESERVED. `row.values` from exceljs is a SPARSE
  *      array: a row with values only in columns A and D has holes at indices
- *      2 and 3, and `Array.prototype.map` and `.filter` both SKIP holes. Map
- *      the sparse array and the two blanks vanish, D slides into B, and a
- *      payment lands under the wrong heading. So every row is walked by index
- *      from 1 to `values.length - 1` and a hole is written as an empty
- *      column, never dropped.
+ *      2 and 3. The rule is that a hole is a COLUMN, not an absence. Anything
+ *      that compacts the array drops those two blanks, slides D into B, and
+ *      puts a payment under the wrong heading. `.filter(...)`, `.flat()` and
+ *      `row.eachCell` without `includeEmpty` all compact. (`.map()` does not:
+ *      it skips holes but keeps their positions, and `join` then fills them.
+ *      That was checked by mutation rather than assumed, because the two
+ *      behaviours are easy to confuse and only one of them is safe.) This
+ *      module walks the row by index from 1 to `values.length - 1` and turns
+ *      every hole into an explicit empty column, so no later change can
+ *      compact it by accident.
  *
  *   2. ROW ORDER AND ROW IDENTITY ARE PRESERVED. Rows are emitted in sheet
  *      order and each line begins with the spreadsheet's own row number, so a
@@ -146,8 +151,9 @@ function sanitizeCell(s: string): string {
  * Turn one exceljs `row.values` array into a tab separated line.
  *
  * Exported for its own tests. THE INDEX LOOP IS LOAD BEARING: `row.values` is
- * sparse and index 0 is unused, so `.map` would skip the holes and shift
- * every later column to the left.
+ * sparse and index 0 is unused, and any step that compacts the array shifts
+ * every later column to the left. The loop writes a hole as an explicit empty
+ * string so there is nothing left for a later edit to compact.
  */
 export function rowValuesToLine(values: unknown): string {
   if (!Array.isArray(values)) return '';
