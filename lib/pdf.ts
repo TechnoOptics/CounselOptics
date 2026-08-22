@@ -1281,6 +1281,14 @@ function prettyStatus(s: Case['status']): string {
     .join(' ');
 }
 
+/**
+ * A date-only value is rendered in UTC. `new Date('2026-01-05')` is midnight
+ * UTC, and formatting that instant in a zone behind UTC prints "Jan 4, 2026".
+ * An exhibit's stated incident date was coming out of this builder one day
+ * early. Mirrors the same fix in lib/format.
+ */
+const PDF_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -1288,6 +1296,7 @@ function fmtDate(iso: string): string {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    ...(PDF_DATE_ONLY.test(iso.trim()) ? { timeZone: 'UTC' } : {}),
   });
 }
 
