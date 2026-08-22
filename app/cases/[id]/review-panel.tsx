@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { rerunCaseReviewAction } from '@/lib/actions';
 import { isRealReview } from '@/lib/composition';
+import { usableSlideHeight } from '@/lib/carousel-height';
 import type { AIReview } from '@/lib/types';
 import type { ReviewLockedCounts } from '@/lib/review-teaser';
 import { BellaPrompt } from '@/components/BellaPrompt';
@@ -302,16 +303,35 @@ function ReviewCarousel({
 
   // Ease the card's height to the visible section so a short section
   // doesn't leave a tall, empty card.
+  //
+  // The measurement has to survive being taken while the whole panel is
+  // display:none, which is the normal case here. components/Tabs.tsx mounts
+  // every tab's content at once and hides the inactive ones with the `hidden`
+  // attribute, and the case page opens on Case, not on Advottic Review. So
+  // this effect first ran inside a hidden subtree, where offsetHeight is 0 for
+  // everything; the falsy 0 left the track unpinned at its natural height,
+  // which for a row of four sections is the height of the tallest of them, and
+  // nothing re-measured when the tab was finally opened. The short Overview
+  // section then sat in a card sized for Facts & issues, with a large empty
+  // area under the classification. usableSlideHeight rejects the meaningless
+  // 0, and the observer re-measures the moment the section is given a box.
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
+    const el = track.children[active] as HTMLElement | undefined;
+    if (!el) return;
     const measure = () => {
-      const el = track.children[active] as HTMLElement | undefined;
-      if (el) setHeight(el.offsetHeight);
+      const next = usableSlideHeight(el.offsetHeight);
+      if (next !== null) setHeight(next);
     };
     measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [active]);
 
   function goTo(i: number) {
