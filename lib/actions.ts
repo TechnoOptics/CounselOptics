@@ -2404,12 +2404,13 @@ export async function updateCaseCompositionAction(
   if (!owned.ok) return owned;
 
   const { MAX_COMPOSITION_LENGTH, normalizeComposition } = await import('./composition');
+  const { formatNumber } = await import('./format');
   const next = normalizeComposition(typeof text === 'string' ? text : '');
   if (next.length > MAX_COMPOSITION_LENGTH) {
     return {
       ok: false,
       error:
-        `That account is longer than the ${MAX_COMPOSITION_LENGTH.toLocaleString()} character limit. ` +
+        `That account is longer than the ${formatNumber(MAX_COMPOSITION_LENGTH)} character limit. ` +
         'Please shorten it, or move the detail into an exhibit. Nothing was changed.',
     };
   }
