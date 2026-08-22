@@ -26,6 +26,20 @@ export type StoryItem = {
   detail?: string;
   category?: string | null;
   future?: boolean;
+  /**
+   * Where `at` came from, in a couple of words. Rendered next to the date
+   * because this spine used to show `incidentDate || uploadedAt` with nothing
+   * to distinguish them, and an upload date is routinely months after the
+   * event. See lib/exhibit-chronology.
+   */
+  dateSource?: string | null;
+  /**
+   * True when no date could be established for this item. Such items are
+   * listed separately below the spine rather than being sorted to either end
+   * of it, because both ends of a chronology are claims about when something
+   * happened.
+   */
+  undated?: boolean;
 };
 
 const CATEGORY_ACCENT: Record<string, string> = {
@@ -61,9 +75,13 @@ export function CaseStory({
   caseId: string;
   items: StoryItem[];
 }) {
-  const sorted = [...items].sort(
-    (a, b) => Date.parse(a.at) - Date.parse(b.at),
-  );
+  // Items whose date nobody established are held back from the spine. Sorting
+  // them in would put them either first or last, and both positions are a
+  // claim about when the thing happened.
+  const undated = items.filter((i) => i.undated || Number.isNaN(Date.parse(i.at)));
+  const sorted = items
+    .filter((i) => !undated.includes(i))
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const now = Date.now();
   const firstFutureIdx = sorted.findIndex((i) => Date.parse(i.at) > now);
 
@@ -211,6 +229,11 @@ export function CaseStory({
                   />
                   <p className="text-[11px] uppercase tracking-[0.16em] text-ink-400 font-medium">
                     {fmtDate(it.at)}
+                    {it.dateSource && (
+                      <span className="ml-2 normal-case tracking-normal text-ink-400">
+                        ({it.dateSource})
+                      </span>
+                    )}
                     {isFuture && (
                       <span className="ml-2 text-gold-600">upcoming</span>
                     )}
@@ -234,6 +257,33 @@ export function CaseStory({
           })}
           </ShowMore>
         </ol>
+      )}
+
+      {/* Items with no established date. Listed, never placed on the spine. */}
+      {undated.length > 0 && (
+        <div className="card p-5">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-gold-700">
+            Date not established
+          </p>
+          <p className="mt-1.5 text-xs text-ink-600 leading-relaxed">
+            {undated.length === 1 ? 'This item is' : 'These items are'} not
+            placed on the timeline above, because nothing on file says when{' '}
+            {undated.length === 1 ? 'it' : 'they'} happened. Add an incident
+            date to place {undated.length === 1 ? 'it' : 'them'}.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {undated.map((it) => (
+              <li key={it.id} className="text-sm text-ink-800">
+                <span className="font-semibold">{it.title}</span>
+                {it.detail && (
+                  <span className="block text-xs text-ink-600 mt-0.5 leading-relaxed">
+                    {it.detail}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* AI narrative */}

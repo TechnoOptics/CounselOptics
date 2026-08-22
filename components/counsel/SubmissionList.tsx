@@ -72,7 +72,11 @@ export function SubmissionList({
               </span>
             )}
             <Link
-              href={`/counsel/forms/approvals/${s.id}`}
+              // The row carries its own link, because the two directions live
+              // in different tables and open different screens. Building it
+              // here from the id would have sent every inbound authorisation
+              // to a submission page that has no such record.
+              href={s.href}
               className="flex min-w-0 flex-1 flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2"
             >
               <span className="min-w-0 flex-1">
@@ -95,7 +99,16 @@ export function SubmissionList({
                   {' · '}
                   <span data-no-translate>{s.submitterName ?? s.submitterEmail ?? 'A colleague'}</span>
                   {' · '}
-                  <T>to</T> <span data-no-translate>{s.recipientEmail}</span>
+                  {/* THE FRAMING, AND IT IS THE ONLY THING ON THIS ROW THAT
+                      TURNS ON DIRECTION. "to" over the name of the party who
+                      SENT us a document would tell a reviewer the firm is
+                      addressing somebody it is in fact answering. Two
+                      literals rather than one wrap around a variable, for the
+                      reason the filed/decided pair below is two: a dynamic
+                      wrap has to be reviewed and listed in
+                      scripts/test/counsel-i18n-invariants.mjs. */}
+                  {s.direction === 'inbound' ? <T>from</T> : <T>to</T>}{' '}
+                  <span data-no-translate>{s.recipientEmail}</span>
                   {s.revision > 1 ? ` · v${s.revision}` : ''}
                   {(() => {
                     const when = relativeTime(

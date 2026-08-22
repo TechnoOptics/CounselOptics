@@ -47,6 +47,8 @@ function row(over: Partial<ApprovalRow> = {}): ApprovalRow {
     submittedAt: new Date(NOW - HOUR).toISOString(),
     decidedAt: null,
     releaseError: null,
+    direction: 'outbound',
+    href: '/counsel/forms/approvals/sub-1',
     ...over,
   };
 }
@@ -132,7 +134,7 @@ describe('every view is a real subset with a real count', () => {
   it('counts what the card then renders, from the same predicate', () => {
     for (const view of QUEUE_VIEW_KEYS) {
       const count = rows.filter(queueViewTest(view, NOW)).length;
-      const rendered = selectQueue(rows, { view, q: '', sort: 'oldest' }, NOW);
+      const rendered = selectQueue(rows, { view, q: '', sort: 'oldest', dir: 'all' }, NOW);
       expect(rendered).toHaveLength(count);
     }
   });
@@ -145,7 +147,7 @@ describe('every view is a real subset with a real count', () => {
   });
 
   it('keeps the history card to documents that are finished', () => {
-    const settled = selectHistory(rows, { view: 'waiting', q: '', sort: 'oldest' }).map((r) => r.id);
+    const settled = selectHistory(rows, { view: 'waiting', q: '', sort: 'oldest', dir: 'all' }).map((r) => r.id);
     expect(settled).toEqual(['gone', 'dropped', 'pulled']);
   });
 });
@@ -165,7 +167,7 @@ describe('search', () => {
 
   it('reaches the history card as well as the queue', () => {
     const rows = [row({ id: 'a', status: 'sent' }), row({ id: 'b', status: 'sent', templateName: 'Vendor form', category: null, recipientName: null, recipientEmail: 'ops@other.test', submitterName: 'Sam' })];
-    const found = selectHistory(rows, { view: 'waiting', q: 'vendor', sort: 'oldest' });
+    const found = selectHistory(rows, { view: 'waiting', q: 'vendor', sort: 'oldest', dir: 'all' });
     expect(found.map((x) => x.id)).toEqual(['b']);
   });
 });
@@ -177,12 +179,12 @@ describe('order', () => {
       row({ id: 'old', submittedAt: new Date(NOW - 6 * DAY).toISOString() }),
       row({ id: 'mid', submittedAt: new Date(NOW - 2 * DAY).toISOString() }),
     ];
-    expect(selectQueue(rows, { view: 'waiting', q: '', sort: 'oldest' }, NOW).map((r) => r.id)).toEqual([
+    expect(selectQueue(rows, { view: 'waiting', q: '', sort: 'oldest', dir: 'all' }, NOW).map((r) => r.id)).toEqual([
       'old',
       'mid',
       'new',
     ]);
-    expect(selectQueue(rows, { view: 'waiting', q: '', sort: 'newest' }, NOW).map((r) => r.id)).toEqual([
+    expect(selectQueue(rows, { view: 'waiting', q: '', sort: 'newest', dir: 'all' }, NOW).map((r) => r.id)).toEqual([
       'new',
       'mid',
       'old',
@@ -192,20 +194,23 @@ describe('order', () => {
 
 describe('the query string', () => {
   it('reads back what it writes', () => {
-    const params = parseApprovalQueueParams({ view: 'failed', q: 'acme', sort: 'newest' });
-    expect(params).toEqual({ view: 'failed', q: 'acme', sort: 'newest' });
+    const params = parseApprovalQueueParams({ view: 'failed', q: 'acme', sort: 'newest', dir: 'all' });
+    expect(params).toEqual({ view: 'failed', q: 'acme', sort: 'newest', dir: 'all' });
     expect(approvalQueueHref(params, {})).toBe(
       '/counsel/forms/approvals?view=failed&q=acme&sort=newest',
     );
   });
 
   it('lands on the waiting queue for anything it does not recognise', () => {
-    expect(parseApprovalQueueParams({ view: 'nonsense', sort: 'sideways' })).toEqual({
+    expect(
+      parseApprovalQueueParams({ view: 'nonsense', sort: 'sideways', dir: 'crabwise' }),
+    ).toEqual({
       view: 'waiting',
       q: '',
       sort: 'oldest',
+      dir: 'all',
     });
-    expect(approvalQueueHref({ view: 'waiting', q: '', sort: 'oldest' }, {})).toBe(
+    expect(approvalQueueHref({ view: 'waiting', q: '', sort: 'oldest', dir: 'all' }, {})).toBe(
       '/counsel/forms/approvals',
     );
   });

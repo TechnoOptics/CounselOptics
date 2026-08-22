@@ -1673,6 +1673,9 @@ describe('every error and warning surface can be read on both of its grounds', (
     'components/counsel/DashboardCustomizer.tsx': 'counsel',
     'components/counsel/GuestPasswordForm.tsx': 'counsel',
     'components/counsel/import/ImportPanels.tsx': 'counsel',
+    // The inbound authorisation panel. It paints --warn-text as the failure
+    // message under its note field, on the bare counsel card the panel is.
+    'components/counsel/InboundAuthorization.tsx': 'counsel',
     // Already painting from the tokens before this change. Registered
     // so the same proof covers them: the sweep below fails if a file
     // uses a semantic status token and no group claims it, which is

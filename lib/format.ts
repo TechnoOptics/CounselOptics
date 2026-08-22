@@ -89,15 +89,39 @@ function toDate(value: DateInput): Date | null {
 }
 
 /**
+ * A calendar date with no time on it: `2026-01-05`.
+ *
+ * This is the shape `exhibits.incident_date` and every other date-only column
+ * arrives in.
+ */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
  * Escape hatch for a one-off option set. Still pinned to en-US, still
  * memoized. Prefer a named preset below when one fits.
+ *
+ * A DATE-ONLY STRING IS RENDERED IN UTC, AND THAT IS NOT A PREFERENCE.
+ * `new Date('2026-01-05')` is midnight UTC, and formatting that instant in a
+ * zone behind UTC yields "Jan 4, 2026". The incident date somebody typed as
+ * the 5th then printed as the 4th on their court packet, one day out, with
+ * nothing to suggest anything had happened. Found by generating the packet
+ * and reading it, not by a failing test.
+ *
+ * The module's note above about leaving the zone unpinned still holds, and is
+ * why this is narrow: a hearing at 9:00 AM is an instant and should read 9:00
+ * AM to the person attending, so a full timestamp keeps the runtime zone. A
+ * date-only value is not an instant at all. It names a day, and a day does
+ * not move between zones. A caller that passes its own `timeZone` still wins.
  */
 export function formatDateWith(
   value: DateInput,
   options: Intl.DateTimeFormatOptions,
 ): string {
   const d = toDate(value);
-  return d ? dateFormatter(options).format(d) : '';
+  if (!d) return '';
+  const dateOnly =
+    typeof value === 'string' && DATE_ONLY.test(value.trim()) && !options.timeZone;
+  return dateFormatter(dateOnly ? { ...options, timeZone: 'UTC' } : options).format(d);
 }
 
 /** Escape hatch for a one-off number option set. */

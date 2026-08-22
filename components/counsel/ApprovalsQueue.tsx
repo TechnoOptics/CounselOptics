@@ -5,11 +5,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import {
+  DIRECTION_FACET_LABEL,
+  QUEUE_DIRECTION_FACETS,
   QUEUE_VIEW_KEYS,
   approvalQueueHref,
   confirmationLines,
+  directionFacetCounts,
   type BulkSendBackResult,
   isBulkSelectable,
+  QUEUE_FRAMING,
   searchedViewTally,
   selectHistory,
   selectQueue,
@@ -18,6 +22,7 @@ import {
   type ApprovalQueueParams,
   type ApprovalRow,
   type QueueCounts,
+  type QueueDirectionFacet,
   type QueueTally,
   type QueueViewKey,
 } from '@/lib/approval-queue';
@@ -122,7 +127,7 @@ export function ApprovalsQueue({
   // clock, AND every count is the view's real size rather than the size of
   // this page. Both halves are load-bearing: see searchedViewTally for the two
   // defects that met here.
-  const { options, queue, active, settled } = useMemo(() => {
+  const { options, queue, active, settled, facets } = useMemo(() => {
     const now = Date.now();
     return {
       options: QUEUE_VIEW_KEYS.map<ViewOption>((key) => ({
@@ -132,7 +137,11 @@ export function ApprovalsQueue({
       })),
       queue: selectQueue(rows, params, now),
       active: searchedViewTally(params.view, rows, params, counts, now),
-      settled: settledTally(rows, counts),
+      settled: settledTally(rows, counts, params.dir),
+      // The facet counts come from selectQueue too, on the same clock, so a
+      // facet that says 3 cannot sit over a card holding 2. Built here rather
+      // than in the strip for the reason every other count on this screen is.
+      facets: directionFacetCounts(rows, params, now),
     };
   }, [rows, params, counts]);
 
@@ -159,6 +168,25 @@ export function ApprovalsQueue({
         active={params.view}
         href={(key) => href({ view: key as QueueViewKey })}
         label={t('Queue views')}
+      />
+
+      {/* THE DIRECTION FACET. One queue, two framings.
+          Two things wait on the same decision by the same people: a form a
+          colleague filled in for somebody outside, which nothing sends until
+          it is approved, and a document somebody outside sent us, which
+          nothing signs until it is authorised. They are one job, so they are
+          one list, and this narrows it rather than opening a second screen.
+          'Everything' is the default because the job is the queue and not
+          half of it. */}
+      <ViewStrip
+        options={QUEUE_DIRECTION_FACETS.map<ViewOption>((key) => ({
+          key,
+          label: <T>{DIRECTION_FACET_LABEL[key]}</T>,
+          count: facets[key],
+        }))}
+        active={params.dir}
+        href={(key) => href({ dir: key as QueueDirectionFacet })}
+        label={t('Which way the signature runs')}
       />
 
       {/* No note on the toolbar. The active tab above already states this
@@ -228,6 +256,16 @@ export function ApprovalsQueue({
           {' · '}
           <span data-no-translate>{active.total}</span>
         </SectionLabel>
+
+        {/* What approving one of THESE does. Shown only while the facet is
+            narrowed: on the unnarrowed queue the two directions are mixed and
+            no single sentence would be true of every row, which is exactly
+            why it appears the moment a reviewer picks one. */}
+        {params.dir !== 'all' && (
+          <p className="text-[12px] text-muted">
+            <T>{QUEUE_FRAMING[params.dir].decision}</T>
+          </p>
+        )}
         <BoundedNote tally={active} />
         <div className="card overflow-hidden">
           {queue.length === 0 ? (

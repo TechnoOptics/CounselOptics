@@ -18,6 +18,7 @@ import {
   signerWatermarkStamp,
 } from '@/lib/signer-view';
 import { SIGNER_NOT_YET_YOUR_TURN, resolveSignerTurn } from '@/lib/signer-order';
+import { resolveSignerGate } from '@/lib/signing-authorization';
 import { loadSignerOrder } from '@/lib/signature-write';
 import { getRealCurrentUser } from '@/lib/supabase/server';
 import {
@@ -85,6 +86,52 @@ export default async function SignPage({ params }: { params: { token: string } }
 
   const { signature, request, document, firm } = data;
   const locale = await getLocaleCookie();
+
+  /**
+   * THE INBOUND AUTHORISATION GATE, AND IT IS HERE RATHER THAN IN A
+   * COMPONENT ON PURPOSE.
+   *
+   * When the other party sends US a document and asks us to sign it, the
+   * signing request is created with its authorisation pending and the signer
+   * link is minted at the same moment, because the link is how the firm's own
+   * signatory reaches the document at all. So this URL resolves before anybody
+   * on the legal team has decided anything, and until they have it must not
+   * open.
+   *
+   * A page that renders a gate is not a gate. The refusal is taken before the
+   * document path is resolved, before the audit event is appended, and before
+   * any of the ceremony below is constructed, so nothing about the document
+   * reaches the RSC payload. The two other doors are shut with the same call:
+   * /api/firm/sign/document/[token] refuses to serve the bytes, and
+   * recordSignature in lib/signature-write.ts refuses the mark itself, which
+   * is the moment the firm would actually be bound.
+   *
+   * An OUTBOUND request passes unconditionally. Its decision was made on the
+   * approvals queue before it was ever sent, and re-deciding it here would be
+   * a second gate to keep in step with the first.
+   */
+  const authorization = resolveSignerGate({
+    direction: request.direction,
+    authorizationStatus: request.authorizationStatus,
+  });
+  if (!authorization.ok) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cream-50 dark:bg-forest-950 px-4">
+        <div className="max-w-lg w-full card p-8 text-center">
+          <p className="eyebrow mb-2 justify-center">With your legal team</p>
+          <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            {authorization.heading}
+          </h1>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+            {authorization.reason}
+          </p>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+            {firm.name} can tell you where it has got to.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   /**
    * Whether the person reading this is already holding a phone, established

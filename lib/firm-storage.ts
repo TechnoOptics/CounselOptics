@@ -2,6 +2,10 @@ import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { parseSignerDownloadPermission } from './signer-view';
 import { parseAllowedSignatureMethods } from './signature-methods';
+import {
+  readAuthorizationStatus,
+  readSigningDirection,
+} from './signing-authorization';
 import { callerIsFirmMember } from './firm-authz';
 import {
   isExecutedCopyPath,
@@ -225,6 +229,20 @@ type FirmSigningRequestRow = {
    * turn a missing column into a failed query.
    */
   signed_file_path?: string | null;
+  /**
+   * Which way this request runs, and whether the firm has authorised signing
+   * it. Optional on the row type for the reason signed_file_path is: the
+   * columns arrive with supabase/migrations/20260822_signing_request_direction
+   * .sql, which is NOT applied, so every read of them goes through a
+   * select('*') and tolerates them simply not coming back. Naming them in a
+   * select list would turn a missing column into a failed query.
+   *
+   * Both are read through lib/signing-authorization.ts and never compared
+   * here, because an absent column, a null and a value nobody has heard of
+   * all have to land on the same answer.
+   */
+  direction?: unknown;
+  authorization_status?: unknown;
 };
 
 function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
@@ -242,6 +260,8 @@ function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
     signerCanDownload: parseSignerDownloadPermission(r.signer_can_download),
     signatureMethods: parseAllowedSignatureMethods(r.signature_methods),
     signedFilePath: r.signed_file_path ?? null,
+    direction: readSigningDirection(r.direction),
+    authorizationStatus: readAuthorizationStatus(r.authorization_status),
   };
 }
 

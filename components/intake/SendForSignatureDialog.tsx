@@ -3,6 +3,7 @@
 import { Dialog } from '@/components/Dialog';
 import { CreateSigningRequestForm } from '@/app/counsel/documents/[id]/signing-form';
 import { SEND_FOR_SIGNATURE_LABEL } from '@/lib/intake-signature-send';
+import type { SigningDirection } from '@/lib/signing-authorization';
 
 /**
  * The existing signing composer, opened over the ticket with one of the
@@ -19,12 +20,20 @@ export function SendForSignatureDialog({
   firmId,
   documentId,
   documentName,
+  direction,
   onClose,
 }: {
   firmId: string;
   documentId: string;
   /** Shown so the reader can see which file they are about to send. */
   documentName: string;
+  /**
+   * Which way this signature runs, taken from the answer the person filing
+   * gave (lib/intake-signature-direction.ts) rather than chosen again here.
+   * Asking a second time would let the two records disagree about the same
+   * fact, and the ticket's answer is the one the legal team has been reading.
+   */
+  direction: SigningDirection;
   onClose: () => void;
 }) {
   return (
@@ -52,7 +61,18 @@ export function SendForSignatureDialog({
             Close
           </button>
         </div>
-        <CreateSigningRequestForm firmId={firmId} documentId={documentId} />
+        {direction === 'inbound' && (
+          <p className="mb-3 text-[12px] leading-relaxed text-ink-500 dark:text-cream-100/55">
+            This document came from the other party, so it goes to your legal
+            team to authorise before anybody can sign it. Nothing is sent to
+            them.
+          </p>
+        )}
+        <CreateSigningRequestForm
+          firmId={firmId}
+          documentId={documentId}
+          direction={direction}
+        />
       </div>
     </Dialog>
   );

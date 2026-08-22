@@ -12,6 +12,7 @@ import {
   type SignerConsentPayload,
 } from '@/lib/signer-view';
 import { SIGNER_ALREADY_SIGNED_SENTENCE } from '@/lib/signer-retention';
+import { resolveSignerGate } from '@/lib/signing-authorization';
 import {
   SIGNER_NOT_YET_YOUR_TURN,
   nextInviteIndex,
@@ -322,6 +323,17 @@ export async function recordSignature(
      * arrives for free the moment the column exists.
      */
     signature_methods?: unknown;
+    /**
+     * The direction and the authorisation, arriving free on the select('*')
+     * above the moment 20260822_signing_request_direction.sql is applied and
+     * absent until then. Both are read through lib/signing-authorization.ts,
+     * which resolves an absent column to 'outbound' and 'not_required'. An
+     * inbound request cannot exist on a database without the columns, because
+     * createSigningRequestAction aborts rather than create one, so an absent
+     * column here means an outbound request and nothing is gated.
+     */
+    direction?: unknown;
+    authorization_status?: unknown;
   };
   if (request.status === 'canceled') {
     return { ok: false, status: 410, error: 'Signing request was canceled.' };
@@ -339,6 +351,34 @@ export async function recordSignature(
   // nothing away from anybody who still had a turn.
   if (request.status === 'completed') {
     return { ok: false, status: 410, error: SIGNER_ALREADY_SIGNED_SENTENCE };
+  }
+
+  // THE INBOUND AUTHORISATION GATE, AT THE WRITE.
+  //
+  // A signing request on a document the other party sent is created with its
+  // authorisation pending, and the signer link is minted at the same moment
+  // because the link is how the firm's own signatory reaches the document.
+  // The link therefore resolves before anybody has decided anything, and the
+  // thing that must not happen until they have is THIS: the mark being
+  // recorded, which is the moment the firm is bound.
+  //
+  // It is checked here rather than only on the page for the reason the
+  // internal-signer gate a few lines down is: both routes call this function,
+  // /api/firm/sign takes the token straight out of a request body, and a page
+  // that renders a gate is not a gate. app/sign/[token]/page.tsx runs the same
+  // decision so a signer reads a sentence instead of meeting a refusal after
+  // drawing their name, and the two cannot disagree because both call
+  // resolveSignerGate.
+  //
+  // An outbound request is untouched: it passes unconditionally, whatever the
+  // authorisation column says, because it was already decided on the
+  // approvals queue.
+  const authorization = resolveSignerGate({
+    direction: request.direction,
+    authorizationStatus: request.authorization_status,
+  });
+  if (!authorization.ok) {
+    return { ok: false, status: 409, error: authorization.reason };
   }
 
   // Is this really the person the row names?
