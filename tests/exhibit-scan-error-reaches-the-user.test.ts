@@ -44,6 +44,8 @@ const h = vi.hoisted(() => {
     apiKey: 'sk-ant-test' as string | undefined,
     /** What scanExtractedText was handed, so the extraction can be asserted. */
     extractedInput: null as Record<string, unknown> | null,
+    /** What scanDocument was handed, so the vision routing can be asserted. */
+    visionInput: null as Record<string, unknown> | null,
   };
   const calls: string[] = [];
   return { s, calls };
@@ -66,8 +68,9 @@ vi.mock('../lib/ai', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    scanDocument: async () => {
+    scanDocument: async (input: Record<string, unknown>) => {
       h.calls.push('scanDocument');
+      h.s.visionInput = input;
       if (h.s.scanError) throw h.s.scanError;
       return h.s.scanResult;
     },
@@ -113,6 +116,7 @@ const GOOD_SCAN = {
 beforeEach(() => {
   h.calls.length = 0;
   h.s.extractedInput = null;
+  h.s.visionInput = null;
   h.s.exhibit = {
     id: 'ex-1',
     caseId: 'case-1',
@@ -160,6 +164,48 @@ describe('what the scan action hands back to the exhibit row', () => {
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/could not read/i);
     expect(h.calls).not.toContain('scanDocument');
+  });
+
+  it.each([
+    ['scene.png', 'image/png', 'public/advottic-mark.png', 'image/png'],
+    ['scene.jpg', 'image/jpeg', 'tests/fixtures/one-mark.jpg', 'image/jpeg'],
+    ['scene.jpg', '', 'tests/fixtures/one-mark.jpg', 'image/jpeg'],
+  ])(
+    'still sends %s (declared %s) to the vision reader with its own bytes',
+    async (fileName, fileType, fixture, expectedMediaType) => {
+      // Real bytes off disk, so this is not a test about a string. The third
+      // row is the browser that uploads with no content type at all, which
+      // the normalisation moved into lib/exhibit-reading.ts has to keep
+      // handling.
+      const bytes = readFileSync(path.join(process.cwd(), fixture));
+      h.s.fileBuffer = bytes;
+      h.s.exhibit = { id: 'ex-img', caseId: 'case-1', fileName, fileType };
+
+      const res = await rescanExhibitAction('ex-img');
+
+      expect(res).toMatchObject({ ok: true });
+      expect(h.calls).toContain('scanDocument');
+      expect(h.calls).not.toContain('scanExtractedText');
+      expect(h.s.visionInput?.mediaType).toBe(expectedMediaType);
+      expect(h.s.visionInput?.fileBuffer).toBe(bytes);
+      expect(h.calls).toContain('saveExhibitScan');
+    },
+  );
+
+  it('still sends a PDF to the vision reader as application/pdf', async () => {
+    h.s.exhibit = {
+      id: 'ex-pdf',
+      caseId: 'case-1',
+      fileName: 'notice.pdf',
+      fileType: 'application/octet-stream',
+    };
+    h.s.fileBuffer = Buffer.from('%PDF-1.4 pretend');
+
+    const res = await rescanExhibitAction('ex-pdf');
+
+    expect(res).toMatchObject({ ok: true });
+    expect(h.s.visionInput?.mediaType).toBe('application/pdf');
+    expect(h.calls).not.toContain('scanExtractedText');
   });
 
   it('reads a spreadsheet through text extraction instead of refusing it', async () => {
