@@ -42,9 +42,11 @@ import { currentUserTrialGrant } from './user-trials';
 import type { MenuPortal } from './menu-prefs';
 import {
   CASE_TYPES,
+  isRealScan,
   type CaseStatus,
   type CaseType,
   type CollaboratorRole,
+  type Exhibit,
   type Posture,
   type RepresentationStatus,
   type SubjectProfile,
@@ -708,6 +710,28 @@ export async function rescanExhibitAction(
   await assertAuthIfSupabase();
   const exhibit = await getExhibitById(exhibitId);
   if (!exhibit) return { ok: false, error: 'Exhibit not found.' };
+  const result = await scanOneExhibit(exhibit);
+  if (result.ok) revalidatePath(`/cases/${exhibit.caseId}`);
+  return result;
+}
+
+/**
+ * Read one exhibit and store what it says. The whole of it, so there is one
+ * scanning path and not two.
+ *
+ * Lifted out of `rescanExhibitAction` unchanged when the bulk action arrived.
+ * Every refusal below was written to be read by a person and is returned
+ * rather than thrown, because React strips an error's message at the Server
+ * Action boundary in a production build.
+ *
+ * Does NOT call revalidatePath. A bulk run over seventeen exhibits would
+ * otherwise revalidate the same case seventeen times; its caller does it once
+ * at the end.
+ */
+async function scanOneExhibit(
+  exhibit: Exhibit,
+): Promise<{ ok: boolean; error?: string }> {
+  const exhibitId = exhibit.id;
   // Three early failure modes that were silently swallowed before:
   //   (1) ANTHROPIC_API_KEY missing on the server -> scanDocument
   //       returns isDemo=true with a "demo response" placeholder,
@@ -786,8 +810,152 @@ export async function rescanExhibitAction(
     };
   }
   await saveExhibitScan(exhibitId, scan);
-  revalidatePath(`/cases/${exhibit.caseId}`);
   return { ok: true };
+}
+
+/** What happened to one exhibit during a bulk run. */
+export type BulkScanOutcome = {
+  exhibitId: string;
+  label: string;
+  fileName: string;
+  status: 'scanned' | 'failed' | 'not-attempted';
+  /** Present for 'failed' and 'not-attempted'. Already calm, already plain. */
+  message?: string;
+};
+
+export type BulkScanResult = {
+  /** False only when the whole run was refused before any exhibit was tried. */
+  ok: boolean;
+  /** Present only when ok is false. */
+  error?: string;
+  outcomes: BulkScanOutcome[];
+  scanned: number;
+  failed: number;
+  /** Exhibits still unread after this run, including the ones not attempted. */
+  stillUnread: number;
+};
+
+/**
+ * How many exhibits one press of the button will attempt.
+ *
+ * A scan is an Anthropic vision call over a file this service loads whole into
+ * memory, and it takes single-digit seconds. Nineteen of them in one request
+ * would outrun the platform's function timeout and the person would be left
+ * with a dead page and no idea which exhibits were saved. The run stops at
+ * this many and says how many are left, which is slower but never loses a
+ * result.
+ */
+const BULK_SCAN_BATCH = 6;
+
+/**
+ * Read every exhibit on a case that has not been read yet.
+ *
+ * SEQUENTIAL, ONE AT A TIME, DELIBERATELY. Not for politeness:
+ *
+ *   - `getExhibitFileBuffer` pulls the whole file into memory and the upload
+ *     limit is 50MB. Six of those in flight together is 300MB against a
+ *     serverless memory ceiling, and the failure mode is the process dying
+ *     mid-run with nothing written.
+ *   - Concurrent vision calls hit provider rate limits, and a rate-limit
+ *     rejection arrives looking like a failure to read the document. Somebody
+ *     preparing for court would then be told their evidence could not be read
+ *     when the truth is that we asked too fast.
+ *
+ * One at a time makes every failure attributable to the exhibit it names.
+ *
+ * NEVER THROWS PAST A SINGLE EXHIBIT. Partial failure is the expected case
+ * here, not an exception: on the case that prompted this, seventeen exhibits
+ * had been sitting unread for weeks and some of them may still fail. A throw
+ * would discard the successes alongside the failures, so each exhibit is
+ * wrapped and its outcome recorded either way.
+ */
+export async function rescanUnreadExhibitsAction(
+  caseId: string,
+): Promise<BulkScanResult> {
+  const empty = { outcomes: [], scanned: 0, failed: 0, stillUnread: 0 };
+  if (usingSupabase() && !(await getCurrentUser())) {
+    return { ok: false, error: 'Please sign in again, then try this once more.', ...empty };
+  }
+  await assertAuthIfSupabase();
+
+  const caseRecord = await getCase(caseId);
+  if (!caseRecord) return { ok: false, error: 'Case not found.', ...empty };
+
+  let exhibits: Exhibit[];
+  try {
+    exhibits = await listExhibits(caseId);
+  } catch {
+    return {
+      ok: false,
+      error: 'Could not load this case just now. Please try again in a moment.',
+      ...empty,
+    };
+  }
+
+  // An exhibit counts as unread when nothing was ever stored for it, and also
+  // when what was stored is the placeholder a keyless deployment produces.
+  // The placeholder's own summary says the document was not scanned, so
+  // leaving it in place would mean the button reports nothing to do on a case
+  // where nothing has been read.
+  const unread = exhibits.filter((e) => !isRealScan(e.scanData));
+  const batch = unread.slice(0, BULK_SCAN_BATCH);
+
+  const outcomes: BulkScanOutcome[] = [];
+  let scanned = 0;
+  let failed = 0;
+
+  for (const exhibit of batch) {
+    let result: { ok: boolean; error?: string };
+    try {
+      result = await scanOneExhibit(exhibit);
+    } catch (err) {
+      // scanOneExhibit returns its refusals, so reaching here means something
+      // unplanned. It stops this exhibit and nothing else.
+      console.error('[rescanUnreadExhibitsAction] unexpected failure', exhibit.id, err);
+      result = { ok: false, error: calmAiMessage(err, AI_UNAVAILABLE_MESSAGE) };
+    }
+    if (result.ok) {
+      scanned += 1;
+      outcomes.push({
+        exhibitId: exhibit.id,
+        label: exhibit.label,
+        fileName: exhibit.fileName,
+        status: 'scanned',
+      });
+    } else {
+      failed += 1;
+      outcomes.push({
+        exhibitId: exhibit.id,
+        label: exhibit.label,
+        fileName: exhibit.fileName,
+        status: 'failed',
+        message: result.error || 'This one could not be read.',
+      });
+    }
+  }
+
+  for (const exhibit of unread.slice(BULK_SCAN_BATCH)) {
+    outcomes.push({
+      exhibitId: exhibit.id,
+      label: exhibit.label,
+      fileName: exhibit.fileName,
+      status: 'not-attempted',
+      message: 'Not reached in this run. Press the button again to continue.',
+    });
+  }
+
+  if (scanned > 0) {
+    revalidatePath(`/cases/${caseId}`);
+    revalidatePath('/cases');
+  }
+
+  return {
+    ok: true,
+    outcomes,
+    scanned,
+    failed,
+    stillUnread: unread.length - scanned,
+  };
 }
 
 /** Transcribe one audio or video exhibit. Returns its refusal for the same
