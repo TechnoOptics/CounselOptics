@@ -8,6 +8,9 @@ import type {
   Exhibit,
   Profile,
 } from './types';
+import { isRealScan } from './types';
+import { isRealReview } from './packet-readiness';
+import { resolveExhibitDate } from './exhibit-chronology';
 import type { CommunityExportData } from './community-types';
 import { getExhibitFileBuffer } from './storage';
 import { normalizeString, type NormRule } from './text-normalize';
@@ -267,9 +270,20 @@ function writePdf(
   // Default `reviewEntitled` to `true` so existing callers (and the
   // Capacitor mobile shell on first load) keep their behavior; the
   // export route flips it explicitly based on subscription state.
+  //
+  // A DEMO REVIEW IS NEVER TYPESET. `runReview` returns `demoReview` when
+  // there is no API key and also when the Pro token balance is empty, and
+  // `saveReview` stores it like any other, so `getLatestReview` hands one
+  // straight to this builder. Its body reads "Demo timeline event 1" and
+  // "Demo issue - set ANTHROPIC_API_KEY". This used to be printed with an
+  // amber "DEMO RESPONSE" chip above it, which is a caption on a page that
+  // still contains invented findings about somebody's case. The page is
+  // dropped instead, and the reader is told the review is absent rather than
+  // being shown a filled-in one that is not about their evidence.
   if (review && reviewEntitled !== false) {
     doc.addPage();
-    drawReview(doc, review);
+    if (isRealReview(review)) drawReview(doc, review);
+    else drawReviewWithheld(doc);
   }
 
   // Exhibits
@@ -448,13 +462,28 @@ function cap(items: string[]): string[] {
   return trimmed;
 }
 
+/**
+ * The page that stands in for a review we will not print.
+ *
+ * Plain and short on purpose. It states what is missing and what to do, and
+ * makes no claim at all about the evidence, because the placeholder it
+ * replaces made several.
+ */
+function drawReviewWithheld(doc: Doc) {
+  resetToContentTop(doc);
+  section(doc, 'Case review');
+  body(
+    doc,
+    'No review is included in this packet. The review saved on this case is ' +
+      'an example rather than a reading of your evidence, so it has been left ' +
+      'out. Run the review again in the app and export this packet once more ' +
+      'to include it.',
+  );
+}
+
 function drawReview(doc: Doc, review: AIReview) {
   resetToContentTop(doc);
   section(doc, 'Case review');
-
-  if (review.isDemo) {
-    tag(doc, 'DEMO RESPONSE · not Claude-backed', COLOR.amber);
-  }
 
   subsection(doc, 'Summary');
   body(doc, review.summary || '-');
@@ -521,8 +550,27 @@ function drawExhibitIndex(doc: Doc, exhibits: Exhibit[]) {
       doc.font('Helvetica').fontSize(9).fillColor(COLOR.muted);
       doc.text(e.description, MARGIN + 60, doc.y + 1, { width: CONTENT_WIDTH - 60 });
     }
+    // The date, and where the date came from. Printing a bare date here would
+    // let an upload timestamp read as the date of the event, which on this
+    // product's real data is routinely months out. See lib/exhibit-chronology.
+    doc.font('Helvetica').fontSize(9).fillColor(COLOR.faint);
+    doc.text(describeExhibitDate(e), MARGIN + 60, doc.y + 1, {
+      width: CONTENT_WIDTH - 60,
+    });
     gap(doc, 7);
   }
+}
+
+/** One line naming an exhibit's date and the source that supplied it. */
+function describeExhibitDate(e: Exhibit): string {
+  const resolved = resolveExhibitDate({
+    incidentDate: e.incidentDate ?? null,
+    uploadedAt: e.uploadedAt ?? null,
+    scanDates: e.scanData?.dates ?? null,
+    scanIsReal: isRealScan(e.scanData),
+  });
+  if (!resolved.known) return 'Date: not established';
+  return `Date: ${resolved.iso} (${resolved.sourceShort})`;
 }
 
 // ---------------------------- Exhibit detail page ------------------------
@@ -880,17 +928,6 @@ function drawMetaGrid(doc: Doc, items: [string, string | null | undefined][]) {
   }
   const rowsUsed = Math.ceil(filtered.length / 2);
   doc.y = startY + rowsUsed * rowH;
-}
-
-function tag(doc: Doc, text: string, color: string) {
-  doc.font('Helvetica-Bold').fontSize(8.5);
-  const w = doc.widthOfString(text, { characterSpacing: 1.2 }) + 16;
-  const y = doc.y;
-  doc.save();
-  doc.roundedRect(MARGIN, y, w, 16, 3).fillAndStroke(`${color}20` as string, color);
-  doc.fillColor(color).text(text, MARGIN + 8, y + 4, { characterSpacing: 1.2 });
-  doc.restore();
-  doc.y = y + 16 + 8;
 }
 
 /**
