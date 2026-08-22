@@ -33,6 +33,17 @@ export type CaseEventType =
   // risk either way: it is written into cases.description_history in the same
   // statement as the new text.
   | 'case_description_updated'
+  // The three below require
+  // supabase/migrations/20260822_exhibit_withdrawal_and_details.sql. The
+  // audit_events event_type check is a closed list and logCaseEvent swallows
+  // its insert error, so until that migration is applied an exhibit edit or a
+  // withdrawal produces no audit entry. Neither the edit nor the withdrawal is
+  // at risk from that: both are confirmed writes that report their own
+  // failure, and the withdrawal refuses outright on a database without the
+  // column. Only the trail is missing, and only until the migration runs.
+  | 'exhibit_details_updated'
+  | 'exhibit_withdrawn'
+  | 'exhibit_restored'
   | 'imported';
 
 const COOLDOWN_MS: Partial<Record<CaseEventType, number>> = {
@@ -50,6 +61,9 @@ const COOLDOWN_MS: Partial<Record<CaseEventType, number>> = {
   collaborator_removed: 0,
   witness_statement_updated: 5 * 60 * 1000,
   case_description_updated: 5 * 60 * 1000,
+  exhibit_details_updated: 5 * 60 * 1000,
+  exhibit_withdrawn: 5 * 60 * 1000,
+  exhibit_restored: 5 * 60 * 1000,
   case_created: 0,
   case_deleted: 0,
   // Migration backfill is bulk + historical; never email about it.
@@ -69,6 +83,9 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   collaborator_removed: 'removed a collaborator',
   witness_statement_updated: 'updated their witness statement',
   case_description_updated: 'rewrote their account of what happened',
+  exhibit_details_updated: 'changed the details on an exhibit',
+  exhibit_withdrawn: 'withdrew an exhibit from the packet',
+  exhibit_restored: 'put a withdrawn exhibit back',
   imported: 'imported a record',
 };
 
@@ -314,6 +331,20 @@ function describeEvent(type: CaseEventType, m: Record<string, unknown>): string 
         : '';
     case 'exhibit_deleted':
       return m.label ? `Removed ${escapeHtml(String(m.label))}.` : '';
+    case 'exhibit_details_updated':
+      return m.label
+        ? `Changed the details on ${escapeHtml(String(m.label))}. The file and the label are unchanged.`
+        : '';
+    case 'exhibit_withdrawn':
+      // Says what withdrawing is, because the word alone could be read as a
+      // deletion by somebody skimming an email about their own case.
+      return m.label
+        ? `${escapeHtml(String(m.label))} was withdrawn from the packet. It is still on the case and keeps its label.`
+        : '';
+    case 'exhibit_restored':
+      return m.label
+        ? `${escapeHtml(String(m.label))} is back in the packet.`
+        : '';
     case 'case_status_changed':
       return m.from && m.to
         ? `Status moved from <strong>${escapeHtml(String(m.from))}</strong> to <strong>${escapeHtml(String(m.to))}</strong>.`
