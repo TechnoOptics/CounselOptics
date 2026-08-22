@@ -213,6 +213,14 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   // label is rendered outside it by ViewStrip, and every piece of firm data
   // on the rows below carries data-no-translate.
   'DIRECTION_FACET_LABEL[key]',
+  // What approving does, in the words that fit the direction now selected
+  // (QUEUE_FRAMING in lib/approval-queue.ts). Reviewed on the same grounds as
+  // the entry directly above and drawn from the same module: a frozen
+  // constant map of two records whose fields are literal sentences, keyed by
+  // the direction enum. Nothing writes into it at runtime, so no document
+  // name, party name or figure can reach the wrap, and it renders only when
+  // the reviewer has narrowed the facet to one direction.
+  'QUEUE_FRAMING[params.dir].decision',
   // The inbound authorisation heading (INBOUND_AUTHORIZE_HEADING in
   // lib/signing-authorization.ts). A single frozen string constant,
   // "Authorise this signature", with nothing interpolated into it and nothing

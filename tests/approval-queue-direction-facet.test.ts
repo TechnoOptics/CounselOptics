@@ -226,9 +226,13 @@ describe('a facet count is the length of the list its own tab would show', () =>
 });
 
 describe('the two framings', () => {
+  it('say what approving actually does in each direction', () => {
+    expect(queueFraming('outbound').decision).toContain('releases it to the recipient');
+    expect(queueFraming('inbound').decision).toContain('lets the named signatory sign it');
+    expect(queueFraming('outbound').decision).not.toBe(queueFraming('inbound').decision);
+  });
+
   it('never call the sender a recipient', () => {
-    expect(queueFraming('outbound').partyColumn).toBe('Recipient');
-    expect(queueFraming('inbound').partyColumn).toBe('Sent to us by');
     expect(matchesDirection(inbound(), 'inbound')).toBe(true);
     expect(matchesDirection(inbound(), 'outbound')).toBe(false);
     expect(matchesDirection(inbound(), 'all')).toBe(true);

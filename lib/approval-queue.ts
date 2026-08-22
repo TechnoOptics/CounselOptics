@@ -72,21 +72,22 @@ export const QUEUE_FRAMING: Record<
   QueueDirection,
   {
     facetLabel: string;
-    /** What the column of outside-party names is called. */
-    partyColumn: string;
-    /** What the decision does, in the words that fit this direction. */
+    /**
+     * What the decision DOES, in the words that fit this direction. Stated
+     * under the list whenever the facet is narrowed to one of them, because
+     * a reviewer clearing a mixed queue is doing two different things with
+     * one button and the sentence is the only thing that says which.
+     */
     decision: string;
   }
 > = {
   outbound: {
     facetLabel: 'We are asking them to sign',
-    partyColumn: 'Recipient',
-    decision: 'Approving releases it to the recipient.',
+    decision: 'Approving one of these releases it to the recipient.',
   },
   inbound: {
     facetLabel: 'They are asking us to sign',
-    partyColumn: 'Sent to us by',
-    decision: 'Approving lets the named signatory sign it.',
+    decision: 'Approving one of these lets the named signatory sign it.',
   },
 };
 

@@ -13,7 +13,7 @@ import {
   directionFacetCounts,
   type BulkSendBackResult,
   isBulkSelectable,
-  queueFraming,
+  QUEUE_FRAMING,
   searchedViewTally,
   selectHistory,
   selectQueue,
@@ -256,6 +256,16 @@ export function ApprovalsQueue({
           {' · '}
           <span data-no-translate>{active.total}</span>
         </SectionLabel>
+
+        {/* What approving one of THESE does. Shown only while the facet is
+            narrowed: on the unnarrowed queue the two directions are mixed and
+            no single sentence would be true of every row, which is exactly
+            why it appears the moment a reviewer picks one. */}
+        {params.dir !== 'all' && (
+          <p className="text-[12px] text-muted">
+            <T>{QUEUE_FRAMING[params.dir].decision}</T>
+          </p>
+        )}
         <BoundedNote tally={active} />
         <div className="card overflow-hidden">
           {queue.length === 0 ? (
