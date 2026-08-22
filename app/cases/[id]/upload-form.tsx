@@ -1,36 +1,131 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
-import { uploadExhibitAction } from '@/lib/actions';
+import {
+  uploadExhibitAction,
+  mintExhibitUploadAction,
+  finalizeExhibitUploadAction,
+} from '@/lib/actions';
+import { createBrowserSupabase } from '@/lib/supabase/client';
+import { chooseExhibitTransport, directUploadFailureMessage } from '@/lib/upload-transport';
 import { EXHIBIT_CATEGORIES } from '@/lib/types';
 
 export function UploadForm({ caseId }: { caseId: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fileLabel, setFileLabel] = useState<string>('');
+  const [stage, setStage] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  /**
+   * The original transport, unchanged, for any file the request body can
+   * carry. Its ordering is the strongest one available: our server sees the
+   * bytes and screens them before anything is written to storage.
+   */
+  async function uploadThroughServerAction(formData: FormData): Promise<void> {
+    // The refusal arrives as a value. It used to be thrown, and React strips
+    // an error's message crossing the Server Action boundary in a production
+    // build, so reading err.message here showed the person "An error occurred
+    // in the Server Components render..." instead of what was wrong with
+    // their file. The catch below is kept for a dropped connection only, and
+    // deliberately does NOT read a message off the rejection.
+    try {
+      const res = await uploadExhibitAction(caseId, formData);
+      if (!res.ok) {
+        setError(res.error ?? 'Upload failed.');
+        return;
+      }
+      formRef.current?.reset();
+      setFileLabel('');
+    } catch {
+      setError('That upload did not reach us. Check your connection and try again.');
+    }
+  }
+
+  /**
+   * The transport for a file too big for the request body.
+   *
+   * Three steps, and each one names itself if it fails. That is the point: a
+   * 40MB recording that died at the last moment used to report "That upload
+   * did not reach us. Check your connection and try again.", which was not
+   * true and gave the person nothing to act on. Now the failure says which
+   * stage stopped, and a refusal from the server-side screen is shown
+   * verbatim because it was written to be read.
+   */
+  async function uploadDirectToStorage(file: File, formData: FormData): Promise<void> {
+    setStage('Preparing a secure upload');
+    const minted = await mintExhibitUploadAction(caseId, file.name, file.size);
+    if (!minted.ok || !minted.path || !minted.token || !minted.exhibitId) {
+      setError(directUploadFailureMessage('mint', minted.error));
+      return;
+    }
+
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    setStage(`Sending ${mb} MB straight to secure storage`);
+    try {
+      const supabase = createBrowserSupabase();
+      const { error: putErr } = await supabase.storage
+        .from('exhibits')
+        .uploadToSignedUrl(minted.path, minted.token, file, {
+          contentType: file.type || 'application/octet-stream',
+        });
+      if (putErr) {
+        setError(directUploadFailureMessage('transfer'));
+        return;
+      }
+    } catch {
+      setError(directUploadFailureMessage('transfer'));
+      return;
+    }
+
+    // The object is in the bucket now but nothing references it. This call is
+    // what screens it and, only if it passes, records it as an exhibit.
+    setStage('Checking the file and adding it to your case');
+    try {
+      const fin = await finalizeExhibitUploadAction(caseId, {
+        exhibitId: minted.exhibitId,
+        path: minted.path,
+        fileName: file.name,
+        fileType: file.type || 'application/octet-stream',
+        description: String(formData.get('description') ?? ''),
+        incidentDate: String(formData.get('incidentDate') ?? '') || null,
+        source: String(formData.get('source') ?? '') || null,
+        category: String(formData.get('category') ?? '') || null,
+      });
+      if (!fin.ok) {
+        setError(directUploadFailureMessage('finalize', fin.error));
+        return;
+      }
+    } catch {
+      setError(directUploadFailureMessage('finalize'));
+      return;
+    }
+
+    formRef.current?.reset();
+    setFileLabel('');
+  }
 
   function onSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
-      // The refusal arrives as a value. It used to be thrown, and React strips
-      // an error's message crossing the Server Action boundary in a production
-      // build, so reading err.message here showed the person "An error occurred
-      // in the Server Components render..." instead of what was wrong with
-      // their file. The catch below is kept for a dropped connection only, and
-      // deliberately does NOT read a message off the rejection.
+      const file = formData.get('file');
+      if (!(file instanceof File) || file.size === 0) {
+        setError('Please choose a file to upload.');
+        return;
+      }
+      // One decision, made in one place, shared with the server. See
+      // lib/upload-transport.ts.
+      const choice = chooseExhibitTransport(file.size);
       try {
-        const res = await uploadExhibitAction(caseId, formData);
-        if (!res.ok) {
-          setError(res.error ?? 'Upload failed.');
-          return;
+        if (choice.transport === 'refuse') {
+          setError(choice.reason);
+        } else if (choice.transport === 'direct') {
+          await uploadDirectToStorage(file, formData);
+        } else {
+          await uploadThroughServerAction(formData);
         }
-        formRef.current?.reset();
-        setFileLabel('');
-      } catch {
-        setError(
-          'That upload did not reach us. Check your connection and try again.',
-        );
+      } finally {
+        setStage(null);
       }
     });
   }
@@ -157,6 +252,19 @@ export function UploadForm({ caseId }: { caseId: string }) {
       {error && (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
           {error}
+        </p>
+      )}
+
+      {/* A large file takes a while and moves through three distinct steps.
+          Naming the current one is not decoration: it is what turns a stalled
+          40MB upload from "something went wrong" into "it is still sending". */}
+      {pending && stage && (
+        <p
+          aria-live="polite"
+          className="rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-600"
+        >
+          {stage}
+          <span aria-hidden>…</span>
         </p>
       )}
 

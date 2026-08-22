@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import {
   addExhibit,
+  addExhibitFromStoredObject,
+  mintExhibitUploadUrl,
   adminSetUserAdmin,
   adminSetUserBlocked,
   adminUpdateFeedback,
@@ -689,6 +691,114 @@ export async function uploadExhibitAction(
       await saveExhibitScan(exhibit.id, scan);
     } catch (err) {
       // Never block the upload on scan failure - user can re-trigger from UI.
+      console.warn('[scan] auto-scan failed:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  await logCaseEvent({
+    caseId,
+    eventType: 'exhibit_uploaded',
+    metadata: {
+      label: exhibit.label,
+      fileName: exhibit.fileName,
+      category: exhibit.category ?? null,
+    },
+  });
+
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath('/cases');
+  return { ok: true };
+}
+
+/**
+ * Start a direct browser-to-storage upload for a file too big for the
+ * request body, and hand back a one-path, short-lived write token.
+ *
+ * Every gate lives in mintExhibitUploadUrl (signed in, case visible through
+ * RLS, size within the ceiling). This wrapper exists because a 'use server'
+ * export is a public endpoint, so the action surface is kept to the two calls
+ * the form actually makes and nothing else.
+ */
+export async function mintExhibitUploadAction(
+  caseId: string,
+  fileName: string,
+  fileSize: number,
+): Promise<{ ok: boolean; error?: string; exhibitId?: string; path?: string; token?: string }> {
+  try {
+    const minted = await mintExhibitUploadUrl({
+      caseId,
+      fileName: String(fileName ?? ''),
+      fileSize: Number(fileSize),
+    });
+    if (!minted.ok) return { ok: false, error: minted.error };
+    return { ok: true, exhibitId: minted.exhibitId, path: minted.path, token: minted.token };
+  } catch (err) {
+    console.error('[mintExhibitUploadAction] failed', err);
+    return { ok: false, error: UPLOAD_INTERNAL_ERROR };
+  }
+}
+
+/**
+ * Finish a direct upload: screen the object that landed, then record it.
+ *
+ * The refusal from the screen is returned as a VALUE, for the same reason
+ * every other refusal on this surface is: React strips an error's message
+ * crossing the Server Action boundary in a production build, and "HTML/SVG
+ * content is not an accepted document type." is a sentence somebody needs to
+ * read. Throwing it would put them back where this whole fix started, staring
+ * at a message about their connection.
+ */
+export async function finalizeExhibitUploadAction(
+  caseId: string,
+  input: {
+    exhibitId: string;
+    path: string;
+    fileName: string;
+    fileType: string;
+    description?: string;
+    incidentDate?: string | null;
+    source?: string | null;
+    category?: string | null;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  if (usingSupabase() && !(await getCurrentUser())) {
+    return { ok: false, error: 'Please sign in again, then re-add this file.' };
+  }
+
+  let exhibit;
+  try {
+    const added = await addExhibitFromStoredObject({
+      caseId,
+      exhibitId: String(input?.exhibitId ?? ''),
+      path: input?.path,
+      fileName: String(input?.fileName ?? ''),
+      fileType: String(input?.fileType ?? ''),
+      description: String(input?.description ?? '').trim(),
+      incidentDate: input?.incidentDate || null,
+      source: input?.source || null,
+      category: input?.category || null,
+    });
+    if (!added.ok) return { ok: false, error: added.error };
+    exhibit = added.exhibit;
+  } catch (err) {
+    console.error('[finalizeExhibitUploadAction] finalize failed', err);
+    const reference = displayableDigest((err as { digest?: unknown } | null)?.digest);
+    return {
+      ok: false,
+      error: reference
+        ? `${UPLOAD_INTERNAL_ERROR} Reference: ${reference}`
+        : UPLOAD_INTERNAL_ERROR,
+    };
+  }
+
+  // Auto-scan the types that are quick to read, matching the server-action
+  // path. Done through scanOneExhibit, which fetches the object from storage
+  // itself, because on this path the bytes were never in this process.
+  const ct = (exhibit.fileType || '').toLowerCase();
+  if (ct.startsWith('image/') || ct === 'application/pdf') {
+    try {
+      await scanOneExhibit(exhibit);
+    } catch (err) {
       console.warn('[scan] auto-scan failed:', err instanceof Error ? err.message : err);
     }
   }

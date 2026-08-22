@@ -1004,6 +1004,209 @@ export async function addExhibit(input: {
   return { ok: true, exhibit };
 }
 
+/**
+ * Step one of the direct transport: mint a short-lived signed upload URL.
+ *
+ * Used only for a file too big for the serverless request body. See
+ * lib/upload-transport.ts for why that limit exists and where it sits.
+ *
+ * WHAT IS CHECKED HERE, because after this returns, the browser can write one
+ * object into our bucket without another round trip:
+ *
+ *   - There is a signed-in user.
+ *   - The case is visible to that user through RLS, which is the same
+ *     ownership check addExhibit performs.
+ *   - The declared size is within the ceiling. This is a courtesy refusal, not
+ *     the control; a client can claim any size it likes. The real ceiling is
+ *     enforced after the object lands, against the bytes that landed. See
+ *     screenStoredObject.
+ *
+ * The token grants a write to exactly ONE path, derived here from the
+ * session's own user id, and it expires. It grants no read of anything.
+ */
+export type MintExhibitUploadResult =
+  | { ok: true; exhibitId: string; path: string; token: string }
+  | { ok: false; error: string };
+
+export async function mintExhibitUploadUrl(input: {
+  caseId: string;
+  fileName: string;
+  fileSize: number;
+}): Promise<MintExhibitUploadResult> {
+  if (!usingSupabase()) {
+    return { ok: false, error: 'Large uploads need the hosted storage backend.' };
+  }
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Please sign in again, then re-add this file.' };
+
+  const supabase = createServerSupabase();
+  const { data: caseRow, error: caseErr } = await supabase
+    .from('cases')
+    .select('id')
+    .eq('id', input.caseId)
+    .maybeSingle();
+  if (caseErr) return { ok: false, error: 'Could not open this case just now.' };
+  if (!caseRow) return { ok: false, error: 'Case not found.' };
+
+  const { chooseExhibitTransport } = await import('./upload-transport');
+  const choice = chooseExhibitTransport(input.fileSize);
+  if (choice.transport === 'refuse') return { ok: false, error: choice.reason };
+
+  // The signed URL, and later the object's removal on a failed screen, both go
+  // through the service-role client. Removal is a security control: it must
+  // not be able to fail because of a storage policy nuance.
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Large uploads are unavailable right now.' };
+
+  const { exhibitObjectPath } = await import('./exhibit-direct-upload');
+  const exhibitId = crypto.randomUUID();
+  const path = exhibitObjectPath({
+    userId: user.id,
+    caseId: input.caseId,
+    exhibitId,
+    fileName: input.fileName,
+  });
+
+  const { data, error } = await admin.storage.from(EXHIBITS_BUCKET).createSignedUploadUrl(path);
+  if (error || !data?.token) {
+    return { ok: false, error: 'We could not start the upload for this file.' };
+  }
+  return { ok: true, exhibitId, path, token: data.token };
+}
+
+/**
+ * Step two of the direct transport: screen the object that landed, then make
+ * it an exhibit.
+ *
+ * THE ORDER OF WHAT FOLLOWS IS THE SECURITY PROPERTY, so it is worth naming.
+ * The path is re-derived rather than trusted, the bytes are screened while no
+ * row references them, and only then is a row written. A file that fails the
+ * screen has already been deleted by screenStoredObject before this function
+ * returns, so it is neither readable nor recorded.
+ *
+ * NO ORPHANS, in both directions:
+ *   - No row without an object: the row is inserted only after the object has
+ *     been downloaded and screened, so its existence is proven, not assumed.
+ *   - No object without a row: every refusal below deletes the object first,
+ *     and a failed row insert deletes it too, exactly as addExhibit does.
+ *
+ * The one case not covered by either is a browser that uploads successfully
+ * and then never calls this at all, because the tab was closed. That leaves an
+ * object no row references. It is deliberately NOT swept on a heuristic: this
+ * is an evidence bucket for live legal matters, and a cleanup job that guesses
+ * wrong destroys evidence, which is a far worse failure than an unreferenced
+ * object occupying storage. Those objects are removed with the rest of the
+ * prefix when the case or the account is deleted.
+ */
+export async function addExhibitFromStoredObject(input: {
+  caseId: string;
+  exhibitId: string;
+  path: unknown;
+  fileName: string;
+  fileType: string;
+  description: string;
+  incidentDate?: string | null;
+  source?: string | null;
+  category?: string | null;
+}): Promise<AddExhibitResult> {
+  if (!usingSupabase()) {
+    return { ok: false, error: 'Large uploads need the hosted storage backend.' };
+  }
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Please sign in again, then re-add this file.' };
+
+  const supabase = createServerSupabase();
+  const { data: caseRow, error: caseErr } = await supabase
+    .from('cases')
+    .select('id')
+    .eq('id', input.caseId)
+    .maybeSingle();
+  if (caseErr) throw caseErr;
+  if (!caseRow) return { ok: false, error: 'Case not found.' };
+
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Large uploads are unavailable right now.' };
+
+  const { verifyExhibitObjectPath } = await import('./exhibit-direct-upload');
+  const verdict = verifyExhibitObjectPath({
+    path: input.path,
+    userId: user.id,
+    caseId: input.caseId,
+    exhibitId: input.exhibitId,
+    fileName: input.fileName,
+  });
+  if (!verdict.ok) return { ok: false, error: verdict.reason };
+  const storagePath = verdict.path;
+
+  // Belt and braces against one object ending up under two rows, which would
+  // make deleting either of them break the other.
+  const { data: clash } = await supabase
+    .from('exhibits')
+    .select('id')
+    .eq('storage_path', storagePath)
+    .maybeSingle();
+  if (clash) return { ok: false, error: 'That upload has already been added.' };
+
+  // THE CONTROL. Same screen the server-action path runs, against the object
+  // that actually landed, and it removes the object if it fails.
+  const { screenStoredObject } = await import('./upload-safety');
+  const screened = await screenStoredObject({
+    client: admin,
+    bucket: EXHIBITS_BUCKET,
+    path: storagePath,
+    declaredMime: input.fileType || null,
+    maxBytes: 50 * 1024 * 1024,
+  });
+  if (!screened.ok) {
+    if (!screened.removed) {
+      console.error(
+        '[addExhibitFromStoredObject] refused a file that could not be deleted',
+        storagePath,
+      );
+    }
+    return { ok: false, error: screened.error };
+  }
+
+  const { count, error: countErr } = await supabase
+    .from('exhibits')
+    .select('id', { count: 'exact', head: true })
+    .eq('case_id', input.caseId);
+  if (countErr) throw countErr;
+  const label = `Exhibit ${labelFor(count ?? 0)}`;
+
+  const { data, error } = await supabase
+    .from('exhibits')
+    .insert({
+      id: input.exhibitId,
+      case_id: input.caseId,
+      user_id: user.id,
+      label,
+      file_name: input.fileName,
+      storage_path: storagePath,
+      file_type: input.fileType || 'application/octet-stream',
+      // The size that is recorded is the size that was STORED, taken from the
+      // screened buffer rather than from anything the browser said.
+      file_size: screened.byteLength,
+      description: input.description,
+      incident_date: input.incidentDate ?? null,
+      source: input.source ?? null,
+      category: input.category ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) {
+    await admin.storage.from(EXHIBITS_BUCKET).remove([storagePath]).catch(() => {});
+    throw error;
+  }
+
+  await supabase
+    .from('cases')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', input.caseId);
+
+  return { ok: true, exhibit: exhibitFromRow(data as ExhibitRow) };
+}
+
 /** The outcome of a write to an existing exhibit. A refusal travels as a value. */
 export type ExhibitWriteResult = { ok: true } | { ok: false; error: string };
 
