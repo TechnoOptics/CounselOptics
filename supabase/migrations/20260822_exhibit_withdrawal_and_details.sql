@@ -1,8 +1,9 @@
 -- Withdrawing an exhibit, and editing an exhibit's details.
 --
--- ======================= NOT APPLIED TO PRODUCTION =======================
--- This file has NOT been applied. Applying it, and regenerating
--- supabase/schema-fingerprint.sha256 afterwards, are the owner's steps. The
+-- ======================= APPLIED TO PRODUCTION 2026-08-22, SECTIONS 1 AND 2 ONLY ============
+-- Sections 1 and 2 were applied on 2026-08-22 and the fingerprint was
+-- regenerated in the same commit. Section 3 was NOT applied, for the reason
+-- set out below. The
 -- schema-drift gate compares that fingerprint against the live schema, so the
 -- two go together in one change.
 --
@@ -43,7 +44,21 @@
 
 -- ---------------------------------------------------------------------------
 -- 1. The column
--- ---------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
+-- SECTIONS 1 AND 2 APPLIED 2026-08-22. SECTION 3 WAS NOT.
+--
+-- Verified after applying by reading the catalog rather than trusting the
+-- apply call: withdrawn_at present on exhibits, the three new audit values
+-- present, and every value the constraint carried before still carried.
+-- Fingerprint d1cdb00c to 812b2ecc.
+--
+-- Section 3, the column grant narrowing, is deliberately NOT applied yet.
+-- It is the right change and it is the same shape as the profiles fix made
+-- earlier today, but another session is concurrently building a path that
+-- REPLACES an exhibit's file, which writes storage_path and file_name. If
+-- that path ships, section 3 breaks it. The two designs disagree about
+-- whether a label may keep pointing at different bytes, and that has to be
+-- settled before the grant is narrowed around one of them.
 
 alter table public.exhibits
   add column if not exists withdrawn_at timestamptz;
