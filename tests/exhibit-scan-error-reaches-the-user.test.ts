@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import ExcelJS from 'exceljs';
 
 /**
  * What the person who clicked "Scan now" is actually told.
@@ -41,6 +42,8 @@ const h = vi.hoisted(() => {
     scanError: null as Error | null,
     transcribeError: null as Error | null,
     apiKey: 'sk-ant-test' as string | undefined,
+    /** What scanExtractedText was handed, so the extraction can be asserted. */
+    extractedInput: null as Record<string, unknown> | null,
   };
   const calls: string[] = [];
   return { s, calls };
@@ -65,6 +68,14 @@ vi.mock('../lib/ai', async (importOriginal) => {
     ...actual,
     scanDocument: async () => {
       h.calls.push('scanDocument');
+      if (h.s.scanError) throw h.s.scanError;
+      return h.s.scanResult;
+    },
+    // Only the model call is replaced. The extraction under it runs for real,
+    // so a spreadsheet test proves the bytes were actually read.
+    scanExtractedText: async (input: Record<string, unknown>) => {
+      h.calls.push('scanExtractedText');
+      h.s.extractedInput = input;
       if (h.s.scanError) throw h.s.scanError;
       return h.s.scanResult;
     },
@@ -101,6 +112,7 @@ const GOOD_SCAN = {
 
 beforeEach(() => {
   h.calls.length = 0;
+  h.s.extractedInput = null;
   h.s.exhibit = {
     id: 'ex-1',
     caseId: 'case-1',
@@ -150,19 +162,89 @@ describe('what the scan action hands back to the exhibit row', () => {
     expect(h.calls).not.toContain('scanDocument');
   });
 
-  it('returns the wrong-file-type reason for something that is not an image or PDF', async () => {
+  it('reads a spreadsheet through text extraction instead of refusing it', async () => {
+    // The real reason this changed: two exhibits on a live matter are an
+    // expense sheet and a payment and debt tracker, and both were refused
+    // outright because a vision model cannot look at a workbook.
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('March');
+    ws.addRow(['Date', 'Payee', 'Amount']);
+    ws.addRow(['2026-03-01', 'Landlord', 1250.5]);
+    h.s.fileBuffer = Buffer.from(await wb.xlsx.writeBuffer());
     h.s.exhibit = {
       id: 'ex-2',
       caseId: 'case-1',
-      fileName: 'budget.xlsx',
+      fileName: 'Monthly Expense.xlsx',
       fileType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     };
 
     const res = await rescanExhibitAction('ex-2');
 
-    expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/images and PDFs/i);
+    expect(res).toMatchObject({ ok: true });
+    expect(h.calls).toContain('scanExtractedText');
     expect(h.calls).not.toContain('scanDocument');
+    expect(h.calls).toContain('saveExhibitScan');
+    // The real cell values reached the model, in their real columns.
+    const text = String(h.s.extractedInput?.text ?? '');
+    expect(text).toContain('### Sheet: March');
+    expect(text).toContain('Landlord\t1250.5');
+    // And the scan says it was read from text, not from a picture of a page.
+    expect(String(h.s.extractedInput?.readNote ?? '')).toMatch(/read from the text/i);
+  });
+
+  it('refuses an empty workbook with a reason rather than storing an empty success', async () => {
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('Sheet1');
+    h.s.fileBuffer = Buffer.from(await wb.xlsx.writeBuffer());
+    h.s.exhibit = {
+      id: 'ex-4',
+      caseId: 'case-1',
+      fileName: 'blank.xlsx',
+      fileType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
+
+    const res = await rescanExhibitAction('ex-4');
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/no readable cells|password protected/i);
+    expect(h.calls).not.toContain('scanExtractedText');
+    expect(h.calls).not.toContain('saveExhibitScan');
+  });
+
+  it('returns a wrong-file-type reason that lists what Scan can really read', async () => {
+    h.s.exhibit = {
+      id: 'ex-5',
+      caseId: 'case-1',
+      fileName: 'evidence.zip',
+      fileType: 'application/zip',
+    };
+
+    const res = await rescanExhibitAction('ex-5');
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('application/zip');
+    expect(res.error).toMatch(/\.xlsx/);
+    expect(res.error).toMatch(/\.docx/);
+    expect(res.error).toMatch(/audio or video/i);
+    // The sentence that stopped being true when spreadsheets became readable.
+    expect(res.error).not.toMatch(/only supports images and pdfs/i);
+    expect(h.calls).not.toContain('scanDocument');
+    expect(h.calls).not.toContain('scanExtractedText');
+  });
+
+  it('never stores the placeholder a keyless deployment produces', async () => {
+    h.s.scanResult = {
+      ...GOOD_SCAN,
+      summary:
+        'Demo response - ANTHROPIC_API_KEY not set; document was not actually scanned.',
+      modelUsed: 'demo',
+      isDemo: true,
+    };
+
+    const res = await rescanExhibitAction('ex-1');
+
+    expect(res.ok).toBe(false);
+    expect(h.calls).not.toContain('saveExhibitScan');
   });
 
   it('never hands back the sentence React substitutes in production', async () => {

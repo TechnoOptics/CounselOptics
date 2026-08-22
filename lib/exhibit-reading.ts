@@ -127,3 +127,25 @@ export function exhibitIsScannable(exhibit: {
   const kind = classifyExhibitForReading(exhibit).kind;
   return kind === 'vision' || kind === 'extract';
 }
+
+/**
+ * The sentence stored on a scan that was read from extracted text.
+ *
+ * Requirement, not decoration: a summary produced from a spreadsheet's cell
+ * values is a different kind of claim from one produced by looking at a page,
+ * and somebody relying on it in a hearing is entitled to know which they have.
+ * When the file ran past the reading budget, the truncation sentence is part
+ * of the same note, because a partial read presented as a whole one is the
+ * worst outcome available here.
+ */
+export function extractedTextReadNote(
+  label: string,
+  truncationNote?: string | null,
+): string {
+  const base =
+    label === 'spreadsheet'
+      ? 'Read from the text inside this spreadsheet rather than from a picture of the page. Sheet names, row numbers and column positions were kept as they are in the file.'
+      : `Read from the text inside this ${label} rather than from a picture of the page.`;
+  const note = truncationNote?.trim();
+  return note ? `${base} ${note}` : base;
+}

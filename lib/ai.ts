@@ -472,6 +472,11 @@ export function describeExhibitsForPrompt(exhibits: Exhibit[]): string {
       if (!isRealScan(scan) || !scan) return head;
       const detail: string[] = [];
       if (scan.summary) detail.push(`  Scanned: ${clip(scan.summary, 400)}`);
+      // How it was read travels with what was read. A summary built from a
+      // spreadsheet's cell values is a different kind of claim from one built
+      // by looking at a page, and when only part of a file was read the model
+      // must not treat the part as the whole.
+      if (scan.readNote) detail.push(`  How it was read: ${clip(scan.readNote, 400)}`);
       if (scan.parties?.length) detail.push(`  Parties named: ${scan.parties.join('; ')}`);
       if (scan.dates?.length) {
         detail.push(
@@ -572,8 +577,21 @@ export async function scanDocument(input: {
     throw new AiUnavailableError(err, 'scanDocument');
   }
 
-  const toolUse = result.content.find(
-    (b): b is Extract<(typeof result.content)[number], { type: 'tool_use' }> =>
+  return { ...scanDataFromSubmitScan(result.content), readMethod: 'vision' };
+}
+
+/**
+ * Turn a submit_scan tool call into a ScanData record.
+ *
+ * Shared by the vision path and the extracted-text path so the two cannot
+ * drift. Everything that differs between them (how the file was read, and
+ * whether it was read whole) is applied by the caller afterwards.
+ */
+function scanDataFromSubmitScan(
+  content: Anthropic.Messages.Message['content'],
+): ScanData {
+  const toolUse = content.find(
+    (b): b is Extract<(typeof content)[number], { type: 'tool_use' }> =>
       b.type === 'tool_use' && b.name === 'submit_scan',
   );
   const data = (toolUse?.input ?? {}) as Record<string, unknown>;
@@ -596,6 +614,123 @@ export async function scanDocument(input: {
     suggestedCategory: stringField(data.suggestedCategory) as ScanData['suggestedCategory'],
     scannedAt: new Date().toISOString(),
     modelUsed: MODEL,
+  };
+}
+
+/**
+ * Analyse text that was EXTRACTED from a file, rather than bytes a model can
+ * look at.
+ *
+ * A spreadsheet and a Word document are not pictures, so the vision path
+ * refuses them outright. lib/exhibit-text.ts pulls their text out first and
+ * this reads that text into the same ScanData shape, through the same
+ * submit_scan tool, so a workbook exhibit ends up as searchable as a photo of
+ * a citation.
+ *
+ * THREE THINGS THIS FUNCTION IS RESPONSIBLE FOR, all of them about honesty:
+ *
+ *   1. The stored scan says it came from extracted text. `readMethod` and
+ *      `readNote` both carry it, and `readNote` is shown on the exhibit row.
+ *   2. A truncated read says so in the SUMMARY as well, because the summary
+ *      is the field that travels into exports, packets and the review prompt.
+ *      Silent truncation of evidence is the failure this guards against.
+ *   3. With no API key it returns the same demo placeholder scanDocument
+ *      returns, marked isDemo, so `isRealScan` refuses to store it.
+ *
+ * SCAN_SYSTEM is left untouched and still carries its cache_control breakpoint;
+ * everything specific to reading extracted text goes in the user turn, so the
+ * cached prefix is the same one the vision path warms.
+ */
+export async function scanExtractedText(input: {
+  /** The extracted text. Must be non-empty; an empty file is a refusal. */
+  text: string;
+  fileName: string;
+  /** How to name the source to the model and the reader, e.g. "spreadsheet". */
+  sourceLabel: string;
+  truncated: boolean;
+  /** Present whenever `truncated` is true. Names what was left out. */
+  truncationNote: string | null;
+  /** The sentence stored on the scan about how it was read. */
+  readNote: string;
+}): Promise<ScanData> {
+  const apiKey = resolveApiKey();
+  if (!apiKey) {
+    return {
+      docType: 'other',
+      identifiers: {},
+      parties: [],
+      dates: [],
+      summary:
+        'Demo response - ANTHROPIC_API_KEY not set; document was not actually scanned.',
+      scannedAt: new Date().toISOString(),
+      modelUsed: 'demo',
+      isDemo: true,
+    };
+  }
+
+  const text = input.text.trim();
+  if (!text) {
+    return {
+      docType: 'other',
+      identifiers: {},
+      parties: [],
+      dates: [],
+      summary: `Nothing could be read out of this ${input.sourceLabel}.`,
+      scannedAt: new Date().toISOString(),
+      modelUsed: 'unsupported',
+    };
+  }
+
+  const rules = [
+    `The text below was extracted from a ${input.sourceLabel}. You are reading extracted text. You are not looking at the page.`,
+    'Columns are separated by tab characters and rows by newlines. An empty column appears as nothing between two tabs and is still a column; never move a value into a neighbouring column.',
+    "On a spreadsheet the first value on each line is that row's number in the file, and a gap in those numbers means a blank row, not a missing row.",
+    'Dates already appear as YYYY-MM-DD. Repeat them exactly and do not restate them in another format.',
+    'Report amounts exactly as they appear. Do not total, round, convert or reformat anything.',
+  ];
+  if (input.truncated) {
+    rules.push(
+      `ONLY PART OF THIS FILE IS BELOW. ${input.truncationNote ?? ''} Do not describe the file as complete, and do not draw any conclusion about rows you cannot see.`.trim(),
+    );
+  }
+
+  const userText = [
+    `File name: ${input.fileName}`,
+    '',
+    rules.map((r) => `- ${r}`).join('\n'),
+    '',
+    '--- begin extracted text ---',
+    text,
+    '--- end extracted text ---',
+    '',
+    'Use the submit_scan tool to return structured metadata about this document.',
+  ].join('\n');
+
+  let result;
+  try {
+    result = await new Anthropic({ apiKey }).messages.create({
+      model: MODEL,
+      max_tokens: 2000,
+      system: [{ type: 'text', text: SCAN_SYSTEM, cache_control: { type: 'ephemeral' } }],
+      tools: [SCAN_TOOL],
+      tool_choice: { type: 'tool', name: 'submit_scan' },
+      messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],
+    });
+  } catch (err) {
+    throw new AiUnavailableError(err, 'scanExtractedText');
+  }
+
+  const scan = scanDataFromSubmitScan(result.content);
+  return {
+    ...scan,
+    // The truncation warning leads the summary. The summary is what an export,
+    // a packet and the review prompt all read, and a partial read presented as
+    // a whole one is how a wrong number reaches a hearing.
+    summary: input.truncated && input.truncationNote
+      ? `${input.truncationNote} ${scan.summary}`
+      : scan.summary,
+    readMethod: 'extracted-text',
+    readNote: input.readNote,
   };
 }
 

@@ -165,6 +165,20 @@ export type ScanData = {
   scannedAt: string;
   modelUsed: string;
   isDemo?: boolean;
+  /**
+   * How the content was obtained. 'vision' means the model looked at the page.
+   * 'extracted-text' means the file's text was pulled out first and the model
+   * read that instead, which is the only way a spreadsheet or a Word document
+   * can be read. Absent on every scan stored before text extraction existed,
+   * all of which were vision scans.
+   */
+  readMethod?: 'vision' | 'extracted-text';
+  /**
+   * One or two plain sentences for the person about how this was read and,
+   * when the file ran past the reading budget, exactly what was left out.
+   * A partial read must never be presented as a whole one.
+   */
+  readNote?: string;
 };
 
 /**

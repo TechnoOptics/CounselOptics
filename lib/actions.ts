@@ -32,7 +32,19 @@ import {
   type FeedbackCategory,
   type FeedbackStatus,
 } from './storage';
-import { classifyCaseType, runReview, scanDocument, transcribeMedia } from './ai';
+import {
+  classifyCaseType,
+  runReview,
+  scanDocument,
+  scanExtractedText,
+  transcribeMedia,
+} from './ai';
+import {
+  classifyExhibitForReading,
+  extractedTextReadNote,
+  unsupportedScanMessage,
+} from './exhibit-reading';
+import { extractExhibitText } from './exhibit-text';
 import { AI_UNAVAILABLE_MESSAGE, calmAiMessage } from './ai-errors';
 import { displayableDigest } from './firm-access';
 import { createServerSupabase, getCurrentUser, isCurrentUserAdmin, isSupabaseConfigured } from './supabase/server';
@@ -758,50 +770,65 @@ async function scanOneExhibit(
       error: `Could not read the file (${exhibit.fileName}). It may have been deleted from storage, or your session has expired - try refreshing.`,
     };
   }
-  const lowerName = exhibit.fileName.toLowerCase();
-  const isPdf = exhibit.fileType === 'application/pdf' || lowerName.endsWith('.pdf');
-  const isImage = (exhibit.fileType || '').toLowerCase().startsWith('image/') ||
-    /\.(png|jpe?g|webp|gif)$/.test(lowerName);
-  if (!isPdf && !isImage) {
+  // Which reader this file goes to lives in lib/exhibit-reading.ts, which the
+  // exhibit row in the UI also calls, so the button a person is offered and
+  // the path this takes cannot disagree. The MIME normalisation that used to
+  // sit here inline moved there with it: some browsers upload with no content
+  // type at all, so the file name is consulted too.
+  const route = classifyExhibitForReading(exhibit);
+  if (route.kind === 'unsupported' || route.kind === 'transcribe') {
     return {
       ok: false,
-      error: `Scan only supports images and PDFs. Got "${exhibit.fileType || 'unknown type'}" - for audio/video use Transcribe.`,
+      error: unsupportedScanMessage(
+        exhibit.fileType,
+        route.kind === 'unsupported' ? route.reason : undefined,
+      ),
     };
   }
-  // Normalize the MIME so files uploaded without an explicit
-  // content-type (some browsers send octet-stream) still reach the
-  // right Claude vision pipeline.
-  let mediaType: string;
-  if (isPdf) {
-    mediaType = 'application/pdf';
-  } else if (/\.png$/.test(lowerName)) {
-    mediaType = 'image/png';
-  } else if (/\.jpe?g$/.test(lowerName)) {
-    mediaType = 'image/jpeg';
-  } else if (/\.webp$/.test(lowerName)) {
-    mediaType = 'image/webp';
-  } else if (/\.gif$/.test(lowerName)) {
-    mediaType = 'image/gif';
-  } else {
-    mediaType = exhibit.fileType || 'image/png';
-  }
+
   let scan;
   try {
-    scan = await scanDocument({
-      fileBuffer: buf,
-      mediaType,
-      fileName: exhibit.fileName,
-    });
+    if (route.kind === 'extract') {
+      // A spreadsheet and a Word document are not pictures. Their text is
+      // pulled out first and the model reads that, which is the only way an
+      // expense sheet or a payment tracker can be read at all.
+      const extracted = await extractExhibitText({ buffer: buf, format: route.format });
+      if (extracted.error) return { ok: false, error: extracted.error };
+      if (!extracted.text.trim()) {
+        // Nothing readable is a refusal with a reason. It must never be
+        // stored as a successful scan of an empty document.
+        return {
+          ok: false,
+          error: `Nothing could be read out of ${exhibit.fileName}. Please open it, check that it has content, and re-upload it.`,
+        };
+      }
+      scan = await scanExtractedText({
+        text: extracted.text,
+        fileName: exhibit.fileName,
+        sourceLabel: route.label,
+        truncated: extracted.truncated,
+        truncationNote: extracted.truncationNote,
+        readNote: extractedTextReadNote(route.label, extracted.truncationNote),
+      });
+    } else {
+      scan = await scanDocument({
+        fileBuffer: buf,
+        mediaType: route.mediaType,
+        fileName: exhibit.fileName,
+      });
+    }
   } catch (err) {
     // calmAiMessage, not err.message: only an error that promises a
     // user-safe sentence gets to supply one. Anything else (a bug, a
     // provider dump) falls back to the calm line.
     return { ok: false, error: calmAiMessage(err, AI_UNAVAILABLE_MESSAGE) };
   }
-  // If the scan came back as a demo (no real key during runtime) or
-  // unsupported, surface that clearly rather than saving a "Demo
-  // response" string the user has to figure out.
-  if (scan.isDemo || scan.modelUsed === 'unsupported' || scan.modelUsed === 'demo') {
+  // A placeholder must never be stored as a real reading of somebody's
+  // evidence. isRealScan is the one definition of that, shared with the bulk
+  // runner above and with everything that feeds scan_data back to a model; a
+  // hand-written copy of its rule used to live here and would have had to be
+  // updated twice.
+  if (!isRealScan(scan)) {
     return {
       ok: false,
       error: scan.summary?.includes('not actually scanned')

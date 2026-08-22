@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { rescanExhibitAction, transcribeExhibitAction } from '@/lib/actions';
 import type { Exhibit, ScanData } from '@/lib/types';
 import { formatDateTimeNumeric } from '@/lib/format';
+import { exhibitIsScannable } from '@/lib/exhibit-reading';
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   parking_ticket: 'Parking ticket',
@@ -27,7 +28,11 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
   const [error, setError] = useState<string | null>(null);
   const ct = (exhibit.fileType || '').toLowerCase();
   const isMedia = ct.startsWith('audio/') || ct.startsWith('video/');
-  const isScannable = ct.startsWith('image/') || ct === 'application/pdf';
+  // Asked of lib/exhibit-reading.ts, not answered again here. This row once
+  // carried its own copy of the rule, and when spreadsheets became readable
+  // that copy would have gone on saying "No auto-scan for this file type" for
+  // an expense sheet the server could read perfectly well.
+  const isScannable = exhibitIsScannable(exhibit);
   const scan = exhibit.scanData;
 
   // The actions RETURN their refusal. A thrown message is replaced by React
@@ -117,6 +122,12 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
       </summary>
 
       <div className="px-4 pb-4 pt-1 space-y-3 text-xs text-ink-700">
+        {scan.readNote && (
+          <p className="rounded-md border border-ink-200 bg-white px-2.5 py-2 leading-relaxed text-ink-600">
+            {scan.readNote}
+          </p>
+        )}
+
         {scan.transcript && (
           <Section title="Transcript">
             <p className="whitespace-pre-wrap leading-relaxed text-ink-800 max-h-56 overflow-y-auto bg-white border border-ink-200 rounded-md p-2.5">
