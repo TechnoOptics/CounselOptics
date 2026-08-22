@@ -21,7 +21,19 @@
 --    audit entry and no complaint. This is the same gap the 2026-06-28 fix
 --    closed for 'witness_statement_updated'.
 --
--- UNTIL THIS IS APPLIED, editing an account is refused rather than performed:
+-- ==================== APPLIED TO PRODUCTION 2026-08-22 ===================
+-- Applied before this code was merged. Verified afterwards by reading the
+-- catalog rather than by trusting the apply call: description_history exists
+-- NOT NULL defaulting to '[]', and the recreated event_type check both
+-- carries case_description_updated AND still carries every value it had
+-- before, which was checked against the live constraint definition BEFORE
+-- the drop, because a recreate from a hard-coded list silently drops any
+-- value the list forgot.
+--
+-- Fingerprint f8b5a1b0 to d1cdb00c, computed server side.
+-- =========================================================================
+--
+-- Before it was applied, editing an account was refused rather than performed:
 -- lib/storage.ts updateCaseComposition writes both columns together, so a
 -- missing column fails the whole statement and the person is told the change
 -- was not saved. Nothing is lost, and nothing is silently half-written.
