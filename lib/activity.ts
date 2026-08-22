@@ -26,6 +26,13 @@ export type CaseEventType =
   | 'collaborator_invited'
   | 'collaborator_removed'
   | 'witness_statement_updated'
+  // Requires supabase/migrations/20260822_case_description_history.sql. The
+  // audit_events event_type check is a closed list and logCaseEvent swallows
+  // its insert error, so until that migration is applied an edit to the
+  // account produces no audit entry. The superseded text itself is not at
+  // risk either way: it is written into cases.description_history in the same
+  // statement as the new text.
+  | 'case_description_updated'
   | 'imported';
 
 const COOLDOWN_MS: Partial<Record<CaseEventType, number>> = {
@@ -42,6 +49,7 @@ const COOLDOWN_MS: Partial<Record<CaseEventType, number>> = {
   collaborator_invited: 0, // always notify
   collaborator_removed: 0,
   witness_statement_updated: 5 * 60 * 1000,
+  case_description_updated: 5 * 60 * 1000,
   case_created: 0,
   case_deleted: 0,
   // Migration backfill is bulk + historical; never email about it.
@@ -60,6 +68,7 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   collaborator_invited: 'invited a collaborator',
   collaborator_removed: 'removed a collaborator',
   witness_statement_updated: 'updated their witness statement',
+  case_description_updated: 'rewrote their account of what happened',
   imported: 'imported a record',
 };
 

@@ -2334,3 +2334,190 @@ export async function saveMenuPreferencesAction(
   return { ok: true };
 }
 
+
+// ---------------------------------------------------------------------------
+// The person's own written account of what happened
+//
+// `cases.description` is that account: the `description` textarea in
+// app/cases/new/case-form.tsx is what writes it when the case is created, and
+// nothing could change it afterwards until these actions existed.
+//
+// Every one of them returns its refusal rather than throwing it, for the same
+// reason rescanExhibitAction and uploadExhibitAction do: React strips an
+// error's message when it crosses the Server Action boundary in a production
+// build, so a thrown sentence reaches the person as a digest they cannot act
+// on. These sentences were written to be read.
+// ---------------------------------------------------------------------------
+
+export type CompositionResult = { ok: boolean; error?: string };
+
+const NOT_YOUR_CASE =
+  'Only the person who opened this case can change their account of what happened. ' +
+  'Nothing was changed.';
+
+/**
+ * Resolve the case and confirm the caller owns it.
+ *
+ * Every server action is a public HTTP endpoint, so this check lives here and
+ * not in the page that decides whether to draw the button. `getCase` is
+ * RLS-scoped and `cases` SELECT is membership-wide, so a collaborator or an
+ * invited attorney can read this case; only its owner may rewrite the account.
+ */
+async function loadOwnedCase(
+  caseId: string,
+): Promise<
+  | { ok: true; caseRecord: import('./types').Case }
+  | { ok: false; error: string }
+> {
+  if (typeof caseId !== 'string' || !caseId.trim()) {
+    return { ok: false, error: 'Missing case id.' };
+  }
+  if (usingSupabase()) {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, error: 'Please sign in again, then make this change.' };
+    }
+    const caseRecord = await getCase(caseId);
+    if (!caseRecord) return { ok: false, error: 'Case not found.' };
+    if (caseRecord.ownerId !== user.id) return { ok: false, error: NOT_YOUR_CASE };
+    return { ok: true, caseRecord };
+  }
+  const caseRecord = await getCase(caseId);
+  if (!caseRecord) return { ok: false, error: 'Case not found.' };
+  return { ok: true, caseRecord };
+}
+
+/**
+ * Rewrite, or clear, the account of what happened.
+ *
+ * Passing an empty string is how the account is deleted. That clears the text
+ * and nothing else: the case, every exhibit, every collaborator, and every
+ * review stay exactly where they are. The prior wording is preserved by
+ * updateCaseComposition, which writes the new text and the superseded text in
+ * a single update statement.
+ */
+export async function updateCaseCompositionAction(
+  caseId: string,
+  text: string,
+): Promise<CompositionResult> {
+  const owned = await loadOwnedCase(caseId);
+  if (!owned.ok) return owned;
+
+  const { MAX_COMPOSITION_LENGTH, normalizeComposition } = await import('./composition');
+  const next = normalizeComposition(typeof text === 'string' ? text : '');
+  if (next.length > MAX_COMPOSITION_LENGTH) {
+    return {
+      ok: false,
+      error:
+        `That account is longer than the ${MAX_COMPOSITION_LENGTH.toLocaleString()} character limit. ` +
+        'Please shorten it, or move the detail into an exhibit. Nothing was changed.',
+    };
+  }
+  if (next === normalizeComposition(owned.caseRecord.description)) {
+    // Not an error, and not a write. Recording an edit that changed nothing
+    // would put a revision into a legal record that never happened.
+    return { ok: true };
+  }
+
+  try {
+    const { updateCaseComposition } = await import('./storage');
+    await updateCaseComposition({ caseId, text: next });
+  } catch (err) {
+    console.error('[updateCaseCompositionAction] failed', err);
+    return {
+      ok: false,
+      error:
+        err instanceof Error && err.message
+          ? err.message
+          : 'That change could not be saved. Nothing was changed.',
+    };
+  }
+
+  // Best-effort. The account itself, and the version it replaced, are already
+  // committed above; this entry describes that write and only ever follows it.
+  await logCaseEvent({
+    caseId,
+    eventType: 'case_description_updated',
+    metadata: { cleared: next.length === 0 },
+  });
+
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath('/cases');
+  return { ok: true };
+}
+
+/**
+ * Clear the account of what happened.
+ *
+ * Deliberately a separate entry point rather than the caller passing '' to the
+ * action above, so that the one destructive thing a person can do to their own
+ * words is named in the code the same way it is named in the interface.
+ */
+export async function clearCaseCompositionAction(
+  caseId: string,
+): Promise<CompositionResult> {
+  return await updateCaseCompositionAction(caseId, '');
+}
+
+/**
+ * Run the Advottic Review again over the account as it now reads and every
+ * exhibit currently on file.
+ *
+ * Three things this does that runReviewAction above does not.
+ *
+ * It confirms the caller owns the case before spending anything.
+ *
+ * It refuses to store a demo. `runReview` returns a placeholder when the
+ * deployment has no API key and again when a Pro token balance has run out.
+ * That placeholder reads like an analysis. Saved into `ai_reviews` it becomes
+ * indistinguishable, on the case page and in an exported packet, from work a
+ * model actually did on this matter. Same refusal, and same reason, as the
+ * demo check in rescanExhibitAction.
+ *
+ * It returns its refusal as a value. The person gets the sentence.
+ *
+ * A run APPENDS: saveReview inserts a new `ai_reviews` row and
+ * getLatestReview reads the newest, so the earlier review keeps its own row
+ * and its own created_at. Nothing overwrites a review that has already been
+ * relied on.
+ */
+export async function rerunCaseReviewAction(caseId: string): Promise<CompositionResult> {
+  const owned = await loadOwnedCase(caseId);
+  if (!owned.ok) return owned;
+  const caseRecord = owned.caseRecord;
+
+  let review;
+  try {
+    const exhibits = await listExhibits(caseId);
+    review = await runReview(caseRecord, exhibits);
+  } catch (err) {
+    console.error('[rerunCaseReviewAction] runReview failed', err);
+    return { ok: false, error: calmAiMessage(err, AI_UNAVAILABLE_MESSAGE) };
+  }
+
+  const { isRealReview } = await import('./composition');
+  if (!isRealReview(review)) {
+    // Nothing is written. An example template stored here would later be read
+    // back as this case's analysis.
+    console.error(
+      '[rerunCaseReviewAction] refusing to store a placeholder review',
+      { caseId, modelUsed: review.modelUsed },
+    );
+    return { ok: false, error: AI_UNAVAILABLE_MESSAGE };
+  }
+
+  try {
+    await saveReview(review);
+  } catch (err) {
+    console.error('[rerunCaseReviewAction] saveReview failed', err);
+    return {
+      ok: false,
+      error: 'The review finished but could not be saved. Please try again in a moment.',
+    };
+  }
+  await logCaseEvent({ caseId, eventType: 'review_run' });
+
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath('/cases');
+  return { ok: true };
+}

@@ -14,6 +14,7 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   collaborator_invited: 'invited a collaborator',
   collaborator_removed: 'removed a collaborator',
   witness_statement_updated: 'updated their witness statement',
+  case_description_updated: 'rewrote their account of what happened',
   imported: 'imported from another platform',
 };
 
@@ -29,6 +30,7 @@ const EVENT_TONE: Record<CaseEventType, string> = {
   collaborator_invited: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30',
   collaborator_removed: 'bg-rose-500/10 text-danger-text ring-rose-500/30',
   witness_statement_updated: 'bg-gold-500/15 text-gold-300 ring-gold-500/30',
+  case_description_updated: 'bg-gold-500/15 text-gold-300 ring-gold-500/30',
   imported: 'bg-sky-500/15 text-sky-300 ring-sky-500/30',
 };
 
