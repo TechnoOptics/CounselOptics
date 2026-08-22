@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella, type BellaMessage, type BellaPortal } from '@/lib/bella';
 import { getCase, listExhibits, getLatestReview } from '@/lib/storage';
+import { isRealReview, isReviewStale } from '@/lib/composition';
 import {
   getCurrentUser,
   isCurrentUserAdmin,
@@ -223,9 +224,20 @@ export async function POST(req: NextRequest) {
             lines.push(`- ${e.label}: ${e.fileName}${e.description ? ' - ' + e.description : ''}`);
           }
         }
-        if (review) {
-          lines.push(`Latest review summary: ${review.summary.slice(0, 400)}`);
-          lines.push(`Classification: ${review.classification.slice(0, 200)}`);
+        // Real and still current, or not handed to the model at all. A demo
+        // placeholder reads like analysis, so a model given one repeats its
+        // invented findings as findings about this case; and the Description
+        // line above is always the CURRENT account, so a review written
+        // against wording the person has since replaced would put two
+        // versions of the same events in front of the model at once. Same
+        // rule, and same reason, as isRealScan in lib/types.ts.
+        const usableReview =
+          isRealReview(review) && !isReviewStale(review, c.descriptionHistory ?? [])
+            ? review
+            : null;
+        if (usableReview) {
+          lines.push(`Latest review summary: ${usableReview.summary.slice(0, 400)}`);
+          lines.push(`Classification: ${usableReview.classification.slice(0, 200)}`);
         }
         caseContext = lines.join('\n');
       }

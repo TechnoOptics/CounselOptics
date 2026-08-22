@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella, type BellaMessage } from '@/lib/bella';
 import { getCase, listExhibits, getLatestReview } from '@/lib/storage';
+import { isRealReview, isReviewStale } from '@/lib/composition';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/rate-limit';
 
@@ -81,6 +82,23 @@ export async function POST(req: NextRequest) {
     getLatestReview(c.id).catch(() => null),
   ]);
 
+/**
+ * The review is only handed to a model when it is real and still current.
+ *
+ * A demo placeholder reads like analysis, so a model given one treats its
+ * invented findings as findings about this case. And the account of what
+ * happened below is always the CURRENT text, so a review written against
+ * wording the person has since replaced would put two different versions of
+ * the same events in front of the model at once. Neither is worth the
+ * paragraph it adds; the model has the account itself either way.
+ *
+ * Same rule, same reason, as isRealScan in lib/types.ts.
+ */
+  const usableReview =
+    isRealReview(review) && !isReviewStale(review, c.descriptionHistory ?? [])
+      ? review
+      : null;
+
   const jurisdiction =
     [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
       .filter(Boolean)
@@ -101,7 +119,7 @@ export async function POST(req: NextRequest) {
           )
           .join('\n')}`
       : 'Exhibits: none yet (a weakness to probe).',
-    review?.summary ? `Prior review summary: ${review.summary.slice(0, 400)}` : '',
+    usableReview?.summary ? `Prior review summary: ${usableReview.summary.slice(0, 400)}` : '',
   ]
     .filter(Boolean)
     .join('\n');

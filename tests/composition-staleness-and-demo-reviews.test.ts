@@ -313,3 +313,24 @@ describe('the exported packet carries neither a placeholder nor an unmarked stal
     expect(route).toMatch(/before the account of what happened was rewritten/);
   });
 });
+
+describe('nothing hands a placeholder or a stale review to a model', () => {
+  const SITES = [
+    ['Bella case context', '../app/api/bella/route.ts'],
+    ['the opposing-counsel profiler', '../app/api/opposing-counsel/route.ts'],
+  ] as const;
+
+  for (const [label, rel] of SITES) {
+    it(`${label} filters the review before it reaches the prompt`, () => {
+      // Mutation: read `review.summary` straight into the prompt at either
+      // site and this goes red. Both names appear in an import line and in
+      // the comment above each call, which is why comments are stripped and
+      // the call form is required.
+      const code = stripComments(read(rel));
+      expect(code).toMatch(/\bisRealReview\s*\(/);
+      expect(code).toMatch(/\bisReviewStale\s*\(/);
+      expect(code).toMatch(/usableReview[?.]?\.summary/);
+      expect(code).not.toMatch(/[^e]\breview\.summary/);
+    });
+  }
+});
