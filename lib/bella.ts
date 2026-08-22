@@ -6,6 +6,7 @@ import { createAdminSupabase } from './supabase/admin';
 import { AiUnavailableError, friendlyAiError } from './ai-errors';
 import { INTAKE_LANE_STATUSES, tallyIntakeLanes } from './intake-lanes';
 import { isRealScan } from './types';
+import { isExhibitWithdrawn } from './exhibit-withdrawal';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -1401,9 +1402,13 @@ async function executeTool(
         // voicemail transcript, the parties and dates off a notice). Without
         // it Bella could see that an audio exhibit existed but not a word of
         // what was said in it.
-        .select(
-          'id, label, file_name, file_type, category, source, incident_date, description, scan_data',
-        )
+        //
+        // '*' rather than a column list, and the withdrawal filter below runs
+        // in JavaScript, because `withdrawn_at` arrives with a migration the
+        // owner applies. Naming it in the select would make this whole tool
+        // fail until that ran; a row without the field simply reads as not
+        // withdrawn, which is correct on a database where nothing can be.
+        .select('*')
         .eq('case_id', caseId)
         .order('uploaded_at', { ascending: true })
         .limit(50),
@@ -1465,7 +1470,13 @@ async function executeTool(
           isDemo?: boolean;
           modelUsed?: string;
         } | null;
-      }> | null) ?? []).map((e) => {
+        withdrawn_at?: string | null;
+      }> | null) ?? [])
+        // An exhibit the person has withdrawn is out of their packet, so it is
+        // out of what Bella reasons over too. Leaving it in would have her
+        // summarize a duplicate the person has already decided not to file.
+        .filter((e) => !isExhibitWithdrawn({ withdrawnAt: e.withdrawn_at ?? null }))
+        .map((e) => {
         // isRealScan, shared with the review prompt builder, so the rule for
         // "did this scan actually read the file" cannot drift between them.
         const real = isRealScan(e.scan_data) ? e.scan_data : null;

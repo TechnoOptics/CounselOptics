@@ -24,10 +24,17 @@ import { WitnessStatementEditor } from './witness-statement-editor';
 import { CloseCaseControl } from './close-case-control';
 import { HearingPanel } from './hearing-panel';
 import { ExhibitScan } from './exhibit-scan';
+import { ExhibitControls } from './exhibit-controls';
 import { BulkScanPanel } from './bulk-scan-panel';
 import { PacketReadinessNotice } from '@/components/PacketReadinessNotice';
 import { assessPacketReadiness } from '@/lib/packet-readiness';
 import { resolveExhibitDate } from '@/lib/exhibit-chronology';
+import {
+  WITHDRAWN_BADGE,
+  activeExhibits,
+  isExhibitWithdrawn,
+  withdrawnNoteLine,
+} from '@/lib/exhibit-withdrawal';
 import { Tabs } from '@/components/Tabs';
 import { CaseStory, type StoryItem } from '@/components/CaseStory';
 import { OpposingCounsel } from '@/components/OpposingCounsel';
@@ -80,9 +87,14 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const c = await getCase(params.id);
   if (!c) notFound();
 
-  const [exhibits, review, collaborators, currentUser, activity, trialState, sub, hqTrial] =
+  const [allExhibits, review, collaborators, currentUser, activity, trialState, sub, hqTrial] =
     await Promise.all([
-    listExhibits(c.id),
+    // The ONLY caller that asks for the withdrawn rows. This page shows them
+    // to the owner, marked, so they can put one back. Everything derived
+    // below runs on `exhibits`, which is the active list: the KPI count, the
+    // per-case search, the story spine, the hearing panel, the packet
+    // readiness assessment and the bulk-scan unread count.
+    listExhibits(c.id, { includeWithdrawn: true }),
     getLatestReview(c.id),
     usingSupabase() ? listCollaborators(c.id) : Promise.resolve([]),
     usingSupabase() ? getCurrentUser() : Promise.resolve(null),
@@ -91,6 +103,13 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
     getCurrentSubscription().catch(() => null),
     currentUserTrialGrant().catch(() => undefined),
   ]);
+
+  // What belongs in a packet, a chronology, a review prompt and a count.
+  // Withdrawn exhibits keep their row and their label and are shown further
+  // down this page, but they are out of everything that reasons about the
+  // case. See lib/exhibit-withdrawal.ts.
+  const exhibits = activeExhibits(allExhibits);
+  const withdrawnCount = allExhibits.length - exhibits.length;
 
   // A stored review that is only the demo placeholder is not this case's
   // analysis, so it does not count as having one: no tab tick, no "last
@@ -647,7 +666,11 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                   subtitle={
                     exhibits.length === 0
                       ? 'Upload evidence to start building exhibits.'
-                      : 'Each upload gets a stable label so you can cite it in filings.'
+                      : withdrawnCount > 0
+                        ? `Each upload gets a stable label so you can cite it in filings. ${withdrawnCount} ${
+                            withdrawnCount === 1 ? 'exhibit is' : 'exhibits are'
+                          } withdrawn: still on file and still labelled, left out of the packet.`
+                        : 'Each upload gets a stable label so you can cite it in filings.'
                   }
                 >
                   {canUpload ? (
@@ -684,10 +707,20 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                     />
                   )}
 
-                  {exhibits.length > 0 && (
+                  {allExhibits.length > 0 && (
                     <ul className="card divide-y divide-ink-100">
-                      {exhibits.map((e) => (
-                        <li key={e.id} className="p-5">
+                      {/* Every exhibit, withdrawn ones included. A withdrawn
+                          exhibit is marked and dimmed, never hidden: the
+                          person decided to leave it out of the packet, and
+                          they have to be able to see that decision and undo
+                          it. */}
+                      {allExhibits.map((e) => (
+                        <li
+                          key={e.id}
+                          className={
+                            isExhibitWithdrawn(e) ? 'p-5 bg-ink-50/60' : 'p-5'
+                          }
+                        >
                           <div className="flex flex-wrap items-start gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2.5 mb-1">
@@ -697,7 +730,21 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                                 <span className="text-sm font-medium text-ink-950 truncate">
                                   {e.fileName}
                                 </span>
+                                {isExhibitWithdrawn(e) && (
+                                  <span className="badge bg-ink-200 text-ink-700">
+                                    {WITHDRAWN_BADGE}
+                                  </span>
+                                )}
                               </div>
+                              {isExhibitWithdrawn(e) && (
+                                <p className="text-sm text-ink-600 mb-1.5">
+                                  {withdrawnNoteLine(
+                                    e.withdrawnAt
+                                      ? formatDateNumeric(e.withdrawnAt)
+                                      : null,
+                                  )}
+                                </p>
+                              )}
                               {e.description && (
                                 <p className="text-sm text-ink-700 mb-1.5 leading-relaxed">
                                   {e.description}
@@ -753,6 +800,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                             </a>
                           </div>
                           <ExhibitScan exhibit={e} />
+                          {isOwner && <ExhibitControls exhibit={e} />}
                         </li>
                       ))}
                     </ul>
