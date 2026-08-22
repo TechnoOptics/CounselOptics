@@ -45,6 +45,8 @@ const row = (over: Partial<ApprovalRow> = {}): ApprovalRow => ({
   submittedAt: new Date(NOW - DAY).toISOString(),
   decidedAt: null,
   releaseError: null,
+  direction: 'outbound',
+  href: '/counsel/forms/approvals/sub-1',
   ...over,
 });
 
@@ -61,6 +63,7 @@ const params = (over: Partial<ApprovalQueueParams> = {}): ApprovalQueueParams =>
   view: 'waiting',
   q: '',
   sort: 'oldest',
+  dir: 'all',
   ...over,
 });
 

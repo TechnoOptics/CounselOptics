@@ -1,4 +1,8 @@
 import type { SignatureMethod } from './signature-methods';
+import type {
+  AuthorizationStatus,
+  SigningDirection,
+} from './signing-authorization';
 /**
  * Type surface for the law-firm perspective ("Advottic Counsel").
  * Server boundary returns these shapes; everything inside firm-mode
@@ -389,6 +393,24 @@ export type FirmSigningRequest = {
    * and then be told.
    */
   signatureMethods: SignatureMethod[] | null;
+  /**
+   * Which way this request runs: our document going out for an outside party
+   * to sign, or their document arriving for us to sign.
+   *
+   * Never null. lib/signing-authorization.ts resolves an absent column, a
+   * null and anything unrecognised to 'outbound', which is what every request
+   * that existed before 20260822_signing_request_direction.sql is.
+   */
+  direction: SigningDirection;
+  /**
+   * Whether the legal team has authorised putting the firm's name on an
+   * inbound document. 'not_required' on every outbound request.
+   *
+   * app/sign/[token] and lib/signature-write.ts both refuse an inbound
+   * request that is not 'approved', at the route and at the write, so a
+   * component that fails to draw a gate cannot open one.
+   */
+  authorizationStatus: AuthorizationStatus;
   /**
    * Storage path to the EXECUTED copy: the PDF with each signature and
    * its date stamped onto the signature line, produced by

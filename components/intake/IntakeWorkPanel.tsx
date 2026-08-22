@@ -24,6 +24,7 @@ import {
 } from '@/lib/intake-signature-send';
 import { RelativeTime } from './RelativeTime';
 import { SendForSignatureDialog } from './SendForSignatureDialog';
+import type { SigningDirection } from '@/lib/signing-authorization';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { KindIcon } from '@/components/counsel/KindIcon';
 
@@ -72,7 +73,17 @@ export function IntakeWorkPanel({
    * one, and a panel that had to guess it would be a second place for the
    * firm scope to be wrong.
    */
-  signing?: { firmId: string } | null;
+  signing?: {
+    firmId: string;
+    /**
+     * Which way a signature on this ticket runs, read off the answer the
+     * person filing gave and passed in rather than decided here. Absent means
+     * outbound, which is what every ticket filed before the question existed
+     * is, and what a ticket that is not a signature question is treated as if
+     * somebody sends one of its documents anyway.
+     */
+    direction?: SigningDirection;
+  } | null;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -412,6 +423,7 @@ export function IntakeWorkPanel({
           firmId={signing.firmId}
           documentId={sendingDoc.id}
           documentName={sendingDoc.name}
+          direction={signing.direction ?? 'outbound'}
           onClose={() => setSendingDoc(null)}
         />
       )}

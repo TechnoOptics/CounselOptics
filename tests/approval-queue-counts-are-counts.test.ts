@@ -205,6 +205,8 @@ function row(over: Partial<ApprovalRow> & { id: string }): ApprovalRow {
     submittedAt: new Date(NOW - DAY).toISOString(),
     decidedAt: null,
     releaseError: null,
+    direction: 'outbound',
+    href: '/counsel/forms/approvals/sub-1',
     ...over,
   };
 }
@@ -316,7 +318,11 @@ describe('the queue reaches a stated figure only through the tally helpers', () 
     expect(queueComponent).toContain(
       'searchedViewTally(params.view, rows, params, counts, now)',
     );
-    expect(queueComponent).toContain('settledTally(rows, counts)');
+    // The facet is passed because the server's settled count is over the
+    // outbound table only, so once a reviewer narrows the direction that
+    // count is describing a different set. settledTally is still the only way
+    // this component reaches the figure, which is what this case is for.
+    expect(queueComponent).toContain('settledTally(rows, counts, params.dir)');
     expect(queueComponent).toContain('{active.total}');
     expect(queueComponent).toContain('{settled.total}');
   });
@@ -408,7 +414,7 @@ describe('a view states its count and admits when the list is a page of it', () 
     // The tally changes what is STATED, never what is shown: the rows on the
     // page are still the rows the server sent.
     const c = counts({ waiting: 431, settled: 2_412 });
-    const params = { view: 'waiting' as const, q: '', sort: 'oldest' as const };
+    const params = { view: 'waiting' as const, q: '', sort: 'oldest' as const, dir: 'all' as const };
     expect(selectQueue(loaded, params, NOW)).toHaveLength(CAP);
     expect(viewTally('waiting', loaded, c, NOW).total).toBe(431);
     expect(selectHistory(FIXTURE, params)).toHaveLength(

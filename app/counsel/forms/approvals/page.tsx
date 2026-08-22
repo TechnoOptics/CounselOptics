@@ -7,6 +7,7 @@ import {
   listRequestableColleagues,
 } from '@/lib/template-requests';
 import { parseApprovalQueueParams, toApprovalRow } from '@/lib/approval-queue';
+import { listInboundAuthorizationsAction } from '@/lib/signing-authorization-actions';
 import { PageHeader } from '@/components/counsel/ui';
 import { ApprovalsQueue } from '@/components/counsel/ApprovalsQueue';
 import { AskColleagueCard } from '@/components/counsel/AskColleagueCard';
@@ -68,8 +69,26 @@ export default async function CounselFormApprovalsPage({
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
 
-  const res = await listFirmTemplateSubmissionsAction(ctx.firm.id);
-  const rows = (res.submissions ?? []).map(toApprovalRow);
+  /**
+   * ONE QUEUE, TWO SOURCES.
+   *
+   * The outbound half is a template a colleague filled in for somebody
+   * outside, waiting to be released. The inbound half is a document somebody
+   * outside sent us, waiting to be authorised before anyone signs it. They
+   * come from two tables and they are one job: a person who may bind the firm
+   * deciding whether it is bound. So they are mapped onto one row shape here
+   * and the direction is a facet on the list, not a second screen.
+   *
+   * The inbound read returns an empty list until the owner applies
+   * 20260822_signing_request_direction.sql, which is correct rather than a
+   * degradation: no inbound request can exist before then either, because
+   * createSigningRequestAction aborts rather than create an ungated one.
+   */
+  const [res, inbound] = await Promise.all([
+    listFirmTemplateSubmissionsAction(ctx.firm.id),
+    listInboundAuthorizationsAction(ctx.firm.id),
+  ]);
+  const rows = [...(res.submissions ?? []).map(toApprovalRow), ...inbound.rows];
   const params = parseApprovalQueueParams(searchParams);
 
   /**
@@ -99,8 +118,9 @@ export default async function CounselFormApprovalsPage({
         title={<T>Document approvals</T>}
         subtitle={
           <T>
-            Forms a colleague filled in for someone outside the firm. Approving one
-            releases it to the recipient.
+            Everything waiting on a decision from the legal team: forms a
+            colleague filled in for someone outside the firm, and documents
+            someone outside sent us and asked us to sign.
           </T>
         }
       />

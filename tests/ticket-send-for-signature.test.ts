@@ -187,7 +187,14 @@ describe('this is the legal team surface only', () => {
   /** The counsel ticket turns it on, once, on the documents panel. */
   it('is enabled on the counsel ticket page', () => {
     const code = codeOf(COUNSEL_PAGE);
-    expect([...code.matchAll(/signing=\{\{\s*firmId:\s*ctx\.firm\.id\s*\}\}/g)]).toHaveLength(1);
+    // The prop now also carries the direction the person filing chose, so the
+    // match runs to the closing brace rather than requiring firmId to be the
+    // only key. Both halves this case was written for still hold: it appears
+    // exactly ONCE, and the firm id comes from the page's own context rather
+    // than from anything a caller supplied.
+    const enabled = [...code.matchAll(/signing=\{\{[\s\S]*?\}\}/g)];
+    expect(enabled).toHaveLength(1);
+    expect(enabled[0][0]).toMatch(/firmId:\s*ctx\.firm\.id/);
   });
 
   /**
