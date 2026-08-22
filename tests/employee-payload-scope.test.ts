@@ -79,6 +79,101 @@ function employeeSelect(): string {
   return src.slice(sel, close);
 }
 
+/**
+ * THE SECOND GUARDED QUERY.
+ *
+ * The employee's page now also reads `firm_signing_requests`, for documents
+ * the other party sent in and asked the firm to sign. The same reasoning
+ * applies to it as to the query above and for the same reason: it goes
+ * through the service-role client behind the same hand-written gate, so RLS
+ * is not in the path and the column list IS the boundary.
+ *
+ * `authorization_note` is the one that matters. It is the legal team's
+ * working reasoning on whether the firm should put its name on somebody
+ * else's document, written for colleagues who may bind the firm. The
+ * employee is owed the DECISION, which the page states in words, and is not
+ * owed the reasoning. `authorized_by` is the same kind of fact one step
+ * further: which named colleague made the call is an internal matter.
+ *
+ * This is a SEPARATE case rather than a widening of the one above. Widening
+ * the first guard to accept a second table is exactly how a guard stops
+ * describing anything.
+ */
+function employeeSigningSelect(): string {
+  const src = stripComments(read(PORTAL));
+  const at = src.indexOf("from('firm_signing_requests')");
+  expect(at, 'the employee page no longer reads firm_signing_requests').toBeGreaterThan(
+    -1,
+  );
+  const sel = src.indexOf('.select(', at);
+  expect(sel, 'the employee signing read has no .select()').toBeGreaterThan(-1);
+  const close = src.indexOf(')', sel);
+  return src.slice(sel, close);
+}
+
+/** Columns of firm_signing_requests that belong to the legal team alone. */
+const LEGAL_ONLY_SIGNING_COLUMNS = ['authorization_note', 'authorized_by'];
+
+describe('the employee is never handed the legal team reasoning on a signature', () => {
+  /**
+   * Mutation: add authorization_note to the select. This goes red.
+   *
+   * It is the mutation the whole case exists for. The page does not draw the
+   * note, and that is not the protection: a server component's props cross to
+   * the browser in the RSC payload, so a value this page holds is a value the
+   * employee was handed.
+   */
+  it.each(LEGAL_ONLY_SIGNING_COLUMNS)('does not select %s', (col) => {
+    expect(employeeSigningSelect()).not.toContain(col);
+  });
+
+  /**
+   * Mutation: change the select to '*'. This goes red, and it is how the
+   * leak would actually arrive, because a `select('*')` on this table is what
+   * lib/firm-storage.ts legitimately does.
+   */
+  it('names its columns instead of taking the whole row', () => {
+    const sel = employeeSigningSelect();
+    expect(sel).not.toContain('*');
+    expect(sel).toContain('authorization_status');
+  });
+
+  /**
+   * The row the employee reads must be one on THEIR ticket. The link runs
+   * intake -> firm_documents -> firm_signing_requests, and without the
+   * document filter this query would return every inbound request in the
+   * database, because the admin client is not scoped by anything else.
+   *
+   * Mutation: drop the `.in('document_id', ...)`. This goes red.
+   */
+  it('is scoped to documents on this ticket', () => {
+    const src = stripComments(read(PORTAL));
+    const at = src.indexOf("from('firm_signing_requests')");
+    const window = src.slice(at, at + 600);
+    expect(window).toMatch(/\.in\(\s*'document_id'/);
+    expect(src).toMatch(/from\('firm_documents'\)[\s\S]{0,200}?\.eq\('intake_id', intake\.id\)/);
+  });
+
+  /**
+   * The signer read is the third hop and carries the same risk one table
+   * over: firm_signatures.token is the durable signer credential, and
+   * lib/signature-write.ts already records that a select('*') on that table
+   * pulled it into memory on a request that had no business holding it.
+   *
+   * Mutation: widen that select to '*', or add `token` to it. This goes red.
+   */
+  it('never fetches a signer token onto the employee page', () => {
+    const src = stripComments(read(PORTAL));
+    const at = src.indexOf("from('firm_signatures')");
+    expect(at, 'the employee page no longer reads firm_signatures').toBeGreaterThan(-1);
+    const sel = src.indexOf('.select(', at);
+    const window = src.slice(sel, src.indexOf(')', sel));
+    expect(window).not.toContain('*');
+    expect(window).not.toContain('token');
+    expect(window).not.toContain('access_code');
+  });
+});
+
 describe('the employee is never handed a legal-only column', () => {
   /**
    * Mutation: change the select to '*'. This goes red. A star select is how

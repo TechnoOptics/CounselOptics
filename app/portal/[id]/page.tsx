@@ -17,6 +17,13 @@ import { PortalRequestHeader } from '@/components/portal/RequestHeader';
 import { PanelCard, MonoRef, relativeTime } from '@/components/counsel/patterns';
 import { refFor } from '@/lib/intake-notify';
 import { parseDueBy } from '@/lib/portal-due';
+import {
+  inboundEmployeeLabel,
+  inboundEmployeeMessage,
+  inboundEmployeeState,
+} from '@/lib/signing-authorization';
+import { thirdPartyPaperHeader } from '@/lib/document-provenance';
+import { InboundSignatureStatusPill } from '@/components/portal/InboundSignatureStatusPill';
 import { familyOfType } from '@/lib/portal-request-families';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
@@ -108,6 +115,98 @@ export default async function PortalRequestPage({
     .filter((m) => m.value.length > 0);
 
   const conv = await loadIntakeConversationAction(intake.id);
+
+  /**
+   * DOCUMENTS THE OTHER PARTY SENT IN AND ASKED US TO SIGN, AS THE COLLEAGUE
+   * WHO FILED THIS SEES THEM.
+   *
+   * THE BOUNDARY IS THIS SELECT LIST AND NOTHING ELSE. This page reads
+   * through the service-role client behind a hand-written gate, so RLS is not
+   * in the path: whatever these queries select, the employee's browser was
+   * handed, whether or not the page draws it. `authorization_note` is
+   * therefore absent from the column list rather than merely undrawn. It is
+   * the legal team's working reasoning on a document, written for colleagues
+   * who may bind the firm. The DECISION is the employee's to read, and this
+   * page tells them what it was; the reasoning behind it is not.
+   * tests/employee-payload-scope.test.ts holds this list.
+   *
+   * The read is three narrow queries rather than one join because the link
+   * runs intake -> firm_documents -> firm_signing_requests -> firm_signatures
+   * and PostgREST would need an embedding on every hop, each of which is a
+   * place a `*` could be introduced without anybody noticing.
+   *
+   * Every one of them returns nothing until the owner applies
+   * 20260822_signing_request_direction.sql, because `direction` does not
+   * exist yet. That is correct rather than a degradation: no inbound request
+   * can exist before then either.
+   */
+  const { data: intakeDocRows } = await admin
+    .from('firm_documents')
+    .select('id, name')
+    .eq('intake_id', intake.id);
+  const docNameById = new Map(
+    ((intakeDocRows ?? []) as Array<{ id: string; name: string | null }>).map(
+      (d) => [d.id, d.name ?? 'Document'] as const,
+    ),
+  );
+  const { data: inboundRows } = docNameById.size
+    ? await admin
+        .from('firm_signing_requests')
+        .select('id, document_id, authorization_status, created_at')
+        .in('document_id', [...docNameById.keys()])
+        .eq('direction', 'inbound')
+        .order('created_at', { ascending: false })
+    : { data: [] };
+  const inboundRequests = (inboundRows ?? []) as Array<{
+    id: string;
+    document_id: string;
+    authorization_status?: unknown;
+    created_at: string;
+  }>;
+  const { data: inboundSignerRows } = inboundRequests.length
+    ? await admin
+        .from('firm_signatures')
+        .select('signing_request_id, signer_name, signer_email, signed_at')
+        .in(
+          'signing_request_id',
+          inboundRequests.map((r) => r.id),
+        )
+    : { data: [] };
+  const signerByRequest = new Map<
+    string,
+    { name: string | null; email: string; signedAt: string | null }
+  >();
+  for (const sig of ((inboundSignerRows ?? []) as Array<{
+    signing_request_id: string;
+    signer_name: string | null;
+    signer_email: string;
+    signed_at: string | null;
+  }>)) {
+    if (!signerByRequest.has(sig.signing_request_id)) {
+      signerByRequest.set(sig.signing_request_id, {
+        name: sig.signer_name,
+        email: sig.signer_email,
+        signedAt: sig.signed_at,
+      });
+    }
+  }
+  const inboundSignatures = inboundRequests.map((r) => {
+    const signer = signerByRequest.get(r.id) ?? null;
+    const counterparty = signer?.name ?? signer?.email ?? null;
+    const state = inboundEmployeeState({
+      authorizationStatus: r.authorization_status,
+      signedAt: signer?.signedAt ?? null,
+    });
+    return {
+      id: r.id,
+      documentName: docNameById.get(r.document_id) ?? 'Document',
+      counterparty,
+      state,
+      label: inboundEmployeeLabel(state),
+      message: inboundEmployeeMessage(state, counterparty),
+      provenance: thirdPartyPaperHeader(counterparty),
+    };
+  });
 
   // The requester's own other tickets, for the rail. Scoped through
   // visibleIntakeIds, which is the same rule every Hub list uses: what you
@@ -223,6 +322,53 @@ export default async function PortalRequestPage({
                   If something here is not right, reply in the conversation and
                   your legal team can pick it back up.
                 </p>
+              </RecordSection>
+            )}
+
+            {/* THE OTHER PARTY'S DOCUMENT, AND WHERE IT HAS GOT TO.
+                Placed above "What you asked for" when it exists, because a
+                person who handed over a document somebody is waiting on them
+                to sign came back to this page to find out one thing. It is
+                absent entirely when there is no such document, rather than
+                rendering an empty section on every ticket.
+
+                Nothing here is the legal team's note. See the SELECT list
+                above: the note is not fetched at all, so it is not in this
+                page's payload to draw by accident. */}
+            {inboundSignatures.length > 0 && (
+              <RecordSection
+                id="portal-inbound-signatures"
+                title="Documents sent to us to sign"
+                count={inboundSignatures.length}
+              >
+                <ul className="space-y-4">
+                  {inboundSignatures.map((s) => (
+                    <li key={s.id} className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className="text-[14px] font-medium text-foreground"
+                          data-no-translate
+                        >
+                          {s.documentName}
+                        </span>
+                        <InboundSignatureStatusPill state={s.state} />
+                      </div>
+                      {/* Both of these carry the other party's name, so they
+                          are marked rather than wrapped: a <T> wrap sends the
+                          whole string to be translated and would put a real
+                          party's name into a translation request. */}
+                      <p className="text-[12px] text-muted" data-no-translate>
+                        {s.provenance}
+                      </p>
+                      <p
+                        className="max-w-[70ch] text-[13.5px] leading-relaxed text-foreground"
+                        data-no-translate
+                      >
+                        {s.message}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
               </RecordSection>
             )}
 
