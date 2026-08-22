@@ -1,3 +1,5 @@
+import type { CompositionVersion } from './composition';
+
 export type SubjectType =
   | 'person'
   | 'business'
@@ -106,7 +108,15 @@ export type Case = {
   subjectProfile?: SubjectProfile;
   jurisdiction: Jurisdiction;
   caseType: CaseType;
+  /** The person's own written account of what happened. `cases.description`. */
   description: string;
+  /**
+   * Superseded versions of `description`, oldest first. Empty until the
+   * account has been rewritten at least once, and empty on any deployment
+   * where supabase/migrations/20260822_case_description_history.sql has not
+   * been applied yet.
+   */
+  descriptionHistory?: CompositionVersion[];
   posture: Posture;
   status: CaseStatus;
   hearingAt?: string | null; // ISO timestamp

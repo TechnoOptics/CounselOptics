@@ -20,6 +20,11 @@ import type {
   SubjectType,
   Tier,
 } from './types';
+import {
+  appendCompositionVersion,
+  normalizeComposition,
+  parseCompositionHistory,
+} from './composition';
 import { createServerSupabase, getCurrentUser, isSupabaseConfigured } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { sendEmail, buildInviteEmailHtml, buildCounselWelcomeEmailHtml } from './email';
@@ -69,6 +74,9 @@ type CaseRow = {
   jurisdiction_city: string | null;
   case_type: string;
   description: string | null;
+  // Absent, not null, on a deployment where
+  // supabase/migrations/20260822_case_description_history.sql has not run.
+  description_history?: unknown;
   posture: Posture | null;
   status: CaseStatus;
   hearing_at: string | null;
@@ -153,6 +161,7 @@ function caseFromRow(r: CaseRow): Case {
     },
     caseType: r.case_type as CaseType,
     description: r.description ?? '',
+    descriptionHistory: parseCompositionHistory(r.description_history),
     posture: (r.posture as Posture) ?? 'claimant',
     status: r.status,
     hearingAt: r.hearing_at ?? null,
@@ -473,6 +482,108 @@ export async function updateCaseHearing(input: {
   c.hearingNotes = input.hearingNotes;
   c.updatedAt = new Date().toISOString();
   await writeLocalDB(db);
+}
+
+/**
+ * Raised when the description-history column is not on the database yet.
+ *
+ * Distinct from every other failure here because there is nothing the person
+ * did wrong and nothing they can correct: the migration
+ * supabase/migrations/20260822_case_description_history.sql has not been
+ * applied. The account is left exactly as it was.
+ */
+export const COMPOSITION_HISTORY_UNAVAILABLE =
+  'Rewriting your account is not switched on for this deployment yet, so nothing was changed. ' +
+  'Your existing account and every exhibit are untouched.';
+
+/** PostgREST codes for "that column does not exist" and "not in the schema cache". */
+function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === '42703' || error.code === 'PGRST204') return true;
+  return /description_history/.test(error.message ?? '');
+}
+
+/**
+ * Replace the person's written account of what happened, keeping the old text.
+ *
+ * `description` and `description_history` are written in ONE update statement.
+ * That is the whole design: the new text physically cannot land without the
+ * text it replaced landing with it, so no sequencing mistake here or in a
+ * future caller can lose the earlier account. This person's account of events
+ * is evidence, and the version closest in time to what happened is the one a
+ * later reader most needs.
+ *
+ * Clearing the account is the same operation with an empty string, so a person
+ * who deletes their words still keeps the words they deleted. Nothing here
+ * touches `cases` rows other than this one, and nothing here touches
+ * `exhibits`, `ai_reviews`, or `case_collaborators` at all: deleting the text
+ * does not delete the case or any evidence.
+ *
+ * Throws rather than returning a flag when nothing was written, matching
+ * updateCaseStatus and updateCaseHearing. `cases_update_own` is
+ * `auth.uid() = user_id` while `cases` SELECT is membership-wide, so a
+ * collaborator reading the same case is exactly the caller who updates zero
+ * rows here and must not be told the account changed.
+ */
+export async function updateCaseComposition(input: {
+  caseId: string;
+  text: string;
+}): Promise<{ previous: string; next: string; replacedAt: string }> {
+  const next = normalizeComposition(input.text);
+  const replacedAt = new Date().toISOString();
+
+  if (usingSupabase()) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Not signed in.');
+    const supabase = createServerSupabase();
+    const { data: current, error: readError } = await supabase
+      .from('cases')
+      .select('description, description_history')
+      .eq('id', input.caseId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!current) throw new Error(NOT_WRITTEN);
+
+    const previous = (current as { description: string | null }).description ?? '';
+    const history = parseCompositionHistory(
+      (current as { description_history?: unknown }).description_history,
+    );
+    const nextHistory = appendCompositionVersion(history, previous, next, replacedAt);
+
+    const { data: rows, error } = await supabase
+      .from('cases')
+      .update({
+        description: next,
+        description_history: nextHistory,
+        updated_at: replacedAt,
+      })
+      .eq('id', input.caseId)
+      .select('id');
+    if (error) {
+      if (isMissingColumnError(error)) {
+        console.error('[updateCaseComposition] description_history column missing', error);
+        throw new Error(COMPOSITION_HISTORY_UNAVAILABLE);
+      }
+      throw error;
+    }
+    if (!rows || rows.length === 0) throw new Error(NOT_WRITTEN);
+    return { previous: normalizeComposition(previous), next, replacedAt };
+  }
+
+  const db = await readLocalDB();
+  const c = db.cases.find((x) => x.id === input.caseId);
+  if (!c) throw new Error(NOT_WRITTEN);
+  const previous = c.description ?? '';
+  c.descriptionHistory = appendCompositionVersion(
+    parseCompositionHistory(c.descriptionHistory),
+    previous,
+    next,
+    replacedAt,
+  );
+  c.description = next;
+  c.updatedAt = replacedAt;
+  await writeLocalDB(db);
+  return { previous: normalizeComposition(previous), next, replacedAt };
 }
 
 export type CloseSurveyOutcome =
