@@ -13,6 +13,8 @@ import { storageUnavailable } from '@/lib/setup-status';
 import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus, type SubjectProfile, type SubjectType } from '@/lib/types';
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
+import { CompositionPanel } from './composition-panel';
+import { isRealReview, isReviewStale, lastCompositionEditAt } from '@/lib/composition';
 import { hasFeature, isFullAccessTrial } from '@/lib/tier';
 import { currentUserTrialGrant } from '@/lib/user-trials';
 import { getEffectiveTrialState, getCurrentSubscription } from '@/lib/storage';
@@ -86,6 +88,13 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
     currentUserTrialGrant().catch(() => undefined),
   ]);
 
+  // A stored review that is only the demo placeholder is not this case's
+  // analysis, so it does not count as having one: no tab tick, no "last
+  // reviewed" line, and nothing for the teaser or the hearing packet to pick
+  // up as work product. runReview in lib/ai.ts returns that placeholder
+  // whenever the deployment has no API key or a token balance has run out.
+  const realReview = isRealReview(review) ? review : null;
+
   // Freemium Advottic Review: anyone can GENERATE a review, but the full
   // breakdown belongs to Standard/Pro (or an active full-access trial). An
   // unentitled viewer gets a SERVER-REDACTED teaser - summary whole, one item
@@ -94,12 +103,25 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const reviewEntitled =
     (trialState ? isFullAccessTrial(trialState) : false) ||
     hasFeature(sub, 'aiReview', hqTrial);
-  const reviewTeaser = review && !reviewEntitled ? redactReviewForTeaser(review) : null;
+  const reviewTeaser =
+    realReview && !reviewEntitled ? redactReviewForTeaser(realReview) : null;
 
   // Profile of the current viewer for the presence chip avatar/initials.
   const myProfile = currentUser ? await getProfile().catch(() => null) : null;
 
   const isOwner = !usingSupabase() || Boolean(currentUser && c.ownerId === currentUser.id);
+
+  // The person's own account of what happened, and every version of it they
+  // have replaced. Empty on a deployment where
+  // supabase/migrations/20260822_case_description_history.sql has not run.
+  const compositionHistory = c.descriptionHistory ?? [];
+
+  // Set when the account was rewritten AFTER the review was written. The
+  // review is still shown, and still kept, but it is labelled as a read of an
+  // earlier version rather than of the case as it now stands.
+  const reviewStaleSince = isReviewStale(realReview, compositionHistory)
+    ? lastCompositionEditAt(compositionHistory)
+    : null;
   const myCollab = currentUser
     ? collaborators.find((cc) => cc.userId === currentUser.id)
     : null;
@@ -345,9 +367,9 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           />
           <Kpi
             label="Advottic Review"
-            value={review ? '✓' : '-'}
-            sub={review ? 'review on file' : 'not run'}
-            tone={review ? 'emerald' : 'neutral'}
+            value={realReview ? '✓' : '-'}
+            sub={realReview ? 'review on file' : 'not run'}
+            tone={realReview ? 'emerald' : 'neutral'}
           />
           <Kpi
             label="Sharing"
@@ -427,6 +449,26 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             badge: hearingBadge(c.hearingAt),
             content: (
               <div className="space-y-10">
+                {/*
+                  The account of what happened, first, because it is the thing
+                  the person themselves wrote and everything else on the page
+                  is read against it. The owner can rewrite it or clear it
+                  here; every version they replace is kept alongside it.
+                */}
+                <CaseSection
+                  id="case-composition"
+                  eyebrow="Your account"
+                  title="What happened, in your own words"
+                  subtitle="You wrote this when you opened the case. You can change it, or clear it, at any time. Earlier versions are kept."
+                >
+                  <CompositionPanel
+                    caseId={c.id}
+                    description={c.description}
+                    history={compositionHistory}
+                    isOwner={isOwner}
+                  />
+                </CaseSection>
+
                 <CaseSection
                   id="case-story"
                   eyebrow="Story"
@@ -464,7 +506,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                   <HearingPanel
                     caseRecord={c}
                     exhibits={exhibits}
-                    review={review}
+                    review={realReview}
                     isOwner={isOwner}
                     collaboratorCount={collaborators.length}
                   />
@@ -676,7 +718,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             // them ("did you check Advottic Review yet?").
             id: 'advottic-review',
             label: 'Advottic Review',
-            badge: review ? '✓' : undefined,
+            badge: realReview ? '✓' : undefined,
             content: (
               <div className="space-y-10">
                 <CaseSection
@@ -687,7 +729,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                 >
                   <ReviewPanel
                     caseId={c.id}
-                    review={reviewTeaser ? reviewTeaser.review : review}
+                    review={reviewTeaser ? reviewTeaser.review : realReview}
+                    staleSince={reviewStaleSince}
                     locked={Boolean(reviewTeaser)}
                     lockedCounts={reviewTeaser?.lockedCounts ?? null}
                   />

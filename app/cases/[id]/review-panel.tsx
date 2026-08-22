@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { runReviewAction } from '@/lib/actions';
+import { rerunCaseReviewAction } from '@/lib/actions';
+import { isRealReview } from '@/lib/composition';
 import type { AIReview } from '@/lib/types';
 import type { ReviewLockedCounts } from '@/lib/review-teaser';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { CallALawyerCallout } from '@/components/CallALawyerCallout';
-import { formatDateNumeric } from '@/lib/format';
+import { formatDateNumeric, formatDateTimeShort } from '@/lib/format';
 
 export function ReviewPanel({
   caseId,
@@ -16,9 +17,22 @@ export function ReviewPanel({
   showBella = true,
   locked = false,
   lockedCounts = null,
+  staleSince = null,
 }: {
   caseId: string;
   review: AIReview | null;
+  /**
+   * ISO timestamp of the most recent rewrite of the account of what happened,
+   * when that rewrite came AFTER this review was written. Null when the review
+   * still matches the text it read.
+   *
+   * This is the single most important prop on this component. A review shown as
+   * current, against an account that has since been rewritten, is a document
+   * that can reach a judge describing facts no longer being asserted. The page
+   * decides this with isReviewStale in lib/composition.ts; the panel's job is
+   * to make sure the reader cannot miss it.
+   */
+  staleSince?: string | null;
   /**
    * Freemium teaser mode: `review` is already SERVER-REDACTED (summary +
    * one item per section); `lockedCounts` says how much more each section
@@ -51,13 +65,19 @@ export function ReviewPanel({
   function trigger() {
     setError(null);
     startTransition(async () => {
-      try {
-        await runReviewAction(caseId);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Review failed.');
-      }
+      // The action returns its refusal instead of throwing it. A thrown
+      // message does not survive the Server Action boundary in a production
+      // build, so the person would read a React digest rather than the reason.
+      const r = await rerunCaseReviewAction(caseId);
+      if (!r.ok) setError(r.error ?? 'The review could not be run just now.');
     });
   }
+
+  // A placeholder review is not shown under the same heading as a real one.
+  // runReview in lib/ai.ts returns one when the deployment has no API key and
+  // again when a token balance has run out, and it reads exactly like an
+  // analysis of this case.
+  const realReview = isRealReview(review) ? review : null;
 
   return (
     <section className="space-y-5">
@@ -67,10 +87,10 @@ export function ReviewPanel({
             {isFirm ? 'Case Analysis' : 'Advottic Review'}
           </h2>
           <p className="text-sm text-ink-500 mt-0.5">
-            {review ? (
+            {realReview ? (
               <>
-                Last reviewed {formatRelative(review.createdAt)} ·{' '}
-                <span className="font-mono text-[11px] text-ink-400">{review.modelUsed}</span>
+                Last reviewed {formatRelative(realReview.createdAt)} ·{' '}
+                <span className="font-mono text-[11px] text-ink-400">{realReview.modelUsed}</span>
                 {' · '}
                 <span className="text-emerald-700 dark:text-emerald-400">No training</span>
               </>
@@ -83,9 +103,34 @@ export function ReviewPanel({
         </div>
         <button onClick={trigger} disabled={pending} className="btn-primary">
           {pending && <Spinner />}
-          {pending ? 'Reviewing…' : review ? 'Re-run review' : 'Run review'}
+          {pending ? 'Reviewing…' : realReview ? 'Re-run review' : 'Run review'}
         </button>
       </header>
+
+      {/*
+        A review written before the account was rewritten is marked here, at
+        the top of the panel, before any of its findings are readable. It is
+        not removed: an earlier review is still a real record of what was said
+        at the time, and deleting it would be its own kind of dishonesty. It is
+        simply never presented as current.
+      */}
+      {realReview && staleSince && (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-100"
+        >
+          <p className="font-semibold">
+            This review was written against an earlier version of your account
+          </p>
+          <p className="mt-1 leading-relaxed">
+            You rewrote what happened on {formatDateTimeShort(staleSince)}, after this review
+            was made. It still reflects the wording it read at the time, so treat it as a
+            record of that earlier version rather than as a current read of your case. Run the
+            review again when your exhibits are all uploaded and it will read what you have
+            now.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
@@ -93,7 +138,7 @@ export function ReviewPanel({
         </p>
       )}
 
-      {!review && !pending && (
+      {!realReview && !pending && (
         <div className="card-ai p-8 sm:p-10 text-center relative">
           <div
             aria-hidden
@@ -152,7 +197,7 @@ export function ReviewPanel({
         </div>
       )}
 
-      {review && locked && lockedCounts && lockedCounts.total > 0 && (
+      {realReview && locked && lockedCounts && lockedCounts.total > 0 && (
         <div className="rounded-xl border border-gold-500/40 bg-gradient-to-r from-gold-500/10 via-gold-400/5 to-gold-500/10 px-5 py-4">
           <div className="flex flex-wrap items-center gap-3">
             <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold-500/15 text-gold-600 ring-1 ring-gold-500/30">
@@ -182,7 +227,7 @@ export function ReviewPanel({
         </div>
       )}
 
-      {review && <ReviewCarousel review={review} lockedCounts={locked ? lockedCounts : null} />}
+      {realReview && <ReviewCarousel review={realReview} lockedCounts={locked ? lockedCounts : null} />}
 
       {/* Once the review is done, plant a quiet "this is a good
           moment to loop in counsel" callout. The review just gave
@@ -190,7 +235,7 @@ export function ReviewPanel({
           to remind them this is a preparation tool, and a real
           attorney is who acts on it. Firm variant SKIPS this: the
           firm is counsel, so nudging them to "find counsel" is wrong. */}
-      {review && !isFirm && (
+      {realReview && !isFirm && (
         <CallALawyerCallout
           reason={{
             title: 'A good time to bring in a licensed attorney',
@@ -201,7 +246,7 @@ export function ReviewPanel({
         />
       )}
 
-      {review && showBella && (
+      {realReview && showBella && (
         <BellaPrompt
           title={isFirm ? 'Work the analysis with Advottic' : 'Talk to Bella about this review'}
           subtitle={
