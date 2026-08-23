@@ -45,9 +45,16 @@ import {
 } from './ai';
 import {
   classifyExhibitForReading,
+  exhibitIsTranscribable,
+  exhibitIsVideoRecording,
   extractedTextReadNote,
   unsupportedScanMessage,
 } from './exhibit-reading';
+import {
+  buildManualTranscriptScan,
+  checkManualTranscript,
+  isManualTranscript,
+} from './manual-transcript';
 import { extractExhibitText } from './exhibit-text';
 import { AI_UNAVAILABLE_MESSAGE, calmAiMessage } from './ai-errors';
 import { displayableDigest } from './firm-access';
@@ -1114,6 +1121,22 @@ export async function transcribeExhibitAction(
   if (mediaRoute.kind !== 'transcribe') {
     return { ok: false, error: 'Only audio or video files can be transcribed.' };
   }
+  // A transcript the person typed themselves is not overwritten by this path.
+  //
+  // saveExhibitScan replaces scan_data outright and nothing keeps the previous
+  // value, so one press of Re-transcribe on an exhibit somebody spent an
+  // evening transcribing would destroy that text with no way back. It is worse
+  // than it sounds while automatic transcription is gated off: transcribeMedia
+  // returns a placeholder marked unsupported in that case, so the trade is a
+  // person's whole transcript for a sentence saying the feature is
+  // unavailable. Their own text wins, and they are told why.
+  if (isManualTranscript(exhibit.scanData)) {
+    return {
+      ok: false,
+      error:
+        'This exhibit already has a transcript that was typed in by hand, and transcribing it again would replace that text. Edit the transcript instead. Nothing was changed.',
+    };
+  }
   const buf = await getExhibitFileBuffer(exhibit);
   if (!buf) return { ok: false, error: 'Could not read the underlying file.' };
   let scan;
@@ -1268,6 +1291,99 @@ export async function setExhibitWithdrawnAction(
     caseId: owned.exhibit.caseId,
     eventType: withdrawn ? 'exhibit_withdrawn' : 'exhibit_restored',
     metadata: { label: owned.exhibit.label },
+  });
+
+  revalidatePath(`/cases/${owned.exhibit.caseId}`);
+  return { ok: true };
+}
+
+/**
+ * Store a transcript the CASE OWNER typed or pasted in themselves.
+ *
+ * WHY THIS EXISTS RATHER THAN AUTOMATIC TRANSCRIPTION. Sending the recording
+ * to a transcription service is gated off and staying off, because it would
+ * put the whole of a client's evidence in front of a third party Advottic
+ * holds no DPA and no BAA with (lib/subprocessor-gate.ts). Nothing here reads
+ * that gate, touches it, or sends a single byte anywhere: the person
+ * transcribes the recording on their own machine and this is where the text
+ * lands so that the review, the packet and the exhibit row can use it.
+ *
+ * IT IS STORED AS SCAN DATA, NOT AS THE DESCRIPTION. The description is capped
+ * at MAX_EXHIBIT_DESCRIPTION (2,000 characters) and a five minute recording is
+ * already twice that. exhibits.scan_data is jsonb and is where the automatic
+ * path put its transcript, so every consumer that already reads a transcript
+ * reads this one too.
+ *
+ * AND IT IS MARKED AS A PERSON'S. lib/manual-transcript.ts sets modelUsed,
+ * readMethod and the lead sentence of the summary so that no surface can show
+ * one person's reading of a recording as a tool's output. That is the point of
+ * the feature, not a detail of it.
+ *
+ * PUBLIC HTTP ENDPOINT, like every server action. Authorization is here, not
+ * on the page: loadOwnedExhibit resolves the exhibit, resolves the case it
+ * belongs to, and confirms the caller owns that case, exactly as the edit and
+ * withdraw actions above do. Passing somebody else's exhibit id gets the
+ * refusal and no write.
+ *
+ * Returns its refusals rather than throwing them, for the reason
+ * rescanExhibitAction gives: React strips an error's message crossing the
+ * Server Action boundary in a production build and the person reads a digest.
+ */
+export async function saveManualTranscriptAction(
+  exhibitId: string,
+  transcript: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const owned = await loadOwnedExhibit(exhibitId);
+  if (!owned.ok) return { ok: false, error: owned.error };
+
+  // The same question the automatic Transcribe path asks, answered by the same
+  // module rather than by a second copy of the rule. A box to paste a
+  // transcript into does not belong on a PDF or a photograph: there is nothing
+  // there that was said.
+  if (!exhibitIsTranscribable(owned.exhibit)) {
+    return {
+      ok: false,
+      error:
+        'A transcript can only be added to an audio or video exhibit. Nothing was changed.',
+    };
+  }
+
+  // Refuses an empty box and refuses anything past the cap. It never truncates
+  // and never rewrites the text. See lib/manual-transcript.ts for why an empty
+  // box is a refusal and not a delete.
+  const checked = checkManualTranscript(transcript);
+  if (!checked.ok) return { ok: false, error: checked.error };
+
+  const scan = buildManualTranscriptScan({
+    text: checked.text,
+    isVideo: exhibitIsVideoRecording(owned.exhibit),
+    now: new Date().toISOString(),
+  });
+
+  try {
+    await saveExhibitScan(exhibitId, scan);
+  } catch (err) {
+    // saveExhibitScan confirms its own write and throws when no row was
+    // touched. Reporting success on a transcript that did not land would send
+    // somebody into a hearing believing the text is on the case.
+    console.error('[saveManualTranscriptAction] failed', err);
+    return {
+      ok: false,
+      error: 'That transcript could not be saved. Nothing was changed. Please try again.',
+    };
+  }
+
+  // Best-effort, and only after the confirmed write above.
+  //
+  // Reuses `exhibit_details_updated` deliberately. audit_events.event_type is
+  // a CLOSED check constraint, so a truer event name would need a migration,
+  // and this change is meant to need none. The sentence that type renders,
+  // "Changed the details on Exhibit K. The file and the label are unchanged",
+  // is true of a transcript save.
+  await logCaseEvent({
+    caseId: owned.exhibit.caseId,
+    eventType: 'exhibit_details_updated',
+    metadata: { label: owned.exhibit.label, change: 'transcript' },
   });
 
   revalidatePath(`/cases/${owned.exhibit.caseId}`);
