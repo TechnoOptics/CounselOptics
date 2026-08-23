@@ -203,6 +203,41 @@ export function exhibitIsScannable(exhibit: {
 }
 
 /**
+ * True when this exhibit is a recording, so a transcript belongs on it.
+ *
+ * The sibling of `exhibitIsScannable`, and it exists for the same reason: the
+ * question "is this audio or video" was already being answered a second time,
+ * by hand, in the exhibit row, and that copy tested the declared content type
+ * alone. A voice memo uploaded as application/octet-stream, which is what
+ * several phones send, therefore got no Transcribe button on a row whose
+ * server action would have accepted it perfectly well.
+ *
+ * Both the automatic Transcribe button and the manual "type the transcript in
+ * yourself" control ask this, so neither can be offered on a PDF, a
+ * photograph, a spreadsheet or a Word document. Offering somewhere to paste a
+ * transcript of a parking ticket would be nonsense, and worse, it would let
+ * free text be attached to a document exhibit under a heading that says it is
+ * a record of what was said.
+ */
+export function exhibitIsTranscribable(exhibit: {
+  fileName?: string | null;
+  fileType?: string | null;
+}): boolean {
+  return classifyExhibitForReading(exhibit).kind === 'transcribe';
+}
+
+/** True when the recording is video rather than audio, for the doc type a
+ *  transcript is stored under. Asked of the same classification, so a file
+ *  cannot be video here and audio three lines later. */
+export function exhibitIsVideoRecording(exhibit: {
+  fileName?: string | null;
+  fileType?: string | null;
+}): boolean {
+  const route = classifyExhibitForReading(exhibit);
+  return route.kind === 'transcribe' && route.mediaType.startsWith('video/');
+}
+
+/**
  * The sentence stored on a scan that was read from extracted text.
  *
  * Requirement, not decoration: a summary produced from a spreadsheet's cell

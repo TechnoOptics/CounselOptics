@@ -169,10 +169,16 @@ export type ScanData = {
    * How the content was obtained. 'vision' means the model looked at the page.
    * 'extracted-text' means the file's text was pulled out first and the model
    * read that instead, which is the only way a spreadsheet or a Word document
-   * can be read. Absent on every scan stored before text extraction existed,
-   * all of which were vision scans.
+   * can be read. 'typed-by-person' means no software read anything: the case
+   * owner transcribed the recording themselves and typed the text in, which is
+   * the only way an audio or video exhibit gets a transcript on a deployment
+   * where automatic transcription is switched off. Absent on every scan stored
+   * before text extraction existed, all of which were vision scans.
+   *
+   * The three are not interchangeable and must never be shown as if they were.
+   * See lib/manual-transcript.ts.
    */
-  readMethod?: 'vision' | 'extracted-text';
+  readMethod?: 'vision' | 'extracted-text' | 'typed-by-person';
   /**
    * One or two plain sentences for the person about how this was read and,
    * when the file ran past the reading budget, exactly what was left out.
