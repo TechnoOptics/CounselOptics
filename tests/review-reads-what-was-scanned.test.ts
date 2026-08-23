@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeExhibitsForPrompt } from '../lib/ai';
 import { isRealScan, type Exhibit, type ScanData } from '../lib/types';
+import { buildManualTranscriptScan } from '../lib/manual-transcript';
 
 /**
  * What Advottic Review is actually given to reason about.
@@ -159,5 +160,56 @@ describe('the rule for whether a scan really read the file', () => {
   it('rejects the absence of a scan', () => {
     expect(isRealScan(null)).toBe(false);
     expect(isRealScan(undefined)).toBe(false);
+  });
+});
+
+/**
+ * A transcript the case owner typed reaches the review, and reaches it labelled.
+ *
+ * Both halves matter and they pull in opposite directions. The text has to get
+ * through, or the person typed it for nothing. And it has to arrive saying a
+ * person supplied it, or the model reasons about one person's own reading of a
+ * recording as though it were an independent record of what was said and the
+ * review it writes carries that mistake into a hearing.
+ */
+describe('a transcript the case owner typed in', () => {
+  const typed = buildManualTranscriptScan({
+    text: 'SPEAKER 1: I never signed that. SPEAKER 2: You did, twice.',
+    isVideo: false,
+    now: '2026-08-22T10:00:00.000Z',
+  });
+
+  it('reaches the model at all', () => {
+    const text = describeExhibitsForPrompt([
+      exhibit({ fileName: 'kitchen.m4a', fileType: 'audio/mp4', scanData: typed }),
+    ]);
+    expect(text).toContain('I never signed that');
+    expect(text).toContain('You did, twice');
+  });
+
+  it('tells the model a person supplied it', () => {
+    const text = describeExhibitsForPrompt([
+      exhibit({ fileName: 'kitchen.m4a', fileType: 'audio/mp4', scanData: typed }),
+    ]);
+    expect(text).toMatch(/How it was read:/);
+    expect(text).toMatch(/typed or pasted in by the case owner/i);
+    expect(text).toMatch(/rather than produced by transcription software/i);
+  });
+
+  it('says so in the summary line too, before any of the words', () => {
+    // The summary is printed under "Scanned:", which on its own would read as
+    // the software's reading of the file.
+    const text = describeExhibitsForPrompt([
+      exhibit({ fileName: 'kitchen.m4a', fileType: 'audio/mp4', scanData: typed }),
+    ]);
+    const line = text.split('\n').find((l) => l.includes('Scanned:')) ?? '';
+    expect(line).toMatch(/typed in by the case owner/i);
+    expect(line.indexOf('typed in by the case owner')).toBeLessThan(
+      line.indexOf('I never signed that'),
+    );
+  });
+
+  it('is not mistaken for a placeholder and dropped', () => {
+    expect(isRealScan(typed)).toBe(true);
   });
 });
