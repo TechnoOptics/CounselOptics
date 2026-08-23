@@ -9,6 +9,11 @@ import type {
   Profile,
 } from './types';
 import { isRealScan } from './types';
+import {
+  packetTranscriptBody,
+  transcriptOriginHeading,
+  transcriptOriginNote,
+} from './manual-transcript';
 import { isRealReview } from './packet-readiness';
 import { resolveExhibitDate } from './exhibit-chronology';
 import type { CommunityExportData } from './community-types';
@@ -656,6 +661,72 @@ function drawExhibit(
   } else {
     drawAttachmentPlaceholder(doc, e);
   }
+
+  drawTranscript(doc, e);
+}
+
+/**
+ * Print an audio or video exhibit's transcript, saying where the words came
+ * from.
+ *
+ * A packet is what a person carries into a hearing, and until now it named a
+ * recording and printed nothing of what was said. The words were on the case,
+ * in scan_data, and the one document that a judge and opposing counsel
+ * actually read left them out.
+ *
+ * THE HEADING IS THE POINT, not the text under it. A transcript the case owner
+ * typed and a transcript transcription software produced are different kinds
+ * of claim, and the reader of a packet cannot ask the software which they are
+ * holding. Both sentences come from lib/manual-transcript.ts, shared with the
+ * exhibit row, so neither surface can stop saying it on its own.
+ *
+ * `isRealScan` gates it for the same reason every other consumer of scan_data
+ * uses that rule: a demo or unsupported scan is placeholder text about a file
+ * nothing read, and its "transcript" is an empty string or a sentence about
+ * the feature being unavailable. Neither belongs in a legal file.
+ */
+function drawTranscript(doc: Doc, e: Exhibit) {
+  const scan = e.scanData;
+  if (!isRealScan(scan) || !scan?.transcript?.trim()) return;
+
+  const { text, truncationNote } = packetTranscriptBody(scan.transcript);
+
+  doc.addPage();
+  resetToContentTop(doc);
+  section(doc, transcriptOriginHeading(scan));
+
+  doc
+    .font('Helvetica-Oblique')
+    .fontSize(9.5)
+    .fillColor(COLOR.muted)
+    .text(transcriptOriginNote(scan), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  gap(doc, 4);
+  doc
+    .font('Helvetica')
+    .fontSize(9.5)
+    .fillColor(COLOR.faint)
+    .text(`${e.label} - ${e.fileName}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+
+  if (truncationNote) {
+    gap(doc, 4);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9.5)
+      .fillColor(COLOR.amber)
+      .text(truncationNote, MARGIN, doc.y, { width: CONTENT_WIDTH });
+  }
+
+  gap(doc, 12);
+
+  // Monospaced and unreflowed. Speaker labels sit at the head of a line and
+  // timestamps sit in their own column; a proportional font printed as running
+  // prose would lose the alignment that makes a transcript readable, and
+  // pdfkit's own line breaking is the only wrapping applied.
+  doc
+    .font('Courier')
+    .fontSize(9)
+    .fillColor(COLOR.ink)
+    .text(text, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 1.5 });
 }
 
 /**

@@ -246,3 +246,35 @@ export function transcriptOriginNote(
     ? 'This transcript was typed in by the case owner from the recording. It was not produced by transcription software and has not been certified by a transcriptionist.'
     : 'This transcript was produced automatically from the recording by transcription software. It has not been certified by a transcriptionist.';
 }
+
+/**
+ * How much of a transcript the packet prints on the exhibit's page.
+ *
+ * 20,000 characters, near ten printed pages. The stored cap is twenty-five
+ * times that, and a packet is a document somebody carries into a room: a
+ * single recording turning into a hundred and fifty pages would bury every
+ * other exhibit in it.
+ */
+export const PACKET_TRANSCRIPT_PRINT_CHARS = 20_000;
+
+/**
+ * What the packet prints, and what it must SAY when that is not all of it.
+ *
+ * The cut is announced, never silent, and the announcement gives the real
+ * length so the reader can tell how much is missing. This follows the rule the
+ * PDF builder already applies to a long document exhibit, for the same reason:
+ * part of a record presented as the whole of it is worse than a record that
+ * says plainly what is not here.
+ */
+export function packetTranscriptBody(transcript: string): {
+  text: string;
+  truncationNote: string | null;
+} {
+  if (transcript.length <= PACKET_TRANSCRIPT_PRINT_CHARS) {
+    return { text: transcript, truncationNote: null };
+  }
+  return {
+    text: transcript.slice(0, PACKET_TRANSCRIPT_PRINT_CHARS),
+    truncationNote: `This transcript runs to ${transcript.length.toLocaleString('en-US')} characters. The first ${PACKET_TRANSCRIPT_PRINT_CHARS.toLocaleString('en-US')} are printed here; the rest is on the exhibit in the case file and has not been cut from it.`,
+  };
+}
