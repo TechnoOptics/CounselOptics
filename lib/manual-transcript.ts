@@ -195,13 +195,6 @@ export function isManualTranscript(
   return scan.modelUsed === MANUAL_TRANSCRIPT_MODEL || scan.readMethod === 'typed-by-person';
 }
 
-/**
- * What the exhibit row prints where it otherwise prints the model name.
- *
- * "Scanned 08/22/2026 . human-transcript" would be two untruths in one line:
- * nothing scanned anything, and `human-transcript` reads like a model id. The
- * row asks this instead.
- */
 export function scanProvenanceLabel(
   scan: { modelUsed?: string; readMethod?: string } | null | undefined,
 ): 'typed-by-person' | 'machine' {
@@ -209,14 +202,35 @@ export function scanProvenanceLabel(
 }
 
 /**
- * The heading a transcript is printed under in the court packet.
+ * The line the exhibit row prints where it otherwise prints the model name.
  *
- * The packet is read by a judge, by opposing counsel and by the case owner's
- * own lawyer, none of whom can ask the software where the words came from. The
- * heading is the only place they will be told, so it says it plainly rather
- * than in a footnote.
+ * "Scanned 08/22/2026 . human-transcript" would be two untruths in one line:
+ * nothing scanned anything, and `human-transcript` reads like a model id. The
+ * whole line is built here rather than assembled in the row, so the rule that
+ * a typed transcript never gets the word "Scanned" and never gets a model name
+ * beside it is one testable function instead of a condition in JSX that no
+ * test without a DOM can reach.
  */
-export function packetTranscriptHeading(
+export function scanProvenanceLine(
+  scan: { modelUsed?: string; readMethod?: string; isDemo?: boolean } | null | undefined,
+  formattedWhen: string,
+): string {
+  if (isManualTranscript(scan)) return `Typed in by hand ${formattedWhen}`;
+  const model = scan?.modelUsed ?? 'unknown';
+  return `Scanned ${formattedWhen} · ${model}${scan?.isDemo ? ' · demo' : ''}`;
+}
+
+/**
+ * The heading a transcript is printed under, on the exhibit row and in the
+ * court packet alike.
+ *
+ * ONE sentence for both surfaces on purpose. The packet is read by a judge, by
+ * opposing counsel and by the case owner's own lawyer, none of whom can ask
+ * the software where the words came from, and the heading is the only place
+ * they will be told. Two copies of that sentence would be two chances for one
+ * of them to stop saying it.
+ */
+export function transcriptOriginHeading(
   scan: { modelUsed?: string; readMethod?: string } | null | undefined,
 ): string {
   return isManualTranscript(scan)
@@ -224,8 +238,8 @@ export function packetTranscriptHeading(
     : 'Transcript, produced by transcription software';
 }
 
-/** The sentence printed under that heading in the packet. */
-export function packetTranscriptNote(
+/** The sentence printed under that heading. */
+export function transcriptOriginNote(
   scan: { modelUsed?: string; readMethod?: string } | null | undefined,
 ): string {
   return isManualTranscript(scan)

@@ -19,9 +19,10 @@ import {
   buildManualTranscriptScan,
   checkManualTranscript,
   isManualTranscript,
-  packetTranscriptHeading,
-  packetTranscriptNote,
   scanProvenanceLabel,
+  scanProvenanceLine,
+  transcriptOriginHeading,
+  transcriptOriginNote,
 } from '../lib/manual-transcript';
 import { isRealScan } from '../lib/types';
 import {
@@ -85,11 +86,39 @@ describe('the stored record says a person supplied the text', () => {
     const machine = { modelUsed: 'whisper-1' };
     expect(scanProvenanceLabel(human)).toBe('typed-by-person');
     expect(scanProvenanceLabel(machine)).toBe('machine');
-    expect(packetTranscriptHeading(human)).not.toBe(packetTranscriptHeading(machine));
-    expect(packetTranscriptHeading(human)).toMatch(/typed in by the case owner/i);
-    expect(packetTranscriptHeading(machine)).toMatch(/transcription software/i);
-    expect(packetTranscriptNote(human)).toMatch(/not.*produced by transcription software/i);
-    expect(packetTranscriptNote(machine)).toMatch(/produced automatically/i);
+    expect(transcriptOriginHeading(human)).not.toBe(transcriptOriginHeading(machine));
+    expect(transcriptOriginHeading(human)).toMatch(/typed in by the case owner/i);
+    expect(transcriptOriginHeading(machine)).toMatch(/transcription software/i);
+    expect(transcriptOriginNote(human)).toMatch(/not.*produced by transcription software/i);
+    expect(transcriptOriginNote(machine)).toMatch(/produced automatically/i);
+  });
+
+  it('never prints the word Scanned, or a model name, over a person s typing', () => {
+    // This is the exact line the exhibit row shows under the transcript.
+    // "Scanned 08/22/2026 . human-transcript" would say two untrue things at
+    // once: that something scanned the file, and that a model produced this.
+    const line = scanProvenanceLine(scanOf('a'), '08/22/2026, 10:00 AM');
+    expect(line).toMatch(/^Typed in by hand /);
+    expect(line).not.toMatch(/scanned/i);
+    expect(line).not.toContain(MANUAL_TRANSCRIPT_MODEL);
+    expect(line).not.toMatch(/whisper|claude|gpt|model/i);
+  });
+
+  it('still prints the model for a transcript the software produced', () => {
+    const line = scanProvenanceLine(
+      { modelUsed: 'whisper-1' },
+      '08/22/2026, 10:00 AM',
+    );
+    expect(line).toMatch(/^Scanned /);
+    expect(line).toContain('whisper-1');
+  });
+
+  it('still says demo on a placeholder scan', () => {
+    const line = scanProvenanceLine(
+      { modelUsed: 'demo', isDemo: true },
+      '08/22/2026, 10:00 AM',
+    );
+    expect(line).toMatch(/demo/);
   });
 });
 

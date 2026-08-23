@@ -1,10 +1,20 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { rescanExhibitAction, transcribeExhibitAction } from '@/lib/actions';
+import {
+  rescanExhibitAction,
+  saveManualTranscriptAction,
+  transcribeExhibitAction,
+} from '@/lib/actions';
 import type { Exhibit, ScanData } from '@/lib/types';
 import { formatDateTimeNumeric } from '@/lib/format';
-import { exhibitIsScannable } from '@/lib/exhibit-reading';
+import { exhibitIsScannable, exhibitIsTranscribable } from '@/lib/exhibit-reading';
+import {
+  MAX_MANUAL_TRANSCRIPT_CHARS,
+  isManualTranscript,
+  scanProvenanceLine,
+  transcriptOriginHeading,
+} from '@/lib/manual-transcript';
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   parking_ticket: 'Parking ticket',
@@ -26,14 +36,22 @@ const DOC_TYPE_LABEL: Record<string, string> = {
 export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const ct = (exhibit.fileType || '').toLowerCase();
-  const isMedia = ct.startsWith('audio/') || ct.startsWith('video/');
   // Asked of lib/exhibit-reading.ts, not answered again here. This row once
   // carried its own copy of the rule, and when spreadsheets became readable
   // that copy would have gone on saying "No auto-scan for this file type" for
   // an expense sheet the server could read perfectly well.
+  //
+  // `isMedia` was the last surviving copy: it tested the declared content type
+  // alone, so a voice memo uploaded as application/octet-stream, which is what
+  // several phones send, got no controls on a row whose server action would
+  // have accepted it. It now asks the same classification everything else
+  // does, which is also what stops the transcript box appearing on a PDF.
+  const isMedia = exhibitIsTranscribable(exhibit);
   const isScannable = exhibitIsScannable(exhibit);
   const scan = exhibit.scanData;
+  // True when the text on this exhibit is a person's typing rather than a
+  // tool's output. Everything this row says about the transcript turns on it.
+  const typedByPerson = isManualTranscript(scan);
 
   // The actions RETURN their refusal. A thrown message is replaced by React
   // with "An error occurred in the Server Components render..." in a
@@ -66,15 +84,18 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
     return (
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         {isMedia ? (
-          <button
-            type="button"
-            onClick={transcribe}
-            disabled={pending}
-            className="inline-flex items-center gap-1.5 rounded-md border border-forest-200 bg-white text-forest-900 px-2.5 py-1 hover:bg-cream-50 hover:border-gold-500"
-          >
-            {pending ? <Spinner /> : <WaveIcon />}
-            {pending ? 'Transcribing...' : 'Transcribe'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={transcribe}
+              disabled={pending}
+              className="inline-flex items-center gap-1.5 rounded-md border border-forest-200 bg-white text-forest-900 px-2.5 py-1 hover:bg-cream-50 hover:border-gold-500"
+            >
+              {pending ? <Spinner /> : <WaveIcon />}
+              {pending ? 'Transcribing...' : 'Transcribe'}
+            </button>
+            <TranscriptEditor exhibitId={exhibit.id} initial="" />
+          </>
         ) : isScannable ? (
           <button
             type="button"
@@ -98,8 +119,16 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
   }
 
   // We do have scan data - show summary + identifiers + collapsible detail.
-  const docLabel = DOC_TYPE_LABEL[scan.docType] ?? prettyDocType(scan.docType);
-  const accent = accentForDocType(scan.docType);
+  //
+  // The chip is the first thing on the row, and for a typed transcript it must
+  // not be the same chip an AI read gets. "Voice note" beside a spark reads as
+  // something the software worked out; this text is one person's typing.
+  const docLabel = typedByPerson
+    ? 'Typed transcript'
+    : (DOC_TYPE_LABEL[scan.docType] ?? prettyDocType(scan.docType));
+  const accent = typedByPerson
+    ? 'bg-white border border-ink-300 text-ink-700'
+    : accentForDocType(scan.docType);
 
   return (
     <details className="group mt-3 rounded-lg border border-ink-200 bg-cream-50/40 open:bg-cream-50">
@@ -107,7 +136,7 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide ${accent}`}
         >
-          <SparkIcon />
+          {typedByPerson ? <PenIcon /> : <SparkIcon />}
           {docLabel}
         </span>
         <span className="flex-1 text-xs text-ink-700 leading-relaxed line-clamp-2">
@@ -129,11 +158,15 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
         )}
 
         {scan.transcript && (
-          <Section title="Transcript">
+          <Section title={transcriptOriginHeading(scan)}>
             <p className="whitespace-pre-wrap leading-relaxed text-ink-800 max-h-56 overflow-y-auto bg-white border border-ink-200 rounded-md p-2.5">
               {scan.transcript}
             </p>
           </Section>
+        )}
+
+        {isMedia && (
+          <TranscriptEditor exhibitId={exhibit.id} initial={scan.transcript ?? ''} />
         )}
 
         {scan.identifiers && Object.keys(scan.identifiers).length > 0 && (
@@ -216,12 +249,20 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-ink-200/60">
+          {/* The provenance line, and it must not overstate what happened.
+              "Scanned ... human-transcript" would be two untruths at once:
+              nothing scanned anything, and the marker reads like a model id.
+              The whole line is built in lib/manual-transcript.ts so that the
+              rule is exercised by a test rather than living in JSX that a
+              suite with no DOM cannot reach. */}
           <p className="text-[10.5px] text-ink-400 font-mono">
-            Scanned {formatDateTimeNumeric(scan.scannedAt)} · {scan.modelUsed}
-            {scan.isDemo && ' · demo'}
+            {scanProvenanceLine(scan, formatDateTimeNumeric(scan.scannedAt))}
           </p>
           <div className="flex gap-2">
-            {isMedia && (
+            {/* Re-transcribe is not offered over a transcript somebody typed.
+                The action refuses it too, which is the check that counts; this
+                keeps the row from offering a button that only ever refuses. */}
+            {isMedia && !typedByPerson && (
               <button
                 type="button"
                 onClick={transcribe}
@@ -252,6 +293,133 @@ export function ExhibitScan({ exhibit }: { exhibit: Exhibit }) {
         )}
       </div>
     </details>
+  );
+}
+
+/**
+ * Type or paste in a transcript, and edit it again later.
+ *
+ * EDITING IS THE NORMAL CASE, not an afterthought. Somebody correcting a
+ * mis-heard name the night before a hearing is exactly who this is for, so the
+ * box opens holding whatever is already stored rather than empty.
+ *
+ * The textarea is deliberately plain. No auto-capitalisation, no spellcheck
+ * rewriting, nothing that reflows: speaker labels, timestamps and blank lines
+ * carry meaning, and the server stores the string byte for byte.
+ *
+ * The length is checked here only so the person sees the count while they
+ * type. The refusal that matters is the server's, in
+ * saveManualTranscriptAction, because this component decides nothing about
+ * what may be written.
+ */
+function TranscriptEditor({ exhibitId, initial }: { exhibitId: string; initial: string }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(initial);
+  const [saving, startSaving] = useTransition();
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const overLimit = text.length > MAX_MANUAL_TRANSCRIPT_CHARS;
+  const empty = text.trim().length === 0;
+
+  function save() {
+    setProblem(null);
+    setSaved(false);
+    startSaving(async () => {
+      try {
+        const res = await saveManualTranscriptAction(exhibitId, text);
+        if (!res?.ok) setProblem(res?.error || 'That transcript could not be saved.');
+        else setSaved(true);
+      } catch {
+        setProblem('That transcript could not be saved. Check your connection and try again.');
+      }
+    });
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-ink-300 bg-white text-ink-800 px-2.5 py-1 hover:bg-cream-50 hover:border-gold-500"
+      >
+        <PenIcon />
+        {initial ? 'Edit transcript' : 'Add transcript'}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 w-full rounded-md border border-ink-200 bg-white p-3 space-y-2">
+      <p className="text-[11px] text-ink-600 leading-relaxed">
+        Transcribe the recording yourself and paste the text here. It is stored
+        exactly as you type it, including speaker labels, timestamps and blank
+        lines, and it is recorded as your own transcript rather than as
+        something the software produced.
+      </p>
+      <label className="sr-only" htmlFor={`transcript-${exhibitId}`}>
+        Transcript
+      </label>
+      <textarea
+        id={`transcript-${exhibitId}`}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setSaved(false);
+        }}
+        rows={10}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        placeholder={'[00:00:04] Speaker 1: ...\n\n[00:00:11] Speaker 2: ...'}
+        className="w-full rounded-md border border-ink-200 p-2 font-mono text-[11.5px] leading-relaxed text-ink-900 focus:border-gold-500 focus:outline-none"
+      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className={`text-[10.5px] font-mono ${overLimit ? 'text-rose-700' : 'text-ink-400'}`}>
+          {text.length.toLocaleString('en-US')} /{' '}
+          {MAX_MANUAL_TRANSCRIPT_CHARS.toLocaleString('en-US')} characters
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setText(initial);
+              setProblem(null);
+              setSaved(false);
+            }}
+            className="rounded-md border border-ink-200 bg-white text-ink-700 px-2.5 py-1 hover:bg-cream-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || empty || overLimit}
+            className="inline-flex items-center gap-1.5 rounded-md border border-forest-200 bg-forest-900 text-white px-3 py-1 disabled:opacity-50"
+          >
+            {saving ? <Spinner /> : null}
+            {saving ? 'Saving...' : 'Save transcript'}
+          </button>
+        </div>
+      </div>
+      {empty && (
+        <p className="text-[10.5px] text-ink-500">
+          Saving an empty box will not clear a transcript. To remove text, edit
+          it and save.
+        </p>
+      )}
+      {saved && !problem && (
+        <p className="text-[11px] text-forest-800 bg-cream-50 border border-gold-200 rounded px-2 py-1">
+          Saved. This transcript is recorded as yours, not as the software s.
+        </p>
+      )}
+      {problem && (
+        <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1">
+          {problem}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -306,6 +474,20 @@ function WaveIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M4 12h2M8 7v10M12 4v16M16 7v10M20 12h0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+/** A pen. Stands for a person having written this, everywhere the spark stands
+ *  for the software having read it. */
+function PenIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
