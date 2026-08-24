@@ -131,12 +131,27 @@ describe('the views are sets a request can actually be in', () => {
     expect(filterIntakes(ROWS, params({ view: 'mine' }), null)).toHaveLength(0);
   });
 
-  it('shows the unowned requests under Unassigned, decided ones included', () => {
-    expect(ids(filterIntakes(ROWS, params({ view: 'unassigned' }), ME))).toEqual([
-      'a',
-      'd',
-      'e',
-    ]);
+  /**
+   * CHANGED 2026-08-24. This asserted that Unassigned counted decided requests
+   * too, and it gave no reason, alone among the tests around it.
+   *
+   * A real workspace showed why that was wrong. The inbox offered "All open 4"
+   * and "Unassigned 7" beside each other over the same seven rows, because
+   * three had just been closed. Unassigned is a queue of work nobody has picked
+   * up. A closed request with no owner is not waiting for an owner; it is
+   * finished, and nobody is going to pick it up.
+   *
+   * Everything is the lane that still shows finished work, and it is named so
+   * that nobody has to guess.
+   */
+  it('counts only live unowned requests under Unassigned', () => {
+    expect(ids(filterIntakes(ROWS, params({ view: 'unassigned' }), ME))).toEqual(['a']);
+  });
+
+  it('still finds a decided unowned request under Everything', () => {
+    const all = ids(filterIntakes(ROWS, params({ view: 'all' }), ME));
+    expect(all).toContain('d');
+    expect(all).toContain('e');
   });
 
   it('collects the three waiting states under Awaiting others', () => {

@@ -216,18 +216,41 @@ export function intakeViewTest(
     case 'new':
       return (r) => r.state === 'new';
     case 'mine':
-      return (r) => Boolean(meId) && r.assignedTo === meId;
+      return (r) => live(r) && Boolean(meId) && r.assignedTo === meId;
     case 'unassigned':
-      return (r) => !r.assignedTo;
+      return (r) => live(r) && !r.assignedTo;
     case 'waiting':
       return (r) => AWAITING_WORKFLOW_STATES.includes(r.state);
     case 'urgent':
-      return (r) => r.priority === 'Urgent';
+      return (r) => live(r) && r.priority === 'Urgent';
     case 'all':
       return () => true;
     default:
-      return (r) => !DECIDED_WORKFLOW_STATES.includes(r.state);
+      return live;
   }
+}
+
+/**
+ * Is this request still live, meaning nobody has finished with it?
+ *
+ * EVERY LANE EXCEPT "Everything" IS A VIEW OF OPEN WORK, and three of them used
+ * to forget it. `unassigned` was `!r.assignedTo` with no state test at all, so
+ * a closed request with nobody's name on it was still counted as work waiting
+ * for an owner. `mine` and `urgent` had the same shape.
+ *
+ * It stayed invisible while every request in a workspace was open, and it
+ * announced itself the moment three were closed: the inbox offered "All open 4"
+ * and "Unassigned 7" side by side, over the same seven rows.
+ *
+ * `new` and `waiting` need no test because their states are themselves live:
+ * a decided request is not `new`, and it is not `awaiting_` anything. Adding
+ * the test there would be noise that reads as though it were load-bearing.
+ *
+ * "Everything" is the one lane that genuinely means everything, and it is
+ * named so nobody expects otherwise.
+ */
+function live(r: IntakeListRow): boolean {
+  return !DECIDED_WORKFLOW_STATES.includes(r.state);
 }
 
 const one = (v: string | string[] | undefined): string =>
