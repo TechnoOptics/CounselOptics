@@ -79,8 +79,11 @@ describe('what the employee is told when the letterhead version cannot be drawn'
   });
 
   it('says nothing in an en dash or em dash, which this product does not use', () => {
+    // Written as escapes rather than as the characters themselves, so a sweep
+    // for those characters over the repo does not hit the guard that forbids
+    // them and then get waved through as expected.
     for (const status of [null, 403, 409, 500]) {
-      expect(brandedCopyNotice(status)).not.toMatch(/[–—]/);
+      expect(brandedCopyNotice(status)).not.toMatch(/[\u2013\u2014]/);
     }
   });
 });
