@@ -38,6 +38,14 @@ import { DocumentPdfDeck } from './DocumentPdfDeck';
  * render: the employee already passed that gate, which is why the wording is
  * on the page in the first place.
  *
+ * ONE LIMIT, STATED RATHER THAN PAPERED OVER. On a signature-mode dispatch the
+ * route draws no mark, because on that path the marks are stamped onto the
+ * stored bytes later by lib/signature-render.ts and a mark shown before then
+ * would be a mark on a document that does not exist yet. The employee reaches
+ * the finished, countersigned copy from the signing panel above this section.
+ * That behaviour lives in lib/submission-preview.ts, whose only other caller is
+ * the approver's preview, so it is deliberately not touched here.
+ *
  * IT IS PINNED, AND A REFUSAL IS SAID OUT LOUD. The route refuses any revision
  * or wording but the one this page rendered. That refusal, and any other, ends
  * at the text with a line naming itself as a fallback, because a person is
