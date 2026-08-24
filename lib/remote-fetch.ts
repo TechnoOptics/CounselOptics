@@ -57,18 +57,31 @@ function ll_ula(ip: string): boolean {
 
 /** Refuse a host whose every resolved address is public? No - refuse if ANY is blocked. */
 async function assertHostIsPublic(hostname: string): Promise<void> {
+  // A URL carries an IPv6 literal in BRACKETS ("http://[::1]/x"), and isIP
+  // does not recognise the bracketed form. Unstripped, "[::1]" therefore fell
+  // past the IP branch below and was judged by the DNS branch instead, which
+  // refused it only because no resolver answers for a string with brackets in
+  // it. That is refusal by accident, not by this check, and it would stop
+  // being a refusal the day something did answer. Strip the brackets so the
+  // IP branch runs and the address is refused for the reason it should be.
+  // This can only ever refuse MORE: a bracketed public v6 address that was
+  // previously reaching DNS now reaches isBlockedIp, which allows it.
+  const host =
+    hostname.startsWith('[') && hostname.endsWith(']')
+      ? hostname.slice(1, -1)
+      : hostname;
   // Hostname could itself be an IP literal.
-  if (isIP(hostname)) {
-    if (isBlockedIp(hostname)) throw new Error('That address is not allowed.');
+  if (isIP(host)) {
+    if (isBlockedIp(host)) throw new Error('That address is not allowed.');
     return;
   }
-  const lower = hostname.toLowerCase();
+  const lower = host.toLowerCase();
   if (lower === 'localhost' || lower.endsWith('.localhost') || lower.endsWith('.local')) {
     throw new Error('That host is not allowed.');
   }
   let addrs: { address: string }[];
   try {
-    addrs = await lookup(hostname, { all: true });
+    addrs = await lookup(host, { all: true });
   } catch {
     throw new Error('Could not resolve that address.');
   }
