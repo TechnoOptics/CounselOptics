@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { stripComments } from './support/strip-comments';
 import { fetchRemoteEvidence, isBlockedIp } from '../lib/remote-fetch';
+import { screenAuthenticatedUpload } from '../lib/upload-safety';
+import { classifyExhibitForReading } from '../lib/exhibit-reading';
+import { LINK_IMPORT_MAX_BYTES, sanitizeImportedFileName } from '../lib/exhibit-link-import';
 
 /**
  * Guards for "add an exhibit by link".
@@ -277,5 +280,71 @@ describe('the link path does not weaken what already existed', () => {
       'export async function addExhibitFromStoredObject(',
     );
     expect(stored).toMatch(/\bscreenStoredObject\s*\(/);
+  });
+});
+
+describe('the screen really refuses what this path can bring back', () => {
+  it('refuses a sharing page even when the host declares it as audio', () => {
+    // Content-type is the host's claim. The bytes are the fact.
+    const page = Buffer.from(
+      '<!DOCTYPE html>\n<html><head><title>Dropbox - call.m4a</title></head>' +
+        '<body><a href="/download">Download</a></body></html>',
+    );
+    const screen = screenAuthenticatedUpload(page, 'audio/mpeg', LINK_IMPORT_MAX_BYTES);
+    expect(screen.ok).toBe(false);
+    if (!screen.ok) expect(screen.reason).toMatch(/HTML\/SVG/);
+  });
+
+  it('refuses an executable dressed as a recording', () => {
+    const exe = Buffer.concat([Buffer.from([0x4d, 0x5a]), Buffer.alloc(64)]);
+    const screen = screenAuthenticatedUpload(exe, 'audio/mpeg', LINK_IMPORT_MAX_BYTES);
+    expect(screen.ok).toBe(false);
+    if (!screen.ok) expect(screen.reason).toMatch(/Executable/i);
+  });
+
+  it('refuses something declared audio that is not a media container', () => {
+    const notAudio = Buffer.from('this is just some text pretending to be a recording');
+    const screen = screenAuthenticatedUpload(notAudio, 'audio/mpeg', LINK_IMPORT_MAX_BYTES);
+    expect(screen.ok).toBe(false);
+    if (!screen.ok) expect(screen.reason).toMatch(/not a valid audio/i);
+  });
+
+  it('refuses one byte over the ceiling, measured on the bytes that arrived', () => {
+    const tooBig = Buffer.alloc(LINK_IMPORT_MAX_BYTES + 1);
+    const screen = screenAuthenticatedUpload(tooBig, 'audio/mpeg', LINK_IMPORT_MAX_BYTES);
+    expect(screen.ok).toBe(false);
+    if (!screen.ok) expect(screen.reason).toMatch(/50MB limit/);
+  });
+
+  it('ACCEPTS a genuine large recording, so the ceiling is not refusing the real case', () => {
+    // 40MB of ID3-tagged MP3: bigger than the serverless request body by an
+    // order of magnitude, and bigger than Whisper will transcribe, and still
+    // a perfectly good exhibit.
+    const big = Buffer.alloc(40 * 1024 * 1024);
+    big.write('ID3', 0, 'ascii');
+    const screen = screenAuthenticatedUpload(big, 'audio/mpeg', LINK_IMPORT_MAX_BYTES);
+    expect(screen.ok).toBe(true);
+  });
+});
+
+describe('a link-imported exhibit is read exactly like an uploaded one', () => {
+  it('keeps the extension, which is what routes a file with a vague content type', () => {
+    // Hosts routinely serve .m4a as application/octet-stream. The reader
+    // consults the file name when the type says nothing, so a name that lost
+    // its extension would make the recording unreadable afterwards.
+    const name = sanitizeImportedFileName('../../call-2026-03-14.m4a', 'audio/mp4');
+    expect(name.endsWith('.m4a')).toBe(true);
+    const route = classifyExhibitForReading({
+      fileName: name,
+      fileType: 'application/octet-stream',
+    });
+    expect(route.kind).toBe('transcribe');
+  });
+
+  it('routes a fetched PDF to the same reader an uploaded PDF gets', () => {
+    const name = sanitizeImportedFileName('lease agreement.pdf', 'application/pdf');
+    expect(classifyExhibitForReading({ fileName: name, fileType: 'application/pdf' })).toEqual(
+      classifyExhibitForReading({ fileName: 'lease agreement.pdf', fileType: 'application/pdf' }),
+    );
   });
 });
