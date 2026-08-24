@@ -749,7 +749,7 @@ export default async function CounselDashboard() {
             value={clientsActive.length}
             sub={
               <>
-                {clients.length} <T>on the books</T>
+                {clients.length} <T>{vocab.clientsMeasure}</T>
               </>
             }
           />

@@ -155,6 +155,14 @@ const CHECKS = [
  * Adding an entry is an explicit acknowledgement that it is NOT dynamic data.
  */
 const ALLOWED_DYNAMIC_WRAPS = new Set([
+  // `vocab.clientsMeasure` on the dashboard's headline tile. One of exactly
+  // two frozen literals in FIRM_VOCABULARY ("on the books" for a law firm,
+  // "with portal access" in-house), chosen by firm type rather than by data.
+  // It exists because the count is the PORTAL ROSTER, and in-house vocabulary
+  // renames that roster to "Employees", so a tile reading "Employees 1 / 1 on
+  // the books" beside a five-person directory reads as a miscount when it is
+  // really the wrong word. No firm content ever reaches it.
+  'vocab.clientsMeasure',
   // component props (all call sites pass static literals)
   'label',
   'title',

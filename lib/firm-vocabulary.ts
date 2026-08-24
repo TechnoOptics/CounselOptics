@@ -28,6 +28,16 @@ export type FirmVocabulary = {
   client: string;
   /** All of them. */
   clients: string;
+  /**
+   * What the headline tile's count of them MEASURES, said plainly.
+   *
+   * It exists because "on the books" is true for a law firm's clients and
+   * false for an in-house team. /counsel/clients is the portal roster, not the
+   * headcount, so a corporate workspace showing "Employees 1 / 1 on the books"
+   * beside a directory of five reads as a miscount when it is really the wrong
+   * word. The tile says what it counts instead.
+   */
+  clientsMeasure: string;
   /** Opening a new piece of work. */
   intake: string;
   /** The subject-matter buckets a workspace organizes itself by. */
@@ -41,6 +51,7 @@ export type FirmVocabulary = {
 const BASE: FirmVocabulary = {
   client: 'Client',
   clients: 'Clients',
+  clientsMeasure: 'on the books',
   intake: 'New intake',
   practiceAreas: 'Practice areas',
   directory: 'Employees',
@@ -59,6 +70,7 @@ const BASE: FirmVocabulary = {
 const CORPORATE: FirmVocabulary = {
   client: 'Employee',
   clients: 'Employees',
+  clientsMeasure: 'with portal access',
   intake: 'New request',
   practiceAreas: 'Business areas',
   directory: 'Directory',
