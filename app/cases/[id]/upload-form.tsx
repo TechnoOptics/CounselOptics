@@ -5,6 +5,7 @@ import {
   uploadExhibitAction,
   mintExhibitUploadAction,
   finalizeExhibitUploadAction,
+  addExhibitFromLinkAction,
 } from '@/lib/actions';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import { chooseExhibitTransport, directUploadFailureMessage } from '@/lib/upload-transport';
@@ -14,6 +15,14 @@ export function UploadForm({ caseId }: { caseId: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fileLabel, setFileLabel] = useState<string>('');
+  /**
+   * Which door this form is using. 'file' is the original: the person picks a
+   * file off their device. 'link' is for the file they cannot pick, because it
+   * lives in cloud storage or is too big to move by hand. The metadata fields
+   * below are shared by both, so nothing about describing the evidence changes
+   * with the door it came through.
+   */
+  const [mode, setMode] = useState<'file' | 'link'>('file');
   const [stage, setStage] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -105,9 +114,57 @@ export function UploadForm({ caseId }: { caseId: string }) {
     setFileLabel('');
   }
 
+  /**
+   * The transport for a file the person cannot hand us at all.
+   *
+   * The server downloads it ONCE, from the pasted link, and stores the bytes.
+   * The link is not kept as a pointer: a file on somebody else's server can be
+   * changed, moved or deleted after it is filed, possibly by the other side,
+   * and an exhibit that can change is not an exhibit. What is kept alongside
+   * the exhibit is where it came from and when it was taken.
+   *
+   * Every refusal is shown VERBATIM. The server writes them to be read by
+   * somebody trying to file evidence: which host refused, whether the file is
+   * gone, whether it was too big, and, most often of all, whether the link was
+   * a sharing page rather than the file itself.
+   */
+  async function addFromLink(url: string, formData: FormData): Promise<void> {
+    setStage('Downloading the file from that link');
+    try {
+      const res = await addExhibitFromLinkAction(caseId, {
+        url,
+        description: String(formData.get('description') ?? ''),
+        incidentDate: String(formData.get('incidentDate') ?? '') || null,
+        source: String(formData.get('source') ?? '') || null,
+        category: String(formData.get('category') ?? '') || null,
+      });
+      if (!res.ok) {
+        setError(res.error ?? 'That link could not be used.');
+        return;
+      }
+      formRef.current?.reset();
+      setFileLabel('');
+    } catch {
+      setError('That request did not reach us. Check your connection and try again.');
+    }
+  }
+
   function onSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
+      if (mode === 'link') {
+        const url = String(formData.get('linkUrl') ?? '').trim();
+        if (!url) {
+          setError('Please paste a link to the file.');
+          return;
+        }
+        try {
+          await addFromLink(url, formData);
+        } finally {
+          setStage(null);
+        }
+        return;
+      }
       const file = formData.get('file');
       if (!(file instanceof File) || file.size === 0) {
         setError('Please choose a file to upload.');
@@ -132,7 +189,65 @@ export function UploadForm({ caseId }: { caseId: string }) {
 
   return (
     <form ref={formRef} action={onSubmit} className="space-y-4">
-      <div>
+      {/* Two doors to the same exhibit. Styled with the segmented control the
+          timeline view switcher already uses, rather than a new one, so it
+          carries the dark-mode pairs that pattern has already been checked
+          for. */}
+      <div
+        className="inline-flex rounded-lg border border-forest-900/15 bg-white p-0.5 text-sm dark:border-cream-50/15 dark:bg-forest-900/50"
+        role="tablist"
+        aria-label="How to add this exhibit"
+      >
+        {(['file', 'link'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={mode === m}
+            onClick={() => {
+              setMode(m);
+              setError(null);
+            }}
+            className={`rounded-md px-3 py-1 font-medium transition-colors ${
+              mode === m
+                ? 'bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950'
+                : 'text-ink-600 hover:bg-forest-900/5 dark:text-cream-300 dark:hover:bg-cream-50/10'
+            }`}
+          >
+            {m === 'file' ? 'Upload a file' : 'Add by link'}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'link' && (
+        <div>
+          <label className="label" htmlFor="linkUrl">
+            Link to the file
+          </label>
+          <input
+            id="linkUrl"
+            name="linkUrl"
+            type="url"
+            inputMode="url"
+            placeholder="https://..."
+            className="input"
+            autoComplete="off"
+          />
+          <p className="text-xs text-ink-500 mt-1.5">
+            Use this for a recording or document that is too large to upload, or that
+            already lives in cloud storage. We download it once and keep our own copy,
+            so it stays exactly as it is now even if the original is later changed or
+            removed. The link and the time we downloaded it are recorded as its source.
+          </p>
+          <p className="text-xs text-ink-500 mt-1.5">
+            It has to be a direct download link. A Dropbox, Drive or iCloud page that
+            shows a preview is a web page, not the file, so open it and copy the
+            address behind its own download button.
+          </p>
+        </div>
+      )}
+
+      <div className={mode === 'link' ? 'hidden' : undefined}>
         <label className="label" htmlFor="file-main">
           File
         </label>
@@ -162,7 +277,7 @@ export function UploadForm({ caseId }: { caseId: string }) {
           id="file-main"
           name="file"
           type="file"
-          required
+          required={mode === 'file'}
           className="sr-only"
           onChange={(e) => setFileLabel(e.currentTarget.files?.[0]?.name ?? '')}
         />
@@ -270,7 +385,11 @@ export function UploadForm({ caseId }: { caseId: string }) {
 
       <div className="flex justify-end">
         <button type="submit" disabled={pending} className="btn-primary">
-          {pending ? 'Uploading…' : 'Add exhibit'}
+          {pending
+            ? mode === 'link'
+              ? 'Fetching…'
+              : 'Uploading…'
+            : 'Add exhibit'}
         </button>
       </div>
     </form>
