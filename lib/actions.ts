@@ -718,6 +718,182 @@ export async function uploadExhibitAction(
 }
 
 /**
+ * Add one exhibit to a personal case from a LINK the person pasted.
+ *
+ * WHY THIS DOOR EXISTS. Uploading sends the file through a Server Action, and
+ * the platform caps a serverless function's REQUEST BODY near 4.5MB before any
+ * framework code runs (lib/upload-transport.ts has the whole account). A
+ * fetch made by the SERVER never crosses that boundary. Nothing new is being
+ * invented here: it is exactly how the 40MB objects already sitting in the
+ * exhibits bucket got there.
+ *
+ * WHAT THE LINK IS FOR, AND WHAT IT IS NOT FOR. It is used ONCE, right here,
+ * to download the bytes. It is never followed again. Advottic does not keep a
+ * pointer to somebody else's URL and stream the evidence from it later,
+ * because a remote file can be changed, moved or deleted by whoever hosts it,
+ * and the host may be the opposing party. An exhibit that can change after it
+ * is filed is not an exhibit. We take the bytes, and the exhibit IS those
+ * bytes. The URL and the moment of the fetch are recorded next to it as
+ * provenance, in exhibits.source, which is the column that already means
+ * exactly that.
+ *
+ * THE TWO CONTROLS, AND THE FACT THAT NEITHER IS RE-IMPLEMENTED HERE.
+ *
+ *   1. fetchRemoteEvidence does the download. It refuses hosts resolving into
+ *      private, loopback, link-local, carrier-NAT and cloud-metadata ranges,
+ *      RE-CHECKS on every redirect hop, and bounds the body with a byte cap
+ *      and a timeout. This action calls it and passes it the ceiling. There
+ *      is no second fetch in this file and no bypass of it.
+ *
+ *   2. addExhibit writes the exhibit. It runs screenAuthenticatedUpload on
+ *      the bytes BEFORE anything is written to the bucket, allocates the
+ *      label by position, and inserts the row. A fetched file is UNTRUSTED
+ *      INPUT in exactly the way an uploaded one is, so it goes through
+ *      exactly the same screen.
+ *
+ * WHY screenAuthenticatedUpload AND NOT screenStoredObject. Both run the same
+ * rules; they differ only in ordering. screenStoredObject exists for the one
+ * transport where our server never touches the bytes on their way in, so the
+ * screen has to run after the object lands and delete it on refusal. That is
+ * not this transport. Here the bytes are already in this process, in memory,
+ * before anything is written, so the STRONGER ordering is available and is
+ * what is used: a file that fails the screen never reaches the bucket at all,
+ * and no row is written, so there is nothing to clean up and no window in
+ * which an unscreened object exists.
+ *
+ * OWNER ONLY, CHECKED HERE. Every server action is a public HTTP endpoint, so
+ * the check cannot live in the page that decides whether to draw the form.
+ * This is stricter than uploadExhibitAction, which leans on RLS alone, and
+ * deliberately so: this endpoint makes an OUTBOUND request to an address the
+ * caller chooses, which is the one thing on this surface worth holding to the
+ * narrowest possible set of callers. The firm-side equivalent
+ * (importCaseEvidenceFromUrlsAction) gates itself for the same reason.
+ *
+ * Returns its refusal rather than throwing it, like every other action on
+ * this surface: React strips an error's message crossing the Server Action
+ * boundary in a production build, and "that link returned a web page, not a
+ * file" is a sentence somebody trying to file evidence needs to read.
+ */
+export async function addExhibitFromLinkAction(
+  caseId: string,
+  input: {
+    url: string;
+    description?: string;
+    incidentDate?: string | null;
+    source?: string | null;
+    category?: string | null;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  const owned = await loadOwnedCase(caseId, NOT_YOUR_EXHIBIT);
+  if (!owned.ok) return { ok: false, error: owned.error };
+
+  const {
+    LINK_IMPORT_MAX_BYTES,
+    classifyLinkFailure,
+    explainScreenRefusal,
+    linkProvenanceSource,
+    looksLikeWebPage,
+    normalizeExhibitLink,
+    sanitizeImportedFileName,
+    sharingPageMessage,
+  } = await import('./exhibit-link-import');
+
+  const link = normalizeExhibitLink(input?.url);
+  if (!link.ok) return { ok: false, error: link.failure.message };
+
+  const { fetchRemoteEvidence } = await import('./remote-fetch');
+  const fetchedAt = new Date().toISOString();
+  const fetched = await fetchRemoteEvidence(link.url, LINK_IMPORT_MAX_BYTES);
+  if (!fetched.ok) {
+    return { ok: false, error: classifyLinkFailure(fetched.error).message };
+  }
+
+  // A sharing page is HTML, and screenAuthenticatedUpload below would refuse
+  // it anyway. It is named HERE so the person is told the truth about their
+  // link instead of reading "HTML/SVG content is not an accepted document
+  // type." This check only ever refuses MORE than the screen; it can never
+  // let anything through that the screen would have stopped.
+  if (looksLikeWebPage(fetched.file.mime, fetched.file.buffer)) {
+    return { ok: false, error: sharingPageMessage(link.url) };
+  }
+
+  const fileName = sanitizeImportedFileName(fetched.file.name, fetched.file.mime);
+  // The name is cleaned for what people SEE and for what an export writes to
+  // disk. It is NOT what keeps a hostile name out of the storage path:
+  // addExhibit builds that path as userId/caseId/uuid + its own sanitised
+  // extension, so no part of this name reaches it intact. Cleaning it twice
+  // in two places is how those two rules would drift apart.
+  const file = new File([new Uint8Array(fetched.file.buffer)], fileName, {
+    type: fetched.file.mime || 'application/octet-stream',
+  });
+
+  let exhibit;
+  try {
+    // THE SAME WRITER THE UPLOAD FORM USES. Labels are allocated by position,
+    // so a second writer would hand out a duplicate "Exhibit C".
+    const added = await addExhibit({
+      caseId,
+      file,
+      description: String(input?.description ?? '').trim(),
+      incidentDate: input?.incidentDate || null,
+      source: linkProvenanceSource({
+        url: link.url,
+        fetchedAt,
+        userSource: input?.source ?? null,
+      }),
+      category: input?.category || null,
+    });
+    if (!added.ok) {
+      // A refusal from the screen, reworded for this path but never overridden.
+      return { ok: false, error: explainScreenRefusal(added.error, link.url).message };
+    }
+    exhibit = added.exhibit;
+  } catch (err) {
+    console.error('[addExhibitFromLinkAction] import failed', err);
+    const reference = displayableDigest((err as { digest?: unknown } | null)?.digest);
+    return {
+      ok: false,
+      error: reference
+        ? `${UPLOAD_INTERNAL_ERROR} Reference: ${reference}`
+        : UPLOAD_INTERNAL_ERROR,
+    };
+  }
+
+  // From this point on the exhibit is indistinguishable from an uploaded one,
+  // and that is the requirement: same label sequence, same auto-scan, same
+  // case event, same packet treatment. The only difference is what is written
+  // in its Source line.
+  const ct = (exhibit.fileType || '').toLowerCase();
+  if (ct.startsWith('image/') || ct === 'application/pdf') {
+    try {
+      const buf = Buffer.from(await file.arrayBuffer());
+      const scan = await scanDocument({
+        fileBuffer: buf,
+        mediaType: ct,
+        fileName: exhibit.fileName,
+      });
+      await saveExhibitScan(exhibit.id, scan);
+    } catch (err) {
+      console.warn('[scan] auto-scan failed:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  await logCaseEvent({
+    caseId,
+    eventType: 'exhibit_uploaded',
+    metadata: {
+      label: exhibit.label,
+      fileName: exhibit.fileName,
+      category: exhibit.category ?? null,
+    },
+  });
+
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath('/cases');
+  return { ok: true };
+}
+
+/**
  * Start a direct browser-to-storage upload for a file too big for the
  * request body, and hand back a one-path, short-lived write token.
  *
