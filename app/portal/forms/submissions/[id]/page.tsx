@@ -14,11 +14,15 @@ import {
   resolveActivityVerdict,
   submitterActivitySentence,
 } from '@/lib/signing-activity';
+import { createAdminSupabase } from '@/lib/supabase/admin';
+import { signedMarkUrl } from '@/lib/template-signature';
+import { resolveSignedCopyView } from '@/lib/signed-copy-view';
 import { ExternalLink } from '@/components/ExternalLink';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 import { DocumentSheets } from '@/components/DocumentSheets';
+import { SignedCopyDeck } from '@/components/SignedCopyDeck';
 import { FormFillClient } from '../../[id]/form-fill-client';
 import { WithdrawButton } from './withdraw-button';
 
@@ -81,6 +85,27 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
       />
     );
   }
+
+  // Which version of their own document this employee is shown, decided by a
+  // rule a test can reach (lib/signed-copy-view.ts). documentVisible is the
+  // answer canReadSubmissionDocument already gave when the row was read, so
+  // the gate is not spelled a second time here.
+  const signedCopy = resolveSignedCopyView({
+    documentVisible: submission.documentVisible,
+    documentText: submission.documentText,
+  });
+
+  // Their own mark, obtained exactly as the approver's page obtains it: a
+  // short-lived signed URL from the private bucket. This surface used to pass
+  // markSrc={null}, so the one person whose signature is on the document was
+  // the only one who could not see it.
+  //
+  // Read only when the wording is open to them, for the same reason the
+  // approver's page gives: a surface that withholds the document withholds the
+  // signature on it too, rather than handing out a URL to the mark on words
+  // nobody there may read.
+  const admin = signedCopy.kind === 'withheld' ? null : createAdminSupabase();
+  const markUrl = admin ? await signedMarkUrl(admin, submission.signatureImagePath) : null;
 
   return (
     <div className="space-y-5">
@@ -321,16 +346,33 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
         </div>
       )}
 
+      {/*
+        The document as it was actually filed.
+
+        No max-height and no overflow on this section, on purpose and for the
+        same reason the fill page gives: the pages lay out at full height and
+        the PAGE scrolls, so nothing captures the wheel.
+      */}
       <section className="rounded-xl border border-edge bg-surface p-6">
         <SectionTitle className="mb-3">Document</SectionTitle>
-        {submission.documentVisible ? (
-          <div data-no-translate>
-            <DocumentSheets text={submission.documentText} markSrc={null} />
-          </div>
-        ) : (
+        {signedCopy.kind === 'withheld' ? (
           <p className="text-[13px] text-muted">
             <T>The wording of this document is not open to you.</T>
           </p>
+        ) : (
+          <div data-no-translate>
+            {signedCopy.kind === 'branded' ? (
+              <SignedCopyDeck
+                submissionId={submission.id}
+                revision={submission.revision}
+                documentText={submission.documentText}
+                markUrl={markUrl}
+                fallback={<DocumentSheets text={submission.documentText} markSrc={markUrl} />}
+              />
+            ) : (
+              <DocumentSheets text={submission.documentText} markSrc={markUrl} />
+            )}
+          </div>
         )}
       </section>
 
