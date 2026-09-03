@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella, type BellaMessage, type BellaPortal } from '@/lib/bella';
+import { nativePlatformFromUserAgent } from '@/lib/platform';
 import { getCase, listExhibits, getLatestReview } from '@/lib/storage';
 import { isRealReview, isReviewStale } from '@/lib/composition';
 import {
@@ -284,6 +285,7 @@ export async function POST(req: NextRequest) {
           portal,
           firmId,
           attachment,
+          platform: nativePlatformFromUserAgent(req.headers.get('user-agent')),
         })) {
           controller.enqueue(encoder.encode(chunk));
         }

@@ -6,6 +6,7 @@ import { createAdminSupabase } from './supabase/admin';
 import { AiUnavailableError, friendlyAiError } from './ai-errors';
 import { INTAKE_LANE_STATUSES, tallyIntakeLanes } from './intake-lanes';
 import { isRealScan } from './types';
+import { isIosSellRoute } from './platform';
 import { isExhibitWithdrawn } from './exhibit-withdrawal';
 
 const MODEL = 'claude-sonnet-4-6';
@@ -81,7 +82,7 @@ You have tools. Prefer using them over describing things:
   - /review-my-document - paste a contract for plain-English review
   - /feedback - report a bug or send a suggestion
   - /profile - settings, theme, language, share, install
-  - /billing - tier and subscription
+  - /billing - your plan and its limits
   - /security - trust center
 - **search_my_cases(query?, limit?)** - search the signed-in user's cases by title or subject text. Returns id, title, status, subject, jurisdiction, hearing date. Use whenever the user asks "where is my case about X" or "show me my open cases" or anything similar.
 - **get_case_detail(case_id)** - pull full detail for a specific case (description, exhibits, latest Advottic Review summary). Use after search_my_cases narrows down the case the user means.
@@ -1266,11 +1267,23 @@ async function executeTool(
   mode: BellaMode,
   portal: BellaPortal,
   firmId: string | null,
+  platform: 'ios' | 'android' | 'web' = 'web',
 ): Promise<unknown> {
   if (name === 'navigate_to') {
     const path = String(input.path ?? '').trim();
     if (!path.startsWith('/')) {
       return { ok: false, error: "Path must start with /" };
+    }
+    // The iOS app sells nothing, and middleware already turns a sell-only
+    // route into a redirect home there. Refusing here means Bella is told
+    // plainly instead of narrating a trip that lands on the front page, and
+    // the refusal names no destination, so it cannot itself become the
+    // steering sentence it exists to prevent.
+    if (platform === 'ios' && isIosSellRoute(path)) {
+      return {
+        ok: false,
+        error: 'That page is not part of the app. Plan changes are handled outside it.',
+      };
     }
     return { ok: true, navigated_to: path };
   }
@@ -3356,6 +3369,13 @@ export async function* streamBella(input: {
   portal?: BellaPortal;
   /** Active firm id when portal === 'firm'. Required for firm portal. */
   firmId?: string | null;
+  /**
+   * Which shell the request came from, read by the route from the
+   * AdvotticApp user-agent token. The iOS app sells nothing, so inside it
+   * navigate_to must not be able to send the person to a sell-only route
+   * such as /pricing or /gift. Defaults to 'web', which keeps every route.
+   */
+  platform?: 'ios' | 'android' | 'web';
   /** When set, appends the firm-aware addendum to the system prompt
    *  so Bella is aware she's helping a member of a firm in /counsel/*. */
   firmContext?: {
@@ -3389,6 +3409,8 @@ export async function* streamBella(input: {
   // or 'consumer' as the safest fallback.
   const portal: BellaPortal = mode === 'public' ? 'consumer' : (input.portal ?? 'consumer');
   const firmId: string | null = portal === 'firm' ? (input.firmId ?? null) : null;
+  // The shell this turn came from. Only the route knows, from the user agent.
+  const platform: 'ios' | 'android' | 'web' = input.platform ?? 'web';
 
   // Consumer-tier feature gate. Firm-portal and HQ-portal calls (which
   // pass firmContext, or resolve portal !== 'consumer') are excluded -
@@ -3623,6 +3645,7 @@ export async function* streamBella(input: {
           mode,
           portal,
           firmId,
+          platform,
         );
         toolResults.push({
           type: 'tool_result',
