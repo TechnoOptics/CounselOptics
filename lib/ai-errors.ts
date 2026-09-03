@@ -25,6 +25,18 @@ import 'server-only';
 export const AI_UNAVAILABLE_MESSAGE =
   "Advottic's analysis is temporarily unavailable. Please try again shortly.";
 
+/**
+ * Shown when the model answered but with its example placeholder instead of
+ * an analysis, so nothing was saved. Kept distinct from AI_UNAVAILABLE_MESSAGE
+ * on purpose: those two sentences come from different causes (a provider
+ * failure versus a placeholder the app refused to store), and while one word
+ * of them was shared, a person reporting "temporarily unavailable" could not
+ * tell us which had happened, and neither could we without the server log.
+ * Calm, and it names no destination.
+ */
+export const AI_PLACEHOLDER_REFUSED_MESSAGE =
+  "Advottic's analysis could not be completed for this case just now, so nothing was saved. Please try again shortly.";
+
 /** Shown when we're being rate-limited (transient, self-resolves). */
 export const AI_BUSY_MESSAGE =
   "Advottic's analysis is busy right now. Please try again in a moment.";

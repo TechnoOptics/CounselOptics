@@ -56,7 +56,11 @@ import {
   isManualTranscript,
 } from './manual-transcript';
 import { extractExhibitText } from './exhibit-text';
-import { AI_UNAVAILABLE_MESSAGE, calmAiMessage } from './ai-errors';
+import {
+  AI_PLACEHOLDER_REFUSED_MESSAGE,
+  AI_UNAVAILABLE_MESSAGE,
+  calmAiMessage,
+} from './ai-errors';
 import { displayableDigest } from './firm-access';
 import { createServerSupabase, getCurrentUser, isCurrentUserAdmin, isSupabaseConfigured } from './supabase/server';
 import { logCaseEvent } from './activity';
@@ -3261,7 +3265,11 @@ export async function rerunCaseReviewAction(caseId: string): Promise<Composition
       '[rerunCaseReviewAction] refusing to store a placeholder review',
       { caseId, modelUsed: review.modelUsed },
     );
-    return { ok: false, error: AI_UNAVAILABLE_MESSAGE };
+    // A different sentence from the catch above, deliberately. The two
+    // causes need opposite fixes (a provider failure versus a placeholder
+    // returned in the model's place), and when both said "temporarily
+    // unavailable" a person's report could not tell us which one they hit.
+    return { ok: false, error: AI_PLACEHOLDER_REFUSED_MESSAGE };
   }
 
   try {
