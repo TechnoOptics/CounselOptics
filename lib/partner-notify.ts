@@ -82,6 +82,28 @@ async function notifyLegalTeam(
     const { sendEmail } = await import('./email');
     const html = `<p>${escapeHtml(args.body)}</p><p><a href="${siteOrigin()}${args.link}">Open it in Counsel</a></p>`;
     for (const a of rows) {
+      // ONE UNREAD COPY PER PERSON PER THING. If this person still has this
+      // exact notice sitting unread, they have not acted on it, and a second
+      // copy is a nag rather than news. The cron's own timer is the first
+      // line of defence against a repeat; this is the second, and it holds
+      // even when that timer fails, which it did for a week on one firm.
+      //
+      // The email is held back on the same test, because it is the same
+      // message to the same person about the same request.
+      //
+      // Read failure falls through to sending. A lookup that cannot run must
+      // not silence a genuine first reminder, and a duplicate is the smaller
+      // wrong.
+      const { data: unreadTwin } = await admin
+        .from('notifications')
+        .select('id')
+        .eq('user_id', a.user_id)
+        .eq('title', args.title)
+        .eq('link', args.link)
+        .is('read_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (unreadTwin) continue;
       await createNotification({
         userId: a.user_id,
         type: 'system',

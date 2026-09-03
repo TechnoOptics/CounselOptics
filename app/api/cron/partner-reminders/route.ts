@@ -119,8 +119,21 @@ export async function GET(req: NextRequest) {
     const waitingSince = Date.parse(lastMessage?.created_at ?? row.created_at);
     if (Number.isNaN(waitingSince) || Date.now() - waitingSince < windowMs) continue;
 
-    await partnerTicketEvent(row.id, 'ticket.reminder');
-    await admin
+    // CLAIM FIRST, NOTIFY SECOND, AND CHECK THAT THE CLAIM LANDED.
+    //
+    // This used to notify and then stamp lastReminderAt, and it never looked
+    // at the result of the stamp. supabase-js writes resolve with { error }
+    // rather than throwing, so a stamp that did not land looked exactly like
+    // one that did, and the next hourly run found no timestamp and sent the
+    // reminder again. One Zinpro ticket produced 24 bells and 24 emails a day
+    // to every owner and admin for a week, and the badge read 99+.
+    //
+    // Stamping before the fan-out makes a failed stamp SKIP the reminder for
+    // this run rather than repeat it: a missed hour costs nothing, a nag
+    // every hour costs the team's attention and then their trust. It also
+    // means that whatever the fan-out does, the timestamp it depends on is
+    // already in the row, so the two can never be observed out of order.
+    const { error: stampError } = await admin
       .from('firm_matter_intakes')
       .update({
         intake_answers: {
@@ -129,6 +142,14 @@ export async function GET(req: NextRequest) {
         },
       })
       .eq('id', row.id);
+    if (stampError) {
+      console.error(
+        '[partner-reminders] could not record lastReminderAt, skipping the reminder rather than repeating it',
+        { intakeId: row.id, error: stampError },
+      );
+      continue;
+    }
+    await partnerTicketEvent(row.id, 'ticket.reminder');
     reminded += 1;
   }
 
