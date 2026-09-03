@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ARTICLES, type Article } from '@/lib/articles';
+import { ARTICLES, type Article, type ArticleParagraph } from '@/lib/articles';
+import { isIosSellRoute } from '@/lib/platform';
 import {
   ArticleJsonLd,
   BreadcrumbJsonLd,
@@ -151,7 +152,7 @@ export default function ArticlePage({ params }: Props) {
                 key={j}
                 className="text-[15.5px] text-ink-700 dark:text-cream-100/80 leading-[1.7]"
               >
-                {renderInline(para)}
+                {renderParagraph(para)}
               </p>
             ))}
           </section>
@@ -169,7 +170,14 @@ export default function ArticlePage({ params }: Props) {
             can focus on the substance. Free for the first three
             drafts.
           </p>
-          <Link href={article.cta.href} className="btn-primary inline-flex">
+          {/* A CTA into a sell-only route is hidden in the iOS app, where
+              middleware.ts would redirect it to the home screen anyway. The
+              card's own copy stands without the button. */}
+          <Link
+            href={article.cta.href}
+            data-hide-on-ios={isIosSellRoute(article.cta.href) ? true : undefined}
+            className="btn-primary inline-flex"
+          >
             {article.cta.label}
           </Link>
         </aside>
@@ -268,6 +276,27 @@ export default function ArticlePage({ params }: Props) {
  * plain text. No HTML injection vector since we never use
  * dangerouslySetInnerHTML on this output.
  */
+/**
+ * A plain paragraph renders as is. A paired paragraph (see ArticleParagraph in
+ * lib/articles.ts) renders both halves: the web half is hidden in the iOS app
+ * (data-hide-on-ios) and the app half is revealed only inside a native shell
+ * (data-show-in-app). That reveal also fires on Android, which keeps the full
+ * web copy, so the app half carries data-hide-on-android too; globals.css
+ * declares that rule after the reveal at equal specificity. The page stays
+ * static: no request header is read, the server-set html class decides.
+ */
+function renderParagraph(para: ArticleParagraph): React.ReactNode {
+  if (typeof para === 'string') return renderInline(para);
+  return (
+    <>
+      <span data-hide-on-ios>{renderInline(para.web)}</span>
+      <span data-show-in-app data-hide-on-android>
+        {renderInline(para.app)}
+      </span>
+    </>
+  );
+}
+
 function renderInline(text: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
   // Match [label](href). Label disallows `]`, href disallows `)`.

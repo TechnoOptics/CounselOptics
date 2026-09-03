@@ -177,6 +177,29 @@ export function isPhoneUserAgent(ua: string | null | undefined): boolean {
 }
 
 /**
+ * Routes that exist only to sell. middleware.ts redirects them to "/" inside
+ * the iOS app, so a link to one of them from a page the app CAN reach (an
+ * article, the changelog) would land the reader on the home screen. Pages
+ * that carry such a link gate it with data-hide-on-ios and use this to know
+ * which links those are.
+ *
+ * middleware.ts keeps its own copy of this list on purpose: the redirect is a
+ * gate and must not depend on an import to keep working.
+ * tests/marketing-routes-in-the-app.test.ts reads middleware.ts and fails if
+ * the two lists ever disagree. `/gift/claim/...` is not a sell route there or
+ * here: redeeming a gift somebody else paid for is not a purchase.
+ */
+export const IOS_SELL_ROUTE_PREFIXES = ['/pricing', '/compare', '/affiliate'] as const;
+
+export function isIosSellRoute(href: string): boolean {
+  const path = href.split(/[?#]/)[0];
+  if (path === '/gift' || path.startsWith('/gift/')) {
+    return !path.startsWith('/gift/claim');
+  }
+  return IOS_SELL_ROUTE_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+/**
  * `<html>` class string for server-rendered native gating. Mirrors the
  * classes the client NativePlatformBoot script adds, so the CSS rules in
  * globals.css (`.is-native-app [data-hide-in-app]`, `.is-ios-app

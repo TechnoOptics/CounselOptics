@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CHANGELOG } from '@/lib/changelog';
+import { isIosSellRoute } from '@/lib/platform';
 
 export const metadata: Metadata = {
   title: { absolute: 'Changelog · Advottic' },
@@ -43,6 +44,35 @@ const CATEGORY_LABELS: Record<string, { label: string; tone: string }> = {
   brand: { label: 'Brand', tone: 'bg-gold-metal/15 text-gold-900 dark:text-gold-metal' },
   pricing: { label: 'Pricing', tone: 'bg-amber-500/10 text-warn-text' },
 };
+
+/**
+ * An entry's title links to the page it announces. When that page is a
+ * sell-only route (/pricing, /gift), middleware.ts redirects it to the home
+ * screen inside the iOS app, so there the title is plain text instead: the
+ * link is data-hide-on-ios and the plain title is data-show-in-app. That
+ * reveal also fires on Android, which keeps the link, so the plain title
+ * carries data-hide-on-android too (globals.css orders the rules for this).
+ */
+function EntryTitle({ title, link }: { title: string; link?: string }) {
+  if (!link) return <>{title}</>;
+  if (!isIosSellRoute(link)) {
+    return (
+      <Link href={link} className="hover:underline">
+        {title}
+      </Link>
+    );
+  }
+  return (
+    <>
+      <Link href={link} data-hide-on-ios className="hover:underline">
+        {title}
+      </Link>
+      <span data-show-in-app data-hide-on-android>
+        {title}
+      </span>
+    </>
+  );
+}
 
 export default function ChangelogPage() {
   // Two JSON-LD nodes in one @graph: an ItemList for the page as a
@@ -139,13 +169,7 @@ export default function ChangelogPage() {
                 </span>
               </div>
               <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100 mb-1">
-                {entry.link ? (
-                  <Link href={entry.link} className="hover:underline">
-                    {entry.title}
-                  </Link>
-                ) : (
-                  entry.title
-                )}
+                <EntryTitle title={entry.title} link={entry.link} />
               </h2>
               <p className="text-[15px] text-ink-700 dark:text-cream-100/80">
                 {entry.summary}

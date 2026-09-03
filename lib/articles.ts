@@ -20,6 +20,21 @@
  * answer the question, link out to the product.
  */
 
+/**
+ * One body paragraph. The plain string is the norm.
+ *
+ * The paired form is for a paragraph that names one of OUR prices or links to
+ * /pricing. `web` is the paragraph exactly as a browser reader sees it. `app`
+ * is the same paragraph with the price and the purchase link taken out, for
+ * the iOS app, which sells nothing and names no place to buy; middleware.ts
+ * redirects /pricing there, so the link would have landed on the home screen.
+ * The [slug] route renders both and the platform CSS shows one
+ * (app/resources/[slug]/page.tsx). Other vendors' prices stay in the plain
+ * form: they are reporting, not an offer. Note the reason once, here, rather
+ * than at each paragraph.
+ */
+export type ArticleParagraph = string | { web: string; app: string };
+
 export type Article = {
   slug: string;
   title: string;
@@ -42,7 +57,7 @@ export type Article = {
   /** Body sections rendered by the [slug] route. Each section has
    *  an h2 heading and prose paragraphs. Internal links use
    *  markdown-ish [label](path) syntax which the renderer parses. */
-  sections: Array<{ heading: string; body: string[] }>;
+  sections: Array<{ heading: string; body: ArticleParagraph[] }>;
   /** Optional FAQ - rendered as expandable + emits FAQPage JSON-LD. */
   faq?: Array<{ q: string; a: string }>;
   /** End-of-article CTA. */
@@ -102,7 +117,10 @@ export const ARTICLES: Article[] = [
       {
         heading: 'Skip the template - draft it with Bella',
         body: [
-          'Advottic\'s legal AI Bella drafts the full letter in two minutes from a short narrative. She populates parties, facts, legal basis, demand, and deadline; you review and send. Free for the first three drafts; $19/mo for unlimited on [Personal Pro](/pricing).',
+          {
+            web: 'Advottic\'s legal AI Bella drafts the full letter in two minutes from a short narrative. She populates parties, facts, legal basis, demand, and deadline; you review and send. Free for the first three drafts; $19/mo for unlimited on [Personal Pro](/pricing).',
+            app: 'Advottic\'s legal AI Bella drafts the full letter in two minutes from a short narrative. She populates parties, facts, legal basis, demand, and deadline; you review and send. Free for the first three drafts; unlimited drafts are included with a subscription on your account.',
+          },
           'Bella also pulls real case-law citations from the public CourtListener database when the legal basis benefits from precedent.',
         ],
       },
@@ -165,7 +183,10 @@ export const ARTICLES: Article[] = [
         heading: 'Full-stack platforms: Advottic, Clio with Duo, Litify',
         body: [
           'Full-stack platforms treat AI as a tool inside the practice management suite, not as a separate product. The same dashboard runs your cases, your time, your trust ledger, and your AI assistant.',
-          '[Advottic](/) starts at $59 per user per month and bundles Bella (an AI agent that drafts documents, runs conflict checks, and starts time entries on her own), case management, IOLTA, e-signature, and a two-sided client marketplace. The bundled AI is roughly equivalent to Spellbook and the case management to Clio.',
+          {
+            web: '[Advottic](/) starts at $59 per user per month and bundles Bella (an AI agent that drafts documents, runs conflict checks, and starts time entries on her own), case management, IOLTA, e-signature, and a two-sided client marketplace. The bundled AI is roughly equivalent to Spellbook and the case management to Clio.',
+            app: '[Advottic](/) bundles Bella (an AI agent that drafts documents, runs conflict checks, and starts time entries on her own), case management, IOLTA, e-signature, and a two-sided client marketplace. The bundled AI is roughly equivalent to Spellbook and the case management to Clio.',
+          },
           'Clio with Duo is the same shape but $89-$129 per user per month plus the Duo upcharge; their AI is research-focused.',
           'Litify is enterprise-only Salesforce on top of legal workflows; quotes start at $200/user/mo with multi-year commits.',
         ],
@@ -173,8 +194,14 @@ export const ARTICLES: Article[] = [
       {
         heading: 'How to pick',
         body: [
-          'Solo / small firm under 10 attorneys: full-stack wins. You don\'t want to maintain three vendors. [Advottic Solo at $59/user/mo](/pricing) is the cheapest reasonable option.',
-          'Mid-market firm (10-50 attorneys) doing transactional work: full-stack with strong contract-AI. Advottic Small Firm at $99/user/mo, or Spellbook + a separate practice-management tool.',
+          {
+            web: 'Solo / small firm under 10 attorneys: full-stack wins. You don\'t want to maintain three vendors. [Advottic Solo at $59/user/mo](/pricing) is the cheapest reasonable option.',
+            app: 'Solo / small firm under 10 attorneys: full-stack wins. You don\'t want to maintain three vendors. Advottic Solo is the simplest reasonable option.',
+          },
+          {
+            web: 'Mid-market firm (10-50 attorneys) doing transactional work: full-stack with strong contract-AI. Advottic Small Firm at $99/user/mo, or Spellbook + a separate practice-management tool.',
+            app: 'Mid-market firm (10-50 attorneys) doing transactional work: full-stack with strong contract-AI. Advottic Small Firm, or Spellbook + a separate practice-management tool.',
+          },
           'Big-law (50+ attorneys) doing litigation: research copilot wins. CoCounsel + the firm\'s existing PMS.',
         ],
       },
@@ -242,7 +269,10 @@ export const ARTICLES: Article[] = [
       {
         heading: 'How software makes this easier',
         body: [
-          '[Advottic Counsel](/pricing) ships per-matter sub-ledgers, three-way reconciliation reports, and an auto-flag for negative client balances. Other practice management tools that handle IOLTA include Clio (separate Trust module), CosmoLex, and Smokeball.',
+          {
+            web: '[Advottic Counsel](/pricing) ships per-matter sub-ledgers, three-way reconciliation reports, and an auto-flag for negative client balances. Other practice management tools that handle IOLTA include Clio (separate Trust module), CosmoLex, and Smokeball.',
+            app: 'Advottic Counsel ships per-matter sub-ledgers, three-way reconciliation reports, and an auto-flag for negative client balances. Other practice management tools that handle IOLTA include Clio (separate Trust module), CosmoLex, and Smokeball.',
+          },
           'Whatever tool you pick, do not run trust accounting in QuickBooks. QuickBooks has no concept of a per-matter sub-ledger and the workarounds break down at scale.',
         ],
       },
@@ -443,7 +473,10 @@ export const ARTICLES: Article[] = [
       {
         heading: 'The full-stack tier',
         body: [
-          '[Advottic](/) - $59-$149 per user per month. Bundles AI (Bella), case management, e-signature, IOLTA, intake / conflict checking, marketplace, real-time team chat. Single tenant; no add-ons. Best for solo and small firms that want one tool.',
+          {
+            web: '[Advottic](/) - $59-$149 per user per month. Bundles AI (Bella), case management, e-signature, IOLTA, intake / conflict checking, marketplace, real-time team chat. Single tenant; no add-ons. Best for solo and small firms that want one tool.',
+            app: '[Advottic](/) - bundles AI (Bella), case management, e-signature, IOLTA, intake / conflict checking, marketplace, real-time team chat. Single tenant; no add-ons. Best for solo and small firms that want one tool.',
+          },
           'Clio Manage - $69-$129 per user per month. Largest install base, most third-party integrations. AI (Duo) is a $50/seat add-on. IOLTA works but is a separate module. Best for established firms that already use the Clio ecosystem.',
           'Smokeball - $49-$199 per user per month. Strong document automation; weaker AI. Australian roots; recent US push. Best for firms doing high-volume transactional work (estate planning, immigration).',
         ],
@@ -584,7 +617,10 @@ export const ARTICLES: Article[] = [
       {
         heading: 'Skip the chaos - prep with Advottic',
         body: [
-          '[Advottic](/) builds your small-claims case file in 15 minutes: drag in receipts and photos, write a 3-sentence narrative, and Bella generates the demand letter, chronology, itemized damages, and exhibit binder. Free for the first case; $19/mo for unlimited on [Personal Pro](/pricing).',
+          {
+            web: '[Advottic](/) builds your small-claims case file in 15 minutes: drag in receipts and photos, write a 3-sentence narrative, and Bella generates the demand letter, chronology, itemized damages, and exhibit binder. Free for the first case; $19/mo for unlimited on [Personal Pro](/pricing).',
+            app: '[Advottic](/) builds your small-claims case file in 15 minutes: drag in receipts and photos, write a 3-sentence narrative, and Bella generates the demand letter, chronology, itemized damages, and exhibit binder. Free for the first case; unlimited cases are included with a subscription on your account.',
+          },
         ],
       },
     ],
@@ -652,7 +688,10 @@ export const ARTICLES: Article[] = [
       {
         heading: 'How Bella reviews your engagement letter',
         body: [
-          'Drop the PDF into [Advottic\'s contract review](/review-my-document). Bella flags missing elements, unusual clauses, and red flags against the standard market position for your state. Free for the first three reviews; $19/mo for unlimited.',
+          {
+            web: 'Drop the PDF into [Advottic\'s contract review](/review-my-document). Bella flags missing elements, unusual clauses, and red flags against the standard market position for your state. Free for the first three reviews; $19/mo for unlimited.',
+            app: 'Drop the PDF into [Advottic\'s contract review](/review-my-document). Bella flags missing elements, unusual clauses, and red flags against the standard market position for your state. Free for the first three reviews; unlimited reviews are included with a subscription on your account.',
+          },
         ],
       },
     ],
@@ -909,7 +948,10 @@ export const ARTICLES: Article[] = [
       {
         heading: 'Drafting your POA with Bella',
         body: [
-          '[Bella](/) drafts state-specific POA forms in 5 minutes from a short interview: who is the principal, who is the agent, what type, what powers. The output is a state-compliant draft ready for signing and notarization. Free for the first three drafts; $19/mo for unlimited on [Personal Pro](/pricing).',
+          {
+            web: '[Bella](/) drafts state-specific POA forms in 5 minutes from a short interview: who is the principal, who is the agent, what type, what powers. The output is a state-compliant draft ready for signing and notarization. Free for the first three drafts; $19/mo for unlimited on [Personal Pro](/pricing).',
+            app: '[Bella](/) drafts state-specific POA forms in 5 minutes from a short interview: who is the principal, who is the agent, what type, what powers. The output is a state-compliant draft ready for signing and notarization. Free for the first three drafts; unlimited drafts are included with a subscription on your account.',
+          },
         ],
       },
     ],
@@ -988,7 +1030,10 @@ export const ARTICLES: Article[] = [
       {
         heading: 'Skip the templates - draft with Bella',
         body: [
-          '[Bella](/) drafts state-compliant articles of organization and operating agreements from a 5-minute interview. Free for the first three drafts; $19/mo for unlimited on [Personal Pro](/pricing). For LLCs with multiple members or unusual tax situations, [Find Counsel](/find-counsel) connects you with a small-firm attorney for a fixed-fee formation.',
+          {
+            web: '[Bella](/) drafts state-compliant articles of organization and operating agreements from a 5-minute interview. Free for the first three drafts; $19/mo for unlimited on [Personal Pro](/pricing). For LLCs with multiple members or unusual tax situations, [Find Counsel](/find-counsel) connects you with a small-firm attorney for a fixed-fee formation.',
+            app: '[Bella](/) drafts state-compliant articles of organization and operating agreements from a 5-minute interview. Free for the first three drafts; unlimited drafts are included with a subscription on your account. For LLCs with multiple members or unusual tax situations, [Find Counsel](/find-counsel) connects you with a small-firm attorney for a fixed-fee formation.',
+          },
         ],
       },
     ],
@@ -1140,7 +1185,10 @@ export const ARTICLES: Article[] = [
       {
         heading: 'Get your case file in order',
         body: [
-          '[Advottic](/) organizes your eviction case: lease, rent ledger, photos of property condition, communication log, notice + proof of service, court filings. Bella drafts the notice in your state\'s format and adds the cure period to your calendar with reminders. Counsel Solo at $59/user/mo for landlords with multiple properties.',
+          {
+            web: '[Advottic](/) organizes your eviction case: lease, rent ledger, photos of property condition, communication log, notice + proof of service, court filings. Bella drafts the notice in your state\'s format and adds the cure period to your calendar with reminders. Counsel Solo at $59/user/mo for landlords with multiple properties.',
+            app: '[Advottic](/) organizes your eviction case: lease, rent ledger, photos of property condition, communication log, notice + proof of service, court filings. Bella drafts the notice in your state\'s format and adds the cure period to your calendar with reminders. Advottic Counsel suits landlords with multiple properties.',
+          },
         ],
       },
     ],
