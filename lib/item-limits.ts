@@ -154,8 +154,9 @@ export async function softCheckCanCreate(input: {
   if (input.tier === 'free' && state.isOver) {
     return {
       allow: false,
+      // Plain-limit copy: see the note in lib/ai.ts.
       reason:
-        'Free includes 1 item. Upgrade to Personal Pro for 20 items, or delete an existing item to make room.',
+        'Free includes 1 item. Delete an existing item to make room for a new one.',
     };
   }
 
@@ -171,7 +172,8 @@ export async function softCheckCanCreate(input: {
   if (state.isOver) {
     return {
       allow: true,
-      warn: `You're ${state.overage} item${state.overage === 1 ? '' : 's'} over your ${state.itemLimit}-item plan. This adds about ${formatNumber(state.monthlyOverageTokens)} tokens to your monthly debit. Consider upgrading or buying a Boost pack.`,
+      // Plain-limit copy: see the note in lib/ai.ts.
+      warn: `You're ${state.overage} item${state.overage === 1 ? '' : 's'} over your ${state.itemLimit}-item plan. This adds about ${formatNumber(state.monthlyOverageTokens)} tokens to your monthly debit.`,
     };
   }
 

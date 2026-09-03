@@ -3408,7 +3408,8 @@ export async function* streamBella(input: {
         getEffectiveTrialState(),
       ]);
       if (!hasFeature(sub, 'bella') && !isFullAccessTrial(trialState)) {
-        yield "Bella is part of the Standard and Pro plans. Upgrade from your /billing page to chat with her.";
+        // Plain-limit copy: see the note in lib/ai.ts.
+        yield 'Chatting with Bella is not part of your current plan, so she cannot reply here.';
         return;
       }
     } catch {
@@ -3426,7 +3427,8 @@ export async function* streamBella(input: {
       const { getProTokenGate } = await import('./storage');
       const gate = await getProTokenGate();
       if (gate && gate.balance <= 0) {
-        yield "You've used up your Pro tokens for this billing period. Top up from your /billing page and I'll be right back.";
+        // Plain-limit copy: see the note in lib/ai.ts.
+        yield 'Your Bella tokens for this billing period are used up, so I cannot reply right now.';
         return;
       }
     } catch {
@@ -3451,7 +3453,8 @@ export async function* streamBella(input: {
       if (user) {
         const balance = await getCombinedTokenBalance({ userId: user.id, firmId });
         if (balance.combined <= 0) {
-          yield "Your firm has used up its Bella tokens for this billing period. Top up from your firm's billing page and I'll be right back.";
+          // Plain-limit copy: see the note in lib/ai.ts.
+          yield "Your firm's Bella tokens for this billing period are used up, so I cannot reply right now.";
           return;
         }
       }

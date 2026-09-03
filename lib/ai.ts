@@ -202,8 +202,19 @@ export async function runReview(caseRecord: Case, exhibits: Exhibit[]): Promise<
     const gate = await getProTokenGate();
     if (gate && gate.balance <= 0) {
       const r = demoReview(caseRecord, exhibits, jurisdiction);
+      // Plain-limit copy. This string, and the nine like it in lib/bella.ts,
+      // lib/actions.ts, lib/item-limits.ts and
+      // app/review-my-document/review-client.tsx, used to end with a steering
+      // sentence naming where to buy ("Top up from /billing"). They are
+      // produced on the server as plain text and reach every platform,
+      // including the iOS app, where the CSS platform gate (globals.css
+      // data-hide-on-ios) cannot reach inside a string. Advottic on iOS sells
+      // nothing and names no place to buy, so the steering sentence is gone
+      // for everyone: the limit is stated plainly and the sentence stops
+      // there. The web loses nothing it needs, because the Billing page is
+      // in its navigation. tests/plain-limit-copy.test.ts pins each string.
       r.summary =
-        'Your Pro token balance is empty. Top up from /billing to run a fresh review on this case. Showing the example template below in the meantime.\n\n' +
+        'Your token balance for this period is used up, so a fresh review cannot run on this case right now. Showing the example template below in the meantime.\n\n' +
         r.summary;
       return r;
     }

@@ -168,8 +168,9 @@ export async function createCaseAction(
       if (state.mode === 'expired') {
         return {
           ok: false,
+          // Plain-limit copy: see the note in lib/ai.ts.
           error:
-            'Your free trial has ended. Open /billing to subscribe, then create your case.',
+            'Your free trial has ended, so a new case cannot be created right now. Your existing cases are still there to view.',
         };
       }
       isTrialExempt = isFullAccessTrial(state);
@@ -209,7 +210,8 @@ export async function createCaseAction(
             if ((count ?? 0) >= limit) {
               return {
                 ok: false,
-                error: `You've reached your plan's limit of ${limit} case${limit === 1 ? '' : 's'}. Upgrade from /billing, or archive an existing case to make room.`,
+                // Plain-limit copy: see the note in lib/ai.ts.
+                error: `You've reached your plan's limit of ${limit} case${limit === 1 ? '' : 's'}. Archive an existing case to make room.`,
               };
             }
           }
@@ -1596,7 +1598,8 @@ export async function inviteCollaboratorAction(
       const sub = await getCurrentSubscription();
       const trial = await currentUserTrialGrant().catch(() => undefined);
       if (!hasFeature(sub, 'collaborators', trial)) {
-        tierRefusal = 'Inviting collaborators requires the Pro plan. Upgrade from /billing.';
+        // Plain-limit copy: see the note in lib/ai.ts.
+        tierRefusal = 'Inviting collaborators is not part of your current plan.';
       }
     }
   } catch {

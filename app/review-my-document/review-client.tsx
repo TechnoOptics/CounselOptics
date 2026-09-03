@@ -46,9 +46,10 @@ export function ReviewDocumentClient() {
             data.error ||
             'Slow down - too many reviews in a short window. Try again in a minute.';
         } else if (res.status === 402 || res.status === 403) {
+          // Plain-limit copy: see the note in lib/ai.ts.
           msg =
             data.error ||
-            'Your plan is out of review credits for this period. Open Billing to add a top-up or upgrade.';
+            'Your plan is out of review credits for this period, so a new review cannot start right now.';
         } else if (res.status === 503 || res.status === 504) {
           msg =
             data.error ||

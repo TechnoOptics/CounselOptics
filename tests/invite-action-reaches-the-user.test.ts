@@ -118,13 +118,17 @@ describe('what the invite action hands back to the page', () => {
     expect(res.error).toMatch(/only the case owner/i);
   });
 
-  it('returns the upgrade prompt rather than a generic server fault', async () => {
+  it('returns the plan-limit reason rather than a generic server fault', async () => {
     h.s.hasCollaborators = false;
 
     const res = await inviteCollaboratorAction('case-1', form('colleague@example.test'));
 
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/pro plan/i);
+    // Plain-limit copy (see lib/ai.ts): the limit is stated and the sentence
+    // stops there, with no tier name and no place to buy, because this string
+    // reaches the iOS app as plain text.
+    expect(res.error).toMatch(/not part of your current plan/i);
+    expect(res.error).not.toMatch(/\/billing|upgrade/i);
     // The gate really refused: no invite was attempted.
     expect(h.calls).not.toContain('inviteCollaborator');
   });
