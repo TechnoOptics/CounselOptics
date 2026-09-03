@@ -98,10 +98,21 @@ export default async function FirmTokenPoolPage() {
         eyebrow={<T>Counsel · Bella tokens</T>}
         title={<T>Firm pool</T>}
         subtitle={
-          <T>One pool everyone on the firm draws from when they ask Bella.
-          Heavy users on a litigation week absorb light users&rsquo;
-          unused share. Top up here when the pool runs low; charges go
-          to the firm&rsquo;s payment method.</T>
+          <>
+            <T>One pool everyone on the firm draws from when they ask Bella.
+            Heavy users on a litigation week absorb light users&rsquo;
+            unused share.</T>
+            {/* This sentence points at TokenTopUpButton, which is hidden in
+                both native shells (data-hide-in-app). It carries the same
+                attribute so it appears exactly when the button does; without
+                it the app reader was told to press a control that was not on
+                the page. */}
+            <span data-hide-in-app>
+              {' '}
+              <T>Top up here when the pool runs low; charges go to the
+              firm&rsquo;s payment method.</T>
+            </span>
+          </>
         }
         action={<TokenTopUpButton />}
       />

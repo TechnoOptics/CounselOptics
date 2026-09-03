@@ -124,8 +124,14 @@ export function TrialBanner({
   if (isExpired) {
     return (
       // Reader model: the banner itself may show on iOS, but the Subscribe
-      // CTA and tier name are hidden there (data-hide-on-ios) - the app sells
-      // nothing and names no purchasable tiers (Guidelines 2.1(b)/3.1.1).
+      // link, the tier name AND the sentence that asks the reader to subscribe
+      // are hidden there (data-hide-on-ios), because the app sells nothing and
+      // names no purchasable tiers (Guidelines 2.1(b)/3.1.1). The iOS reader
+      // gets a paired sentence (data-show-in-app) that stands on its own. That
+      // reveal rule also fires on Android, so the paired sentence carries
+      // data-hide-on-android too: globals.css declares that rule after the
+      // reveal at equal specificity, so Android keeps exactly the web copy.
+      // tests/dangling-purchase-sentences.test.ts pins the ordering.
       <div className="fixed left-[calc(0.75rem+var(--safe-left))] right-[calc(0.75rem+var(--safe-right))] sm:left-auto sm:right-[calc(1.5rem+var(--safe-right))] bottom-[calc(5rem+var(--safe-bottom))] sm:bottom-[calc(6rem+var(--safe-bottom))] sm:max-w-md z-[55]">
         <div
           role="status"
@@ -137,7 +143,9 @@ export function TrialBanner({
               Your free trial has ended
             </p>
             <p className="text-[11.5px] text-cream-100/75 leading-snug">
-              You can still view your cases and look up counsel. Subscribe to keep using Bella, Advottic Review, and create new cases.
+              You can still view your cases and look up counsel.{' '}
+              <span data-hide-on-ios>Subscribe to keep using Bella, Advottic Review, and create new cases.</span>
+              <span data-show-in-app data-hide-on-android>Bella, Advottic Review, and new cases are included with a subscription on your account.</span>
             </p>
           </div>
           <Link
@@ -175,9 +183,17 @@ export function TrialBanner({
             {tier ? <span data-hide-on-ios>{` · ${tier[0].toUpperCase()}${tier.slice(1)}`}</span> : null}
           </p>
           <p className="text-[11.5px] text-cream-100/70 leading-snug">
-            {mode === 'free_trial'
-              ? 'Subscribe before it ends to keep Bella, Advottic Review, and case creation.'
-              : 'Subscribe before the trial ends to keep your access.'}
+            {/* Paired copy, same reasoning as the expired banner above. */}
+            <span data-hide-on-ios>
+              {mode === 'free_trial'
+                ? 'Subscribe before it ends to keep Bella, Advottic Review, and case creation.'
+                : 'Subscribe before the trial ends to keep your access.'}
+            </span>
+            <span data-show-in-app data-hide-on-android>
+              {mode === 'free_trial'
+                ? 'After the trial, Bella, Advottic Review, and case creation are included with a subscription on your account.'
+                : 'After the trial, your access continues with the subscription on your account.'}
+            </span>
           </p>
           {/*
             Audit V7 CR-60: "in-trial since" sub-line + 24h postpone.

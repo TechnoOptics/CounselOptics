@@ -392,7 +392,7 @@ export default async function BillingPage({
           empty version of this card. */}
       {isPro && tokens && (
         <section id="topup" className="space-y-5 scroll-mt-20">
-          <TokenGauge balance={tokens.balance} />
+          <TokenGauge balance={tokens.balance} isIos={isIos} />
           {/* Token top-ups are consumable digital goods; buying them in-app
               would require Apple IAP. Under the reader model the buy buttons are
               iOS-hidden (top-ups happen on the web) - the balance stays visible. */}
@@ -563,7 +563,7 @@ function ItemsGauge({
   );
 }
 
-function TokenGauge({ balance }: { balance: number }) {
+function TokenGauge({ balance, isIos }: { balance: number; isIos: boolean }) {
   const monthly = PRO_MONTHLY_TOKEN_GRANT;
   // Cap the visual fill at the monthly grant. Top-ups can push the
   // balance above 100% which we render as a gold "extra" sliver.
@@ -603,8 +603,16 @@ function TokenGauge({ balance }: { balance: number }) {
         )}
       </div>
       <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-        Tokens are spent each time Bella replies or Advottic Review runs a review. Heavy users can
-        top up below at any time - top-ups don&apos;t expire.
+        Tokens are spent each time Bella replies or Advottic Review runs a review.
+        {/* "Top up below" points at TopUpButtons, which is not rendered on iOS.
+            Same two gates as the buttons, so the sentence never outlives the
+            control it describes. */}
+        {!isIos && (
+          <span data-hide-on-ios>
+            {' '}
+            Heavy users can top up below at any time - top-ups don&apos;t expire.
+          </span>
+        )}
       </p>
     </div>
   );
