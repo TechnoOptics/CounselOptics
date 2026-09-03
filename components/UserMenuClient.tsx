@@ -114,9 +114,16 @@ export function UserMenuClient(props: UserMenuProps) {
                 to the consumer side from counsel / HQ. */}
             {!props.isCounselMode && (
               <>
-                {/* Billing is reachable on iOS: subscriptions are sold
-                    through Apple In-App Purchase there (Guideline 3.1.1),
-                    so this row is no longer gated. */}
+                {/* Billing stays reachable on iOS on purpose, and NOT because
+                    anything is sold there. Advottic on iOS sells nothing: no
+                    In-App Purchase, no StoreKit. /billing is where a signed-in
+                    person reads the plan and token balance the account already
+                    has, as a statement of fact, and that page removes every
+                    price, plan ladder and checkout path on iOS itself
+                    (app/billing/page.tsx: isIos plus data-hide-on-ios). Gating
+                    this row would take away the only place the app shows what
+                    the account has. tests/no-storekit-in-the-binary.test.ts
+                    reads this comment. */}
                 <MenuLink href="/billing" onClick={() => setOpen(false)}>
                   Billing & subscription
                 </MenuLink>
