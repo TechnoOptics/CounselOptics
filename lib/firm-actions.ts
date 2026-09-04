@@ -67,6 +67,12 @@ import {
   type IntakeWorkflowState,
 } from './intake-workflow';
 import {
+  LEGAL_FIELD_UNSAVED_ERROR,
+  normalizeLegalFieldsWrite,
+  resolveLegalFieldColumnFallback,
+  type IntakeLegalFieldsInput,
+} from './intake-legal-fields';
+import {
   INTAKE_COLS,
   hydratePeople,
   insertIntakeMessage,
@@ -2375,6 +2381,90 @@ export async function setIntakeWorkflowAction(
 
   revalidatePath(`/counsel/intake/${intakeId}`);
   revalidatePath('/counsel/inbox');
+  return { ok: true };
+}
+
+/**
+ * The legal team's own fields on a request. See lib/intake-legal-fields.ts
+ * for which they are and why each is a real column.
+ *
+ * Public HTTP endpoint, like every export here, writing through the
+ * service-role client past RLS, so the gates are in the action: the caller's
+ * role on the firm, the firm's access state, the row belonging to that firm,
+ * and a related matter belonging to it too. Nothing in this function touches
+ * intake_answers, and tests/intake-legal-fields.test.ts keeps it that way:
+ * that column is selected whole by the employee's page.
+ *
+ * A write to a column the migration has not created yet is REFUSED, not
+ * retried without the field. The only other place the value could go is the
+ * one place it must never be.
+ */
+export async function setIntakeLegalFieldsAction(
+  firmId: string,
+  intakeId: string,
+  fields: IntakeLegalFieldsInput,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  if (!(await callerHasFirmRole(firmId, FIRM_MANAGE_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only firm owners, admins or attorneys can manage a request.',
+    };
+  }
+  await requireActiveFirm(firmId);
+
+  const write = normalizeLegalFieldsWrite(fields);
+  if (!write.ok) return { ok: false, error: write.error };
+
+  const { data: row } = await admin
+    .from('firm_matter_intakes')
+    .select('firm_id')
+    .eq('id', intakeId)
+    .maybeSingle();
+  const intake = row as { firm_id: string } | null;
+  if (!intake || intake.firm_id !== firmId) {
+    return { ok: false, error: 'Request not found.' };
+  }
+
+  // A matter link is only ever to one of this firm's own matters. The id is
+  // shape-checked already; this is the ownership check, and it is here rather
+  // than in the select the page renders because that select is a convenience
+  // and this is the gate.
+  const relatedCaseId = write.update.related_case_id;
+  if (typeof relatedCaseId === 'string') {
+    const { data: owned } = await admin
+      .from('cases')
+      .select('id')
+      .eq('id', relatedCaseId)
+      .eq('firm_id', firmId)
+      .maybeSingle();
+    if (!owned) return { ok: false, error: 'That matter is not one of this firm\'s.' };
+  }
+
+  const { data: written, error } = await admin
+    .from('firm_matter_intakes')
+    .update({ ...write.update, updated_at: new Date().toISOString() })
+    .eq('id', intakeId)
+    .eq('firm_id', firmId)
+    .select('id');
+  if (error) {
+    const fallback = resolveLegalFieldColumnFallback({ error });
+    return {
+      ok: false,
+      error: fallback === 'abort-column-missing' ? LEGAL_FIELD_UNSAVED_ERROR : error.message,
+    };
+  }
+  if (!written || written.length === 0) {
+    return {
+      ok: false,
+      error: 'That could not be saved. Nothing on the request has changed.',
+    };
+  }
+
+  revalidatePath(`/counsel/intake/${intakeId}`);
   return { ok: true };
 }
 

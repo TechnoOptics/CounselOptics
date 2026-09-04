@@ -66,6 +66,14 @@ const LEGAL_ONLY_COLUMNS = [
   'client_phone',
   'opposing_parties',
   'related_parties',
+  // The legal team's own fields, added by
+  // supabase/migrations/20260903_intake_legal_fields_internal.sql. Real
+  // columns precisely so this list can name them; see
+  // lib/intake-legal-fields.ts, whose column list
+  // tests/intake-legal-fields.test.ts checks against this one.
+  'related_case_id',
+  'completed_on',
+  'multiple_documents',
 ];
 
 /** The single .select(...) argument on the employee's read of the ticket. */

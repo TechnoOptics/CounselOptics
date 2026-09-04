@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { getActiveFirmContext, listFirmMembers } from '@/lib/firm-storage';
+import {
+  getActiveFirmContext,
+  listFirmCases,
+  listFirmMembers,
+} from '@/lib/firm-storage';
+import { AdministrativeTools } from './administrative-tools';
+import {
+  readIntakeLegalFields,
+  showsAdministrativeTools,
+} from '@/lib/intake-legal-fields';
 import { firmVocabulary } from '@/lib/firm-vocabulary';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
@@ -221,6 +230,16 @@ export default async function IntakeDetailPage({
   const deadline = intakeDeadline(ans, Date.now());
   const opened = relativeTime(intake.created_at);
   const decision = readDecision(ans);
+
+  // The legal team's own fields, in the rail. Real columns, never
+  // intake_answers: lib/intake-legal-fields.ts says why. Absent until the
+  // migration is applied, and read as unset rather than failing, because this
+  // page selects `*`. The matter list is fetched only when the block shows.
+  const showAdmin = showsAdministrativeTools(intake.matter_type);
+  const legalFields = readIntakeLegalFields(intake);
+  const matters = showAdmin
+    ? (await listFirmCases(ctx.firm.id)).map((c) => ({ id: c.id, title: c.title }))
+    : [];
 
   /**
    * THE ATTACHMENT GATE. The conflict check and the analysis are offered only
@@ -735,6 +754,20 @@ export default async function IntakeDetailPage({
                 ))}
               </ul>
             </PanelCard>
+          )}
+
+          {/* THE LEGAL TEAM'S OWN FIELDS. In the rail because they are what
+              the firm records about the request, not what the employee said,
+              and on the legal side only: the employee's page never selects
+              these columns. tests/employee-payload-scope.test.ts holds that. */}
+          {showAdmin && (
+            <AdministrativeTools
+              firmId={ctx.firm.id}
+              intakeId={intake.id}
+              fields={legalFields}
+              matters={matters}
+              closeNotes={decision?.reason || null}
+            />
           )}
 
           {/* WHAT THE FIRM DOES ABOUT THIS REQUEST. Every one of these was in

@@ -1695,6 +1695,9 @@ describe('every error and warning surface can be read on both of its grounds', (
     'app/counsel/intake/[id]/analyze-attachments.tsx': 'counsel',
     'app/counsel/intake/[id]/intake-owner-select.tsx': 'counsel',
     'app/counsel/intake/[id]/ticket-management.tsx': 'counsel',
+    // The legal team's administrative block in the ticket rail. Paints
+    // --danger-text as its failure message, on the counsel card it is.
+    'app/counsel/intake/[id]/administrative-tools.tsx': 'counsel',
     'app/counsel/letters/letters-studio.tsx': 'counsel',
     'app/counsel/policies/policies-manage-client.tsx': 'counsel',
     'app/counsel/signing/[id]/page.tsx': 'counsel',
