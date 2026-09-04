@@ -74,6 +74,12 @@ const LEGAL_ONLY_COLUMNS = [
   'related_case_id',
   'completed_on',
   'multiple_documents',
+  // And by 20260903_intake_legal_fields_contract.sql: the contract dates,
+  // the expiry notice flag and the sweep's own stamp.
+  'effective_on',
+  'expires_on',
+  'notify_on_expiry',
+  'expiry_notified_at',
 ];
 
 /** The single .select(...) argument on the employee's read of the ticket. */
@@ -266,6 +272,11 @@ describe('the intake_answers blob is a known hole, not a closed one', () => {
       'decision',
       'review',
       'attachments',
+      // The contract family's shared fields, filed by the employee on the
+      // creation form (lib/intake-contract-fields.ts). Their own words, so
+      // theirs to read back. Nothing the legal team records about the
+      // contract is in here: those are columns, listed above.
+      'contract',
     ]);
     const unexpected = [...keys].filter((k) => !ALLOWED.has(k));
     expect(unexpected, `unreviewed intake_answers keys: ${unexpected.join(', ')}`)

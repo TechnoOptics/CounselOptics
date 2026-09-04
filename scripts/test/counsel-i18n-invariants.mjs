@@ -296,6 +296,13 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   's',
   'p',
   'c',
+  // `d` and `v` on the contract block of the intake form: map params over
+  // CONTRACT_DOCUMENT_TYPES and CONTRACT_VERSIONS in
+  // lib/intake-contract-fields.ts, two frozen literal arrays. No firm or
+  // employee data reaches either; what the employee types is stored and
+  // printed outside <T>.
+  'd',
+  'v',
   'i',
   'at',
   // render-site label props over static arrays / objects

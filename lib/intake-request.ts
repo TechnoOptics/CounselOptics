@@ -37,9 +37,10 @@ export function intakeTitle(row: IntakeTitleRow): string {
  * Just enough of FormData to read a field, so this runs in Node without a
  * DOM and a test can drive it with the same object the form submits.
  */
-type Fields = { get(name: string): unknown };
+export type FormFields = { get(name: string): unknown };
 
-function field(fd: Fields, name: string): string | null {
+/** A trimmed field, or null when it was blank. Shared with the contract reader. */
+export function formField(fd: FormFields, name: string): string | null {
   return String(fd.get(name) ?? '').trim() || null;
 }
 
@@ -51,15 +52,15 @@ function field(fd: Fields, name: string): string | null {
  * `subject` without anything going red.
  */
 export function inhouseIntakeAnswers(
-  fd: Fields,
+  fd: FormFields,
   subject: string,
 ): Record<string, unknown> {
   return {
     subject: subject.trim(),
-    submitted_by: field(fd, 'submittedBy'),
-    due_by: field(fd, 'dueBy'),
-    expiry: field(fd, 'expiry'),
-    priority: field(fd, 'priority'),
-    confidentiality: field(fd, 'confidentiality'),
+    submitted_by: formField(fd, 'submittedBy'),
+    due_by: formField(fd, 'dueBy'),
+    expiry: formField(fd, 'expiry'),
+    priority: formField(fd, 'priority'),
+    confidentiality: formField(fd, 'confidentiality'),
   };
 }

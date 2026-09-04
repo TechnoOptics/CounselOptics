@@ -37,14 +37,22 @@ import { isUnknownColumnError } from './signer-view';
 import { familyOfType, type PortalFamilyKey } from './portal-request-families';
 
 /**
- * Every column this module can write. Each one also has to appear in
- * LEGAL_ONLY_COLUMNS in tests/employee-payload-scope.test.ts, which is what
- * keeps the employee's SELECT from ever naming it.
+ * Every legal-only column. Each one also has to appear in LEGAL_ONLY_COLUMNS
+ * in tests/employee-payload-scope.test.ts, which is what keeps the employee's
+ * SELECT from ever naming it.
+ *
+ * `expiry_notified_at` is written by the deadlines sweep alone, never from
+ * the client; it is in this list because it is a column on the row and the
+ * guard has to know about it for the same reason as the others.
  */
 export const LEGAL_ONLY_INTAKE_COLUMNS = [
   'related_case_id',
   'completed_on',
   'multiple_documents',
+  'effective_on',
+  'expires_on',
+  'notify_on_expiry',
+  'expiry_notified_at',
 ] as const;
 
 export type LegalOnlyIntakeColumn = (typeof LEGAL_ONLY_INTAKE_COLUMNS)[number];
@@ -56,6 +64,7 @@ export type LegalOnlyIntakeColumn = (typeof LEGAL_ONLY_INTAKE_COLUMNS)[number];
  */
 export const ADMINISTRATIVE_TOOLS_FAMILIES: readonly PortalFamilyKey[] = [
   'internal',
+  'contract',
 ];
 
 /** Whether a request with this matter_type shows the block to the legal team. */
@@ -72,7 +81,14 @@ export type IntakeLegalFields = {
   /** yyyy-mm-dd. */
   completedOn: string | null;
   multipleDocuments: boolean;
+  /** yyyy-mm-dd. */
+  effectiveOn: string | null;
+  /** yyyy-mm-dd. */
+  expiresOn: string | null;
+  notifyOnExpiry: boolean;
 };
+
+const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
 /**
  * The fields off a row that may or may not carry the columns yet.
@@ -87,9 +103,12 @@ export function readIntakeLegalFields(
 ): IntakeLegalFields {
   const r = row ?? {};
   return {
-    relatedCaseId: typeof r.related_case_id === 'string' ? r.related_case_id : null,
-    completedOn: typeof r.completed_on === 'string' ? r.completed_on : null,
+    relatedCaseId: str(r.related_case_id),
+    completedOn: str(r.completed_on),
     multipleDocuments: r.multiple_documents === true,
+    effectiveOn: str(r.effective_on),
+    expiresOn: str(r.expires_on),
+    notifyOnExpiry: r.notify_on_expiry === true,
   };
 }
 
@@ -100,6 +119,9 @@ export type IntakeLegalFieldsInput = {
   /** yyyy-mm-dd, or '' / null to clear. */
   completedOn?: string | null;
   multipleDocuments?: boolean;
+  effectiveOn?: string | null;
+  expiresOn?: string | null;
+  notifyOnExpiry?: boolean;
 };
 
 export type LegalFieldWrite =
@@ -109,6 +131,14 @@ export type LegalFieldWrite =
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** '' clears; anything else has to be a real calendar date. */
+function dateOrNull(raw: string | null | undefined): { ok: true; value: string | null } | { ok: false } {
+  const v = String(raw ?? '').trim();
+  if (!v) return { ok: true, value: null };
+  if (!DATE.test(v) || Number.isNaN(Date.parse(v))) return { ok: false };
+  return { ok: true, value: v };
+}
+
 /**
  * The column values a write carries, or the one plain sentence that stops it.
  *
@@ -117,6 +147,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * `date` rejects free text and the failure would surface as a raw Postgres
  * message. The case id is shape-checked here and ownership-checked by the
  * action, which is the only place that can ask the database whose it is.
+ *
+ * Moving the expiration date re-arms the expiry notice: the sweep fires once
+ * per date, and a date the team changed is a date nobody has been told about.
  */
 export function normalizeLegalFieldsWrite(
   input: IntakeLegalFieldsInput,
@@ -131,16 +164,23 @@ export function normalizeLegalFieldsWrite(
     update.related_case_id = v || null;
   }
 
-  if (input.completedOn !== undefined) {
-    const v = String(input.completedOn ?? '').trim();
-    if (v && (!DATE.test(v) || Number.isNaN(Date.parse(v)))) {
-      return { ok: false, error: 'Pick a valid date.' };
-    }
-    update.completed_on = v || null;
+  for (const [key, column] of [
+    ['completedOn', 'completed_on'],
+    ['effectiveOn', 'effective_on'],
+    ['expiresOn', 'expires_on'],
+  ] as const) {
+    if (input[key] === undefined) continue;
+    const d = dateOrNull(input[key]);
+    if (!d.ok) return { ok: false, error: 'Pick a valid date.' };
+    update[column] = d.value;
+    if (column === 'expires_on') update.expiry_notified_at = null;
   }
 
   if (input.multipleDocuments !== undefined) {
     update.multiple_documents = input.multipleDocuments === true;
+  }
+  if (input.notifyOnExpiry !== undefined) {
+    update.notify_on_expiry = input.notifyOnExpiry === true;
   }
 
   if (Object.keys(update).length === 0) {
@@ -178,4 +218,36 @@ export function resolveLegalFieldColumnFallback(input: {
     if (isUnknownColumnError(input.error, column)) return 'abort-column-missing';
   }
   return 'surface-error';
+}
+
+/**
+ * How far ahead of the expiration date the legal team is told. Thirty days
+ * is the shortest of the three the case-deadline sweep already uses, and a
+ * contract that needs renewing is not helped by a notice on the day.
+ */
+export const EXPIRY_NOTICE_LEAD_DAYS = 30;
+
+/**
+ * Whether the expiry notice for a request is due now.
+ *
+ * Due from LEAD days before the date onward, and only while nothing has been
+ * sent for this date: `notifiedAt` is stamped by the sweep and cleared when
+ * the date moves (normalizeLegalFieldsWrite). A request whose date is
+ * already behind us and was never noticed is still due, because the team
+ * asked to be told and has not been.
+ */
+export function expiryNoticeDue(input: {
+  /** yyyy-mm-dd, or null when unset. */
+  expiresOn: string | null;
+  notifyOnExpiry: boolean;
+  notifiedAt: string | null;
+  /** Epoch milliseconds. */
+  now: number;
+}): boolean {
+  if (!input.notifyOnExpiry || input.notifiedAt) return false;
+  if (!input.expiresOn) return false;
+  const at = Date.parse(input.expiresOn);
+  if (Number.isNaN(at)) return false;
+  const lead = EXPIRY_NOTICE_LEAD_DAYS * 24 * 60 * 60 * 1000;
+  return at - lead <= input.now;
 }

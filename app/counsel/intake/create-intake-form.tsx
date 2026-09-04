@@ -11,6 +11,12 @@ import type { DocScorecard } from '@/lib/doc-review';
 import { resolveIntakeReviewGate } from '@/lib/intake-review-gate';
 import { inhouseIntakeAnswers } from '@/lib/intake-request';
 import {
+  CONTRACT_DOCUMENT_TYPES,
+  CONTRACT_VERSIONS,
+  contractIntakeAnswers,
+  isContractRequestType,
+} from '@/lib/intake-contract-fields';
+import {
   listFirmTemplatesAction,
   listPortalTemplatesAction,
 } from '@/lib/firm-templates';
@@ -217,6 +223,9 @@ export function CreateIntakeForm({
       // `client_name` below, but that column holds the requester's name on
       // the partner path, so no reader can use it to name a request.
       Object.assign(intakeAnswers, inhouseIntakeAnswers(formData, subject));
+      // The contract family's shared fields, under one key. Nothing at all
+      // on any other request type. See lib/intake-contract-fields.ts.
+      Object.assign(intakeAnswers, contractIntakeAnswers(formData, requestType));
       // Null for "not a signature question", which is what every request
       // filed before this question existed already says by having no key at
       // all. It goes in the jsonb and nowhere near `status`, whose seven-value
@@ -501,6 +510,99 @@ export function CreateIntakeForm({
         values={related}
         onChange={setRelated}
       />
+
+      {/* THE CONTRACT BLOCK. Who the agreement is with, where in the company
+          it lives, what kind of paper it is and who signs for us. Only on the
+          contract family, and shared: it is what the employee filed, so it
+          goes in intake_answers and renders on both ticket pages. The desired
+          completion date is the Due by field above; the context is the
+          details field below; the file is the attachment field. None of
+          those is asked twice. */}
+      {inhouse && isContractRequestType(requestType) && (
+        <fieldset className="space-y-3 rounded-xl p-4 ring-1 ring-edge">
+          <legend className="px-1 text-sm font-medium text-foreground">
+            <T>Contract details</T>
+          </legend>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block sm:col-span-2">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Customer or entity</T>
+              </span>
+              <input
+                name="contractEntity"
+                className="input"
+                placeholder={t('The company or person the agreement is with')}
+              />
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Their contact</T>
+              </span>
+              <input name="contractContactName" className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Contact email</T>
+              </span>
+              <input name="contractContactEmail" type="email" className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Department</T>
+              </span>
+              <input name="contractDepartment" className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Location</T>
+              </span>
+              <input name="contractLocation" className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Document type</T>
+              </span>
+              <select name="contractDocumentType" className="input" defaultValue="">
+                <option value=""><T>Pick one</T></option>
+                {CONTRACT_DOCUMENT_TYPES.map((d) => (
+                  <option key={d} value={d}>
+                    <T>{d}</T>
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Version requested</T>
+              </span>
+              <select name="contractVersion" className="input" defaultValue="">
+                <option value=""><T>Pick one</T></option>
+                {CONTRACT_VERSIONS.map((v) => (
+                  <option key={v} value={v}>
+                    <T>{v}</T>
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Who signs for us</T>
+              </span>
+              <input
+                name="contractSignerName"
+                className="input"
+                placeholder={t('Name')}
+              />
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                <T>Signer title</T>
+              </span>
+              <input name="contractSignerTitle" className="input" />
+            </label>
+          </div>
+        </fieldset>
+      )}
 
       <div className="block">
         <div className="flex items-center justify-between gap-2 mb-1.5">

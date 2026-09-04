@@ -10,6 +10,7 @@ import {
   readIntakeLegalFields,
   showsAdministrativeTools,
 } from '@/lib/intake-legal-fields';
+import { readContractDetails } from '@/lib/intake-contract-fields';
 import { firmVocabulary } from '@/lib/firm-vocabulary';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
@@ -162,6 +163,9 @@ export default async function IntakeDetailPage({
   // submitted_by. Outside-client matters do not.
   const submittedBy = String(ans.submitted_by ?? '').trim();
   const isEmployeeReq = submittedBy.length > 0;
+  // The contract family's shared fields, filed by the employee. Empty on
+  // every other request type. See lib/intake-contract-fields.ts.
+  const contractDetails = readContractDetails(ans.contract);
   const thread: ThreadMessage[] = Array.isArray(ans.thread)
     ? (ans.thread as ThreadMessage[])
     : [];
@@ -488,6 +492,30 @@ export default async function IntakeDetailPage({
                 </dl>
               )}
             </RecordSection>
+
+            {/* What the employee filed about the agreement itself. Shared
+                with the employee's page: these are their own words, so they
+                belong in this column and in the jsonb. */}
+            {contractDetails.length > 0 && (
+              <RecordSection
+                id="contract"
+                title="Contract details"
+                count={contractDetails.length}
+              >
+                <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                  {contractDetails.map((f) => (
+                    <div key={f.label}>
+                      <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                        <T>{f.label}</T>
+                      </dt>
+                      <dd data-no-translate className="text-[13.5px] text-foreground">
+                        {f.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </RecordSection>
+            )}
 
             {questionAnswers.length > 0 && (
               <RecordSection

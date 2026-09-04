@@ -33,7 +33,11 @@ const COUNSEL_PAGE = 'app/counsel/intake/[id]/page.tsx';
 const PORTAL_PAGE = 'app/portal/[id]/page.tsx';
 const ACTIONS = 'lib/firm-actions.ts';
 const GUARD = 'tests/employee-payload-scope.test.ts';
-const MIGRATIONS = ['supabase/migrations/20260903_intake_legal_fields_internal.sql'];
+const MIGRATIONS = [
+  'supabase/migrations/20260903_intake_legal_fields_internal.sql',
+  'supabase/migrations/20260903_intake_legal_fields_contract.sql',
+];
+const DEADLINES = 'lib/deadlines.ts';
 
 /* ------------------------------------------------------------------ */
 /* Mocks for the action under test. Same shape as intake-decision.      */
@@ -128,6 +132,8 @@ const {
   LEGAL_ONLY_INTAKE_COLUMNS,
   ADMINISTRATIVE_TOOLS_FAMILIES,
   LEGAL_FIELD_UNSAVED_ERROR,
+  EXPIRY_NOTICE_LEAD_DAYS,
+  expiryNoticeDue,
   normalizeLegalFieldsWrite,
   readIntakeLegalFields,
   resolveLegalFieldColumnFallback,
@@ -393,6 +399,36 @@ describe('normalizeLegalFieldsWrite', () => {
     ).toEqual({ ok: true, update: { multiple_documents: false } });
   });
 
+  /**
+   * Mutation: leave expiry_notified_at alone when the date moves. The sweep
+   * fires once per stamp, so a moved date would be a date nobody is told
+   * about.
+   */
+  it('re-arms the expiry notice when the expiration date changes', () => {
+    expect(normalizeLegalFieldsWrite({ expiresOn: '2027-01-31' })).toEqual({
+      ok: true,
+      update: { expires_on: '2027-01-31', expiry_notified_at: null },
+    });
+    expect(normalizeLegalFieldsWrite({ expiresOn: '' })).toEqual({
+      ok: true,
+      update: { expires_on: null, expiry_notified_at: null },
+    });
+    // The other dates do not touch the stamp.
+    expect(normalizeLegalFieldsWrite({ effectiveOn: '2027-01-01' })).toEqual({
+      ok: true,
+      update: { effective_on: '2027-01-01' },
+    });
+  });
+
+  /** The stamp is the sweep's to write. No client input reaches it directly. */
+  it('never takes expiry_notified_at from the client', () => {
+    const res = normalizeLegalFieldsWrite({
+      notifyOnExpiry: true,
+      ...({ expiryNotifiedAt: '2026-01-01T00:00:00Z' } as object),
+    });
+    expect(res).toEqual({ ok: true, update: { notify_on_expiry: true } });
+  });
+
   /** Mutation: write a key the column list does not name. */
   it('only ever writes columns in LEGAL_ONLY_INTAKE_COLUMNS', () => {
     const res = normalizeLegalFieldsWrite({
@@ -449,16 +485,16 @@ describe('resolveLegalFieldColumnFallback', () => {
 describe('a row without the columns yet reads as unset', () => {
   /** Mutation: throw on a missing key, or read `undefined` as a string. */
   it('reads absent columns as null and false', () => {
-    expect(readIntakeLegalFields({ id: 'x', status: 'in_progress' })).toEqual({
+    const unset = {
       relatedCaseId: null,
       completedOn: null,
       multipleDocuments: false,
-    });
-    expect(readIntakeLegalFields(null)).toEqual({
-      relatedCaseId: null,
-      completedOn: null,
-      multipleDocuments: false,
-    });
+      effectiveOn: null,
+      expiresOn: null,
+      notifyOnExpiry: false,
+    };
+    expect(readIntakeLegalFields({ id: 'x', status: 'in_progress' })).toEqual(unset);
+    expect(readIntakeLegalFields(null)).toEqual(unset);
   });
 
   it('reads present columns as themselves', () => {
@@ -467,8 +503,18 @@ describe('a row without the columns yet reads as unset', () => {
         related_case_id: CASE_ID,
         completed_on: '2026-09-01',
         multiple_documents: true,
+        effective_on: '2026-01-01',
+        expires_on: '2026-12-31',
+        notify_on_expiry: true,
       }),
-    ).toEqual({ relatedCaseId: CASE_ID, completedOn: '2026-09-01', multipleDocuments: true });
+    ).toEqual({
+      relatedCaseId: CASE_ID,
+      completedOn: '2026-09-01',
+      multipleDocuments: true,
+      effectiveOn: '2026-01-01',
+      expiresOn: '2026-12-31',
+      notifyOnExpiry: true,
+    });
   });
 });
 
@@ -495,8 +541,9 @@ describe('the block belongs to the families that have been given it', () => {
     expect(showsAdministrativeTools('')).toBe(false);
   });
 
-  it('has been given to the internal family', () => {
+  it('has been given to the internal and contract families', () => {
     expect(ADMINISTRATIVE_TOOLS_FAMILIES).toContain('internal');
+    expect(ADMINISTRATIVE_TOOLS_FAMILIES).toContain('contract');
   });
 });
 
@@ -550,10 +597,92 @@ describe('the migration is written and not assumed', () => {
    * Nothing in this family's migration touches the seven-value status CHECK
    * or the jsonb. lib/intake-workflow.ts explains why the CHECK is left alone.
    */
-  it('leaves status and intake_answers alone', () => {
-    const sql = stripSql(read(MIGRATIONS[0])).toLowerCase();
+  it.each(MIGRATIONS)('%s leaves status and intake_answers alone', (m) => {
+    const sql = stripSql(read(m)).toLowerCase();
     expect(sql).not.toContain('intake_answers');
     expect(sql).not.toMatch(/status/);
     expect(sql).not.toContain('reminder');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* 7. The expiry notice: a flag that actually notifies somebody.        */
+/* ------------------------------------------------------------------ */
+
+describe('the expiry notice is due once, ahead of the date, and only when asked', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const expires = '2026-12-31';
+  const at = Date.parse(expires);
+
+  it('is not due without the flag, or after a stamp', () => {
+    expect(
+      expiryNoticeDue({ expiresOn: expires, notifyOnExpiry: false, notifiedAt: null, now: at }),
+    ).toBe(false);
+    expect(
+      expiryNoticeDue({
+        expiresOn: expires,
+        notifyOnExpiry: true,
+        notifiedAt: '2026-11-01T00:00:00Z',
+        now: at,
+      }),
+    ).toBe(false);
+    expect(
+      expiryNoticeDue({ expiresOn: null, notifyOnExpiry: true, notifiedAt: null, now: at }),
+    ).toBe(false);
+    expect(
+      expiryNoticeDue({ expiresOn: 'soon', notifyOnExpiry: true, notifiedAt: null, now: at }),
+    ).toBe(false);
+  });
+
+  /** Mutation: compare against the date itself rather than LEAD days before it. */
+  it('becomes due LEAD days before the date and stays due after it', () => {
+    const lead = EXPIRY_NOTICE_LEAD_DAYS * DAY;
+    const base = { expiresOn: expires, notifyOnExpiry: true, notifiedAt: null };
+    expect(expiryNoticeDue({ ...base, now: at - lead - DAY })).toBe(false);
+    expect(expiryNoticeDue({ ...base, now: at - lead })).toBe(true);
+    expect(expiryNoticeDue({ ...base, now: at })).toBe(true);
+    expect(expiryNoticeDue({ ...base, now: at + 40 * DAY })).toBe(true);
+  });
+
+  it('gives the legal team a month, which is what the block says', () => {
+    expect(EXPIRY_NOTICE_LEAD_DAYS).toBe(30);
+    const block = codeOf('app/counsel/intake/[id]/administrative-tools.tsx');
+    expect(block).toContain('EXPIRY_NOTICE_LEAD_DAYS');
+    expect(block, 'the lead is spelled as a literal in the block').not.toMatch(/\b30 days\b/);
+  });
+
+  /**
+   * The sweep reads the columns, stamps before it sends, asks the pure rule
+   * whether it is due, and tells the legal team only.
+   *
+   * Mutation: send before stamping, or link the requester's portal, or
+   * re-implement the due rule inline.
+   */
+  it('is honoured by the deadlines sweep, legal team only, stamp first', () => {
+    const src = codeOf(DEADLINES);
+    const at = src.indexOf("'notify_on_expiry', true");
+    expect(at, 'the sweep never filters on the flag').toBeGreaterThan(-1);
+    const block = src.slice(at);
+    expect(block).toMatch(/\.is\('expiry_notified_at', null\)/);
+    expect(block).toContain('expiryNoticeDue(');
+    const stamp = block.indexOf("update({ expiry_notified_at:");
+    const send = block.indexOf('createNotification({');
+    expect(stamp, 'the sweep never stamps').toBeGreaterThan(-1);
+    expect(send, 'the sweep never sends').toBeGreaterThan(-1);
+    expect(stamp, 'the notice goes out before the stamp is written').toBeLessThan(send);
+    // The stamp is a claim, not a blind write: it only lands on a row nobody
+    // else has stamped, and a lost claim sends nothing.
+    expect(block.slice(stamp, send)).toMatch(/\.is\('expiry_notified_at', null\)[\s\S]*?\.select\('id'\)/);
+    expect(block, 'the requester is told about a legal-only flag').not.toContain('/portal/');
+    expect(block).toContain('/counsel/intake/');
+  });
+
+  /** A missing column is a quiet skip, not a broken cron. */
+  it('skips quietly while the columns are absent', () => {
+    const src = codeOf(DEADLINES);
+    const at = src.indexOf("'notify_on_expiry', true");
+    const before = src.slice(Math.max(0, at - 400), at + 600);
+    expect(before).toMatch(/error:\s*expiryErr/);
+    expect(before).toMatch(/expiryErr\s*\?\s*\[\]/);
   });
 });

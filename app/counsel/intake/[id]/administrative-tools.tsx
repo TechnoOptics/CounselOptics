@@ -5,7 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { setIntakeLegalFieldsAction } from '@/lib/firm-actions';
-import type { IntakeLegalFields } from '@/lib/intake-legal-fields';
+import {
+  EXPIRY_NOTICE_LEAD_DAYS,
+  type IntakeLegalFields,
+} from '@/lib/intake-legal-fields';
 
 /**
  * The legal team's working fields on a request, in the rail with the rest of
@@ -70,6 +73,8 @@ export function AdministrativeTools({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [completedOn, setCompletedOn] = useState(fields.completedOn ?? '');
+  const [effectiveOn, setEffectiveOn] = useState(fields.effectiveOn ?? '');
+  const [expiresOn, setExpiresOn] = useState(fields.expiresOn ?? '');
 
   function save(
     input: Parameters<typeof setIntakeLegalFieldsAction>[2],
@@ -143,6 +148,58 @@ export function AdministrativeTools({
           </select>
         </Field>
 
+        <div className="grid gap-x-3 gap-y-3.5 sm:grid-cols-2">
+          <Field label={<T>Effective date</T>}>
+            <input
+              type="date"
+              className={CONTROL}
+              value={effectiveOn}
+              disabled={pending}
+              onChange={(e) => setEffectiveOn(e.target.value)}
+              onBlur={() =>
+                effectiveOn !== (fields.effectiveOn ?? '') &&
+                save({ effectiveOn }, t('Effective date saved.'))
+              }
+            />
+          </Field>
+
+          <Field label={<T>Expiration date</T>}>
+            <input
+              type="date"
+              className={CONTROL}
+              value={expiresOn}
+              disabled={pending}
+              onChange={(e) => setExpiresOn(e.target.value)}
+              onBlur={() =>
+                expiresOn !== (fields.expiresOn ?? '') &&
+                save({ expiresOn }, t('Expiration date saved.'))
+              }
+            />
+          </Field>
+        </div>
+
+        <label className="flex items-start gap-2 text-[13px] text-foreground">
+          <input
+            type="checkbox"
+            className="mt-[3px] h-3.5 w-3.5 flex-none"
+            checked={fields.notifyOnExpiry}
+            disabled={pending}
+            onChange={(e) =>
+              save({ notifyOnExpiry: e.target.checked }, t('Saved.'))
+            }
+          />
+          <span>
+            <T>Notify when contract expires</T>
+            <span className="block text-[11px] text-muted">
+              {/* The number is the constant, so the sentence cannot drift from
+                  the sweep that honours it. */}
+              <T>The legal team is told</T>{' '}
+              <span data-no-translate>{EXPIRY_NOTICE_LEAD_DAYS}</span>{' '}
+              <T>days before the expiration date, once.</T>
+            </span>
+          </span>
+        </label>
+
         <Field label={<T>Date completed</T>}>
           <input
             type="date"
@@ -164,10 +221,7 @@ export function AdministrativeTools({
             checked={fields.multipleDocuments}
             disabled={pending}
             onChange={(e) =>
-              save(
-                { multipleDocuments: e.target.checked },
-                t('Saved.'),
-              )
+              save({ multipleDocuments: e.target.checked }, t('Saved.'))
             }
           />
           <span>

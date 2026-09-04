@@ -25,6 +25,7 @@ import {
 import { thirdPartyPaperHeader } from '@/lib/document-provenance';
 import { InboundSignatureStatusPill } from '@/components/portal/InboundSignatureStatusPill';
 import { familyOfType } from '@/lib/portal-request-families';
+import { readContractDetails } from '@/lib/intake-contract-fields';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 
@@ -257,6 +258,12 @@ export default async function PortalRequestPage({
         }
       : null;
 
+  // What you told legal about the agreement, on the contract family. Your
+  // own words, so they are yours to read back. Everything the legal team
+  // records about the contract (its dates, the expiry notice, a related
+  // matter) is a column this page does not select.
+  const contractDetails = readContractDetails(ans.contract);
+
   const hasReview =
     ans.review != null &&
     typeof ans.review === 'object' &&
@@ -386,6 +393,27 @@ export default async function PortalRequestPage({
                 </p>
               )}
             </RecordSection>
+
+            {contractDetails.length > 0 && (
+              <RecordSection
+                id="portal-contract"
+                title="Contract details"
+                count={contractDetails.length}
+              >
+                <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                  {contractDetails.map((f) => (
+                    <div key={f.label}>
+                      <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                        {f.label}
+                      </dt>
+                      <dd data-no-translate className="text-[13.5px] text-foreground">
+                        {f.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </RecordSection>
+            )}
 
             {conv.ok && (
               <RecordSection

@@ -1,5 +1,6 @@
 import { createAdminSupabase } from './supabase/admin';
 import { formatDateNumeric, formatDateTimeNumeric } from './format';
+import { expiryNoticeDue } from './intake-legal-fields';
 
 export type {
   ClaimType,
@@ -185,5 +186,81 @@ export async function sweepDeadlineAlerts(): Promise<{
     /* reminder sweep is best-effort; never break the deadline cron */
   }
 
-  return { scanned: rows.length + intakeScanned, fired };
+  // --- Contract expiry notices ----------------------------------------
+  // The legal team asked, on the ticket, to be told before an agreement
+  // expires. Columns, not intake_answers (lib/intake-legal-fields.ts says
+  // why), which also means this select fails as a whole until
+  // 20260903_intake_legal_fields_contract.sql is applied. PostgREST reports
+  // that as an error rather than a throw, and there is nothing to sweep
+  // before the columns exist, so an error here is a quiet skip.
+  //
+  // Legal team only. The flag is a legal-team tool and the requester is not
+  // told, which is the owner's rule for everything in that block.
+  let expiryScanned = 0;
+  try {
+    const { data: er, error: expiryErr } = await admin
+      .from('firm_matter_intakes')
+      .select('id, firm_id, client_name, expires_on, notify_on_expiry, expiry_notified_at')
+      .eq('notify_on_expiry', true)
+      .is('expiry_notified_at', null)
+      .not('expires_on', 'is', null)
+      .limit(500);
+    const expiring = expiryErr
+      ? []
+      : ((er ?? []) as Array<{
+          id: string;
+          firm_id: string;
+          client_name: string;
+          expires_on: string | null;
+          notify_on_expiry: boolean;
+          expiry_notified_at: string | null;
+        }>);
+    expiryScanned = expiring.length;
+    const { createNotification } = await import('./notifications');
+    for (const it of expiring) {
+      if (
+        !expiryNoticeDue({
+          expiresOn: it.expires_on,
+          notifyOnExpiry: it.notify_on_expiry,
+          notifiedAt: it.expiry_notified_at,
+          now,
+        })
+      ) {
+        continue;
+      }
+      // Stamp first, so two overlapping sweeps cannot both send. A stamp
+      // that reached nobody is retried by nothing, which is the same trade
+      // the reminder above makes.
+      const { data: claimed } = await admin
+        .from('firm_matter_intakes')
+        .update({ expiry_notified_at: new Date(now).toISOString() })
+        .eq('id', it.id)
+        .is('expiry_notified_at', null)
+        .select('id');
+      if (!claimed || claimed.length === 0) continue;
+      const title = `Contract expiring: ${it.client_name}`;
+      const body = `This agreement is set to expire ${formatDateNumeric(
+        Date.parse(String(it.expires_on)),
+      )}.`;
+      const { data: members } = await admin
+        .from('firm_members')
+        .select('user_id')
+        .eq('firm_id', it.firm_id)
+        .in('role', ['owner', 'admin', 'attorney', 'paralegal']);
+      for (const m of (members ?? []) as Array<{ user_id: string }>) {
+        await createNotification({
+          userId: m.user_id,
+          type: 'system',
+          title,
+          body,
+          link: `/counsel/intake/${it.id}`,
+        });
+      }
+      fired += 1;
+    }
+  } catch {
+    /* expiry sweep is best-effort; never break the deadline cron */
+  }
+
+  return { scanned: rows.length + intakeScanned + expiryScanned, fired };
 }
