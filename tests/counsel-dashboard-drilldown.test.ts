@@ -104,6 +104,7 @@ const MONEY: NonNullable<CounselMetricInput['money']> = {
 function input(over: Partial<CounselMetricInput> = {}): CounselMetricInput {
   return {
     matters: FIXTURE,
+    mattersVisible: true,
     meId: ME,
     approvals: { waiting: 3, aging: 1 },
     signing: { out: 4, attention: 2 },

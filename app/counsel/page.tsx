@@ -28,6 +28,7 @@ import {
   offerablePanelIds,
   visibleMetricIds,
   type DashboardViewerContext,
+  hasCapability,
 } from '@/lib/counsel-dashboard';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { firmCopy, firmVocabulary } from '@/lib/firm-vocabulary';
@@ -165,9 +166,26 @@ export default async function CounselDashboard() {
   // A user's pick only ever selects among what is left, and a pick for
   // something this removed is kept rather than deleted, so it comes back if
   // the firm switches the surface on again. See lib/counsel-dashboard.ts.
+  const matterRows: MatterRow[] = cases.map((c) => ({
+    id: c.id,
+    matterNumber: null,
+    title: '',
+    subjectName: '',
+    caseType: '',
+    status: c.status,
+    statusLabel: '',
+    statusColor: '',
+    assignedTo: c.assignedTo ?? null,
+    assigneeLabel: null,
+    hearingAt: c.hearingAt ?? null,
+    updatedAt: c.updatedAt,
+  }));
+  const openMatters = matterCountFor(matterRows, '', user.id);
   const viewer: DashboardViewerContext = {
     role: ctx.membership.role,
     hideTimeBilling: surfaces.hideTimeBilling,
+    firmType: surfaces.firmType,
+    liveCaseCount: openMatters,
   };
   const visibleMetrics = visibleMetricIds(
     profileRow?.dashboard_preferences,
@@ -211,21 +229,6 @@ export default async function CounselDashboard() {
   // filterMatters never looks at them here: the search, matter and ref
   // predicates are all guarded on a non-empty needle, and none of these
   // queries carries one.
-  const matterRows: MatterRow[] = cases.map((c) => ({
-    id: c.id,
-    matterNumber: null,
-    title: '',
-    subjectName: '',
-    caseType: '',
-    status: c.status,
-    statusLabel: '',
-    statusColor: '',
-    assignedTo: c.assignedTo ?? null,
-    assigneeLabel: null,
-    hearingAt: c.hearingAt ?? null,
-    updatedAt: c.updatedAt,
-  }));
-  const openMatters = matterCountFor(matterRows, '', user.id);
 
   const pendingSigning = signing.filter(
     (s) => s.status === 'sent' || s.status === 'partial',
@@ -558,6 +561,7 @@ export default async function CounselDashboard() {
   // figures ARE; a band whose every figure is switched off disappears with
   // its heading rather than leaving a title over nothing.
   const metricBands = buildCounselMetricBands({
+    mattersVisible: hasCapability('matters', viewer),
     matters: matterRows,
     meId: user.id,
     approvals: {

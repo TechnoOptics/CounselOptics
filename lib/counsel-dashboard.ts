@@ -53,7 +53,7 @@
  * mergeHiddenMetrics for the half of that which happens on save.
  */
 
-import type { FirmRole } from './firm-types';
+import type { FirmRole, FirmType } from './firm-types';
 
 export type CounselTileId =
   // Work surface - what's on my plate now
@@ -321,6 +321,20 @@ export type DashboardViewerContext = {
    * in that order, by lib/firm-settings.ts + lib/firm-workspace.ts.
    */
   hideTimeBilling: boolean;
+  /**
+   * What kind of practice this is. An in-house team answers requests and
+   * does not open matters from them, so its dashboard leads with requests.
+   * Carried here so the rule below can read it and so a later rule can key
+   * on it without another plumbing change.
+   */
+  firmType: FirmType;
+  /**
+   * How many matters are live right now, by the caseload page's own default
+   * view (closed and archived excluded). The owner's rule for an in-house
+   * workspace is that there are no matters unless a case has been opened,
+   * and the honest way to honour that is to count rather than to assume.
+   */
+  liveCaseCount: number;
 };
 
 /** Whether this viewer can be shown something that needs `cap`. */
@@ -330,6 +344,14 @@ export function hasCapability(
 ): boolean {
   switch (cap) {
     case 'matters':
+      // Role first, as before: a role RLS refuses would read a confident
+      // zero. Then presence: a workspace with no live case has no matter to
+      // show, so the matter tiles and the Matter health band do not render
+      // at all. That is the owner's rule for an in-house team ("no matters
+      // unless a case is opened"), and it holds for every firm type, because
+      // a band of zeros is not information. Routes are never gated by this;
+      // /counsel/cases stays reachable for anyone in MATTER_READ_ROLES.
+      return MATTER_READ_ROLES.includes(ctx.role) && ctx.liveCaseCount > 0;
     case 'documents':
       return MATTER_READ_ROLES.includes(ctx.role);
     case 'timeBilling':

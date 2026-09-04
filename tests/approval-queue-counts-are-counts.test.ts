@@ -431,6 +431,7 @@ describe('a view states its count and admits when the list is a page of it', () 
 function allCounselMetrics(): CounselMetric[] {
   const input: CounselMetricInput = {
     matters: [],
+    mattersVisible: true,
     meId: 'user-me',
     approvals: { waiting: 431, aging: 12 },
     signing: { out: 0, attention: 0 },
