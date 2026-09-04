@@ -1,10 +1,14 @@
 -- The legal team's own fields on a request: phase 1, the internal family.
 --
--- ============================ NOT APPLIED ================================
--- Applying this migration and then regenerating
--- supabase/schema-fingerprint.sha256 (scripts/schema/fingerprint-hash.sql,
--- computed server side) are the owner's steps. Apply it BEFORE deploying the
--- code that writes these columns: the write REFUSES rather than retrying
+-- ============================ APPLIED TO PRODUCTION 2026-09-03 ==============================
+-- Applied on 2026-09-03, BEFORE the code that writes these columns was
+-- merged, and verified afterwards by reading information_schema rather than
+-- trusting the apply call: related_case_id (FK to cases, on delete set null),
+-- completed_on and multiple_documents are present, and the seven-value
+-- status CHECK is untouched. supabase/schema-fingerprint.sha256 was
+-- regenerated in the same commit (to a8e96e7e), computed server side.
+--
+-- The ordering mattered, which is why it is recorded: the write REFUSES rather than retrying
 -- without the column (setIntakeLegalFieldsAction, lib/firm-actions.ts), so
 -- until this runs the Administrative tools block on a counsel ticket reads
 -- every field as unset and every save says the update is pending. Reads are

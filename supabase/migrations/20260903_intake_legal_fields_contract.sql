@@ -1,11 +1,15 @@
 -- The legal team's own fields on a request: phase 2, the contract family.
 --
--- ============================ NOT APPLIED ================================
--- Applying this migration and then regenerating
--- supabase/schema-fingerprint.sha256 (scripts/schema/fingerprint-hash.sql,
--- computed server side) are the owner's steps. Apply it AFTER
--- 20260903_intake_legal_fields_internal.sql and BEFORE deploying the code
--- that writes these columns: the write REFUSES rather than retrying without
+-- ============================ APPLIED TO PRODUCTION 2026-09-03 ==============================
+-- Applied on 2026-09-03, after 20260903_intake_legal_fields_internal.sql and
+-- BEFORE the code that writes these columns was merged. Verified afterwards
+-- by reading information_schema rather than trusting the apply call:
+-- effective_on, expires_on, notify_on_expiry, expiry_notified_at and the
+-- partial expiry index are present, and the seven-value status CHECK is
+-- untouched. supabase/schema-fingerprint.sha256 was regenerated in the same
+-- commit (to a8e96e7e), computed server side.
+--
+-- The ordering mattered, which is why it is recorded: the write REFUSES rather than retrying without
 -- the column (setIntakeLegalFieldsAction, lib/firm-actions.ts), and the
 -- expiry sweep in lib/deadlines.ts skips quietly while the columns are
 -- absent. Reads are safe either way, because the counsel page selects `*`.
