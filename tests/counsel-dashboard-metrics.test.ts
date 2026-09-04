@@ -44,12 +44,13 @@ import { FIRM_ROLES, type FirmRole } from '@/lib/firm-types';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const page = readFileSync(`${root}app/counsel/page.tsx`, 'utf8');
 
-const OWNER: DashboardViewerContext = { role: 'owner', hideTimeBilling: false };
+const OWNER: DashboardViewerContext = { role: 'owner', hideTimeBilling: false, firmType: 'firm', liveCaseCount: 1 };
 
 /** Every band on the board, with money present. */
 function allBands() {
   return buildCounselMetricBands({
     matters: [],
+    mattersVisible: true,
     meId: 'me',
     approvals: { waiting: 0, aging: 0 },
     signing: { out: 0, attention: 0 },
@@ -183,6 +184,8 @@ describe('the picker never offers a figure the viewer cannot be shown', () => {
     const staff: DashboardViewerContext = {
       role: 'staff',
       hideTimeBilling: false,
+      firmType: 'firm',
+      liveCaseCount: 1,
     };
     const offered = new Set(offerableMetricIds(staff));
     for (const id of [
@@ -203,14 +206,14 @@ describe('the picker never offers a figure the viewer cannot be shown', () => {
 
   it('offers every figure to each role that can read the rows', () => {
     for (const role of FIRM_ROLES.filter((r) => r !== 'staff')) {
-      const offered = offerableMetricIds({ role, hideTimeBilling: false });
+      const offered = offerableMetricIds({ role, hideTimeBilling: false, firmType: 'firm', liveCaseCount: 1 });
       expect(offered.length).toBe(COUNSEL_METRICS.length);
     }
   });
 
   it('withholds the money figures when the workspace hides billing', () => {
     const offered = new Set(
-      offerableMetricIds({ role: 'owner', hideTimeBilling: true }),
+      offerableMetricIds({ role: 'owner', hideTimeBilling: true, firmType: 'firm', liveCaseCount: 1 }),
     );
     expect(offered.has('billing-outstanding')).toBe(false);
     expect(offered.has('billing-unbilled')).toBe(false);
@@ -221,6 +224,8 @@ describe('the picker never offers a figure the viewer cannot be shown', () => {
     const staff: DashboardViewerContext = {
       role: 'staff',
       hideTimeBilling: false,
+      firmType: 'firm',
+      liveCaseCount: 1,
     };
     const offered = new Set<string>(offerablePanelIds(staff, true));
     for (const id of [
@@ -243,7 +248,7 @@ describe('the picker never offers a figure the viewer cannot be shown', () => {
     const raw = { counsel: { hiddenMetrics: [] } };
     const on = visibleMetricIds(raw, OWNER);
     expect(on).toContain('billing-outstanding');
-    const off = visibleMetricIds(raw, { role: 'owner', hideTimeBilling: true });
+    const off = visibleMetricIds(raw, { role: 'owner', hideTimeBilling: true, firmType: 'firm', liveCaseCount: 1 });
     expect(off).not.toContain('billing-outstanding');
   });
 });
@@ -254,7 +259,7 @@ describe('a saved choice survives the thing that took its figure away', () => {
     // the picker cannot offer it, and a save that wrote only what it drew
     // would silently un-hide it the day billing came back.
     const stored = ['billing-outstanding', 'signing-out'];
-    const offered = offerableMetricIds({ role: 'owner', hideTimeBilling: true });
+    const offered = offerableMetricIds({ role: 'owner', hideTimeBilling: true, firmType: 'firm', liveCaseCount: 1 });
     const next = mergeHiddenMetrics(stored, offered, []);
     expect(next).toContain('billing-outstanding');
     expect(next).not.toContain('signing-out');
@@ -384,7 +389,7 @@ describe('the page and the server action honour the picker', () => {
 describe('every role in the product has an answer here', () => {
   it('decides for each firm role rather than defaulting the unknown', () => {
     for (const role of FIRM_ROLES) {
-      const ctx: DashboardViewerContext = { role, hideTimeBilling: false };
+      const ctx: DashboardViewerContext = { role, hideTimeBilling: false, firmType: 'firm', liveCaseCount: 1 };
       const offered = offerableMetricIds(ctx);
       expect(offered.length).toBeGreaterThan(0);
       const canReadMatters = (MATTER_READ_ROLES as readonly FirmRole[]).includes(

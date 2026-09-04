@@ -238,6 +238,13 @@ export function fmtCents(cents: number): string {
 export type CounselMetricInput = {
   /** Every matter at the firm, from listFirmCases. */
   matters: MatterRow[];
+  /**
+   * Whether matter figures may appear at all. Decided by hasCapability
+   * ('matters') on the page and passed in, so this module does not grow a
+   * second copy of that rule. When false, every matter metric is absent
+   * rather than zero, and a band left with no metrics is dropped by the page.
+   */
+  mattersVisible: boolean;
   meId: string | null;
   /** Exact counts over firm_template_submissions. */
   approvals: { waiting: number; aging: number };
@@ -288,17 +295,24 @@ export function buildCounselMetricBands(
   const matters = new Map(
     matterMetrics(input.matters, input.meId, input.now).map((m) => [m.id, m]),
   );
-  const need = (id: string): CounselMetric => {
+  // Absence is an outcome, not an exception. When matters are not visible
+  // for this viewer, a matter metric is simply not on the board; throwing
+  // here used to take the whole dashboard down for a workspace that had
+  // nothing to show, which is the opposite of calm.
+  const need = (id: string): CounselMetric | null => {
+    if (!input.mattersVisible) return null;
     const m = matters.get(id);
     if (!m) throw new Error(`unknown matter metric: ${id}`);
     return m;
   };
+  const present = (ms: Array<CounselMetric | null>): CounselMetric[] =>
+    ms.filter((m): m is CounselMetric => m !== null);
 
   const bands: MetricBand[] = [
     {
       id: 'firm-owes',
       ...bandMeta('firm-owes'),
-      metrics: [
+      metrics: present([
         metric({
           id: 'approvals-waiting',
           count: input.approvals.waiting,
@@ -330,7 +344,7 @@ export function buildCounselMetricBands(
           activeTone: 'urgent',
         }),
         need('matters-unassigned'),
-      ],
+      ]),
     },
     {
       id: 'out-with-others',
@@ -368,7 +382,7 @@ export function buildCounselMetricBands(
     {
       id: 'matter-health',
       ...bandMeta('matter-health'),
-      metrics: [
+      metrics: present([
         need('matters-hearing'),
         need('matters-stale'),
         metric({
@@ -380,7 +394,7 @@ export function buildCounselMetricBands(
           clearState: 'All filed',
           activeTone: 'waiting',
         }),
-      ],
+      ]),
     },
   ];
 
