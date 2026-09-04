@@ -139,7 +139,7 @@ const {
   resolveLegalFieldColumnFallback,
   showsAdministrativeTools,
 } = await import('../lib/intake-legal-fields');
-const { PORTAL_REQUEST_FAMILIES } = await import('../lib/portal-request-families');
+const { PORTAL_REQUEST_FAMILIES, familyOfType } = await import('../lib/portal-request-families');
 
 beforeEach(() => {
   h.s.current = {
@@ -541,10 +541,41 @@ describe('the block belongs to the families that have been given it', () => {
     expect(showsAdministrativeTools('')).toBe(false);
   });
 
-  it('has been given to the internal, contract and drop box families', () => {
-    expect(ADMINISTRATIVE_TOOLS_FAMILIES).toContain('internal');
-    expect(ADMINISTRATIVE_TOOLS_FAMILIES).toContain('contract');
-    expect(ADMINISTRATIVE_TOOLS_FAMILIES).toContain('dropbox');
+  it('has been given to all four families, one phase each', () => {
+    expect([...ADMINISTRATIVE_TOOLS_FAMILIES]).toEqual([
+      'internal',
+      'contract',
+      'dropbox',
+      'legal',
+    ]);
+    expect([...ADMINISTRATIVE_TOOLS_FAMILIES].sort()).toEqual(
+      PORTAL_REQUEST_FAMILIES.map((f) => f.key).sort(),
+    );
+  });
+
+  /**
+   * Trademark is not a family of its own: familyOfType puts "Trademark / IP
+   * filing" in `legal`, and that is the family that gets the block. The
+   * reference desk's trademark form has no status, assignment, priority or
+   * tools; here it gets Advottic's existing workflow and this block, and no
+   * trademark-specific field was invented.
+   *
+   * Mutation: add a `mark_name` or `serial_number` column to the module.
+   */
+  it('gives the trademark filing the block through the legal family, and nothing bespoke', () => {
+    expect(familyOfType('Trademark / IP filing')?.key).toBe('legal');
+    expect(showsAdministrativeTools('Trademark / IP filing')).toBe(true);
+    expect([...LEGAL_ONLY_INTAKE_COLUMNS]).toEqual([
+      'related_case_id',
+      'completed_on',
+      'multiple_documents',
+      'effective_on',
+      'expires_on',
+      'notify_on_expiry',
+      'expiry_notified_at',
+    ]);
+    const module = codeOf('lib/intake-legal-fields.ts');
+    expect(module).not.toMatch(/mark_name|serial_number|filing_basis|nice_class/);
   });
 
   /**

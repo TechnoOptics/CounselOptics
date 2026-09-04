@@ -68,11 +68,20 @@ export type LegalOnlyIntakeColumn = (typeof LEGAL_ONLY_INTAKE_COLUMNS)[number];
  * the management block already carries, and the employee's SELECT guard
  * names `workflow_state` so the employee reads only the four-word portal
  * label derived from the lifecycle status.
+ *
+ * `legal` is the family "Trademark / IP filing" belongs to (familyOfType in
+ * lib/portal-request-families.ts), with the hold, the demand letter and
+ * Other. The reference desk's trademark form carries no status, assignment,
+ * priority or administrative tools at all; here it gets the same workflow
+ * every ticket has and this block, and nothing trademark-specific. A mark
+ * name, its classes, a filing basis or a serial number would be fields the
+ * owner has not asked for, and they are deliberately not invented here.
  */
 export const ADMINISTRATIVE_TOOLS_FAMILIES: readonly PortalFamilyKey[] = [
   'internal',
   'contract',
   'dropbox',
+  'legal',
 ];
 
 /** Whether a request with this matter_type shows the block to the legal team. */
