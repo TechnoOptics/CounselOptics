@@ -541,9 +541,33 @@ describe('the block belongs to the families that have been given it', () => {
     expect(showsAdministrativeTools('')).toBe(false);
   });
 
-  it('has been given to the internal and contract families', () => {
+  it('has been given to the internal, contract and drop box families', () => {
     expect(ADMINISTRATIVE_TOOLS_FAMILIES).toContain('internal');
     expect(ADMINISTRATIVE_TOOLS_FAMILIES).toContain('contract');
+    expect(ADMINISTRATIVE_TOOLS_FAMILIES).toContain('dropbox');
+  });
+
+  /**
+   * The drop box is where the owner's rule was spoken: the legal team's
+   * status and tools on the legal side, none of it to the employee. Its
+   * Status is the workflow state the management block already carries, so
+   * the employee's SELECT guard has to name that column too, and the
+   * employee page must not read it by any other route.
+   *
+   * Mutation: remove 'workflow_state' from LEGAL_ONLY_COLUMNS, or read the
+   * column on the employee page.
+   */
+  it('keeps the drop box status on the legal side', () => {
+    const guard = codeOf(GUARD);
+    const at = guard.indexOf('const LEGAL_ONLY_COLUMNS = [');
+    expect(guard.slice(at, guard.indexOf('];', at))).toContain("'workflow_state'");
+    const portal = codeOf(PORTAL_PAGE);
+    expect(portal).not.toMatch(/\bworkflow_state\b/);
+    expect(portal).not.toContain('workflowStateOf(');
+    expect(portal).not.toContain('WORKFLOW_LABEL');
+    // What the employee reads instead: the four-word label off the
+    // lifecycle status, which every workflow write keeps in the right lane.
+    expect(portal).toContain('portalStatusLabel(intake.status)');
   });
 });
 

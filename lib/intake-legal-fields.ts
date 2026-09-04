@@ -61,10 +61,18 @@ export type LegalOnlyIntakeColumn = (typeof LEGAL_ONLY_INTAKE_COLUMNS)[number];
  * The families whose tickets carry the administrative block. Grown one
  * family per phase, so a family not yet named here shows the legal team
  * nothing new rather than half of something.
+ *
+ * The drop box is the family the owner's rule was spoken about: the legal
+ * team's status and tools are shown on the legal side and never to the
+ * employee who dropped the document off. Its Status is the workflow state
+ * the management block already carries, and the employee's SELECT guard
+ * names `workflow_state` so the employee reads only the four-word portal
+ * label derived from the lifecycle status.
  */
 export const ADMINISTRATIVE_TOOLS_FAMILIES: readonly PortalFamilyKey[] = [
   'internal',
   'contract',
+  'dropbox',
 ];
 
 /** Whether a request with this matter_type shows the block to the legal team. */

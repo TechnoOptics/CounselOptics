@@ -80,6 +80,12 @@ const LEGAL_ONLY_COLUMNS = [
   'expires_on',
   'notify_on_expiry',
   'expiry_notified_at',
+  // The legal team's nine-state Status (20260816_intake_workflow_state.sql).
+  // The employee reads the four-word label lib/portal-status.ts derives from
+  // the lifecycle `status`, and nothing finer: the owner's rule for the drop
+  // box was that its status is a legal team tool. The counsel page keeps
+  // `status` in the right lane on every write, so the label stays truthful.
+  'workflow_state',
 ];
 
 /** The single .select(...) argument on the employee's read of the ticket. */
