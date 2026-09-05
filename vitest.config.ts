@@ -37,6 +37,9 @@ export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    // .tsx added for tests/marketing-file-primitives.test.tsx (Task 2 of the
+    // marketing case-file rebuild), the first test that renders a component
+    // tree with react-dom/server rather than only importing plain modules.
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
   },
 });
