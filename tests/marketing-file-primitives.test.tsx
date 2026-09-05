@@ -105,7 +105,8 @@ describe('Schedule', () => {
     const out = html(createElement(Schedule, { columns, rows, stampOn: 'pro', stamp: { line1: 'Most', line2: 'chosen' } }));
     expect(out).toContain('overflow-x-auto');
     expect(out).toMatch(/<table/);
-    expect(out.match(/<th/g)?.length).toBe(3);
+    expect(out.match(/<th\b/g)?.length).toBe(3);
+    expect(out).toMatch(/<th scope="row"/);
     expect(out).toContain('tabular-nums');
   });
   it('puts exactly one stamp on the named column', () => {

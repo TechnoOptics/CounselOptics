@@ -71,9 +71,9 @@ export function Schedule({
           <tbody>
             {rows.map((r) => (
               <tr key={r.label}>
-                <td className={`${LABEL} w-[22%] border-b border-dotted border-rule py-2 pr-3 text-left font-normal`}>
+                <th scope="row" className={`${LABEL} w-[22%] border-b border-dotted border-rule py-2 pr-3 text-left font-normal`}>
                   {r.label}
-                </td>
+                </th>
                 {r.cells.map((cell, i) => (
                   <td key={columns[i]?.id ?? i} className="border-b border-dotted border-rule py-2 pr-3 align-top tabular-nums">
                     {cell}
