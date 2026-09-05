@@ -20,6 +20,11 @@ import { describe, expect, it } from 'vitest';
  * 5.x copy. A major line with no floor of its own falls back to the general
  * floor, which an old line can never satisfy, and that is the point: nothing
  * fixed exists on that line, so the copy has to move.
+ *
+ * There used to be a named exception here for the tar 6 and @capacitor/cli 5
+ * copies nested under @capacitor/assets, which pinned lines with no fixed
+ * release. That package left devDependencies on 2026-09-05 (the iOS release
+ * workflow runs it through npx instead), so every copy is held now.
  */
 
 type Floors = Record<string, string>;
@@ -35,22 +40,6 @@ const FLOORS: Record<string, Floors> = {
   mailparser: { '*': '3.9.16' },
   nanoid: { '3': '3.3.18', '*': '5.0.0' },
   tmp: { '*': '0.2.6' },
-};
-
-/**
- * Copies the floor cannot reach, by name, so nobody mistakes them for fixed.
- *
- * @capacitor/assets 3.0.5 (its latest) pins @capacitor/cli ^5.3.0, and that
- * line's newest release, 5.7.8, still carries tar 6.2.1. No 5.x cli and no
- * 6.x tar closes the advisory, so `npm audit fix` cannot move either without
- * `--force`, and npm's "fix available" for them is wrong. They are dev-only
- * tooling behind `npx capacitor-assets generate`. The versions are pinned
- * here so the day either one changes, this file goes red and someone looks
- * again instead of the exception silently outliving its reason.
- */
-const KNOWN_UNFIXED: Record<string, string> = {
-  'node_modules/@capacitor/assets/node_modules/@capacitor/cli': '5.7.8',
-  'node_modules/@capacitor/assets/node_modules/tar': '6.2.1',
 };
 
 function triple(v: string): [number, number, number] {
@@ -80,14 +69,7 @@ describe.each(Object.entries(FLOORS))('%s in the lockfile', (name, floors) => {
     expect(copies.length).toBeGreaterThan(0);
   });
 
-  const held = copies.filter((c) => !(c.at in KNOWN_UNFIXED));
-  const excepted = copies.filter((c) => c.at in KNOWN_UNFIXED);
-
-  it.each(excepted)('$at is the known unfixed $version, and nothing newer', ({ at, version }) => {
-    expect(version).toBe(KNOWN_UNFIXED[at]);
-  });
-
-  it.each(held)('$at is $version, at or above its floor', ({ version }) => {
+  it.each(copies)('$at is $version, at or above its floor', ({ version }) => {
     const major = String(triple(version)[0]);
     const floor = floors[major] ?? floors['*']!;
     expect(atLeast(version, floor), `${version} is below ${floor}`).toBe(true);

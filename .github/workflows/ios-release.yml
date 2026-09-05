@@ -247,13 +247,17 @@ jobs:
         # showed a blank wireframe tile instead of the gold-A mark.
         # The repo already carries the source art in assets/
         # (icon-only.png, icon-foreground/background, splash,
-        # splash-dark) and @capacitor/assets in devDependencies; run
-        # it for iOS only (Android launcher icons are committed under
+        # splash-dark). @capacitor/assets is not a devDependency: it
+        # pinned sharp 0.32 and @capacitor/cli 5, both with open
+        # advisories and no fixed release on those lines, so npx fetches
+        # it on demand here instead (--yes, because this shell has no
+        # TTY to answer the install prompt). Run for iOS only (Android
+        # launcher icons are committed under
         # android/app/src/main/res and need no generation). Fails
         # LOUDLY if no AppIcon PNG materializes so we never silently
         # ship the placeholder again.
         run: |
-          npx @capacitor/assets generate --ios
+          npx --yes @capacitor/assets@3 generate --ios
           ICONSET=ios/App/App/Assets.xcassets/AppIcon.appiconset
           COUNT=$(ls "$ICONSET"/*.png 2>/dev/null | wc -l | tr -d ' ')
           if [ "$COUNT" -lt 1 ]; then

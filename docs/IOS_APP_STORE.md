@@ -87,9 +87,10 @@ Then in Xcode:
    matrix. Xcode names them by the size + scale shown on each box.
 3. Save. The 1024 goes to **App Store** at the bottom.
 
-(Alternative: install `npm i -D @capacitor/assets` and run
-`npx capacitor-assets generate` if you want it fully automated, but
-the curl loop above is faster for one shot.)
+(Alternative: run `npx --yes @capacitor/assets@3 generate --ios` if you
+want it fully automated. Do not add it to devDependencies; it pins an
+old sharp and an old Capacitor CLI. The curl loop above is faster for
+one shot.)
 
 ---
 
