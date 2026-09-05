@@ -395,18 +395,35 @@ function demoReview(caseRecord: Case, exhibits: Exhibit[], jurisdiction: string)
  * and the review prompt would then carry every one of those rows. The budget
  * is deliberately not raised for that case; overflow fails in the open below
  * instead of being stored as a scan with no summary.
+ * SCAN_LIST_CAP below bounds the lists, so a fill at the cap fits here
+ * with room to spare.
  */
 export const SCAN_MAX_TOKENS = 2000;
+
+/**
+ * How many parties, how many dates, and how many amounts, one scan may list.
+ *
+ * submit_scan is a metadata tool. Its lists exist so a case file is
+ * searchable, not so a spreadsheet can be reproduced row by row, and the
+ * extracted-text path hands the model up to five thousand rows. Unbounded,
+ * a payment tracker filled the tool with every row, overran the output
+ * budget, and lost its summary. At twenty-five each, a fill at the cap for
+ * all three lists costs about a thousand tokens, and the review prompt,
+ * which pastes every stored party, date and amount under the exhibit, stays
+ * readable. The number is stated wherever the model sees the lists: the
+ * rules, the schema, and the spreadsheet rules.
+ */
+export const SCAN_LIST_CAP = 25;
 
 const SCAN_SYSTEM = `You are Advottic's document scanner. The user uploads a piece of evidence (commonly a ticket, citation, court summons, complaint, motion, eviction notice, demand letter, contract, or receipt) as an image or PDF, and you extract structured metadata so the case file is searchable.
 
 Rules:
 - Be terse and accurate. If a field is not visible in the document, omit it - never guess.
 - Identifiers: only include the case/ticket/citation/file numbers actually printed on the document. Use snake_case keys: case_number, ticket_number, citation_number, court_file_number, license_plate, badge_number, etc.
-- Parties: list named persons or organizations on the document (officer issuing, defendant, court, court clerk, plaintiff, landlord, tenant, etc.). One string per party.
-- Dates: each date with a short human label and ISO date when possible (e.g., {label:"Issue date", value:"2026-04-15"}). If only month/year is shown, use YYYY-MM.
+- Parties: list named persons or organizations on the document (officer issuing, defendant, court, court clerk, plaintiff, landlord, tenant, etc.). One string per party. List at most ${SCAN_LIST_CAP}: when the document names more, keep the ones it is between or about (the parties to the matter, the issuer, the signers, the court) and say in the summary how many it names in all.
+- Dates: each date with a short human label and ISO date when possible (e.g., {label:"Issue date", value:"2026-04-15"}). If only month/year is shown, use YYYY-MM. List at most ${SCAN_LIST_CAP}: when the document holds more, keep the ones that identify it (issue, due, hearing and signing dates, and the first and last entries) and say in the summary how many dates it holds in all.
 - Statute references: only verbatim citations from the document (e.g., "MN Stat. § 169.14"). Don't expand acronyms.
-- Amounts: monetary values printed on the document, including the symbol or "USD" suffix when known.
+- Amounts: monetary values printed on the document, including the symbol or "USD" suffix when known. List at most ${SCAN_LIST_CAP}: when the document holds more, keep totals, balances, the largest entries and the first and last entries, and say in the summary how many amounts it holds in all.
 - Summary: one to two sentences in plain English. No legal advice.
 - suggestedCategory must be one of: Photo, Document, Communication, Audio, Video, Receipt, Contract, Report, Medical record, Screenshot, Witness statement, Other.
 
@@ -432,11 +449,14 @@ const SCAN_TOOL = {
       },
       parties: {
         type: 'array',
+        maxItems: SCAN_LIST_CAP,
         items: { type: 'string' },
-        description: 'Named persons or organizations on the document.',
+        description: `Named persons or organizations on the document, at most ${SCAN_LIST_CAP}. Say in the summary how many the document names when there are more.`,
       },
       dates: {
         type: 'array',
+        maxItems: SCAN_LIST_CAP,
+        description: `The dates that identify the document, at most ${SCAN_LIST_CAP}. Say in the summary how many the document holds when there are more.`,
         items: {
           type: 'object',
           required: ['label', 'value'],
@@ -452,8 +472,9 @@ const SCAN_TOOL = {
       },
       amounts: {
         type: 'array',
+        maxItems: SCAN_LIST_CAP,
         items: { type: 'string' },
-        description: 'Monetary amounts printed on the document.',
+        description: `Monetary amounts printed on the document, at most ${SCAN_LIST_CAP}. Say in the summary how many the document holds when there are more.`,
       },
       statuteRefs: {
         type: 'array',
@@ -748,6 +769,7 @@ export async function scanExtractedText(input: {
     "On a spreadsheet the first value on each line is that row's number in the file, and a gap in those numbers means a blank row, not a missing row.",
     'Dates already appear as YYYY-MM-DD. Repeat them exactly and do not restate them in another format.',
     'Report amounts exactly as they appear. Do not total, round, convert or reformat anything.',
+    `Parties, dates and amounts are capped at ${SCAN_LIST_CAP} each. On a sheet with more rows than that, keep the first and last rows, any totals or balances, and the largest entries, name the payees or counterparties that appear most often, and say in the summary how many rows the sheet holds.`,
   ];
   if (input.truncated) {
     rules.push(
