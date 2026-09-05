@@ -3,7 +3,15 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Suspense } from 'react';
 import { headers } from 'next/headers';
-import { Inter, Saira_Condensed, Fraunces } from 'next/font/google';
+import {
+  Inter,
+  Saira_Condensed,
+  Fraunces,
+  Libre_Caslon_Display,
+  Libre_Caslon_Text,
+  Public_Sans,
+  Courier_Prime,
+} from 'next/font/google';
 import './globals.css';
 import { UserMenu } from '@/components/UserMenu';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -88,6 +96,35 @@ const display = Fraunces({
   weight: ['400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-display',
+});
+
+// The case-file faces for the public marketing site. See
+// docs/superpowers/specs/2026-09-05-marketing-case-file-design.md section 2.1.
+// Inter and Fraunces above stay for the signed-in shells.
+const caslon = Libre_Caslon_Display({
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
+  variable: '--font-caslon',
+});
+const caslonText = Libre_Caslon_Text({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+  variable: '--font-caslon-text',
+});
+const publicSans = Public_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '800'],
+  display: 'swap',
+  variable: '--font-public',
+});
+const courier = Courier_Prime({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  display: 'swap',
+  variable: '--font-courier',
 });
 
 // Resolve the canonical site URL for metadataBase, OG images, and
@@ -522,7 +559,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang={serverLanguage ?? 'en'}
-      className={`${sans.variable} ${wordmark.variable} ${display.variable} ${nativeClass} ${surfaceClass ?? ''}`.trim()}
+      className={`${sans.variable} ${wordmark.variable} ${display.variable} ${caslon.variable} ${caslonText.variable} ${publicSans.variable} ${courier.variable} ${nativeClass} ${surfaceClass ?? ''}`.trim()}
       suppressHydrationWarning
     >
       <head>

@@ -48,6 +48,14 @@
   --forest-200: 202 217 210;/* #cad9d2 */
   --forest-100: 227 236 232;/* #e3ece8 */
   --forest-50:  241 245 243;/* #f1f5f3 */
+
+  /* The case file (marketing). Paper is the ground, a sheet is a
+     piece of the file, rule is the only border colour there. Redefined
+     for dark in the html.dark, .dark, .enterprise-shell, .hq-shell
+     block below. */
+  --paper: #fefcf3;
+  --sheet: #fffdf8;
+  --rule: #d9d0bb;
 }
 body {
   padding-left: var(--safe-left);
@@ -287,6 +295,11 @@ html.dark,
   --accent-text: #e0c890;
   --warn-text: #fbbf24;
   --danger-text: #fecaca;
+  /* The case file (marketing), dark redefinition. See the paper/sheet/
+     rule comment in the first :root block above. */
+  --paper: #0a1f19;
+  --sheet: #0f2d24;
+  --rule: rgba(245, 237, 214, 0.2);
 }
 /* The neutral-black ground, and only it. `.dark.counsel-shell` rather
    than `.counsel-shell` because `.counsel-shell` now means only "this is
@@ -3066,3 +3079,31 @@ select:focus-visible,
    region and scrolling the document behind it. No page pins itself to the
    viewport any more, so the rail needs no compensation and the
    --adv-workspace-h custom property it read has no writer. */
+
+/* The one motion on the marketing site: the cover's case file assembles.
+   Rows arrive one after another, the stamp lands last. Nothing else on
+   those pages animates. Reduced motion means none, not less. */
+@keyframes file-row {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes file-stamp {
+  from { opacity: 0; transform: rotate(-6deg) scale(1.15); }
+  to { opacity: 1; transform: rotate(-6deg) scale(1); }
+}
+.file-assemble > [data-row] {
+  animation: file-row 360ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.file-assemble > [data-row]:nth-child(2) { animation-delay: 120ms; }
+.file-assemble > [data-row]:nth-child(3) { animation-delay: 240ms; }
+.file-assemble > [data-row]:nth-child(4) { animation-delay: 360ms; }
+.file-assemble > [data-row]:nth-child(5) { animation-delay: 480ms; }
+.file-assemble [data-stamp] {
+  animation: file-stamp 400ms cubic-bezier(0.22, 0.61, 0.36, 1) 640ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .file-assemble > [data-row],
+  .file-assemble [data-stamp] {
+    animation: none;
+  }
+}
