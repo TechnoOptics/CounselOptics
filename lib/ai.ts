@@ -383,15 +383,15 @@ function demoReview(caseRecord: Case, exhibits: Exhibit[], jurisdiction: string)
 // ===========================================================================
 
 /**
- * How many dates, and how many amounts, one scan may list.
+ * How many parties, how many dates, and how many amounts, one scan may list.
  *
  * submit_scan is a metadata tool. Its lists exist so a case file is
  * searchable, not so a spreadsheet can be reproduced row by row, and the
  * extracted-text path hands the model up to five thousand rows. Unbounded,
  * a payment tracker filled the tool with every row, overran the output
  * budget, and lost its summary. At twenty-five each, a fill at the cap for
- * both lists costs well under a thousand tokens, and the review prompt,
- * which pastes every stored date and amount under the exhibit, stays
+ * all three lists costs about a thousand tokens, and the review prompt,
+ * which pastes every stored party, date and amount under the exhibit, stays
  * readable. The number is stated wherever the model sees the lists: the
  * rules, the schema, and the spreadsheet rules.
  */
@@ -402,7 +402,7 @@ const SCAN_SYSTEM = `You are Advottic's document scanner. The user uploads a pie
 Rules:
 - Be terse and accurate. If a field is not visible in the document, omit it - never guess.
 - Identifiers: only include the case/ticket/citation/file numbers actually printed on the document. Use snake_case keys: case_number, ticket_number, citation_number, court_file_number, license_plate, badge_number, etc.
-- Parties: list named persons or organizations on the document (officer issuing, defendant, court, court clerk, plaintiff, landlord, tenant, etc.). One string per party.
+- Parties: list named persons or organizations on the document (officer issuing, defendant, court, court clerk, plaintiff, landlord, tenant, etc.). One string per party. List at most ${SCAN_LIST_CAP}: when the document names more, keep the ones it is between or about (the parties to the matter, the issuer, the signers, the court) and say in the summary how many it names in all.
 - Dates: each date with a short human label and ISO date when possible (e.g., {label:"Issue date", value:"2026-04-15"}). If only month/year is shown, use YYYY-MM. List at most ${SCAN_LIST_CAP}: when the document holds more, keep the ones that identify it (issue, due, hearing and signing dates, and the first and last entries) and say in the summary how many dates it holds in all.
 - Statute references: only verbatim citations from the document (e.g., "MN Stat. § 169.14"). Don't expand acronyms.
 - Amounts: monetary values printed on the document, including the symbol or "USD" suffix when known. List at most ${SCAN_LIST_CAP}: when the document holds more, keep totals, balances, the largest entries and the first and last entries, and say in the summary how many amounts it holds in all.
@@ -431,8 +431,9 @@ const SCAN_TOOL = {
       },
       parties: {
         type: 'array',
+        maxItems: SCAN_LIST_CAP,
         items: { type: 'string' },
-        description: 'Named persons or organizations on the document.',
+        description: `Named persons or organizations on the document, at most ${SCAN_LIST_CAP}. Say in the summary how many the document names when there are more.`,
       },
       dates: {
         type: 'array',
@@ -733,7 +734,7 @@ export async function scanExtractedText(input: {
     "On a spreadsheet the first value on each line is that row's number in the file, and a gap in those numbers means a blank row, not a missing row.",
     'Dates already appear as YYYY-MM-DD. Repeat them exactly and do not restate them in another format.',
     'Report amounts exactly as they appear. Do not total, round, convert or reformat anything.',
-    `Dates and amounts are capped at ${SCAN_LIST_CAP} each. On a sheet with more rows than that, keep the first and last rows, any totals or balances, and the largest entries, and say in the summary how many rows the sheet holds.`,
+    `Parties, dates and amounts are capped at ${SCAN_LIST_CAP} each. On a sheet with more rows than that, keep the first and last rows, any totals or balances, and the largest entries, name the payees or counterparties that appear most often, and say in the summary how many rows the sheet holds.`,
   ];
   if (input.truncated) {
     rules.push(

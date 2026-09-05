@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The dates and amounts a scan asks for are capped.
+ * The parties, dates and amounts a scan asks for are capped.
  *
  * submit_scan is a metadata tool: a short summary, a category, and lists of
  * the parties, dates, amounts and citations on the document. Nothing in the
@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * The cap lives in one exported number and is stated in three places the
  * model actually sees: the system prompt rules, the tool schema (maxItems on
- * both arrays) and the extracted-text rules a spreadsheet read adds. When the
+ * all three arrays) and the extracted-text rules a spreadsheet read adds. When the
  * document holds more than the cap, the model is told to pick the entries
  * that identify the document and to say in the summary how many there are in
  * all, so a bounded list never reads as a complete one.
@@ -106,26 +106,28 @@ describe('the cap itself', () => {
 
   it('fits inside the output budget the scan call asks for, with room for the rest', async () => {
     await scanDocument(VISION);
-    // A date entry costs about twenty tokens and an amount about seven, so a
-    // fill at the cap for both is under thirty tokens per pair. The rest of a
-    // fill (summary, parties, identifiers, citations) measured well under
-    // five hundred on a synthetic tracker.
-    expect(seen.last?.max_tokens).toBeGreaterThanOrEqual(SCAN_LIST_CAP * 30 + 500);
+    // A date entry costs about twenty tokens, an amount about seven and a
+    // party name about eight, so a fill at the cap for all three is under
+    // forty tokens per row. The rest of a fill (summary, identifiers,
+    // citations) measured well under four hundred on a synthetic tracker.
+    expect(seen.last?.max_tokens).toBeGreaterThanOrEqual(SCAN_LIST_CAP * 40 + 400);
   });
 });
 
 describe('the vision scan', () => {
-  it('caps both arrays in the schema the model fills', async () => {
+  it('caps all three lists in the schema the model fills', async () => {
     await scanDocument(VISION);
     const { properties } = schema();
     expect(typeof properties.dates?.maxItems).toBe('number');
     expect(properties.dates?.maxItems).toBe(SCAN_LIST_CAP);
     expect(properties.amounts?.maxItems).toBe(SCAN_LIST_CAP);
+    expect(properties.parties?.maxItems).toBe(SCAN_LIST_CAP);
   });
 
-  it('states the cap in the dates and amounts rules', async () => {
+  it('states the cap in the parties, dates and amounts rules', async () => {
     await scanDocument(VISION);
     const text = systemText();
+    expect(text).toMatch(new RegExp(`^- Parties:.*at most ${SCAN_LIST_CAP}\\b`, 'm'));
     expect(text).toMatch(new RegExp(`^- Dates:.*at most ${SCAN_LIST_CAP}\\b`, 'm'));
     expect(text).toMatch(new RegExp(`^- Amounts:.*at most ${SCAN_LIST_CAP}\\b`, 'm'));
   });
@@ -143,6 +145,7 @@ describe('the extracted-text scan', () => {
     expect(typeof properties.dates?.maxItems).toBe('number');
     expect(properties.dates?.maxItems).toBe(SCAN_LIST_CAP);
     expect(properties.amounts?.maxItems).toBe(SCAN_LIST_CAP);
+    expect(properties.parties?.maxItems).toBe(SCAN_LIST_CAP);
   });
 
   it('tells a spreadsheet read which rows to keep and to state the row count', async () => {
@@ -151,7 +154,7 @@ describe('the extracted-text scan', () => {
     // The sentence, not the bare number: the fixture's own cell value 1250.5
     // contains "25", and a bare toContain let a mutant that dropped the cap
     // sentence pass on that.
-    expect(prompt).toMatch(new RegExp(`capped at ${SCAN_LIST_CAP} each`));
+    expect(prompt).toMatch(new RegExp(`Parties, dates and amounts are capped at ${SCAN_LIST_CAP} each`));
     expect(prompt).toMatch(/first and last/i);
     expect(prompt).toMatch(/how many rows/i);
   });
