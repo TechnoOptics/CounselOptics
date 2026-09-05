@@ -115,7 +115,7 @@ Each plugin is `npm install` + `npx cap sync` + a small JS bridge in the website
 
 - **Bundle ID**: `com.advottic.app` (set in `capacitor.config.ts`)
 - **App name**: `Advottic`
-- **Splash screen + icons**: generated from `public/advottic-mark.png`. After `cap add`, run `npx capacitor-assets generate` to push them into the iOS / Android projects.
+- **Splash screen + icons**: generated from `public/advottic-mark.png`. After `cap add`, run `npx --yes @capacitor/assets@3 generate` to push them into the iOS / Android projects (the generator is run through npx on purpose and is not a devDependency).
 - **Privacy policy URL**: `https://advottic.com/privacy`. Apple and Google both require this.
 - **Permissions you'll need to declare** (only when adding the corresponding plugin): camera, photo library, microphone (audio uploads), notifications, biometrics.
 

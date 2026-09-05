@@ -6,10 +6,10 @@ This is the runbook for the first release. Everything that could be done from th
 
 ## What's already done in this repo
 
-- ✅ Capacitor 8 installed (`@capacitor/core`, `@capacitor/ios`, `@capacitor/android`, `@capacitor/cli`, `@capacitor/assets`)
-- ✅ `capacitor.config.ts` configured: bundle id `com.advottic.app`, app name `Advottic`, remote-URL server pointing at `https://advottic.com`, dark splash + status bar
-- ✅ `android/` native project scaffolded with `npx cap add android`
-- ✅ Android icons + splash generated for every density (74 files, ~1.5 MB)
+- Capacitor 8 installed (`@capacitor/core`, `@capacitor/ios`, `@capacitor/android`, `@capacitor/cli`). The icon generator, `@capacitor/assets`, is deliberately not installed; run it through `npx` when needed (it pins an old sharp and an old Capacitor CLI).
+- `capacitor.config.ts` configured: bundle id `com.advottic.app`, app name `Advottic`, remote-URL server pointing at `https://advottic.com`, dark splash + status bar
+- `android/` native project scaffolded with `npx cap add android`
+- Android icons + splash generated for every density (74 files, ~1.5 MB)
 - ✅ Adaptive-icon background (forest gradient) + foreground (gold pillar) sources committed at `assets/icon-only.png`, `assets/icon-foreground.png`, `assets/icon-background.png`, `assets/splash.png`, `assets/splash-dark.png`
 - ✅ `.gitignore` carve-outs so native build artifacts and signing material never get committed
 - ✅ `tsconfig.json` excludes `android/` and `ios/` so the Next.js build doesn't trip over native trees
@@ -130,7 +130,7 @@ git clone https://github.com/TechnoOptics/CounselOptics.git advottic
 cd advottic
 npm install
 npx cap add ios
-npx capacitor-assets generate --ios
+npx --yes @capacitor/assets@3 generate --ios
 npx cap sync ios
 npx cap open ios
 ```
