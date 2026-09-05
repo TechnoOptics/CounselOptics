@@ -365,6 +365,22 @@ function demoReview(caseRecord: Case, exhibits: Exhibit[], jurisdiction: string)
 // Document auto-scan (Claude vision) + audio/video transcription (Whisper)
 // ===========================================================================
 
+/**
+ * Output budget for one submit_scan fill.
+ *
+ * The tool asks for metadata, not a transcript: a one-to-two sentence
+ * summary, a category, and short lists of parties, dates, amounts and
+ * citations. A ticket, notice or contract fills that in a few hundred
+ * tokens, and a hundred-row payment tracker in around 1,700 (measured at four
+ * characters per token on a synthetic fill), so 2,000 covers what the schema
+ * describes with room to spare. A fill that needs more than this is listing
+ * every row of a spreadsheet, which is a transcript wearing a scan's shape,
+ * and the review prompt would then carry every one of those rows. The budget
+ * is deliberately not raised for that case; overflow fails in the open below
+ * instead of being stored as a scan with no summary.
+ */
+export const SCAN_MAX_TOKENS = 2000;
+
 const SCAN_SYSTEM = `You are Advottic's document scanner. The user uploads a piece of evidence (commonly a ticket, citation, court summons, complaint, motion, eviction notice, demand letter, contract, or receipt) as an image or PDF, and you extract structured metadata so the case file is searchable.
 
 Rules:
@@ -567,7 +583,7 @@ export async function scanDocument(input: {
   try {
     result = await client.messages.create({
       model: MODEL,
-      max_tokens: 2000,
+      max_tokens: SCAN_MAX_TOKENS,
       system: [{ type: 'text', text: SCAN_SYSTEM, cache_control: { type: 'ephemeral' } }],
       tools: [SCAN_TOOL],
       tool_choice: { type: 'tool', name: 'submit_scan' },
@@ -588,7 +604,7 @@ export async function scanDocument(input: {
     throw new AiUnavailableError(err, 'scanDocument');
   }
 
-  return { ...scanDataFromSubmitScan(result.content), readMethod: 'vision' };
+  return { ...scanDataFromSubmitScan(result, 'scanDocument'), readMethod: 'vision' };
 }
 
 /**
@@ -597,10 +613,27 @@ export async function scanDocument(input: {
  * Shared by the vision path and the extracted-text path so the two cannot
  * drift. Everything that differs between them (how the file was read, and
  * whether it was read whole) is applied by the caller afterwards.
+ *
+ * Takes the whole message, not just its content, because the content alone
+ * cannot say whether the model finished. When the output budget runs out the
+ * API returns the fields the model completed and nothing for the rest, with
+ * stop_reason set to max_tokens. The model fills the tool in schema order and
+ * the summary sits near the end, so a cut-off fill used to be stored as a
+ * scan with a dates list that simply stopped and "(no summary returned)" in
+ * the one field that exports, packets and the review prompt all read. That
+ * is not a reading of the document. Fail in the open, the way runReview does.
  */
 function scanDataFromSubmitScan(
-  content: Anthropic.Messages.Message['content'],
+  message: Pick<Anthropic.Messages.Message, 'content' | 'stop_reason'>,
+  context: string,
 ): ScanData {
+  if (message.stop_reason === 'max_tokens') {
+    throw new AiUnavailableError(
+      new Error(`scan output exceeded ${SCAN_MAX_TOKENS} tokens`),
+      `${context} truncated`,
+    );
+  }
+  const content = message.content;
   const toolUse = content.find(
     (b): b is Extract<(typeof content)[number], { type: 'tool_use' }> =>
       b.type === 'tool_use' && b.name === 'submit_scan',
@@ -721,7 +754,7 @@ export async function scanExtractedText(input: {
   try {
     result = await new Anthropic({ apiKey }).messages.create({
       model: MODEL,
-      max_tokens: 2000,
+      max_tokens: SCAN_MAX_TOKENS,
       system: [{ type: 'text', text: SCAN_SYSTEM, cache_control: { type: 'ephemeral' } }],
       tools: [SCAN_TOOL],
       tool_choice: { type: 'tool', name: 'submit_scan' },
@@ -731,7 +764,7 @@ export async function scanExtractedText(input: {
     throw new AiUnavailableError(err, 'scanExtractedText');
   }
 
-  const scan = scanDataFromSubmitScan(result.content);
+  const scan = scanDataFromSubmitScan(result, 'scanExtractedText');
   return {
     ...scan,
     // The truncation warning leads the summary. The summary is what an export,
