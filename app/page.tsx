@@ -228,17 +228,20 @@ function WhoCanSee() {
  */
 const QUOTES = [
   {
-    quote: 'The judge said the word organized. That word changed how the rest of the hearing went.',
+    quote:
+      "I walked into court with a binder for the first time in my life and a judge actually said the word 'organized.' That word changed how the rest of the hearing went.",
     who: 'Marisol R.',
     role: 'Self-represented, landlord-tenant',
   },
   {
-    quote: 'My attorney told me later it shaved months off the timeline.',
+    quote:
+      "The Advottic Review surfaced a procedural defense I didn't know existed. My attorney told me later it shaved months off the timeline.",
     who: 'David K.',
     role: 'Small-business owner, contract dispute',
   },
   {
-    quote: 'Plain English, in five minutes. I stopped feeling lost.',
+    quote:
+      'Bella explained what an Answer is, what a motion is, and why deadlines matter - in plain English, in five minutes. I stopped feeling lost.',
     who: 'Tracy P.',
     role: 'First-time defendant',
   },
