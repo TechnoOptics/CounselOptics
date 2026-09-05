@@ -30,9 +30,9 @@ export async function createTokenAction(
 
 /**
  * Firm-scoped integration token (read + write): what a partner app like
- * Zinpro One authenticates with. Only firm owners/admins may mint one, and
- * the token is bound to that firm so the partner API confines every call
- * to it.
+ * OneNect authenticates with, one per tenant. Only firm owners/admins may
+ * mint one, and the token is bound to that firm so the partner API confines
+ * every call to it.
  */
 export async function createFirmTokenAction(
   name: string,

@@ -1,6 +1,9 @@
-# Zinpro One ↔ Advottic production go-live pack
+# OneNect ↔ Advottic production go-live pack
 
-For the Zinpro app team. The joint test validated every integration path;
+Zinpro is the first OneNect tenant on Advottic; this pack documents its
+go-live.
+
+For the OneNect app team. The joint test validated every integration path;
 this document is everything needed to switch from testing to production use
 by real employees: final checklist, operational agreements, security
 practices, employee rollout guidance, and how change is managed after
@@ -120,11 +123,11 @@ Base URL (production, the same one tested): `https://advottic.com`
 
 ## 5. Employee rollout (recommended)
 
-1. **Soft launch (week 1):** enable the "Legal" entry in Zinpro One for a
+1. **Soft launch (week 1):** enable the "Legal" entry in OneNect for a
    pilot group (one department). The legal team already gets notified of
    everything, so no process change on their side.
 2. **Comms:** one short employee announcement: *"You can now file legal
-   requests straight from Zinpro One: NDAs, contract reviews, questions.
+   requests straight from OneNect: NDAs, contract reviews, questions.
    Legal usually replies within 2 business days, and you'll get a
    notification the moment they do."* (Mirrors the configured popup, so
    expectations match.)
