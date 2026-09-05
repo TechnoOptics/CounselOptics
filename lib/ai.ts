@@ -13,6 +13,8 @@ import {
 
 const MODEL = 'claude-sonnet-4-6';
 const FAST_MODEL = 'claude-haiku-4-5-20251001';
+/** Output budget for a full case review. See the note at the call site. */
+export const REVIEW_MAX_TOKENS = 16000;
 
 function resolveApiKey(): string | undefined {
   const fromEnv = process.env.ANTHROPIC_API_KEY?.trim();
@@ -243,7 +245,12 @@ Use the submit_review tool to return your structured analysis.`;
   try {
     result = await client.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      // A case with twenty read exhibits produces a review of well over 4,000
+      // tokens, and the model fills the tool in schema order, so a budget that
+      // ran out part-way silently emptied every section after the cut. The
+      // last six sections of two stored reviews on a real matter were empty
+      // for that reason, evidence mapping among them.
+      max_tokens: REVIEW_MAX_TOKENS,
       system: [
         {
           type: 'text',
@@ -277,6 +284,16 @@ Use the submit_review tool to return your structured analysis.`;
     }
   } catch {
     // never break a successful review on a metering failure
+  }
+
+  // The API returns whatever fields the model finished before the budget ran
+  // out, and nothing for the rest. That is not a review of the case, it is
+  // the first half of one, and stored it reads as whole. Fail in the open.
+  if (result.stop_reason === 'max_tokens') {
+    throw new AiUnavailableError(
+      new Error(`review output exceeded ${REVIEW_MAX_TOKENS} tokens`),
+      'runReview truncated',
+    );
   }
 
   const toolUse = result.content.find(
