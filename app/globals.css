@@ -48,14 +48,6 @@
   --forest-200: 202 217 210;/* #cad9d2 */
   --forest-100: 227 236 232;/* #e3ece8 */
   --forest-50:  241 245 243;/* #f1f5f3 */
-
-  /* The case file (marketing). Paper is the ground, a sheet is a
-     piece of the file, rule is the only border colour there. Redefined
-     for dark in the html.dark, .dark, .enterprise-shell, .hq-shell
-     block below. */
-  --paper: #fefcf3;
-  --sheet: #fffdf8;
-  --rule: #d9d0bb;
 }
 body {
   padding-left: var(--safe-left);
@@ -295,11 +287,6 @@ html.dark,
   --accent-text: #e0c890;
   --warn-text: #fbbf24;
   --danger-text: #fecaca;
-  /* The case file (marketing), dark redefinition. See the paper/sheet/
-     rule comment in the first :root block above. */
-  --paper: #0a1f19;
-  --sheet: #0f2d24;
-  --rule: rgba(245, 237, 214, 0.2);
 }
 /* The neutral-black ground, and only it. `.dark.counsel-shell` rather
    than `.counsel-shell` because `.counsel-shell` now means only "this is
@@ -470,6 +457,13 @@ html.dark .accent-scope,
   --border-bright: #cfcfd6;
   --foreground: #17171b;
   --muted: #5d5d68;
+  /* The case file (marketing). Paper is the ground, a sheet is a
+     piece of the file, rule is the only border colour there. Redefined
+     for dark in the html.dark, .dark, .enterprise-shell, .hq-shell
+     block below. */
+  --paper: #fefcf3;
+  --sheet: #fffdf8;
+  --rule: #d9d0bb;
   /* Gold, unchanged, and identical in both themes: only the text
      variants move between light and dark. */
   --accent: #d5bb7e;
@@ -489,6 +483,11 @@ html.dark,
   --border-bright: #33333a;
   --foreground: #f4f4f5;
   --muted: #9c9ca6;
+  /* The case file (marketing), dark redefinition. See the paper/sheet/
+     rule comment in the light surface-token block above. */
+  --paper: #0a1f19;
+  --sheet: #0f2d24;
+  --rule: rgba(245, 237, 214, 0.2);
   --info-text: #a5b4fc;
   --code-bg: rgba(0, 0, 0, 0.32);
   --code-fg: #6ee7b7;

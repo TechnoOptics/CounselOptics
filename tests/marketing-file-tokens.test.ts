@@ -51,8 +51,13 @@ describe('paper, sheet and rule', () => {
     expect(tw).toMatch(/rule: 'var\(--rule\)'/);
   });
   it('are defined in the light block and redefined in the dark block', () => {
-    const light = /:root \{([\s\S]*?)\}/.exec(css)![1];
-    const dark = /html\.dark,\s*\.dark,\s*\.enterprise-shell,\s*\.hq-shell \{([\s\S]*?)\}/.exec(css)![1];
+    // Anchored on the block that carries --muted (the semantic surface-token
+    // block alongside --background/--surface/--foreground/--border), not the
+    // first :root / first matching dark selector in the file - globals.css
+    // has several of each, and a non-anchored regex would silently match an
+    // unrelated block.
+    const light = /:root \{([^}]*--muted: #5d5d68;[^}]*)\}/.exec(css)![1];
+    const dark = /html\.dark,\s*\.dark,\s*\.enterprise-shell,\s*\.hq-shell \{([^}]*--muted: #9c9ca6;[^}]*)\}/.exec(css)![1];
     for (const block of [light, dark]) {
       expect(block).toMatch(/--paper:/);
       expect(block).toMatch(/--sheet:/);
