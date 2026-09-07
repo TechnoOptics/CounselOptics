@@ -111,7 +111,14 @@ describe('Schedule', () => {
   });
   it('puts exactly one stamp on the named column', () => {
     const out = html(createElement(Schedule, { columns, rows, stampOn: 'pro', stamp: { line1: 'Most', line2: 'chosen' } }));
-    expect(out.match(/data-stamp/g)?.length).toBe(1);
+    // The table (sm:block) and the phone list (sm:hidden) are mutually
+    // exclusive by breakpoint, so a stamp in each is still only one stamp
+    // a reader ever sees; a viewer must count exactly one per container.
+    const table = out.match(/<div class="hidden overflow-x-auto sm:block">[\s\S]*?<\/table><\/div>/)?.[0] ?? '';
+    const phone = out.match(/<div class="grid gap-4 sm:hidden">[\s\S]*$/)?.[0] ?? '';
+    expect(table.match(/data-stamp/g)?.length).toBe(1);
+    expect(phone.match(/data-stamp/g)?.length).toBe(1);
+    expect(out).not.toMatch(/-top-\d/);
   });
   it('carries hideOnIos through to the link as data-hide-on-ios', () => {
     // next/link (v14) always appends its own `href` last when merging props,

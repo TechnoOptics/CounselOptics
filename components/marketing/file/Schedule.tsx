@@ -53,10 +53,10 @@ export function Schedule({
                 <th
                   key={c.id}
                   scope="col"
-                  className="relative border-b border-forest-900 pb-3 pr-3 text-left align-top font-normal dark:border-cream-100/40"
+                  className="relative border-b border-forest-900 pb-3 pr-3 pt-10 text-left align-top font-normal dark:border-cream-100/40"
                 >
                   {stamp && stampOn === c.id && (
-                    <span className="absolute -top-3 right-2 block scale-75">
+                    <span className="absolute right-2 top-0 block h-24 w-28 origin-top-right scale-75">
                       <Stamp line1={stamp.line1} line2={stamp.line2} />
                     </span>
                   )}
@@ -94,7 +94,13 @@ export function Schedule({
       </div>
       <div className="grid gap-4 sm:hidden">
         {columns.map((c) => (
-          <Sheet key={c.id} kicker={c.name} kickerRight={`${c.price} ${c.cadence}`}>
+          <Sheet
+            key={c.id}
+            kicker={c.name}
+            kickerRight={`${c.price} ${c.cadence}`}
+            className={stamp && stampOn === c.id ? 'pb-16' : ''}
+          >
+            {stamp && stampOn === c.id && <Stamp line1={stamp.line1} line2={stamp.line2} />}
             {rows.map((r) => (
               <div key={r.label} className="flex justify-between gap-4 border-b border-dotted border-rule py-2 last:border-b-0">
                 <span className={LABEL}>{r.label}</span>
