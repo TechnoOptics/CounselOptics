@@ -35,7 +35,12 @@ describe('the footer', () => {
   });
   it('titles its columns in Courier through the shared label role', () => {
     expect(LAYOUT).toMatch(/import \{ LABEL \} from '@\/components\/marketing\/file\/type'/);
-    expect((footer.match(/\{LABEL\}/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect((footer.match(/\{LABEL\}/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    const footerColSource = stripComments(
+      readFileSync(join(ROOT, 'components/FooterCol.tsx'), 'utf8'),
+    );
+    expect(footerColSource).toMatch(/import \{ LABEL \} from '@\/components\/marketing\/file\/type'/);
+    expect(footerColSource).toMatch(/className=\{LABEL\}/);
   });
   it('keeps the store row gated for the native app', () => {
     expect(footer).toMatch(/data-hide-in-app[\s\S]{0,400}<GetTheApp \/>/);

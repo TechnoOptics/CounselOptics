@@ -15,11 +15,9 @@ import { LABEL } from '@/components/marketing/file/type';
  */
 export function FooterCol({
   title,
-  titleClassName = LABEL,
   children,
 }: {
   title: string;
-  titleClassName?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -32,7 +30,7 @@ export function FooterCol({
         aria-expanded={open}
         className="flex w-full items-center justify-between py-1 text-left"
       >
-        <span className={titleClassName}>
+        <span className={LABEL}>
           {title}
         </span>
         <span

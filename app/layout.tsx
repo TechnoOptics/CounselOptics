@@ -824,7 +824,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   What Advottic is, and isn&rsquo;t &rarr;
                 </Link>
               </div>
-              <FooterCol title="Product" titleClassName={LABEL}>
+              <FooterCol title="Product">
                 <Link href="/features" className="hover:text-forest-900 dark:hover:text-cream-100 block">Features</Link>
                 <Link href="/cases" className="hover:text-forest-900 dark:hover:text-cream-100 block">Cases</Link>
                 <Link href="/cases/new" className="hover:text-forest-900 dark:hover:text-cream-100 block">New case</Link>
@@ -851,7 +851,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/welcome" className="hover:text-forest-900 dark:hover:text-cream-100 block">Share Advottic</Link>
                 <Link href="/billing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Billing</Link>
               </FooterCol>
-              <FooterCol title="Legal" titleClassName={LABEL}>
+              <FooterCol title="Legal">
                 <Link href="/terms" className="hover:text-forest-900 dark:hover:text-cream-100 block">Terms</Link>
                 <Link href="/privacy" className="hover:text-forest-900 dark:hover:text-cream-100 block">Privacy</Link>
                 <Link href="/cookies" className="hover:text-forest-900 dark:hover:text-cream-100 block">Cookies</Link>
@@ -859,7 +859,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/security" className="hover:text-forest-900 dark:hover:text-cream-100 block">Security</Link>
                 <Link href="/accessibility" className="hover:text-forest-900 dark:hover:text-cream-100 block">Accessibility</Link>
               </FooterCol>
-              <FooterCol title="Contact" titleClassName={LABEL}>
+              <FooterCol title="Contact">
                 <a
                   className="hover:text-forest-900 dark:hover:text-cream-100 block break-all"
                   href="mailto:contact@advottic.com"
