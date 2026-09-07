@@ -20,9 +20,10 @@ import {
 /**
  * Partner ticketing bridge: the server core behind /api/partner/v1/*.
  *
- * Purpose: a corporate companion app (first partner: the Zinpro employee app)
- * files legal requests on behalf of a company's employees. The company holds a
- * firm/enterprise Advottic license; the partner app authenticates with a
+ * Purpose: the OneNect app: a multi-tenant companion app; each client
+ * organisation is a OneNect tenant and holds its own firm-scoped token. A
+ * tenant's employees file legal requests through it; the company holds a
+ * firm/enterprise Advottic license, and the partner app authenticates with a
  * firm-scoped API token (`api_tokens`, `adv_...`, scope `write`). Each ticket:
  *
  *   1. JIT-provisions the employee in `firm_employees` (keyed by email; the

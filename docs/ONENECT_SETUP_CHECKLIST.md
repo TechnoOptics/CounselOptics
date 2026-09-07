@@ -1,6 +1,9 @@
-# Advottic setup for the Zinpro One integration
+# Advottic setup for the OneNect integration
 
-**Audience: the Advottic firm admin (legal team side).** Zinpro One has
+Zinpro is the first OneNect tenant on Advottic; this checklist covers its
+setup.
+
+**Audience: the Advottic firm admin (legal team side).** OneNect has
 implemented the partner contract (see ADVOTTIC-INTEGRATION-CONTRACT.md) and is
 ready on its side. This checklist is everything Advottic needs to configure,
 plus the two secrets to hand back to the Zinpro team. Estimated time: 15 minutes.
@@ -13,7 +16,7 @@ Counsel -> Settings -> Access -> internal domains.
 
 | Domain | Who | Required |
 |---|---|---|
-| `zinpro.com` | Employees filing from the Zinpro One app | Yes |
+| `zinpro.com` | Employees filing from the OneNect app | Yes |
 | `zinpro.app` | HQ staff accounts, if they will ever file requests | Optional |
 
 The partner API refuses to provision anyone outside these domains, so this
@@ -39,7 +42,7 @@ Counsel -> Settings -> **Partner app integration**:
    The app fetches this live; edit it any time and the app shows the new text.
 
 2. **Intake questions** (up to 12; free text, choice list, or yes/no; each
-   optionally required). Note: the Zinpro form already asks for these as fixed
+   optionally required). Note: the OneNect form already asks for these as fixed
    fields, so do NOT duplicate them as questions:
    - Subject
    - Description / context
@@ -52,9 +55,9 @@ Counsel -> Settings -> **Partner app integration**:
    - URL: `https://api.zinpro.app/webhooks/advottic`
    - Reveal the signing secret (`whsec_...`) and hand it to the Zinpro team
      with the token from step 2.
-   - Zinpro verifies the HMAC-SHA256 signature over the raw body with the
+   - OneNect verifies the HMAC-SHA256 signature over the raw body with the
      epoch-seconds timestamp, exactly per the contract, and rejects stale or
-     tampered deliveries. Rotating the secret is fine; coordinate so Zinpro
+     tampered deliveries. Rotating the secret is fine; coordinate so OneNect
      updates its copy at the same time.
 
 4. **Reminder window.** Hours before an unanswered request nudges the team
@@ -88,7 +91,7 @@ immediately, no restart), with base URL `https://advottic.com`.
    Advottic Intake inbox with the question answers; the legal bell rings and
    the firm admins get the email; the employee sees your confirmation message
    as a popup.
-2. A lawyer replies in the intake thread. Expect: Zinpro receives the
+2. A lawyer replies in the intake thread. Expect: OneNect receives the
    `ticket.legal_replied` webhook, the employee gets a push notification, and
    the reply appears in the app's thread; Advottic also emails the employee.
 3. The employee replies from the app. Expect: the message lands in the same

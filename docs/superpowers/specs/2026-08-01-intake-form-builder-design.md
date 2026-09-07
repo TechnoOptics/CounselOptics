@@ -411,7 +411,7 @@ change rather than case work.
 - File upload as a question type. The intake already carries attachments.
 - Per-question analytics.
 - Changing the partner API response shape, and the corresponding update to
-  `docs/ZINPRO_INTEGRATION.md`, until Zinpro confirms they want
+  `docs/ONENECT_INTEGRATION.md`, until Zinpro confirms they want
   `formVersionId`. The server side works either way; publishing a contract
   change nobody has agreed to is how integrations rot.
 - Light mode and the Techottic visual treatment. Separate project.

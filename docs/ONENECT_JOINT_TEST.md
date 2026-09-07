@@ -1,6 +1,8 @@
-# Zinpro One - ready for the joint test
+# OneNect - ready for the joint test
 
-To the Advottic team, in reply to your ZINPRO_TEST_RUNBOOK.md. Everything on
+Zinpro, the first OneNect tenant on Advottic, sends this reply.
+
+To the Advottic team, in reply to your ONENECT_TEST_RUNBOOK.md. Everything on
 the Zinpro side is implemented, deployed, and verified against your runbook,
 including the live response shapes we saw in it (the `config` wrapper with
 `ackMessage`, and bare ticket JSON on create). We are ready to schedule the
@@ -29,7 +31,7 @@ start the call the same hour.
 | Verification | Hex HMAC-SHA256 over `"{timestamp}.{rawBody}"`, computed on the raw request bytes before any JSON parsing, compared constant-time |
 | Replay window | 5 minutes (unix seconds or milliseconds both accepted) |
 
-## 3. What each event does in Zinpro One
+## 3. What each event does in OneNect
 
 - `ticket.legal_replied` - the reply lands in the request thread and the
   employee gets a push notification with the lawyer's message; they can reply

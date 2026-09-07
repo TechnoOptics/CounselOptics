@@ -11,8 +11,8 @@ import { T } from '@/components/i18n/LocaleProvider';
 /**
  * Counsel → Settings → "Partner app integration".
  *
- * The legal team controls what the company's companion app (e.g. the
- * Zinpro employee app) sees and does:
+ * The legal team controls what the company's companion app (its OneNect
+ * app) sees and does:
  *   - the acknowledgment message shown to an employee right after they
  *     file a request (usually the team's response-time promise),
  *   - the intake questions the partner form asks,

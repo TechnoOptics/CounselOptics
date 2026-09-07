@@ -1,6 +1,8 @@
-# Zinpro One ↔ Advottic joint integration test runbook
+# OneNect ↔ Advottic joint integration test runbook
 
-For the Zinpro app team, ready to run. Everything on the Advottic side is
+Zinpro, the first OneNect tenant on Advottic, is the worked example below.
+
+For the OneNect app team, ready to run. Everything on the Advottic side is
 **already configured and live** as of 2026-07-26. This document contains the
 full current state, the credentials you will receive, how to verify our
 webhook signatures, and a step-by-step joint test with expected results at
@@ -150,7 +152,7 @@ function verify(rawBody: string, headers: Record<string, string>, secret: string
 - `ticket.status_changed` includes `previousStatus`; when the request is
   converted to a matter, `status` becomes `converted` and `caseId` is set,
   which is your "matter opened" banner trigger.
-- Deliveries are best-effort. Keep your 60–120 s poll of
+- Deliveries are best-effort. Keep your 60-120 s poll of
   `GET /tickets/{id}` as the backup; treat webhooks as an accelerator.
 
 ---
@@ -162,7 +164,7 @@ Use `contact@technooptics.com` as the employee throughout (swap in
 access). Prefix all test subjects with `[TEST]` so legal can spot and clean
 them up.
 
-### Step 1: File a request from Zinpro One
+### Step 1: File a request from OneNect
 
 Your app should first `GET /config`, render the popup + 5 questions, then:
 
@@ -172,7 +174,7 @@ curl -s -X POST https://advottic.com/api/partner/v1/tickets \
   -d '{
     "employee": { "email": "contact@technooptics.com", "name": "Techno Optics", "department": "Operations" },
     "subject": "[TEST] Vendor NDA for integration smoke test",
-    "description": "Joint test of the Zinpro One integration. Safe to close.",
+    "description": "Joint test of the OneNect integration. Safe to close.",
     "category": "NDA review",
     "priority": "normal",
     "externalId": "ZIN-SMOKE-1",
@@ -203,7 +205,7 @@ app shows the reply in the thread and sends its push notification; Advottic
 also emails the employee directly ("Legal replied…", calm wording, link to
 their Hub portal).
 
-### Step 3: Employee replies from Zinpro One
+### Step 3: Employee replies from OneNect
 
 ```bash
 curl -s -X POST https://advottic.com/api/partner/v1/tickets/$TICKET_ID/messages \
@@ -228,7 +230,7 @@ Sign in at advottic.com as `contact@technooptics.com` (email → 8-digit
 sign-in code) and switch to the employee view via the profile menu
 (**View as → Employee**), or sign in as `amuchai@zinpro.com`, which lands
 directly in the employee Hub. Either way you'll see the very ticket filed
-from Zinpro One, plus the full self-service toolset:
+from OneNect, plus the full self-service toolset:
 
 - **Forms → Mutual Non-Disclosure Agreement**: fill the fields, type a
   signature, **Preview PDF** (in-app viewer), then Download / Print /
@@ -275,5 +277,5 @@ on the call; verify next day.
   converted` (caseId set) or `rejected`.
 - **No document bytes** flow through the partner API in v1; attachments
   are exchanged in Advottic itself (employees have the Hub portal).
-- Reference docs: `ZINPRO_INTEGRATION.md` (full API), your
+- Reference docs: `ONENECT_INTEGRATION.md` (full API), your
   `ADVOTTIC-TEAM-SETUP.md` (verified accurate against our implementation).

@@ -9,7 +9,7 @@ import {
 export const runtime = 'nodejs';
 
 /**
- * Partner ticketing API (v1). See docs/ZINPRO_INTEGRATION.md.
+ * Partner ticketing API (v1). See docs/ONENECT_INTEGRATION.md.
  *
  *   POST /api/partner/v1/tickets   create a ticket (JIT-provisions the employee)
  *   GET  /api/partner/v1/tickets   list tickets (?employeeEmail= to scope)
