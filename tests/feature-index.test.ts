@@ -28,9 +28,14 @@ describe('the index', () => {
     expect(INDEX).toMatch(/aria-selected=\{/);
     expect(INDEX).toMatch(/useState<'people' \| 'firm'>/);
   });
+  it('gives the tab buttons a 44px touch target', () => {
+    expect(INDEX).toMatch(/min-h-\[44px\]/);
+  });
   it('ships no frames, cards or gold', () => {
     for (const s of [PAGE, INDEX]) {
-      expect(s).not.toMatch(/BrowserFrame|FeatureSheet|ApprovalToExecuted|rounded-2xl|rounded-3xl|gold-|italic|font-display/);
+      expect(s).not.toMatch(
+        /BrowserFrame|FeatureSheet|ApprovalToExecuted|rounded-2xl|rounded-3xl|rounded-full|gold-|Stamp|italic|font-display|font-sans|font-mono|font-serif/,
+      );
     }
   });
 });

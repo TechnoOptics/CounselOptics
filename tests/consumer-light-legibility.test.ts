@@ -381,14 +381,14 @@ const composite = (paint: Paint, ground: string): string => {
  * green. The shell filter reads the files rather than listing routes, so
  * a new always-dark surface removes itself the day it is added.
  */
-function tracked(dirs: string[]): string[] {
+function tracked(dirs: string[], ext = '.tsx'): string[] {
   return execFileSync('git', ['ls-files', '--', ...dirs], {
     cwd: fileURLToPath(root),
     encoding: 'utf8',
     maxBuffer: 1 << 24,
   })
     .split('\n')
-    .filter((f) => f && f.endsWith('.tsx'));
+    .filter((f) => f && f.endsWith(ext));
 }
 
 const SHELL = /counselShellClass|counsel-shell|hq-shell|enterprise-shell/;
@@ -426,10 +426,23 @@ const DARK_SEGMENTS = tracked(['app'])
   .filter((f) => /(?:^|\/)layout\.tsx$/.test(f) && SHELL.test(read(f)))
   .map((f) => f.replace(/layout\.tsx$/, ''));
 
-const FILES = tracked(['app', 'components'])
-  .filter((f) => !/^app\/counsel\/|^app\/portal\/|^components\/counsel\//.test(f))
-  .filter((f) => !DARK_SEGMENTS.some((seg) => f.startsWith(seg)))
-  .filter((f) => !SHELL.test(read(f)));
+/**
+ * The marketing pages spell their light/dark pairs once in
+ * components/marketing/file's shared class-string constants
+ * (H1/H2/BODY/LABEL/BUTTON_INK/...) rather than inline on every page, and
+ * a sweep that reads only `.tsx` files never sees that module: a page
+ * moving its own `text-gold-700 dark:text-gold-300` onto a shared
+ * constant makes the occurrence disappear from MEASURED with no change
+ * in what actually renders. Reading the constants module too keeps the
+ * count honest as more pages migrate onto it.
+ */
+const FILES = [
+  ...tracked(['app', 'components'])
+    .filter((f) => !/^app\/counsel\/|^app\/portal\/|^components\/counsel\//.test(f))
+    .filter((f) => !DARK_SEGMENTS.some((seg) => f.startsWith(seg)))
+    .filter((f) => !SHELL.test(read(f))),
+  ...tracked(['components/marketing/file'], '.ts'),
+];
 
 /**
  * The component classes that paint a DARK fill with no `bg-*` utility at
@@ -607,17 +620,18 @@ describe('the consumer light surface', () => {
     // for any OTHER reason is a broken pathspec, which is the thing
     // these numbers exist to catch - re-derive it, do not nudge it.
     //
-    // MEASURED came down a second time, re-derived rather than nudged,
-    // when app/features/page.tsx moved from its own literal `dark:` pairs
+    // When app/features/page.tsx moved from its own literal `dark:` pairs
     // (`text-gold-700 dark:text-gold-300`, the gold hero rule, the
     // display h1) to the shared H1/BODY/LABEL constants in
-    // components/marketing/file/type.ts. Those constants carry the same
-    // light/dark pairing, already swept everywhere else they are used;
-    // this sweep tracks `.tsx` files only, so a `.ts` constants module is
-    // outside its reach and the page's own occurrences simply disappear
-    // from the count. No pathspec changed and no coverage was lost: the
-    // gold/italic/display classes the page shed were the ones this
-    // page's binding rules require gone.
+    // components/marketing/file/type.ts, MEASURED dropped from 2000 to
+    // 1997: this sweep tracked `.tsx` files only, so the `.ts` constants
+    // module was outside its reach and the page's own occurrences simply
+    // disappeared from the count. That is a broken pathspec, not a real
+    // coverage loss - the constants module carries the same light/dark
+    // pairing, already swept everywhere else it is used - so FILES now
+    // also reads `components/marketing/file/*.ts`, and the floor stays at
+    // its true value (2000) instead of being nudged to fit a sweep that
+    // could not see where the classes moved.
     expect(DARK_SEGMENTS).toContain('app/admin/');
     expect(FILES.some((f) => f.startsWith('app/admin/'))).toBe(false);
     expect(FILES.length).toBeGreaterThanOrEqual(315);
@@ -625,7 +639,7 @@ describe('the consumer light surface', () => {
     expect(FILES.filter((f) => /^components\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(
       80,
     );
-    expect(MEASURED.length).toBeGreaterThanOrEqual(1995);
+    expect(MEASURED.length).toBeGreaterThanOrEqual(2000);
     expect(LISTED.length).toBeGreaterThanOrEqual(1100);
     // And the two halves together are the whole sweep, so neither can
     // grow by eating the other unnoticed.
