@@ -606,6 +606,18 @@ describe('the consumer light surface', () => {
     // light theme paints none of them. A floor that has to be lowered
     // for any OTHER reason is a broken pathspec, which is the thing
     // these numbers exist to catch - re-derive it, do not nudge it.
+    //
+    // MEASURED came down a second time, re-derived rather than nudged,
+    // when app/features/page.tsx moved from its own literal `dark:` pairs
+    // (`text-gold-700 dark:text-gold-300`, the gold hero rule, the
+    // display h1) to the shared H1/BODY/LABEL constants in
+    // components/marketing/file/type.ts. Those constants carry the same
+    // light/dark pairing, already swept everywhere else they are used;
+    // this sweep tracks `.tsx` files only, so a `.ts` constants module is
+    // outside its reach and the page's own occurrences simply disappear
+    // from the count. No pathspec changed and no coverage was lost: the
+    // gold/italic/display classes the page shed were the ones this
+    // page's binding rules require gone.
     expect(DARK_SEGMENTS).toContain('app/admin/');
     expect(FILES.some((f) => f.startsWith('app/admin/'))).toBe(false);
     expect(FILES.length).toBeGreaterThanOrEqual(315);
@@ -613,7 +625,7 @@ describe('the consumer light surface', () => {
     expect(FILES.filter((f) => /^components\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(
       80,
     );
-    expect(MEASURED.length).toBeGreaterThanOrEqual(2000);
+    expect(MEASURED.length).toBeGreaterThanOrEqual(1995);
     expect(LISTED.length).toBeGreaterThanOrEqual(1100);
     // And the two halves together are the whole sweep, so neither can
     // grow by eating the other unnoticed.
