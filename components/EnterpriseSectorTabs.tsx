@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Definitions, H2, BODY, LABEL } from '@/components/marketing/file';
 
 /**
  * Sector picker for the enterprise landing. The user picks who they
@@ -182,22 +183,14 @@ export function EnterpriseSectorTabs() {
   const features = FEATURES[sector];
 
   return (
-    <section id="sectors" className="space-y-8">
-      <header className="max-w-2xl">
-        <p className="text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-300 mb-3">
-          What kind of team are you?
-        </p>
-        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-cream-100">
-          The capabilities that matter, sized to your work.
-        </h2>
-        <p className="mt-3 text-[15px] sm:text-[16px] leading-relaxed text-cream-100/75 max-w-xl">
-          Pick the sector that fits and the feature list re-orders. The kernel is the same for
-          everyone; the call-outs change based on who&apos;s buying.
-        </p>
-      </header>
-
-      {/* Sector tabs */}
-      <div role="tablist" aria-label="Choose your sector" className="flex flex-wrap gap-2">
+    <section id="sectors">
+      <p className={LABEL}>What kind of team are you?</p>
+      <h2 className={`${H2} mt-2`}>The capabilities that matter, sized to your work.</h2>
+      <p className={`${BODY} mt-4`}>
+        Pick the sector that fits and the list re-orders. The kernel is the same for everyone; the
+        call-outs change based on who is buying.
+      </p>
+      <div role="tablist" aria-label="Choose your sector" className="mt-6 flex flex-wrap border border-forest-900 dark:border-cream-100/70">
         {SECTORS.map((s) => (
           <button
             key={s.key}
@@ -205,52 +198,24 @@ export function EnterpriseSectorTabs() {
             aria-selected={sector === s.key}
             type="button"
             onClick={() => setSector(s.key)}
-            className={`group inline-flex items-baseline gap-2 rounded-full border px-4 py-2 text-sm font-medium tracking-tight transition-all ${
+            className={`min-h-[44px] px-4 text-left font-courier text-[12.5px] uppercase tracking-[0.08em] ${
               sector === s.key
-                ? 'border-gold-400 bg-gold-metal text-forest-950 shadow-gold-glow'
-                : 'border-cream-100/20 bg-cream-100/5 text-cream-100 hover:border-gold-400/40 hover:bg-cream-100/10'
+                ? 'bg-forest-900 text-cream-50 dark:bg-cream-100 dark:text-forest-950'
+                : 'text-forest-900 hover:bg-forest-900/5 dark:text-cream-100 dark:hover:bg-cream-100/10'
             }`}
           >
-            <span>{s.label}</span>
-            {/* The selected tab paints `bg-gold-metal`, and forest-950
-                at 65% on that gold measured 3.50:1 for a 10px tagline.
-                The alpha was doing nothing the gold ground did not
-                already do - it is the quiet half of the pair either way
-                - so it goes, taking the tagline to 5.7:1. */}
-            <span
-              className={`text-[10px] tracking-wide ${
-                sector === s.key ? 'text-forest-950' : 'text-cream-100/60 group-hover:text-cream-100/65'
-              }`}
-            >
-              {s.tagline}
-            </span>
+            {s.label}
+            <span className="ml-2 normal-case tracking-normal opacity-70">{s.tagline}</span>
           </button>
         ))}
       </div>
-
-      {/* Feature grid for the selected sector */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {features.map((f) => (
-          <article
-            key={f.title}
-            className={`relative rounded-2xl border p-6 backdrop-blur transition-colors ${
-              f.primary
-                ? 'border-gold-400/30 bg-gradient-to-br from-cream-100/8 via-cream-100/4 to-transparent ring-1 ring-gold-400/15'
-                : 'border-cream-100/15 bg-cream-100/5'
-            }`}
-          >
-            {f.primary && (
-              <span className="absolute top-4 right-4 text-[9px] tracking-[0.18em] uppercase font-semibold text-gold-300 bg-gold-400/10 border border-gold-400/30 rounded-full px-2 py-0.5">
-                Top fit
-              </span>
-            )}
-            <h3 className="text-[15px] font-semibold tracking-tight text-cream-100 mb-2 pr-16">
-              {f.title}
-            </h3>
-            <p className="text-sm text-cream-100/75 leading-relaxed">{f.body}</p>
-          </article>
-        ))}
-      </div>
+      <Definitions
+        columns={3}
+        items={features.map((f) => ({
+          term: f.primary ? `${f.title}. Top fit` : f.title,
+          def: f.body,
+        }))}
+      />
     </section>
   );
 }

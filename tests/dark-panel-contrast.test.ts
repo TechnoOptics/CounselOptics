@@ -331,12 +331,15 @@ describe('the hand-painted dark panels clear their own grounds', () => {
     }
   });
 
-  it('gives the enterprise sector tagline the full ink on its gold tab', () => {
+  it('gives the enterprise sector tagline the full ink on its selected tab', () => {
     // forest-950 at 65% on bg-gold-metal measured 3.50:1. The alpha was
-    // buying nothing the gold ground did not already give.
+    // buying nothing the gold ground did not already give. Task 7 dropped
+    // the gold tab for a solid forest/cream fill, but the fix that
+    // mattered - full ink, no alpha dilution, on the selected state -
+    // still has to hold on the new classes.
     const tabs = src('components/EnterpriseSectorTabs.tsx');
-    expect(tabs).not.toMatch(/text-forest-950\/\d+/);
-    expect(tabs).toContain("'text-forest-950'");
+    expect(tabs).not.toMatch(/text-(?:forest-950|cream-50)\/\d+/);
+    expect(tabs).toMatch(/text-cream-50 dark:bg-cream-100 dark:text-forest-950/);
   });
 
   it('names the theme on the dark strips that paint from status tokens', () => {
