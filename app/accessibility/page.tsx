@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ExternalLink } from '@/components/ExternalLink';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Accessibility',
@@ -17,12 +18,8 @@ export const metadata = {
 
 export default function AccessibilityPage() {
   return (
-    <div className="max-w-3xl mx-auto space-y-6 text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">
+    <Prose label="Accessibility" title="Accessibility statement">
       <header>
-        <p className="eyebrow mb-2">Legal</p>
-        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Accessibility statement
-        </h1>
         <p className="text-xs text-ink-500 mt-2">Last updated: 2026-04-25</p>
       </header>
 
@@ -104,7 +101,7 @@ export default function AccessibilityPage() {
         <Link href="/privacy" className="underline">Privacy Policy</Link> and{' '}
         <Link href="/terms" className="underline">Terms</Link>.
       </p>
-    </div>
+    </Prose>
   );
 }
 

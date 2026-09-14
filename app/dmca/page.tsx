@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'DMCA & IP Policy',
@@ -16,12 +17,8 @@ export const metadata = {
 
 export default function DmcaPage() {
   return (
-    <div className="max-w-3xl mx-auto space-y-6 text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">
+    <Prose label="DMCA" title="Intellectual-property & DMCA policy">
       <header>
-        <p className="eyebrow mb-2">Legal</p>
-        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Intellectual-property &amp; DMCA policy
-        </h1>
         <p className="text-xs text-ink-500 mt-2">Last updated: 2026-04-25</p>
       </header>
 
@@ -100,7 +97,7 @@ export default function DmcaPage() {
         <Link href="/terms" className="underline">Terms</Link> and{' '}
         <Link href="/privacy" className="underline">Privacy Policy</Link>.
       </p>
-    </div>
+    </Prose>
   );
 }
 

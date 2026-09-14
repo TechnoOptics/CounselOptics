@@ -1,3 +1,5 @@
+import { Prose } from '@/components/marketing/file';
+
 export const metadata = {
   title: 'Terms of Use',
   description:
@@ -14,10 +16,8 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <article className="max-w-3xl mx-auto space-y-6 text-ink-800 dark:text-cream-100/85 leading-relaxed">
+    <Prose label="Terms" title="Terms of Use">
       <header>
-        <p className="eyebrow mb-2">Terms</p>
-        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">Terms of Use</h1>
         <p className="text-xs text-ink-500 mt-1">Last updated: 2026-04-25</p>
       </header>
 
@@ -198,7 +198,7 @@ export default function TermsPage() {
           .
         </p>
       </Section>
-    </article>
+    </Prose>
   );
 }
 

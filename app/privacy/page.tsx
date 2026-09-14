@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Privacy Policy',
@@ -16,10 +17,8 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <article className="max-w-3xl mx-auto prose-sm space-y-6 text-ink-800 dark:text-cream-100/85 leading-relaxed">
+    <Prose label="Privacy" title="Privacy Policy">
       <header>
-        <p className="eyebrow mb-2">Privacy</p>
-        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">Privacy Policy</h1>
         <p className="text-xs text-ink-500 mt-1">Last updated: 2026-04-25</p>
       </header>
 
@@ -265,7 +264,7 @@ export default function PrivacyPage() {
           for any privacy-related question or to exercise a right above.
         </p>
       </Section>
-    </article>
+    </Prose>
   );
 }
 

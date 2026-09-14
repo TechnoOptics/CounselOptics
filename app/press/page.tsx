@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 import { isIosAppRequest } from '@/lib/ios-gate';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Press kit',
@@ -47,7 +48,7 @@ const FACTS: Array<{ label: string; value: string }> = [
 export default function PressPage() {
   const isIos = isIosAppRequest();
   return (
-    <div className="space-y-16 sm:space-y-20 pb-20 animate-fade-up">
+    <Prose label="Press" title="For journalists & analysts.">
       <BreadcrumbJsonLd
         items={[
           { name: 'Home', href: '/' },
@@ -56,10 +57,6 @@ export default function PressPage() {
       />
 
       <header className="text-center space-y-4 max-w-3xl mx-auto pt-4 sm:pt-8 px-4">
-        <p className="eyebrow justify-center">Press kit</p>
-        <h1 className="font-display text-[40px] sm:text-[56px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          For journalists &amp; analysts.
-        </h1>
         <p className="text-base text-ink-600 dark:text-cream-100/70 leading-relaxed">
           Everything you need to write about Advottic, in one page.
           For interviews, embargo requests, or product demos, email{' '}
@@ -211,6 +208,6 @@ export default function PressPage() {
           </Link>
         </div>
       </section>
-    </div>
+    </Prose>
   );
 }

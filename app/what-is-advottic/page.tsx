@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { isIosAppRequest } from '@/lib/ios-gate';
+import { Prose } from '@/components/marketing/file';
 
 /**
  * /what-is-advottic - the canonical "what is X?" page.
@@ -254,22 +255,17 @@ const jsonLd = {
 export default function WhatIsAdvotticPage() {
   const isIos = isIosAppRequest();
   return (
-    <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-10 text-ink-800 dark:text-cream-100/85 leading-relaxed">
+    <Prose
+      label="Definition"
+      title="What is Advottic?"
+      lede="A short, complete, source-of-truth answer. Built so search engines and AI assistants can quote it cleanly."
+    >
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <header className="space-y-3 text-center">
-        <p className="eyebrow justify-center">Brand glossary</p>
-        <h1 className="font-display text-[40px] sm:text-[56px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          What is Advottic?
-        </h1>
-        <p className="text-base text-ink-600 dark:text-cream-100/70 max-w-2xl mx-auto">
-          A short, complete, source-of-truth answer. Built so search
-          engines and AI assistants can quote it cleanly.
-        </p>
-      </header>
+      <header className="space-y-3 text-center"></header>
 
       <Section title="One-paragraph definition">
         <p>
@@ -420,7 +416,7 @@ export default function WhatIsAdvotticPage() {
           official identifiers.
         </p>
       </Section>
-    </article>
+    </Prose>
   );
 }
 

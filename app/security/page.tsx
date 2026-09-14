@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Trust & Security',
@@ -16,19 +17,14 @@ export const metadata = {
 
 export default function SecurityPage() {
   return (
-    <div className="max-w-4xl mx-auto space-y-10 animate-fade-up">
+    <Prose
+      label="Security"
+      title="Built for legal-grade trust."
+      lede="Your case is some of the most sensitive content you'll ever put in a SaaS. Advottic treats it that way. Every section below describes what we do today, in plain language."
+    >
       {/* Hero - mirrors Mercury / Stripe trust-center pattern: lead with
           confidence, not disclaimers. */}
       <header className="text-center max-w-2xl mx-auto pt-2">
-        <p className="eyebrow mb-3 justify-center">Trust & Security</p>
-        <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Built for legal-grade trust.
-        </h1>
-        <p className="text-base sm:text-lg text-ink-600 dark:text-cream-100/70 mt-4 leading-relaxed">
-          Your case is some of the most sensitive content you'll ever put in a SaaS. Advottic
-          treats it that way. Every section below describes what we do today, in plain
-          language.
-        </p>
         <p className="text-xs text-ink-500 dark:text-cream-100/70 mt-4 font-mono">
           Last reviewed: 2026-08-10
         </p>
@@ -351,7 +347,7 @@ export default function SecurityPage() {
           <Link href="/dmca" className="underline">DMCA</Link>
         </div>
       </section>
-    </div>
+    </Prose>
   );
 }
 

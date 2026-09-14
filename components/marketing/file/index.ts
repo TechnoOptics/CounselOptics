@@ -7,3 +7,4 @@ export { Schedule } from './Schedule';
 export type { ScheduleColumn, ScheduleRow } from './Schedule';
 export { Memo } from './Memo';
 export { Entry } from './Entry';
+export { Prose } from './Prose';

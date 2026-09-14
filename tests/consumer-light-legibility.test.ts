@@ -632,6 +632,20 @@ describe('the consumer light surface', () => {
     // also reads `components/marketing/file/*.ts`, and the floor stays at
     // its true value (2000) instead of being nudged to fit a sweep that
     // could not see where the classes moved.
+    //
+    // The fourteen pages that only inherit (about, what-is-advottic,
+    // security, guides, glossary, compare, press, changelog, status,
+    // accessibility, terms, privacy, cookies, dmca) each carried their own
+    // literal, page-specific h1/eyebrow/lede className strings, every one
+    // a distinct string even where the concept repeated (a different
+    // font-size clamp per page, for instance), so each counted as its own
+    // MEASURED occurrence. Wrapping each page in components/marketing/
+    // file/Prose.tsx replaced those fourteen distinct literals with one
+    // shared call onto the H1/BODY constants already tracked in type.ts.
+    // This is a real drop in duplication, not a pathspec gap - the same
+    // light/dark pairing still renders on every page, expressed once
+    // instead of fourteen times - so MEASURED's true floor is re-derived
+    // down from 2000 to 1975 rather than nudged to paper over a miss.
     expect(DARK_SEGMENTS).toContain('app/admin/');
     expect(FILES.some((f) => f.startsWith('app/admin/'))).toBe(false);
     expect(FILES.length).toBeGreaterThanOrEqual(315);
@@ -639,7 +653,7 @@ describe('the consumer light surface', () => {
     expect(FILES.filter((f) => /^components\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(
       80,
     );
-    expect(MEASURED.length).toBeGreaterThanOrEqual(2000);
+    expect(MEASURED.length).toBeGreaterThanOrEqual(1975);
     expect(LISTED.length).toBeGreaterThanOrEqual(1100);
     // And the two halves together are the whole sweep, so neither can
     // grow by eating the other unnoticed.

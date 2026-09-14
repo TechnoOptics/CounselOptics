@@ -1,5 +1,6 @@
 import { ExternalLink } from '@/components/ExternalLink';
 import { adminGetLiveHealth } from '@/lib/hq-storage';
+import { Prose } from '@/components/marketing/file';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -27,7 +28,16 @@ export default async function StatusPage() {
   const overall = live?.ok ? 'green' : live ? 'red' : 'unknown';
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-16 space-y-10">
+    <Prose
+      label="Status"
+      title={
+        overall === 'green'
+          ? 'All systems operational'
+          : overall === 'red'
+            ? 'Some systems are degraded'
+            : 'Unable to probe right now'
+      }
+    >
       <header className="space-y-4">
         <div className="flex items-center gap-3">
           <span className="relative inline-flex h-3 w-3">
@@ -51,13 +61,6 @@ export default async function StatusPage() {
               }`}
             />
           </span>
-          <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em]">
-            {overall === 'green'
-              ? 'All systems operational'
-              : overall === 'red'
-                ? 'Some systems are degraded'
-                : 'Unable to probe right now'}
-          </h1>
         </div>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
           Live readout. Each component is probed when this page loads, with
@@ -156,7 +159,7 @@ export default async function StatusPage() {
         Last probed {live ? new Date().toISOString() : 'never'} ·{' '}
         {live ? `${live.totalLatencyMs} ms total` : ''}
       </p>
-    </div>
+    </Prose>
   );
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { GLOSSARY } from '@/lib/glossary';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata: Metadata = {
   title: { absolute: 'Glossary · Advottic' },
@@ -42,22 +43,16 @@ const indexJsonLd = {
 
 export default function GlossaryIndexPage() {
   return (
-    <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-8 text-ink-800 dark:text-cream-100/85 leading-relaxed">
+    <Prose
+      label="Glossary"
+      title="Advottic terms, plain English."
+      lede="One self-contained source for every Advottic-specific word. Each entry has its own URL so search engines and AI assistants can cite it cleanly."
+    >
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(indexJsonLd) }}
       />
-      <header className="space-y-2">
-        <p className="eyebrow">Glossary</p>
-        <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Advottic terms, plain English.
-        </h1>
-        <p className="text-base text-ink-600 dark:text-cream-100/70 max-w-2xl">
-          One self-contained source for every Advottic-specific word.
-          Each entry has its own URL so search engines and AI
-          assistants can cite it cleanly.
-        </p>
-      </header>
+      <header className="space-y-2"></header>
 
       <dl className="space-y-6">
         {GLOSSARY.map((entry) => (
@@ -99,6 +94,6 @@ export default function GlossaryIndexPage() {
           </Link>
         </p>
       </section>
-    </article>
+    </Prose>
   );
 }
