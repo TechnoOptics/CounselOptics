@@ -205,7 +205,7 @@ export function EnterpriseSectorTabs() {
             }`}
           >
             {s.label}
-            <span className="ml-2 normal-case tracking-normal opacity-70">{s.tagline}</span>
+            <span className={`ml-2 normal-case tracking-normal ${sector === s.key ? '' : 'opacity-70'}`}>{s.tagline}</span>
           </button>
         ))}
       </div>
