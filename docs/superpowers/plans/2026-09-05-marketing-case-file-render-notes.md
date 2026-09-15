@@ -1,4 +1,4 @@
-# 2026-09-05 marketing case file: render audit notes
+# 2026-09-05 marketing case file: render audit notes (rendered 2026-09-15)
 
 Rendered every marketing page at 1440 and 390, light and dark, from a local
 `next start -p 3111` build, via `scripts/design/render-marketing.cjs` and
@@ -53,6 +53,11 @@ script).
    18" stamp, gold border and ink, matching light mode's rendering.
    Re-confirmed the fix is real (not a fluke) by reproducing the failure
    first without the emulation, then again with it, three times.
+   By emulating reduced motion, the audit never captures the animated or
+   mid-fade state. This trade-off is acceptable because the audit's purpose
+   is to verify layout and the gold-count value, while motion behavior is
+   guarded separately by `tests/cover-motion-is-one-and-reducible.test.ts`
+   from Task 9.
 
 No page, component, or test file changed. This was a defect in the render
 script's own timing, not in `app/page.tsx` or `components/marketing/file/`,
