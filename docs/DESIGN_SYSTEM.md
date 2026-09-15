@@ -18,6 +18,12 @@ different product; the rest of the system stays as-is.
 > "PRODUCT BRAND COLORS"). Keep every other value, animation, and pattern
 > identical so the products feel like a family.
 
+> Note (2026-09): the public marketing site no longer uses Inter and Fraunces.
+> It is set as "the case file" (Libre Caslon Display, Public Sans, Courier
+> Prime, paper ground, ruled sections, one gold stamp per page). See
+> `docs/DESIGN.md` and `docs/superpowers/specs/2026-09-05-marketing-case-file-design.md`.
+> The recipes below still describe the signed-in product.
+
 ---
 
 ## 1. PRODUCT BRAND COLORS (the only thing you swap per product)

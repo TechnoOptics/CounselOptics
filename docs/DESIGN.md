@@ -69,21 +69,36 @@ only, so a component is never written twice.
 
 ## Type
 
-Two faces, already loaded: `font-display` for headings, the body sans for
-everything else. `font-serif` is reserved for rendered documents, where it means
-"this is the instrument", and using it as decoration anywhere else spends that
-meaning.
+Four roles on the public marketing site, four faces, spelled once in
+`components/marketing/file/type.ts`:
+
+| role | face | where |
+| --- | --- | --- |
+| display | Libre Caslon Display (`font-caslon`) | h1 and section h2 only |
+| quote | Libre Caslon Text italic (`font-caslon-text`) | pull quotes, sheet titles |
+| reading | Public Sans (`font-public`) | body, controls, nav |
+| utility | Courier Prime (`font-courier`) | labels, dates, exhibit letters, eyebrows |
+
+Caslon is the face of American legal documents, Public Sans the civic
+reading face, Courier what court filings are set in. The signed-in shells
+keep Inter and Fraunces until their own spec.
 
 - Body copy sits near 65 characters. Wider is unreadable, and a legal audience
   reads carefully.
 - Headings take `text-wrap: balance`.
 - Numbers that line up in a column take `tabular-nums`. Always.
-- Uppercase labels take a little letter-spacing; uppercase body text takes none,
-  because there is no uppercase body text.
+- Courier is never body text and never a headline. The display face is never
+  italic for emphasis and never gold.
+- `font-serif` is reserved for rendered documents, where it means "this is
+  the instrument".
 
-**A status is not a headline.** This has already cost us once: a whole refusal
-sentence was rendered in a display `<h1>` on the phone and came out as seven
-lines of huge serif. Headline type is for names of things. Sentences are body.
+**A status is not a headline.** Headline type is for names of things.
+Sentences are body.
+
+**Rules instead of cards, and one gold per screen.** Sections are separated by
+one ink rule and carry a tab column; product is shown on paper sheets, not in
+browser frames; the accent is a single stamp per page. The full spec is
+`docs/superpowers/specs/2026-09-05-marketing-case-file-design.md`.
 
 ---
 
@@ -147,3 +162,23 @@ So, for every surface:
 
 The test suite proves the wiring. Only the rendered page proves the reader sees
 the right thing.
+
+---
+
+## Retired, still on disk
+
+No longer imported by any page after this redesign. Deleting them is a
+separate, later change.
+
+- `components/AudienceSplit.tsx`
+- `components/FeatureGallery.tsx`
+- `components/TestimonialMarquee.tsx`
+- `components/TechTrustStrip.tsx`
+- `components/BellaAvatar.tsx`
+- `components/marketing/FeatureSheet.tsx`
+- `components/marketing/ApprovalToExecuted.tsx`
+- `components/marketing/ProductShowcaseBand.tsx`
+
+`components/AboutTeaser.tsx` and `components/marketing/SectionPhoto.tsx` are
+not listed here: `app/welcome/page.tsx` still renders `AboutTeaser`, which
+renders `SectionPhoto`, so both remain live.
