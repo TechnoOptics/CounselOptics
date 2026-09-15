@@ -183,6 +183,7 @@ export default function SecurityPage() {
           These are the parties that process data on our behalf, and what each one receives.
         </p>
         <div className="overflow-hidden rounded-xl border border-ink-200 dark:border-forest-700/60">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85">
               <tr>
@@ -269,6 +270,7 @@ export default function SecurityPage() {
               />
             </tbody>
           </table>
+          </div>
         </div>
         <p className="text-xs text-ink-500 dark:text-cream-100/55 mt-3">
           We will email account owners at least 30 days before adding a sub-processor that

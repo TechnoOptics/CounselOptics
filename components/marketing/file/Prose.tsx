@@ -27,7 +27,7 @@ export function Prose({
         {lede && <p className={`${BODY} mt-5`}>{lede}</p>}
       </Section>
       <Section label="">
-        <div className="max-w-[72ch] font-public text-[16px] leading-[1.6] text-ink-700 dark:text-cream-100/80 [&_h2]:font-caslon [&_h2]:text-[28px] [&_h2]:leading-[1.15] [&_h2]:text-forest-900 [&_h2]:dark:text-cream-100 [&_h3]:font-public [&_h3]:text-[17px] [&_h3]:font-semibold [&_a]:underline [&_a]:underline-offset-4">
+        <div className="max-w-[72ch] font-public text-[16px] leading-[1.6] text-ink-700 dark:text-cream-100/80 [&_h2]:font-caslon [&_h2]:text-[28px] [&_h2]:leading-[1.15] [&_h2]:text-forest-900 [&_h2]:dark:text-cream-100 [&_h3]:font-public [&_h3]:text-[17px] [&_h3]:font-semibold [&_a:not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-ghost):not(.btn-accent)]:underline [&_a:not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-ghost):not(.btn-accent)]:underline-offset-4">
           {children}
         </div>
       </Section>
