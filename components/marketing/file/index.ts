@@ -1,4 +1,5 @@
 export * from './type';
+export { Band } from './Band';
 export { FilePage } from './FilePage';
 export { Section } from './Section';
 export { Sheet, SheetRow, Stamp } from './Sheet';

@@ -265,7 +265,6 @@ export default function WhatIsAdvotticPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <header className="space-y-3 text-center"></header>
 
       <Section title="One-paragraph definition">
         <p>

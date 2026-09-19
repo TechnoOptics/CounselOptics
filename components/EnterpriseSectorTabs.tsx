@@ -190,12 +190,13 @@ export function EnterpriseSectorTabs() {
         Pick the sector that fits and the list re-orders. The kernel is the same for everyone; the
         call-outs change based on who is buying.
       </p>
-      <div role="tablist" aria-label="Choose your sector" className="mt-6 flex flex-wrap border border-forest-900 dark:border-cream-100/70">
+      {/* Pressed buttons over a live region, not the ARIA tabs pattern: see
+          the note in components/marketing/FeatureIndex.tsx. */}
+      <div role="group" aria-label="Choose your sector" className="mt-6 flex flex-wrap border border-forest-900 dark:border-cream-100/70">
         {SECTORS.map((s) => (
           <button
             key={s.key}
-            role="tab"
-            aria-selected={sector === s.key}
+            aria-pressed={sector === s.key}
             type="button"
             onClick={() => setSector(s.key)}
             className={`min-h-[44px] px-4 text-left font-courier text-[12.5px] uppercase tracking-[0.08em] ${FOCUS} ${
@@ -209,13 +210,15 @@ export function EnterpriseSectorTabs() {
           </button>
         ))}
       </div>
-      <Definitions
-        columns={3}
-        items={features.map((f) => ({
-          term: f.primary ? `${f.title}. Top fit` : f.title,
-          def: f.body,
-        }))}
-      />
+      <div aria-live="polite">
+        <Definitions
+          columns={3}
+          items={features.map((f) => ({
+            term: f.primary ? `${f.title}. Top fit` : f.title,
+            def: f.body,
+          }))}
+        />
+      </div>
     </section>
   );
 }

@@ -6,6 +6,7 @@ import { resolveDefaultLanding } from '@/lib/landing';
 import { AppJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
 import { HOME_FAQ } from '@/lib/home-faq';
 import {
+  Band,
   BODY,
   BUTTON_INK,
   BUTTON_OUTLINE_CREAM,
@@ -298,8 +299,8 @@ function WhatItIsNot() {
 
 function FirmSignpost() {
   return (
-    <section className="-mx-4 mt-4 bg-forest-950 px-4 py-10 text-cream-100 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
-      <div className="mx-auto grid max-w-[1200px] items-center gap-6 lg:grid-cols-[1fr_auto]">
+    <Band className="mt-4 bg-forest-950 py-10 text-cream-100">
+      <div className="grid items-center gap-6 lg:grid-cols-[1fr_auto]">
         <div>
           <p className="font-courier text-[12.5px] uppercase tracking-[0.08em] text-cream-100/60">For firms</p>
           <h2 className="mt-2 font-caslon text-[28px] font-normal leading-[1.1] tracking-[-0.01em] text-balance text-cream-100 sm:text-[34px] lg:text-[40px]">
@@ -314,7 +315,7 @@ function FirmSignpost() {
           See Advottic for firms
         </Link>
       </div>
-    </section>
+    </Band>
   );
 }
 

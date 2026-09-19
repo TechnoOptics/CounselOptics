@@ -24,6 +24,28 @@ describe.each(PAGES)('app/%s/page.tsx', (p) => {
     expect(src).not.toMatch(/animate-fade-up/);
     expect(src).not.toMatch(/<h1[^>]*font-display/);
   });
+  it('leaves behind no empty header landmark', () => {
+    // Moving each page's hero into Prose left five pages with a literally
+    // empty <header>, a dead landmark still contributing pt-2 / pt-4 sm:pt-8
+    // of phantom space and, on two of them, a text-center wrapping nothing.
+    expect(src).not.toMatch(/<header[^>]*>\s*<\/header>/);
+  });
+});
+
+describe('app/status/page.tsx', () => {
+  const src = stripComments(readFileSync(join(ROOT, 'app/status/page.tsx'), 'utf8'));
+  it('sets the status as body, not as the display headline', () => {
+    // docs/DESIGN.md: "A status is not a headline. Headline type is for names
+    // of things. Sentences are body." The same file lists a status sentence
+    // set as a headline among the seven defects that shipped green.
+    const title = /<Prose[\s\S]*?\btitle=(\{[\s\S]*?\}|"[^"]*")/.exec(src)?.[1] ?? '';
+    expect(title, 'the Prose title is gone').toBeTruthy();
+    expect(title).not.toMatch(/All systems operational|degraded|Unable to probe/);
+    expect(src).toMatch(/All systems operational/);
+  });
+  it('keeps the live dot beside the sentence it belongs to', () => {
+    expect(src).toMatch(/animate-ping[\s\S]{0,900}All systems operational/);
+  });
 });
 
 describe('components/marketing/file/Prose.tsx', () => {

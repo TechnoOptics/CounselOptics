@@ -29,16 +29,26 @@ export function Section({
   // runtime from the third argument.
   children?: ReactNode;
 }) {
+  // The Courier label is the only name several sections have: the home
+  // page's three quotes, both pricing schedules and the enterprise sector
+  // picker carry no heading at all, so without this they have no accessible
+  // name and no entry in a screen reader's landmark list.
+  const slug = (id ?? label)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const labelId = label && slug ? `${slug}-label` : undefined;
   return (
     <section
       id={id}
+      aria-labelledby={labelId}
       className={`grid gap-4 lg:grid-cols-[200px_1fr] lg:gap-10 ${
         first
           ? 'pt-12 pb-10 sm:pt-16 sm:pb-14'
           : 'border-t border-forest-900 py-10 dark:border-cream-100/40 sm:py-14'
       }`}
     >
-      <div className={LABEL}>
+      <div id={labelId} className={LABEL}>
         {tab && (
           <span className="mb-1.5 block font-caslon text-[44px] normal-case leading-none tracking-normal text-forest-900 dark:text-cream-100">
             {tab}

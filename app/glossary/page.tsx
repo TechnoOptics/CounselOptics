@@ -52,7 +52,6 @@ export default function GlossaryIndexPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(indexJsonLd) }}
       />
-      <header className="space-y-2"></header>
 
       <dl className="space-y-6">
         {GLOSSARY.map((entry) => (

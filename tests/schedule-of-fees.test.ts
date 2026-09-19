@@ -29,6 +29,19 @@ describe('the schedule', () => {
     expect(PAGE).toMatch(/serverPlatform === 'ios'/);
     expect(PAGE).toMatch(/href="\/gift"[^>]*data-hide-on-ios|data-hide-on-ios[^>]*href="\/gift"/);
   });
+  it('gives every section a heading, so the FAQ h3s are not orphaned', () => {
+    // Section renders its Courier label as a div, which is right visually
+    // but leaves a section with no h2 out of a screen reader's heading
+    // list; on this page it also meant the eleven FAQ h3s sat under the
+    // gift block's h2, two sections above them.
+    for (const label of ['For one person', 'For firms', 'Frequently asked']) {
+      const section = PAGE.slice(PAGE.indexOf(`label="${label}"`));
+      expect(
+        section.slice(0, section.indexOf('</Section>')),
+        `the "${label}" section has no heading`,
+      ).toMatch(/<h2[^>]*>/);
+    }
+  });
   it('no longer ships cards, the partner strip or a gold button', () => {
     expect(PAGE).not.toMatch(/TechTrustStrip|TierCard|className="card|btn-primary|rounded-2xl|rounded-3xl/);
   });

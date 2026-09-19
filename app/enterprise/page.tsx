@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { EnterpriseInquiryForm } from '@/components/EnterpriseInquiryForm';
 import { EnterpriseSectorTabs } from '@/components/EnterpriseSectorTabs';
-import { LegalReviewMock } from '@/components/marketing/PortalMocks';
 import {
+  Band,
   BODY,
   BUTTON_OUTLINE_CREAM,
   Definitions,
@@ -12,6 +12,7 @@ import {
   H2,
   LABEL,
   LINK,
+  Memo,
   Section,
   Sheet,
   SheetRow,
@@ -119,8 +120,18 @@ export default function EnterprisePage() {
               ]}
             />
           </div>
-          <Sheet kicker="Legal review" kickerRight="Northwind Materials">
-            <LegalReviewMock />
+          <Sheet
+            kicker="Legal review"
+            kickerRight="Northwind Materials"
+            title="Misappropriation of trade secrets"
+          >
+            <Memo
+              label="Elements"
+              text="A trade secret, reasonable measures to keep it secret, and acquisition by improper means."
+            />
+            <SheetRow mark="Cite" text="Electro-Craft Corp. v. Controlled Motion, Inc." right="Verified" />
+            <SheetRow mark="" text="332 N.W.2d 890 (Minn. 1983)" />
+            <Memo label="Dropped" text="Unverified citations never reach the page." />
           </Sheet>
         </div>
       </Section>
@@ -153,11 +164,21 @@ export default function EnterprisePage() {
   );
 }
 
-/** The forest cover. The one dark surface in the file, because it is the firm product's colour. */
+/**
+ * The forest cover. The one dark surface in the file, because it is the firm
+ * product's colour.
+ *
+ * `bg-paper`, not `bg-forest-950`: `.enterprise-shell` remaps `--forest-950`
+ * to near-black, so the utility named after the colour did not paint it, and
+ * this band ended up a different colour from the home page's firm band. The
+ * same shell redefines `--paper` to `#0a1f19`, which is exactly what
+ * `forest-950` resolves to outside a shell, so the ground token paints the
+ * real forest in both themes and the two firm surfaces match.
+ */
 function Cover() {
   return (
-    <section className="enterprise-shell -mx-4 bg-forest-950 px-4 pb-14 pt-12 text-cream-100 sm:-mx-6 sm:px-6 sm:pb-20 sm:pt-16 lg:-mx-10 lg:px-10">
-      <div className="mx-auto grid max-w-[1200px] items-center gap-10 lg:grid-cols-12 lg:gap-14">
+    <Band className="enterprise-shell bg-paper pb-14 pt-12 text-cream-100 sm:pb-20 sm:pt-16">
+      <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
         <div className="min-w-0 lg:col-span-7">
           <p className="font-courier text-[12.5px] uppercase tracking-[0.08em] text-cream-100/60">
             Advottic for firms. In-house. Counsel.
@@ -200,7 +221,7 @@ function Cover() {
           </Sheet>
         </div>
       </div>
-    </section>
+    </Band>
   );
 }
 

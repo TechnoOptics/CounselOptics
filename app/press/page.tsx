@@ -56,7 +56,7 @@ export default function PressPage() {
         ]}
       />
 
-      <header className="text-center space-y-4 max-w-3xl mx-auto pt-4 sm:pt-8 px-4">
+      <header className="space-y-4">
         <p className="text-base text-ink-600 dark:text-cream-100/70 leading-relaxed">
           Everything you need to write about Advottic, in one page.
           For interviews, embargo requests, or product demos, email{' '}

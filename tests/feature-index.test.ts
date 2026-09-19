@@ -23,9 +23,16 @@ describe('the index', () => {
     expect(order.every((i) => i > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
-  it('is a real toggle with tab semantics', () => {
-    expect(INDEX).toMatch(/role="tablist"/);
-    expect(INDEX).toMatch(/aria-selected=\{/);
+  it('is a pair of pressed buttons, not half of the ARIA tabs pattern', () => {
+    // Both toggles used to declare role="tablist"/role="tab" with
+    // aria-selected and deliver none of what the pattern promises: no
+    // aria-controls, no role="tabpanel", no roving tabindex, no arrow keys.
+    // Plain buttons that say whether they are pressed, over a live region,
+    // is the contract the markup can actually keep.
+    expect(INDEX).not.toMatch(/role="tab(list)?"/);
+    expect(INDEX).not.toMatch(/aria-selected/);
+    expect(INDEX).toMatch(/aria-pressed=\{aud === key\}/);
+    expect(INDEX).toMatch(/aria-live="polite"/);
     expect(INDEX).toMatch(/useState<'people' \| 'firm'>/);
   });
   it('gives the tab buttons a 44px touch target', () => {

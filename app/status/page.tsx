@@ -28,16 +28,14 @@ export default async function StatusPage() {
   const overall = live?.ok ? 'green' : live ? 'red' : 'unknown';
 
   return (
-    <Prose
-      label="Status"
-      title={
-        overall === 'green'
-          ? 'All systems operational'
-          : overall === 'red'
-            ? 'Some systems are degraded'
-            : 'Unable to probe right now'
-      }
-    >
+    /*
+      The headline is "Status", a name. docs/DESIGN.md: "A status is not a
+      headline. Headline type is for names of things. Sentences are body."
+      The live sentence had been passed to Prose as the h1, which also left
+      the dot alone in a flex row with nothing beside it; both read together
+      below, which is what the dot is there for.
+    */
+    <Prose label="Status" title="Status">
       <header className="space-y-4">
         <div className="flex items-center gap-3">
           <span className="relative inline-flex h-3 w-3">
@@ -61,6 +59,13 @@ export default async function StatusPage() {
               }`}
             />
           </span>
+          <p className="m-0 font-public text-[17px] font-semibold">
+            {overall === 'green'
+              ? 'All systems operational'
+              : overall === 'red'
+                ? 'Some systems are degraded'
+                : 'Unable to probe right now'}
+          </p>
         </div>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
           Live readout. Each component is probed when this page loads, with

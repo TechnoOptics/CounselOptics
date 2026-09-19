@@ -229,8 +229,7 @@ export function FeatureIndex({ initial = 'people' }: { initial?: Audience }) {
   const tab = (key: Audience, label: string) => (
     <button
       type="button"
-      role="tab"
-      aria-selected={aud === key}
+      aria-pressed={aud === key}
       onClick={() => setAud(key)}
       className={`min-h-[44px] px-4 font-courier text-[12.5px] uppercase tracking-[0.08em] ${FOCUS} ${
         aud === key
@@ -243,11 +242,20 @@ export function FeatureIndex({ initial = 'people' }: { initial?: Audience }) {
   );
   return (
     <>
-      <div role="tablist" aria-label="Choose an audience" className="inline-flex border border-forest-900 dark:border-cream-100/70">
+      {/*
+        Two pressed buttons over a live region, not the ARIA tabs pattern.
+        This used to declare role="tablist"/role="tab" with aria-selected and
+        deliver none of what that promises: no aria-controls, no
+        role="tabpanel", no roving tabindex, no arrow keys. A reader was told
+        "tab, 1 of 2, selected" and given no way to reach what it controls.
+      */}
+      <div role="group" aria-label="Choose an audience" className="inline-flex border border-forest-900 dark:border-cream-100/70">
         {tab('people', 'For people')}
         {tab('firm', 'For firms')}
       </div>
-      <div className="mt-2">{aud === 'people' ? <PeopleIndex /> : <FirmIndex />}</div>
+      <div className="mt-2" aria-live="polite">
+        {aud === 'people' ? <PeopleIndex /> : <FirmIndex />}
+      </div>
     </>
   );
 }

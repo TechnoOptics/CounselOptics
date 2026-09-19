@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  Band,
   BUTTON_INK,
   BUTTON_OUTLINE_CREAM,
   Definitions,
@@ -34,6 +35,20 @@ describe('FilePage', () => {
   });
 });
 
+describe('Band', () => {
+  it("bleeds to the viewport and carries FilePage's own column inside it", () => {
+    const out = html(createElement(Band, { className: 'bg-paper' }, 'x'));
+    expect(out).toContain('mx-[calc(50%_-_50vw)]');
+    expect(out).toContain('bg-paper');
+    // Spelled exactly as FilePage's inner column, so a band's content shares
+    // a left edge with the sections above and below it at every width.
+    const filePage = html(createElement(FilePage, null, 'x'));
+    const column = /<div class="(mx-auto max-w-\[1200px\][^"]*)">/.exec(filePage)?.[1];
+    expect(column, 'FilePage no longer centres a named column').toBeTruthy();
+    expect(out).toContain(column!);
+  });
+});
+
 describe('Section', () => {
   it('renders the tab letter in Caslon and the label in Courier', () => {
     const out = html(createElement(Section, { tab: 'A', label: 'What goes in' }, 'body'));
@@ -44,6 +59,16 @@ describe('Section', () => {
   it('drops the top rule on the first block', () => {
     const out = html(createElement(Section, { label: 'Cover', first: true }, 'body'));
     expect(out).not.toContain('border-t');
+  });
+  it('names itself with its label, so a section with no h2 is not anonymous', () => {
+    // Several sections carry no heading at all (the home quotes, both pricing
+    // schedules, the enterprise sectors), so without this they have no
+    // accessible name and no entry in a screen reader's landmark list.
+    const out = html(createElement(Section, { label: 'In their words' }, 'body'));
+    const id = /<section aria-labelledby="([^"]+)"/.exec(out)?.[1];
+    expect(id, 'the section does not point at a name').toBeTruthy();
+    expect(out).toContain(`<div id="${id}"`);
+    expect(out).toContain('In their words');
   });
   it('gives the body column min-w-0 so a long headline cannot widen the page', () => {
     const out = html(createElement(Section, { label: 'x' }, 'body'));

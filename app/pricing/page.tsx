@@ -160,6 +160,9 @@ export default function PricingPage() {
       </Section>
 
       <Section tab="I" label="For one person" id="individuals">
+        {/* The schedule is the section's content and carries no headline of
+            its own, so the heading is here for a screen reader's outline. */}
+        <h2 className="sr-only">For one person</h2>
         <Schedule
           columns={CONSUMER_TIERS.map(tierToColumn)}
           rows={CONSUMER_ROWS}
@@ -169,6 +172,7 @@ export default function PricingPage() {
       </Section>
 
       <Section tab="II" label="For firms" id="firms">
+        <h2 className="sr-only">For firms</h2>
         <Schedule columns={FIRM_TIERS.map(tierToColumn)} rows={FIRM_ROWS} />
         <p className={`${BODY} mt-6 text-[15px]`}>
           Enterprise is agreed in writing: the final price scales with seats, support tier and SLA.
@@ -227,6 +231,7 @@ export default function PricingPage() {
       </Section>
 
       <Section label="Frequently asked" id="faq">
+        <h2 className="sr-only">Frequently asked</h2>
         <div className="border-t border-rule">
           {PRICING_FAQ.map((it) => (
             <details key={it.q} className="group border-b border-rule py-3.5">

@@ -620,32 +620,35 @@ describe('the consumer light surface', () => {
     // for any OTHER reason is a broken pathspec, which is the thing
     // these numbers exist to catch - re-derive it, do not nudge it.
     //
-    // When app/features/page.tsx moved from its own literal `dark:` pairs
-    // (`text-gold-700 dark:text-gold-300`, the gold hero rule, the
-    // display h1) to the shared H1/BODY/LABEL constants in
-    // components/marketing/file/type.ts, MEASURED dropped from 2000 to
-    // 1997: this sweep tracked `.tsx` files only, so the `.ts` constants
-    // module was outside its reach and the page's own occurrences simply
-    // disappeared from the count. That is a broken pathspec, not a real
-    // coverage loss - the constants module carries the same light/dark
-    // pairing, already swept everywhere else it is used - so FILES now
-    // also reads `components/marketing/file/*.ts`, and the floor stays at
-    // its true value (2000) instead of being nudged to fit a sweep that
-    // could not see where the classes moved.
+    // MEASURED's floor has been re-derived twice as the case-file redesign
+    // replaced per-page literals with shared roles, and both times the
+    // occurrences moved or merged rather than escaping the sweep.
     //
-    // The fourteen pages that only inherit (about, what-is-advottic,
-    // security, guides, glossary, compare, press, changelog, status,
-    // accessibility, terms, privacy, cookies, dmca) each carried their own
-    // literal, page-specific h1/eyebrow/lede className strings, every one
-    // a distinct string even where the concept repeated (a different
-    // font-size clamp per page, for instance), so each counted as its own
-    // MEASURED occurrence. Wrapping each page in components/marketing/
-    // file/Prose.tsx replaced those fourteen distinct literals with one
-    // shared call onto the H1/BODY constants already tracked in type.ts.
-    // This is a real drop in duplication, not a pathspec gap - the same
-    // light/dark pairing still renders on every page, expressed once
-    // instead of fourteen times - so MEASURED's true floor is re-derived
-    // down from 2000 to 1975 rather than nudged to paper over a miss.
+    // First, app/features/page.tsx traded its own `dark:` pairs
+    // (`text-gold-700 dark:text-gold-300`, the gold hero rule, the display
+    // h1) for the H1/BODY/LABEL constants in components/marketing/file/
+    // type.ts, and the count fell from 2000 to 1997 purely because this
+    // sweep read `.tsx` only and could not see a `.ts` constants module.
+    // That is a broken pathspec, not a coverage loss, and the fix was to
+    // widen FILES to `components/marketing/file/*.ts` rather than to lower
+    // the number.
+    //
+    // Then real duplication went away. Fourteen inheriting pages (about,
+    // what-is-advottic, security, guides, glossary, compare, press,
+    // changelog, status, accessibility, terms, privacy, cookies, dmca) each
+    // carried their own h1/eyebrow/lede className literals, every one
+    // distinct even where the concept repeated, and components/marketing/
+    // file/Prose.tsx replaced all fourteen with one call onto H1 and BODY.
+    // Two more went in the final fix wave: Sheet's right-hand column became
+    // `text-current opacity-70` so it follows the Sheet's tone instead of
+    // naming its own quiet ink, and app/security/page.tsx's "Last reviewed"
+    // line moved onto the shared LABEL role. The same light/dark pairing
+    // still renders on every page, expressed once instead of many times.
+    //
+    // The floor is therefore 1974, re-derived from what the sweep reaches
+    // today. A floor that has to come down for any OTHER reason is a broken
+    // pathspec, which is the thing these numbers exist to catch: re-derive
+    // it, do not nudge it.
     expect(DARK_SEGMENTS).toContain('app/admin/');
     expect(FILES.some((f) => f.startsWith('app/admin/'))).toBe(false);
     expect(FILES.length).toBeGreaterThanOrEqual(315);
@@ -653,7 +656,7 @@ describe('the consumer light surface', () => {
     expect(FILES.filter((f) => /^components\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(
       80,
     );
-    expect(MEASURED.length).toBeGreaterThanOrEqual(1975);
+    expect(MEASURED.length).toBeGreaterThanOrEqual(1974);
     expect(LISTED.length).toBeGreaterThanOrEqual(1100);
     // And the two halves together are the whole sweep, so neither can
     // grow by eating the other unnoticed.

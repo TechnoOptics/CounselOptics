@@ -36,7 +36,6 @@ export default function AboutPage() {
       lede="We get this question a lot, and you deserve a straight answer. So here it is, in one page, in plain English - what we do, where a licensed attorney comes in, and how we stay out of your way at the moments that matter."
     >
       {/* Hero */}
-      <header className="text-center max-w-2xl mx-auto pt-2"></header>
 
       {/* Three roles, side by side */}
       <section className="grid gap-4 sm:grid-cols-3">

@@ -46,7 +46,6 @@ export default function GuidesIndexPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <header className="space-y-2"></header>
 
       <ul className="space-y-5">
         {GUIDES.map((g) => (

@@ -116,41 +116,28 @@ body {
   where the page actually has room to overflow.
 */
 /*
-  Pull the enterprise shell up so the dark forest meets the header
-  with no cream gap. The layout's main container has py-6 (24px)
-  default and sm:py-10 (40px) above, which would otherwise paint a
-  cream band between the consumer header and the enterprise shell.
-  Negative top margin equal to the layout's top padding closes it.
+  `.enterprise-shell` used to set its own geometry here: a negative top
+  margin to meet the header, and, above lg, `margin: calc(50% - 50vw)`
+  with `padding: max(1.5rem, calc(50vw - 40rem))`, all !important.
 
-  !important matches the rest of the .enterprise-shell rule (see
-  note in the @media block below for why).
+  Those numbers were tuned when the cover was a direct child of the
+  layout's container. The cover is inside FilePage now, which already
+  cancels the layout's py-6 / sm:py-10 and already centres a 1200px
+  column, so the top margin pulled the cover under the header and the
+  padding aimed the cover's content at a different column from every
+  section below it: at 1440px the cover h1 started well left of the h2
+  beneath it, and between lg and 1254px it started right of it.
+
+  The arithmetic could not be retuned in rem either. `html` sets
+  `font-size: 18px`, so 40rem is 720px and the 37.5rem a 16px root
+  would need for a 1200px column is 675px here, not 600px.
+
+  components/marketing/file/Band.tsx owns the bleed and the column for
+  both bands now, spelled exactly as FilePage spells its own, so the two
+  cannot drift apart. `.enterprise-shell` is left as what it actually
+  is: a token scope (globals.css redefines --paper, --sheet, --rule and
+  the forest ramp under it) and the hook the dark eyebrow rule reads.
 */
-.enterprise-shell {
-  margin-top: -1.5rem !important;
-}
-@media (min-width: 640px) {
-  .enterprise-shell {
-    margin-top: -2.5rem !important;
-  }
-}
-@media (min-width: 1024px) {
-  /*
-    !important is reluctant but necessary: the enterprise page also
-    carries Tailwind's `-mx-4 sm:-mx-6` which compiles to a class of
-    equal specificity to .enterprise-shell. Source order doesn't help
-    in production because Tailwind's JIT-emitted utility CSS sometimes
-    lands in a later cascade layer than @layer utilities-following
-    custom rules. !important here is scoped tightly (one class, one
-    media query) and only used to win against a same-specificity
-    Tailwind utility, not to mask a real conflict.
-  */
-  .enterprise-shell {
-    margin-left: calc(50% - 50vw) !important;
-    margin-right: calc(50% - 50vw) !important;
-    padding-left: max(1.5rem, calc(50vw - 40rem)) !important;
-    padding-right: max(1.5rem, calc(50vw - 40rem)) !important;
-  }
-}
 
 @font-face {
   font-family: 'Conquera';
@@ -2403,6 +2390,7 @@ select:focus-visible,
   .animate-float,
   .animate-glow,
   .animate-pulse,
+  .animate-ping,
   .stagger > *,
   .shimmer,
   .gold-pan,

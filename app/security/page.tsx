@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Prose } from '@/components/marketing/file';
+import { LABEL, Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Trust & Security',
@@ -22,13 +22,7 @@ export default function SecurityPage() {
       title="Built for legal-grade trust."
       lede="Your case is some of the most sensitive content you'll ever put in a SaaS. Advottic treats it that way. Every section below describes what we do today, in plain language."
     >
-      {/* Hero - mirrors Mercury / Stripe trust-center pattern: lead with
-          confidence, not disclaimers. */}
-      <header className="text-center max-w-2xl mx-auto pt-2">
-        <p className="text-xs text-ink-500 dark:text-cream-100/70 mt-4 font-mono">
-          Last reviewed: 2026-08-10
-        </p>
-      </header>
+      <p className={LABEL}>Last reviewed: 2026-08-10</p>
 
       {/* Three-column promise grid - confidence layer above the technical
           details, in the Mercury/Wealthfront pattern. */}

@@ -57,7 +57,6 @@ export default function CompareHubPage() {
           href: `/compare/${c.slug}`,
         }))}
       />
-      <header className="text-center space-y-4 max-w-3xl mx-auto pt-4 sm:pt-8 px-4"></header>
       {Array.from(grouped.entries()).map(([category, items]) => (
         <section
           key={category}
