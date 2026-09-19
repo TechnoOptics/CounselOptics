@@ -187,6 +187,7 @@ function Cover() {
         <div className="min-w-0 lg:col-span-5">
           <Sheet
             className="pb-16 sm:pb-16"
+            tone="dark"
             kicker="Matter file"
             kickerRight="Commercial, trade secret"
             title="Northwind Materials v. departed engineer"

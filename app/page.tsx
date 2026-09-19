@@ -11,6 +11,7 @@ import {
   BUTTON_OUTLINE_CREAM,
   Definitions,
   FilePage,
+  FOCUS,
   H1,
   H2,
   LABEL,
@@ -281,7 +282,7 @@ function WhatItIsNot() {
       <div className="mt-8 border-t border-rule">
         {HOME_FAQ.map((it) => (
           <details key={it.q} className="group border-b border-rule py-3.5">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-public text-[15px] font-medium">
+            <summary className={`flex cursor-pointer list-none items-center justify-between gap-4 font-public text-[15px] font-medium ${FOCUS}`}>
               <h3 className="m-0 text-[15px] font-medium">{it.q}</h3>
               <span aria-hidden className="font-courier text-xl leading-none text-ink-600 group-open:rotate-45 dark:text-cream-100/60">
                 +

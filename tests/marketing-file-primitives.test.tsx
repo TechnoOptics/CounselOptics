@@ -2,9 +2,13 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  BUTTON_INK,
+  BUTTON_OUTLINE_CREAM,
   Definitions,
   Entry,
   FilePage,
+  FOCUS,
+  LINK,
   Memo,
   Schedule,
   Section,
@@ -67,6 +71,20 @@ describe('Sheet', () => {
     const moving = html(createElement(Sheet, { assemble: true }, ...rows));
     expect(moving).toContain('file-assemble');
   });
+  it('takes a dark tone, so a sheet on a dark ground is not paper-tuned ink', () => {
+    // C2: `.enterprise-shell` redefines --sheet to the dark sheet AND remaps
+    // --forest-900 to near-black, and there is no `.dark` ancestor in light
+    // theme, so the `dark:` variant never fires. The cover's sheet rendered
+    // #101012 ink on #0f2d24. The tone is an explicit choice, not a variant.
+    const rows = [createElement(SheetRow, { key: 'a', mark: '1', text: 'Intake', right: 'Filed' })];
+    const dark = html(createElement(Sheet, { tone: 'dark', kicker: 'Matter file', title: 'T' }, ...rows));
+    expect(dark).toContain('text-cream-100');
+    expect(dark).not.toContain('text-forest-900');
+    expect(dark).not.toContain('text-ink-600');
+    const paper = html(createElement(Sheet, { kicker: 'Matter file', title: 'T' }, ...rows));
+    expect(paper).toContain('text-forest-900');
+    expect(paper).toContain('dark:text-cream-100');
+  });
   it('the stamp is the only gold: accent border, accent-text ink, rotated, data-stamp', () => {
     const out = html(createElement(Stamp, { line1: 'Hearing', line2: 'Apr 18' }));
     expect(out).toContain('data-stamp');
@@ -120,18 +138,6 @@ describe('Schedule', () => {
     expect(phone.match(/data-stamp/g)?.length).toBe(1);
     expect(out).not.toMatch(/-top-\d/);
   });
-  it('carries hideOnIos through to the link as data-hide-on-ios', () => {
-    // next/link (v14) always appends its own `href` last when merging props,
-    // so the attribute order inside the rendered <a> is not under this
-    // component's control; assert presence on the right tag, not order,
-    // matching how tests/dangling-purchase-sentences.test.ts already checks
-    // this attribute elsewhere in the codebase.
-    const gated = [{ ...columns[0], cta: { label: 'Send a gift', href: '/gift', hideOnIos: true } }];
-    const out = html(createElement(Schedule, { columns: gated, rows: [] }));
-    const anchor = out.match(/<a[^>]*href="\/gift"[^>]*>/)?.[0];
-    expect(anchor).toBeDefined();
-    expect(anchor).toMatch(/\bdata-hide-on-ios\b/);
-  });
 });
 
 describe('Memo', () => {
@@ -154,5 +160,34 @@ describe('Entry', () => {
     const out = html(createElement(Entry, { label: 'x', title: 't', body: 'b', sheet: createElement('div', null, 'SHEET') }));
     expect(out).toContain('lg:grid-cols-2');
     expect(out).toContain('SHEET');
+  });
+});
+
+/**
+ * C3. The site's only focus ring is scoped to `a, input, textarea, select,
+ * [tabindex]` (app/globals.css), because every button used to carry `.btn`,
+ * which brings its own. The redesign replaced `.btn` with raw class strings
+ * and added native buttons and `<summary>` to marketing for the first time,
+ * so a keyboard user had no visible focus anywhere on the four pages. The
+ * treatment belongs to the shared roles so no page can forget it.
+ */
+describe('keyboard focus', () => {
+  it('is carried by every exported control role', () => {
+    for (const [name, cls] of Object.entries({ BUTTON_INK, BUTTON_OUTLINE_CREAM, LINK, FOCUS })) {
+      expect(cls, `${name} has no focus-visible treatment`).toContain('focus-visible:');
+    }
+  });
+  it("is carried by Schedule's own outline CTA, which is not one of the roles", () => {
+    const out = html(
+      createElement(Schedule, {
+        columns: [
+          { id: 'free', name: 'Free', price: '$0', cadence: 'forever', cta: { label: 'Sign up free', href: '/sign-in' } },
+        ],
+        rows: [],
+      }),
+    );
+    const anchors = out.match(/<a[^>]*>/g) ?? [];
+    expect(anchors.length).toBeGreaterThan(0);
+    for (const a of anchors) expect(a).toContain('focus-visible:');
   });
 });

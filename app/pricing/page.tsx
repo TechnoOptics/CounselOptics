@@ -7,19 +7,25 @@ import {
   PricingProductJsonLd,
 } from '@/components/seo/JsonLd';
 import { SavingsCalculator } from '@/components/SavingsCalculator';
-import { FIRM_TIER_PRICING, formatFirmTierPrice } from '@/lib/firm-pricing';
+import {
+  CONSUMER_ROWS,
+  CONSUMER_TIERS,
+  FIRM_ROWS,
+  FIRM_TIERS,
+  type Tier,
+} from './schedule';
 import {
   BODY,
   BUTTON_INK,
   Definitions,
   FilePage,
+  FOCUS,
   H1,
   H2,
   LABEL,
   Schedule,
   Section,
   type ScheduleColumn,
-  type ScheduleRow,
 } from '@/components/marketing/file';
 
 export const metadata = {
@@ -51,203 +57,9 @@ export const metadata = {
   },
 };
 
-type Tier = {
-  id: string;
-  name: string;
-  price: string;
-  cadence: string;
-  blurb: string;
-  features: string[];
-  cta: { label: string; href: string };
-  emphasized?: boolean;
-};
-
-// Consumer ("personal") ladder. Kept in lockstep with lib/personal-tiers.ts:
-// case caps 1/3/8/15/40, Bella unlocks at Plus ($29), Advottic Review + invite-
-// firm at Pro ($59), and the case timeline + group cases at Ultra ($99).
-const CONSUMER_TIERS: Tier[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: '$0',
-    cadence: 'forever',
-    blurb: 'Save one case and get personal-safety alerts. No credit card.',
-    features: [
-      '1 case',
-      'Court-ready PDF export',
-      'Safe Witness personal-safety alerts',
-      'Receive e-signature requests as a signer',
-      'Find counsel + public defender directories',
-    ],
-    cta: { label: 'Sign up free', href: '/sign-in?next=/cases' },
-  },
-  {
-    id: 'starter',
-    name: 'Starter',
-    price: '$19',
-    cadence: '/ month',
-    blurb: 'A few matters at once, with priority support.',
-    features: [
-      '3 cases',
-      'Court-ready PDF export',
-      'Safe Witness with SMS delivery',
-      'E-sign as a signer, always free',
-      'Priority support',
-    ],
-    cta: { label: 'Start 7-day trial', href: '/billing' },
-  },
-  {
-    id: 'plus',
-    name: 'Plus',
-    price: '$29',
-    cadence: '/ month',
-    blurb: 'Bella, your AI legal assistant, unlocks here.',
-    features: [
-      'Everything in Starter, plus:',
-      '8 cases',
-      'Bella AI assistant: chat + document drafting from templates',
-      '500K Bella tokens / month',
-    ],
-    cta: { label: 'Start 7-day trial', href: '/billing' },
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: '$59',
-    cadence: '/ month',
-    blurb: 'The full toolkit: AI review and bring your own law firm in.',
-    features: [
-      'Everything in Plus, plus:',
-      '15 cases',
-      'Advottic Review: AI plain-English document review',
-      'Invite your law firm to collaborate on a case',
-      '1.5M Bella tokens / month',
-    ],
-    cta: { label: 'Start 7-day trial', href: '/billing' },
-    emphasized: true,
-  },
-  {
-    id: 'ultra',
-    name: 'Ultra',
-    price: '$99',
-    cadence: '/ month',
-    blurb: 'Everything, at scale, with the case timeline and group cases.',
-    features: [
-      'Everything in Pro, plus:',
-      '40 cases',
-      'Case Timeline: turn evidence into a court-ready chronology',
-      'Group / community cases',
-      '3M Bella tokens / month (highest grant)',
-    ],
-    cta: { label: 'Start 7-day trial', href: '/billing' },
-  },
-];
-
-const FIRM_TIERS: Tier[] = [
-  {
-    id: 'solo',
-    name: 'Solo',
-    price: formatFirmTierPrice(FIRM_TIER_PRICING.solo),
-    cadence: '/ user / month',
-    blurb:
-      'Single attorney + 1 staff. Everything you need to run a practice; ~$200 / mo cheaper than Clio + DocuSign + Spellbook.',
-    features: [
-      'Up to 1 attorney + 1 staff',
-      '30 matters per attorney (matches typical solo caseload)',
-      '2.5M Bella tokens / month',
-      'Practice management: time, invoicing, IOLTA, intake, conflict check',
-      'Bella (tier 1): docs, search, schedule, meetings, intake, conflict check, time + invoice',
-      'Branded document drafting (13+ templates) with text-banner PDF header',
-      'Counsel calendar: meetings, deadlines, hearings, integrations',
-      'Send-to-sign with reminders + status tracking',
-      'Court-form auto-fill (CA, NY, TX, FL, Federal)',
-      'CSV + bulk doc import from Clio / MyCase / PracticePanther',
-      'Action Center hub: War Room, Deadline Radar, Decode a document, Safe Witness',
-      '25 GB document storage',
-      '10 e-sign requests / month',
-      'Extras: 50K tokens / matter / month past the cap',
-    ],
-    cta: { label: 'Start 7-day trial', href: '/counsel/onboarding' },
-  },
-  {
-    id: 'firm',
-    name: 'Small Firm',
-    price: formatFirmTierPrice(FIRM_TIER_PRICING.small_firm),
-    cadence: '/ user / month',
-    blurb:
-      'Most popular. Everything in Solo, plus letterhead PDFs, employee Hub, IOLTA, marketplace, and a custom subdomain.',
-    features: [
-      'Up to 25 users',
-      '50 matters per attorney',
-      '4M Bella tokens / month per seat (firm pool)',
-      'Bella (tier 2): firm letterhead painted on every generated PDF',
-      'Employee Hub: power-but-limited portal for non-attorney staff (requests, intakes, calendar, action items)',
-      'Roles & groups with progressive feature unlock',
-      'Customizable dashboard tiles (default + optional)',
-      'IOLTA trust accounting with 3-way reconciliation',
-      'Co-counsel referral network with fee-split tracking',
-      'Marketplace lead boost (3x match rate)',
-      'Custom firm subdomain (yourfirm.advottic.com)',
-      'Branded e-sign emails with your logo',
-      '250 GB document storage',
-      '100 e-sign requests / month',
-      'Discovery document review (250 docs / mo)',
-      'Priority email support',
-      'Extras: 50K tokens / matter / month past the cap',
-    ],
-    cta: { label: 'Start 7-day trial', href: '/counsel/onboarding' },
-    emphasized: true,
-  },
-  {
-    id: 'growing',
-    name: 'Growing Firm',
-    price: formatFirmTierPrice(FIRM_TIER_PRICING.growing_firm),
-    cadence: '/ user / month',
-    blurb:
-      'Analytics, dedicated CSM, custom Bella training, and full white-label control of the sidebar.',
-    features: [
-      '26 - 100 users',
-      'Everything in Small Firm, plus:',
-      '100 matters per attorney',
-      '6M Bella tokens / month per seat (firm pool)',
-      'Advanced analytics (matter profitability, attorney ROI)',
-      'Enterprise menu customization (hide / rename / reorder the sidebar per role)',
-      'Dedicated customer success manager',
-      '1 TB document storage',
-      '500 e-sign requests / month',
-      'Discovery review (1,000 docs / mo)',
-      'Custom Bella training on firm drafting style + voice',
-      'SAML SSO',
-      'Quarterly business review',
-      'Extras: 30K tokens / matter / month past the cap',
-    ],
-    cta: { label: 'Start 7-day trial', href: '/counsel/request' },
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: formatFirmTierPrice(FIRM_TIER_PRICING.enterprise),
-    cadence: '/ month',
-    blurb:
-      '100+ users, SSO, 99.9% SLA. Final price scales with seats, support tier, and SLA.',
-    features: [
-      '100+ users, no per-seat ceiling',
-      'Negotiated matter ceiling (typically uncapped)',
-      '15M+ tokens / month per seat (firm pool)',
-      'SAML / OIDC SSO',
-      '99.9% uptime SLA',
-      'Dedicated infrastructure',
-      'White-label tenant subdomain + full brand override',
-      'Multi-firm group billing (M&A scenarios)',
-      'Sandbox + staging environments',
-    ],
-    cta: { label: 'Contact sales', href: '/counsel/request?tier=enterprise' },
-  },
-];
-
-// Pricing FAQ - mirrors the visible accordion below. Keep both
-// in sync when copy changes; mismatches risk Google demoting the
-// FAQ rich result.
+// The pricing FAQ, once. Both the visible accordion and the FaqJsonLd
+// block below read this array, so the markup and the page cannot
+// disagree and Google cannot demote the rich result over a mismatch.
 const PRICING_FAQ: Array<{ q: string; a: string }> = [
   {
     q: 'Do I need a credit card on the Free tier?',
@@ -308,52 +120,6 @@ function tierToColumn(t: Tier): ScheduleColumn {
   };
 }
 
-/**
- * Feature rows for the table. Each label is matched against a tier's
- * feature strings case-insensitively; the cell shows the matching feature
- * text (with the label removed when it is a plain "included" line) or a
- * middle dot when the tier lacks it. This keeps the arrays above as the
- * single source of what a tier includes.
- */
-function featureRows(tiers: Tier[], labels: string[]): ScheduleRow[] {
-  return labels.map((label) => ({
-    label,
-    cells: tiers.map((t) => {
-      const hit = t.features.find((f) => f.toLowerCase().includes(label.toLowerCase()));
-      if (!hit) return '·';
-      // Tolerate a plural "s" the label itself does not carry (the tier
-      // arrays say "1 case" but "3 cases"): otherwise the removal leaves a
-      // stranded "s" behind, e.g. "3 cases" -> "3 s".
-      const short = hit
-        .replace(new RegExp(`${label}(e?s)?`, 'i'), '')
-        .replace(/^[\s:,-]+|[\s:,.-]+$/g, '');
-      return short.length > 0 && short.length < 28 ? short : 'Yes';
-    }),
-  }));
-}
-
-const CONSUMER_ROWS = [
-  'case',
-  'PDF export',
-  'Safe Witness',
-  'E-sign',
-  'Bella tokens',
-  'Advottic Review',
-  'law firm',
-  'Case Timeline',
-  'Priority support',
-];
-
-const FIRM_ROWS = [
-  'tokens',
-  'letterhead',
-  'subdomain',
-  'Employee Hub',
-  'SSO',
-  'SLA',
-  'group billing',
-];
-
 export default function PricingPage() {
   // App Store Guideline 3.1.1 / 3.1.3(c): this whole route is a sell page,
   // so inside the iOS app it does not exist. middleware.ts redirects it
@@ -396,14 +162,14 @@ export default function PricingPage() {
       <Section tab="I" label="For one person" id="individuals">
         <Schedule
           columns={CONSUMER_TIERS.map(tierToColumn)}
-          rows={featureRows(CONSUMER_TIERS, CONSUMER_ROWS)}
+          rows={CONSUMER_ROWS}
           stampOn="pro"
           stamp={{ line1: 'Most', line2: 'chosen' }}
         />
       </Section>
 
       <Section tab="II" label="For firms" id="firms">
-        <Schedule columns={FIRM_TIERS.map(tierToColumn)} rows={featureRows(FIRM_TIERS, FIRM_ROWS)} />
+        <Schedule columns={FIRM_TIERS.map(tierToColumn)} rows={FIRM_ROWS} />
         <p className={`${BODY} mt-6 text-[15px]`}>
           Enterprise is agreed in writing: the final price scales with seats, support tier and SLA.
         </p>
@@ -464,7 +230,7 @@ export default function PricingPage() {
         <div className="border-t border-rule">
           {PRICING_FAQ.map((it) => (
             <details key={it.q} className="group border-b border-rule py-3.5">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-public text-[15px] font-medium">
+              <summary className={`flex cursor-pointer list-none items-center justify-between gap-4 font-public text-[15px] font-medium ${FOCUS}`}>
                 <h3 className="m-0 text-[15px] font-medium">{it.q}</h3>
                 <span aria-hidden className="font-courier text-xl leading-none text-ink-600 group-open:rotate-45 dark:text-cream-100/60">+</span>
               </summary>

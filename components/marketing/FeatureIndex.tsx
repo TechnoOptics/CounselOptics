@@ -7,6 +7,7 @@ import {
   BUTTON_INK,
   Definitions,
   Entry,
+  FOCUS,
   H2,
   Memo,
   Section,
@@ -231,7 +232,7 @@ export function FeatureIndex({ initial = 'people' }: { initial?: Audience }) {
       role="tab"
       aria-selected={aud === key}
       onClick={() => setAud(key)}
-      className={`min-h-[44px] px-4 font-courier text-[12.5px] uppercase tracking-[0.08em] ${
+      className={`min-h-[44px] px-4 font-courier text-[12.5px] uppercase tracking-[0.08em] ${FOCUS} ${
         aud === key
           ? 'bg-forest-900 text-cream-50 dark:bg-cream-100 dark:text-forest-950'
           : 'text-forest-900 hover:bg-forest-900/5 dark:text-cream-100 dark:hover:bg-cream-100/10'

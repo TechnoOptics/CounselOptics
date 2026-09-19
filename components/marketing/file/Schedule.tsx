@@ -1,19 +1,19 @@
 import Link from 'next/link';
 import { Sheet, Stamp } from './Sheet';
-import { BUTTON_INK, LABEL } from './type';
+import { BUTTON_INK, FOCUS, LABEL } from './type';
 
 export type ScheduleColumn = {
   id: string;
   name: string;
   price: string;
   cadence: string;
-  cta: { label: string; href: string; hideOnIos?: boolean };
+  cta: { label: string; href: string };
   emphasized?: boolean;
 };
 export type ScheduleRow = { label: string; cells: string[] };
 
 const OUTLINE =
-  'inline-flex min-h-[44px] items-center rounded-[3px] border border-forest-900 px-3.5 py-2 font-public text-[13px] font-semibold text-forest-900 no-underline hover:bg-forest-900/5 dark:border-cream-100/70 dark:text-cream-100 dark:hover:bg-cream-100/10';
+  `inline-flex min-h-[44px] items-center rounded-[3px] border border-forest-900 px-3.5 py-2 font-public text-[13px] font-semibold text-forest-900 no-underline hover:bg-forest-900/5 dark:border-cream-100/70 dark:text-cream-100 dark:hover:bg-cream-100/10 ${FOCUS}`;
 
 /**
  * A schedule of fees: tiers as columns, one feature per row, so tiers can
@@ -34,11 +34,7 @@ export function Schedule({
   stamp?: { line1: string; line2: string };
 }) {
   const cta = (c: ScheduleColumn) => (
-    <Link
-      href={c.cta.href}
-      {...(c.cta.hideOnIos ? { 'data-hide-on-ios': true } : {})}
-      className={c.emphasized ? BUTTON_INK : OUTLINE}
-    >
+    <Link href={c.cta.href} className={c.emphasized ? BUTTON_INK : OUTLINE}>
       {c.cta.label}
     </Link>
   );

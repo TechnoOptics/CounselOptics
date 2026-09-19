@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Definitions, H2, BODY, LABEL } from '@/components/marketing/file';
+import { Definitions, FOCUS, H2, BODY, LABEL } from '@/components/marketing/file';
 
 /**
  * Sector picker for the enterprise landing. The user picks who they
@@ -198,7 +198,7 @@ export function EnterpriseSectorTabs() {
             aria-selected={sector === s.key}
             type="button"
             onClick={() => setSector(s.key)}
-            className={`min-h-[44px] px-4 text-left font-courier text-[12.5px] uppercase tracking-[0.08em] ${
+            className={`min-h-[44px] px-4 text-left font-courier text-[12.5px] uppercase tracking-[0.08em] ${FOCUS} ${
               sector === s.key
                 ? 'bg-forest-900 text-cream-50 dark:bg-cream-100 dark:text-forest-950'
                 : 'text-forest-900 hover:bg-forest-900/5 dark:text-cream-100 dark:hover:bg-cream-100/10'
