@@ -247,14 +247,17 @@ copy for.
 - **Home, light, 1440 and 390**: the cover stamp no longer covers the
   dates.
 
-### An open finding, not fixed here
+### A finding from this audit, fixed on 2026-09-19
 
-`components/EnterpriseInquiryForm.tsx` gives /enterprise a second gold: a
-`bg-gold-metal` submit button ("Request a walkthrough", measured
+`components/EnterpriseInquiryForm.tsx` used to give /enterprise a second
+gold: a `bg-gold-metal` submit button ("Request a walkthrough", measured
 `rgb(199, 149, 50)` over a gold gradient), `text-gold-300` field labels and
-`focus:ring-gold-400`. The spec says buttons are ink on paper or cream on
-forest, never gold. It is pre-existing rather than new on this branch, and
-it is invisible to every guard for the same reason `LegalReviewMock` was:
-the guards read page source and do not follow an import. It is written into
-the header of `tests/cover-accent-discipline.test.ts` so it is not true by
-omission, and it needs an owner's decision.
+`focus:ring-gold-400`, plus `font-display` on the success state's heading (a
+fifth typeface). It was invisible to every guard for the same reason
+`LegalReviewMock` was: the guards read page source and do not follow an
+import. The form was restyled to the shared case-file roles (`LABEL`,
+`LINK`, `BUTTON_INK`, `FOCUS`, a ruled `border-rule` edge), and
+`tests/cover-accent-discipline.test.ts`, `tests/marketing-type-roles.test.ts`,
+`tests/marketing-no-cards.test.ts` and `tests/marketing-no-dashes.test.ts`
+now all hold the file directly instead of leaving it to the import blind
+spot.

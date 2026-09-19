@@ -17,17 +17,14 @@ import { stripComments } from './support/strip-comments';
  * in prose. Replaces tests/hero-accent-discipline.test.ts, whose hero this
  * cover replaces.
  *
- * KNOWN GAP, found by reading the rendered page on 2026-09-19 and left for
- * the owner: this reads page source and does not follow imports, so a
- * component rendered on a marketing page is outside it. One does carry its
- * own gold today. components/EnterpriseInquiryForm.tsx paints a
- * `bg-gold-metal` submit button ("Request a walkthrough", measured
- * rgb(199,149,50) over a gold gradient), `text-gold-300` field labels and
- * `focus:ring-gold-400`, which makes /enterprise spend the accent twice and
- * contradicts the spec's "Buttons are ink on paper (or cream on forest),
- * never gold". It is pre-existing rather than new on this branch and
- * restyling a lead-generation form is an owner's call, so it is written
- * down here rather than left true by omission.
+ * KNOWN GAP: this reads page source and does not follow imports, so a
+ * component rendered on a marketing page is outside the per-page SURFACES
+ * checks unless it is also given its own row. components/EnterpriseInquiryForm.tsx
+ * used to carry exactly that gold (a `bg-gold-metal` submit button, `text-gold-300`
+ * labels, `focus:ring-gold-400`), found by reading the rendered page on
+ * 2026-09-19 and fixed on 2026-09-19 by restyling it to the case-file roles;
+ * it now has its own row below rather than being left to the import blind
+ * spot again.
  */
 const ROOT = join(__dirname, '..');
 const read = (rel: string) => stripComments(readFileSync(join(ROOT, rel), 'utf8'));
@@ -47,6 +44,7 @@ const SURFACES: [string, number][] = [
   ['app/features/page.tsx', 0],
   ['app/enterprise/page.tsx', 1],
   ['components/marketing/FeatureIndex.tsx', 0],
+  ['components/EnterpriseInquiryForm.tsx', 0],
 ];
 
 describe.each(SURFACES)('%s', (rel, expected) => {
