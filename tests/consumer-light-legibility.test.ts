@@ -658,10 +658,15 @@ describe('the consumer light surface', () => {
     // `components/SavingsCalculator.tsx`, which was checked rather than
     // assumed before this number came down.
     //
-    // The floor is therefore 1964, re-derived from what the sweep reaches
-    // today. A floor that has to come down for any OTHER reason is a broken
-    // pathspec, which is the thing these numbers exist to catch: re-derive
-    // it, do not nudge it.
+    // One more went out in round 5 of the pricing-page fix wave:
+    // components/SavingsCalculator.tsx's own `<h2 ... dark:text-cream-100>`
+    // was deleted outright (it duplicated the page-level "What does
+    // Advottic save your firm?" h2 in app/pricing/page.tsx, a few pixels
+    // apart), not merged into a shared role, so the sweep genuinely reaches
+    // one fewer element. The floor is therefore 1963, re-derived from what
+    // the sweep reaches today. A floor that has to come down for any OTHER
+    // reason is a broken pathspec, which is the thing these numbers exist
+    // to catch: re-derive it, do not nudge it.
     expect(DARK_SEGMENTS).toContain('app/admin/');
     expect(FILES.some((f) => f.startsWith('app/admin/'))).toBe(false);
     expect(FILES.length).toBeGreaterThanOrEqual(315);
@@ -669,7 +674,7 @@ describe('the consumer light surface', () => {
     expect(FILES.filter((f) => /^components\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(
       80,
     );
-    expect(MEASURED.length).toBeGreaterThanOrEqual(1964);
+    expect(MEASURED.length).toBeGreaterThanOrEqual(1963);
     expect(LISTED.length).toBeGreaterThanOrEqual(1100);
     // And the two halves together are the whole sweep, so neither can
     // grow by eating the other unnoticed.

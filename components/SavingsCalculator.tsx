@@ -214,9 +214,6 @@ export function SavingsCalculator() {
     <section aria-label="Savings calculator" className={`${PANEL} space-y-6 p-6 sm:p-7`}>
       <header className="space-y-2">
         <p className={LABEL}>Savings calculator</p>
-        <h2 className="font-caslon-text text-[22px] leading-tight text-forest-900 dark:text-cream-100">
-          What does Advottic save your firm?
-        </h2>
         <p className="max-w-[62ch] font-public text-[13.5px] leading-relaxed text-ink-700 dark:text-cream-100/80">
           Tick the tools you currently pay for, enter your attorney count, see
           the annual delta. Mid-tier list pricing; your real bill may differ.
