@@ -94,8 +94,8 @@ export default function AboutPage() {
             <li className="flex items-start gap-3">
               <NoIcon />
               <span>
-                <strong>We do not predict outcomes.</strong> No &ldquo;you will win,&rdquo;
-                no &ldquo;this is a slam dunk,&rdquo; no probabilities. Every case turns on
+                <strong>We do not predict outcomes.</strong> No "you will win,"
+                no "this is a slam dunk," no probabilities. Every case turns on
                 facts, judges, and evidence we cannot see.
               </span>
             </li>
@@ -203,7 +203,7 @@ export default function AboutPage() {
           Walk in prepared. Anywhere your case takes you.
         </h3>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-3 max-w-xl mx-auto leading-relaxed">
-          Whether the next step is your attorney&rsquo;s office, a free legal-aid clinic, a
+          Whether the next step is your attorney's office, a free legal-aid clinic, a
           courthouse self-help desk, or a hearing where you speak for yourself -
           Advottic gets you there organized, not overwhelmed.
         </p>

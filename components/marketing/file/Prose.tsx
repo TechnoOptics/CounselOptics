@@ -20,6 +20,18 @@ import { BODY, H1 } from './type';
  * whose own first child is the heading, whose margin would otherwise
  * collapse out through it.
  *
+ * The 48px belongs to the block, not to the h2, so it moves to whatever
+ * element opens the block. Four pages introduce the heading with a kicker:
+ * /security and /about with `.eyebrow`, /guides and /changelog with a
+ * category or date row inside a bordered list item. A blanket rule on the
+ * h2 lands the air between the kicker and the heading it names, which
+ * strands the kicker on the block above and reads as a false label. The
+ * `.eyebrow` pair takes the margin on the kicker and none on the heading;
+ * the two list pages take it back out entirely, because their `<ul>` and
+ * `<ol>` already space the items. `:has(+h2)` rather than a bare
+ * `.eyebrow` is load-bearing: /about opens a card with a kicker over an
+ * h3, and a blanket kicker rule would park 48px of dead space inside it.
+ *
  * h2 only, and that was measured rather than assumed. The fourteen pages
  * carry eighteen h3s between them (fourteen on security, four on about) and
  * fourteen of the eighteen are the FIRST child of a bordered card, where a
@@ -44,7 +56,7 @@ export function Prose({
         {lede && <p className={`${BODY} mt-5`}>{lede}</p>}
       </Section>
       <Section label="">
-        <div className="max-w-[72ch] font-public text-[16px] leading-[1.6] text-ink-700 dark:text-cream-100/80 [&_h2]:mt-12 [&_h2]:font-caslon [&_h2]:text-[28px] [&_h2]:leading-[1.15] [&_h2]:text-forest-900 [&_h2]:dark:text-cream-100 [&>*:first-child]:mt-0 [&>*:first-child>h2:first-child]:mt-0 [&_h3]:font-public [&_h3]:text-[17px] [&_h3]:font-semibold [&_a:not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-ghost):not(.btn-accent)]:underline [&_a:not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-ghost):not(.btn-accent)]:underline-offset-4">
+        <div className="max-w-[72ch] font-public text-[16px] leading-[1.6] text-ink-700 dark:text-cream-100/80 [&_h2]:mt-12 [&_.eyebrow:has(+h2)]:mt-12 [&_.eyebrow+h2]:mt-0 [&_li_h2]:mt-0 [&_h2]:font-caslon [&_h2]:text-[28px] [&_h2]:leading-[1.15] [&_h2]:text-forest-900 [&_h2]:dark:text-cream-100 [&>*:first-child]:mt-0 [&>*:first-child>h2:first-child]:mt-0 [&_h3]:font-public [&_h3]:text-[17px] [&_h3]:font-semibold [&_a:not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-ghost):not(.btn-accent)]:underline [&_a:not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-ghost):not(.btn-accent)]:underline-offset-4">
           {children}
         </div>
       </Section>

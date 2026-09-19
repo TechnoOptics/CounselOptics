@@ -122,7 +122,7 @@ export default function TermsPage() {
           </li>
           <li>
             <strong>Message and data rates may apply</strong> per your
-            mobile carrier&rsquo;s terms.
+            mobile carrier's terms.
           </li>
           <li>
             <strong>HELP</strong>: reply HELP to any Safe Witness SMS
@@ -139,7 +139,7 @@ export default function TermsPage() {
             <strong>STOP</strong>: reply STOP to any Safe Witness SMS to
             opt out of all future messages from Advottic. You can also
             stop messages immediately by removing the contact from the
-            sender&rsquo;s Safe Witness list at{' '}
+            sender's Safe Witness list at{' '}
             <code className="font-mono text-[12.5px]">/profile</code>.
           </li>
           <li>
@@ -149,7 +149,7 @@ export default function TermsPage() {
         </ul>
         <p className="mt-2">
           By adding a phone number to your Safe Witness contacts, you
-          confirm you have the contact&rsquo;s permission to receive
+          confirm you have the contact's permission to receive
           these alerts and agree to receive them yourself when an
           Advottic user lists your number. See our{' '}
           <a href="/privacy" className="underline hover:text-forest-700">
@@ -162,14 +162,14 @@ export default function TermsPage() {
 
       <Section title="Disclaimers">
         <p>
-          The service is provided &ldquo;as is&rdquo; without warranties of any kind. We do not
+          The service is provided "as is" without warranties of any kind. We do not
           guarantee uptime, accuracy of Advottic Review outputs, or any specific legal outcome.
         </p>
       </Section>
 
       <Section title="Limitation of liability">
         <p>
-          To the fullest extent permitted by law, Advottic&rsquo;s total liability for any claim
+          To the fullest extent permitted by law, Advottic's total liability for any claim
           arising from your use of the service is limited to the amount you paid us in the
           previous 12 months. We are not liable for indirect, consequential, or special damages.
         </p>

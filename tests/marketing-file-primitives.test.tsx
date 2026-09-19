@@ -145,6 +145,21 @@ describe('Prose', () => {
     const bottom = /\[&_h2\]:mb-(\d+)/.exec(body)?.[1] ?? '0';
     expect(Number(top)).toBeGreaterThan(Number(bottom));
   });
+  it('gives the kicker the block air and keeps it tight on the heading it names', () => {
+    // N4-1. `[&_h2]:mt-12` is a blanket descendant rule, so on the four
+    // pages whose h2 is introduced by its own kicker it put the 48px
+    // BETWEEN the kicker and the heading: the caption was stranded against
+    // the block above and read as that block's footer, which is a false
+    // label rather than only loose spacing. The air moves to the kicker,
+    // the heading it names sits tight beneath it, and the two list pages,
+    // whose items carry their own `space-y`, take the rule back out.
+    // `:has(+h2)` and not a bare `.eyebrow` because one kicker on /about
+    // opens a card and would collect 48px of dead space inside it.
+    const body = proseBody();
+    expect(body).toContain('[&_.eyebrow:has(+h2)]:mt-12');
+    expect(body).toContain('[&_.eyebrow+h2]:mt-0');
+    expect(body).toContain('[&_li_h2]:mt-0');
+  });
   it('keeps the first block tight to the headline above it', () => {
     // The same margin on a page that opens on a heading, or on a wrapper
     // whose own first child is one, would push the body away from the h1

@@ -15,6 +15,14 @@ import { describe, expect, it } from 'vitest';
  */
 const ROOT = join(__dirname, '..');
 const PATTERN = /[\u2013\u2014\u2018\u2019\u201c\u201d]|[\u{1F300}-\u{1FAFF}]/u;
+/**
+ * N4-2. The same characters, written as HTML entities, are invisible to a
+ * codepoint sweep, and four of the fourteen pages the round-4 extension
+ * added were green while rendering typographic quotes. The entity forms are
+ * a separate pattern rather than an arm of PATTERN so a failure names which
+ * spelling was found.
+ */
+const ENTITIES = /&[lr](?:squo|dquo);|&#8216;|&#8217;|&#8220;|&#8221;/;
 const FILES = [
   'app/page.tsx', 'app/pricing/page.tsx', 'app/features/page.tsx', 'app/enterprise/page.tsx',
   'components/marketing/FeatureIndex.tsx', 'components/EnterpriseSectorTabs.tsx',
@@ -36,6 +44,12 @@ const FILES = [
     'about', 'what-is-advottic', 'security', 'guides', 'glossary', 'compare', 'press',
     'changelog', 'status', 'accessibility', 'terms', 'privacy', 'cookies', 'dmca',
   ].map((p) => `app/${p}/page.tsx`),
+  /**
+   * N4-2, second half. The listed pages render copy they import, so a data
+   * module is as much marketing source as the page is: changelog entries and
+   * glossary definitions each carried a literal U+2019 outside the sweep.
+   */
+  'lib/changelog.ts', 'lib/glossary.ts',
 ];
 describe('the dash sweep', () => {
   it('positive control: the pattern matches', () => {
@@ -46,7 +60,16 @@ describe('the dash sweep', () => {
     expect(PATTERN.test('\u201cquoted\u201d')).toBe(true);
     expect(PATTERN.test('\u{1F600}')).toBe(true);
   });
+  it('positive control: the entity pattern matches every spelling', () => {
+    for (const e of ['&rsquo;', '&lsquo;', '&rdquo;', '&ldquo;',
+      '&#8216;', '&#8217;', '&#8220;', '&#8221;']) {
+      expect(ENTITIES.test(`it${e}s`), e).toBe(true);
+    }
+    expect(ENTITIES.test('&amp; &rarr; &nbsp;')).toBe(false);
+  });
   it.each(FILES)('%s is clean', (rel) => {
-    expect(readFileSync(join(ROOT, rel), 'utf8')).not.toMatch(PATTERN);
+    const src = readFileSync(join(ROOT, rel), 'utf8');
+    expect(src).not.toMatch(PATTERN);
+    expect(src).not.toMatch(ENTITIES);
   });
 });

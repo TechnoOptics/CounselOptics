@@ -83,7 +83,7 @@ export default function PressPage() {
             always-on AI legal assistant. Law firms use Advottic
             Counsel to run their entire practice: case management,
             time and billing, IOLTA trust accounting, e-signature, and
-            an AI agent that takes action inside the firm&rsquo;s
+            an AI agent that takes action inside the firm's
             tools (drafting documents, running conflict checks,
             starting time entries on its own).
           </p>
@@ -132,10 +132,10 @@ export default function PressPage() {
           Brand assets
         </h2>
         <p className="text-[14.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-prose">
-          Always preserve the wordmark&rsquo;s aspect ratio. Use the
+          Always preserve the wordmark's aspect ratio. Use the
           dark variant on light backgrounds and the light variant on
           dark / colored backgrounds. Minimum clear space on all sides
-          equals the cap-height of the &ldquo;A&rdquo;.
+          equals the cap-height of the "A".
         </p>
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="rounded-xl ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white p-6 flex items-center justify-center">
