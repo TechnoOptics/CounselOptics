@@ -157,16 +157,14 @@ function pickAdvotticTier(attorneys: number) {
  *
  * `PANEL` is Sheet's edge (`rounded-[3px] border border-rule bg-sheet`)
  * without Sheet's shadow, which stays the one shadow on the site. `TOOL` is
- * SheetRow's dotted rule, last-row reset included, so a tool reads as a
- * line on a form rather than as a tile and the last tool in a column does
- * not keep a rule under it; the tick box beside it fills with ink when the
- * tool is on.
+ * SheetRow's dotted rule, so a tool reads as a line on a form rather than
+ * as a tile; the tick box beside it fills with ink when the tool is on.
  * `COUNT` is the inquiry form's control shape. Every figure is Caslon and
  * tabular, the same setting the price cells above it use.
  */
 const PANEL = 'rounded-[3px] border border-rule bg-sheet';
 const TOOL =
-  `grid w-full grid-cols-[18px_1fr_auto] items-baseline gap-x-3 border-b border-dotted border-rule last:border-b-0 py-2.5 text-left hover:bg-forest-900/[0.04] dark:hover:bg-cream-100/5 ${FOCUS}`;
+  `grid w-full grid-cols-[18px_1fr_auto] items-baseline gap-x-3 border-b border-dotted border-rule py-2.5 text-left hover:bg-forest-900/[0.04] dark:hover:bg-cream-100/5 ${FOCUS}`;
 const TICK = 'translate-y-[1px] inline-block h-3.5 w-3.5 rounded-[1px] border';
 const COUNT =
   `w-20 rounded-[3px] border border-rule bg-transparent px-2 py-2.5 text-center font-courier text-[14px] tabular-nums text-forest-900 dark:text-cream-100 ${FOCUS}`;
