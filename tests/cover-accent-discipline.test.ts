@@ -25,6 +25,13 @@ import { stripComments } from './support/strip-comments';
  * 2026-09-19 and fixed on 2026-09-19 by restyling it to the case-file roles;
  * it now has its own row below rather than being left to the import blind
  * spot again.
+ *
+ * THE ONE ALLOWANCE. components/marketing/file/type.ts is one import hop from
+ * all four pages and it does name the accent: the keyboard focus ring (review
+ * C3) is gold, transient, and painted only while a control has focus. The
+ * allowance is the FOCUS declaration and nothing else. It is cut out of the
+ * source before the accent rules run, with a positive control proving the cut
+ * happened, so a second accent use anywhere in that file still fails.
  */
 const ROOT = join(__dirname, '..');
 const read = (rel: string) => stripComments(readFileSync(join(ROOT, rel), 'utf8'));
@@ -38,6 +45,9 @@ const PAGE = read('app/page.tsx');
 const spends = (src: string) =>
   (src.match(/<Stamp\b/g)?.length ?? 0) + (src.match(/\bstamp=\{/g)?.length ?? 0);
 
+const TYPE_ROLES = 'components/marketing/file/type.ts';
+const FOCUS_DECL = /export const FOCUS =[\s\S]*?;\n/;
+
 const SURFACES: [string, number][] = [
   ['app/page.tsx', 1],
   ['app/pricing/page.tsx', 1],
@@ -45,21 +55,29 @@ const SURFACES: [string, number][] = [
   ['app/enterprise/page.tsx', 1],
   ['components/marketing/FeatureIndex.tsx', 0],
   ['components/EnterpriseInquiryForm.tsx', 0],
+  [TYPE_ROLES, 0],
 ];
 
 describe.each(SURFACES)('%s', (rel, expected) => {
   const src = read(rel);
+  // Only type.ts gets the focus-ring allowance, and only over its own FOCUS
+  // declaration; every other surface is read whole.
+  const outsideFocus = rel === TYPE_ROLES ? src.replace(FOCUS_DECL, '') : src;
   it(`spends the accent ${expected} time(s), and only through Stamp`, () => {
     expect(spends(src)).toBe(expected);
-    expect(src).not.toMatch(/\b(?:bg|text|ring|border|from|via|to)-accent\b/);
+    if (rel === TYPE_ROLES) {
+      expect(outsideFocus.length, 'the FOCUS allowance matched nothing').toBeLessThan(src.length);
+      expect(src, 'FOCUS no longer paints the ring').toMatch(/focus-visible:ring-accent/);
+    }
+    expect(outsideFocus).not.toMatch(/\b(?:bg|text|ring|border|from|via|to)-accent\b/);
   });
   it('carries no gold of its own', () => {
-    expect(src).not.toMatch(/\b(?:bg|text|ring|border|from|via|to)-(?:gold|amber)-[a-z0-9]+/);
-    expect(src).not.toMatch(/gold-metal|gold-shine|gold-pan/);
+    expect(outsideFocus).not.toMatch(/\b(?:bg|text|ring|border|from|via|to)-(?:gold|amber)-[a-z0-9]+/);
+    expect(outsideFocus).not.toMatch(/gold-metal|gold-shine|gold-pan/);
     for (const hex of ['#d5bb7e', '#c2a66a', '#f2d896', '#e5c07c', '#b08229', '#d4a14a', '#c79532']) {
-      expect(src.toLowerCase()).not.toContain(hex);
+      expect(outsideFocus.toLowerCase()).not.toContain(hex);
     }
-    expect(src).not.toMatch(/#[0-9a-fA-F]{6}\b/);
+    expect(outsideFocus).not.toMatch(/#[0-9a-fA-F]{6}\b/);
   });
   it('never sets the display face in italic', () => {
     expect(src).not.toMatch(/\bitalic\b/);

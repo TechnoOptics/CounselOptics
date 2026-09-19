@@ -59,7 +59,35 @@ describe('the schedule', () => {
  * to the prose.
  */
 describe('the matrices say what each tier actually includes', () => {
+  /**
+   * N5. This used to ban the middle dot on an inheriting tier, which is the
+   * glyph the broken derivation produced; no cell is a middle dot any more,
+   * so that assertion guarded a shape the code no longer uses and a plain
+   * `No` in the same place (the same lie in different punctuation) passed.
+   *
+   * The positive property instead: a tier that says "Everything in X, plus"
+   * never offers LESS than X on any row. Strength order, smallest first:
+   *
+   *   withheld (`No`, and the old middle dot) = 0
+   *   granted (`Yes`, `Alerts`, a count, a name) = 1
+   *   `With SMS` = 2
+   *
+   * Only Safe Witness is graded (No < Alerts < With SMS); every other row
+   * either withholds a feature or grants it, so the fallback is coarse on
+   * purpose: it cannot rank `50` against `100`, and it does not try to. It
+   * catches the one thing that is a lie, a tier that inherits and then
+   * withholds, and it still catches the middle dot because the dot is a
+   * withholding.
+   */
   const MIDDLE_DOT = '·';
+  const WITHHELD = new Set(['No', MIDDLE_DOT, '-']);
+  const GRADED = ['No', 'Alerts', 'With SMS'];
+  const strength = (cell: string) => {
+    const c = cell.trim();
+    if (WITHHELD.has(c)) return 0;
+    const graded = GRADED.indexOf(c);
+    return graded > -1 ? graded : 1;
+  };
   const audiences: [string, typeof CONSUMER_TIERS, typeof CONSUMER_ROWS][] = [
     ['consumer', CONSUMER_TIERS, CONSUMER_ROWS],
     ['firm', FIRM_TIERS, FIRM_ROWS],
@@ -81,21 +109,54 @@ describe('the matrices say what each tier actually includes', () => {
     }
   });
 
+  it('positive control: the strength order ranks withheld below granted', () => {
+    expect(strength('No')).toBe(0);
+    expect(strength(MIDDLE_DOT)).toBe(0);
+    expect(strength('Yes')).toBe(1);
+    expect(strength('Alerts')).toBe(1);
+    expect(strength('With SMS')).toBe(2);
+  });
+
   it.each(audiences)(
-    '%s: never prints "not included" against a tier that inherits the one below it',
+    '%s: a tier that inherits the one below it never offers less on any row',
     (_name, tiers, rows) => {
       const inheriting = tiers.filter((t) => t.features.some((f) => /^Everything in .+, plus/i.test(f)));
       expect(inheriting.length, 'no tier expresses inheritance any more').toBeGreaterThan(0);
       for (const tier of inheriting) {
         const i = tiers.indexOf(tier);
         for (const row of rows) {
-          expect(row.cells[i], `${tier.name} inherits, but "${row.label}" says it does not`).not.toBe(
-            MIDDLE_DOT,
-          );
+          expect(
+            strength(row.cells[i]),
+            `${tier.name} inherits ${tiers[i - 1].name}, but "${row.label}" drops from ` +
+              `"${row.cells[i - 1]}" to "${row.cells[i]}"`,
+          ).toBeGreaterThanOrEqual(strength(row.cells[i - 1]));
         }
       }
     },
   );
+
+  /**
+   * N1. Two firm cells are the only ones in either matrix that neither
+   * lib/firm-pricing.ts nor the tier's own features[] states: Enterprise's
+   * "Firm letterhead on PDFs" and "Employee Hub". Both are true, and this
+   * page says so itself: the FAQ at app/pricing/page.tsx answers "Firm
+   * letterhead on every generated PDF" and "Employee Hub" with "Small Firm
+   * and up". What makes them derived rather than asserted is Enterprise's
+   * own inheritance line, which is what puts them under the assertion above.
+   */
+  it('sources the two repeated Enterprise cells through an inheritance line', () => {
+    const [growing, enterprise] = FIRM_TIERS.slice(-2);
+    expect([growing.name, enterprise.name]).toEqual(['Growing Firm', 'Enterprise']);
+    const gi = FIRM_TIERS.indexOf(growing);
+    const ei = FIRM_TIERS.indexOf(enterprise);
+    const repeats = FIRM_ROWS.filter((r) => r.cells[ei] === r.cells[gi]).map((r) => r.label);
+    expect(repeats).toEqual(['Firm letterhead on PDFs', 'Employee Hub']);
+    expect(
+      enterprise.features.some((f) => new RegExp(`^Everything in ${growing.name}, plus`).test(f)),
+      `${repeats.join(' and ')} repeat ${growing.name}'s cell on ${enterprise.name}, and only ` +
+        `${enterprise.name}'s own features[] can source that`,
+    ).toBe(true);
+  });
 
   it('reads the consumer ladder off lib/personal-tiers.ts', () => {
     const ladder = CONSUMER_TIERS.map((t) => PERSONAL_TIERS.find((p) => p.name === t.name));

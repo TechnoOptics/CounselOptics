@@ -174,6 +174,7 @@ export const FIRM_TIERS: Tier[] = [
     price: formatFirmTierPrice(FIRM_TIER_PRICING.enterprise),
     cadence: '/ month',
     features: [
+      'Everything in Growing Firm, plus:',
       '100+ users, no per-seat ceiling',
       'Negotiated matter ceiling (typically uncapped)',
       '15M+ tokens / month per seat (firm pool)',
@@ -202,7 +203,11 @@ export const FIRM_TIERS: Tier[] = [
  * and the seat bands to lib/firm-pricing.ts.
  *
  * Where a tier's `features[]` says "Everything in X, plus", the cell
- * inherits X's value.
+ * inherits X's value. Two firm cells are sourced that way and nowhere
+ * else, "Firm letterhead on PDFs" and "Employee Hub" on Enterprise: the
+ * FAQ on this page states both as "Small Firm and up" (app/pricing/page.tsx,
+ * the Bella tier-2 answer and the Employee Hub answer), and Enterprise's
+ * own inheritance line is what carries them up the ladder.
  */
 export const CONSUMER_ROWS: ScheduleRow[] = [
   { label: 'Cases', cells: ['1', '3', '8', '15', '40'] },

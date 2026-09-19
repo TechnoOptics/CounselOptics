@@ -46,6 +46,10 @@ const config: Config = {
         paper: 'var(--paper)',
         sheet: 'var(--sheet)',
         rule: 'var(--rule)',
+        // The ground a full-bleed Band paints. Equal to paper's forest in
+        // light; lifted one forest step in dark, where paper is already that
+        // forest and a band painting it disappeared.
+        band: 'var(--band)',
         // Semantic TEXT tokens. See the block at the top of
         // app/globals.css for the derivation and its contrast proof, and
         // lib/accent-text.ts for the arithmetic.

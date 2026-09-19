@@ -15,6 +15,19 @@ const PAGE = stripComments(readFileSync(join(ROOT, 'app/enterprise/page.tsx'), '
 const CSS = readFileSync(join(ROOT, 'app/globals.css'), 'utf8');
 const TABS = stripComments(readFileSync(join(ROOT, 'components/EnterpriseSectorTabs.tsx'), 'utf8'));
 
+/**
+ * Cover()'s own source, comment-stripped. The page declares fourteen Sheets
+ * and only the one on the cover sits on a dark ground, so a rule about "the
+ * cover's Sheet" has to read the function rather than the file.
+ */
+function cover(): string {
+  const start = PAGE.search(/^function Cover\b/m);
+  expect(start, 'Cover is not a top-level function').toBeGreaterThan(-1);
+  const rest = PAGE.slice(start + 1);
+  const next = rest.search(/^(?:export )?(?:async )?function \w/m);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
 describe('the cover', () => {
   it('keeps enterprise-shell on the dark cover and nowhere else', () => {
     expect(PAGE.match(/enterprise-shell/g)?.length).toBe(1);
@@ -40,6 +53,27 @@ describe('the cover', () => {
     const asHex = `#${[1, 2, 3].map((i) => Number(root![i]).toString(16).padStart(2, '0')).join('')}`;
     expect(shellPaper![1].toLowerCase()).toBe(asHex);
   });
+  it('lifts the band off the page ground in dark, so the cover is still a band', () => {
+    // N6. `--paper` in dark and `--paper` under the shell are the same
+    // declaration, and both equal :root's --forest-950, so in dark theme the
+    // cover, the home firm band and the page paper all painted #0a1f19 and
+    // neither band read as a band. --band is the ground Band paints in dark;
+    // it is declared on html.dark/.dark only, so the shell inherits it in
+    // dark and keeps :root's value (the same forest the bands paint today)
+    // in light. Comments are stripped first: a rule must not be satisfied by
+    // prose that names it.
+    const css = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    const band = /html\.dark,\s*\.dark\s*\{[^}]*--band:\s*(#[0-9a-fA-F]{6})/.exec(css);
+    expect(band, 'no dark --band is declared for html.dark/.dark').not.toBeNull();
+    const rootBand = /:root\s*\{[\s\S]*?--band:\s*(#[0-9a-fA-F]{6})/.exec(css);
+    expect(rootBand, ':root declares no --band, so the shell has none in light').not.toBeNull();
+    const darkPaper = /--paper:\s*(#[0-9a-fA-F]{6})/g;
+    const papers = [...css.matchAll(darkPaper)].map((m) => m[1].toLowerCase());
+    expect(papers).toContain(rootBand![1].toLowerCase());
+    expect(band![1].toLowerCase(), 'the dark band is the page ground again').not.toBe(
+      rootBand![1].toLowerCase(),
+    );
+  });
   it('lets the shared Band own the bleed and the 1200px column', () => {
     // The home band and this cover used to disagree about what a band is:
     // one stopped at FilePage's container, the other was pulled to the
@@ -50,6 +84,16 @@ describe('the cover', () => {
     expect(CSS, 'the shell still sets its own bleed geometry').not.toMatch(
       /\.enterprise-shell\s*\{[^}]*margin-(?:left|top):/,
     );
+  });
+  it('tells its Sheet it is on a dark ground', () => {
+    // N8. Sheet's default tone is paper, which is `text-forest-900
+    // dark:text-cream-100`; inside `.enterprise-shell` forest-900 is remapped
+    // to near-black and there is no `.dark` ancestor in light theme, so the
+    // default renders the 1.3:1 ink C2 was. Nothing but this call site's own
+    // prop keeps that off the cover, so the call site is what is held.
+    const sheets = cover().match(/<Sheet\b[\s\S]*?>/g) ?? [];
+    expect(sheets.length, 'the cover no longer renders a Sheet').toBe(1);
+    expect(sheets[0], "the cover's Sheet is back on the paper tone").toMatch(/\btone="dark"/);
   });
   it('spends the one gold on the request-number stamp', () => {
     expect(PAGE.match(/<Stamp\b/g)?.length).toBe(1);

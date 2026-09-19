@@ -265,7 +265,6 @@ export default function WhatIsAdvotticPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-
       <Section title="One-paragraph definition">
         <p>
           <strong>Advottic</strong> is an AI-powered legal-prep

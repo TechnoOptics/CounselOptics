@@ -34,8 +34,14 @@ export default async function StatusPage() {
       The live sentence had been passed to Prose as the h1, which also left
       the dot alone in a flex row with nothing beside it; both read together
       below, which is what the dot is there for.
+
+      The Courier label is the binder tab, and every other inheriting page
+      sets it to the part of the site the page belongs to (Privacy, Press,
+      Changelog), not to a repeat of the headline. "Status" over "Status"
+      printed the word twice; this page is the operational readout, which is
+      what the metadata calls it.
     */
-    <Prose label="Status" title="Status">
+    <Prose label="Operations" title="Status">
       <header className="space-y-4">
         <div className="flex items-center gap-3">
           <span className="relative inline-flex h-3 w-3">

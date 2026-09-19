@@ -50,7 +50,13 @@ export function Section({
     >
       <div id={labelId} className={LABEL}>
         {tab && (
-          <span className="mb-1.5 block font-caslon text-[44px] normal-case leading-none tracking-normal text-forest-900 dark:text-cream-100">
+          // The binder tab is a letter or a step name for the eye. It shares
+          // the labelling div with the Courier caption, so without aria-hidden
+          // every region announces the glyph first ("A What goes in").
+          <span
+            aria-hidden
+            className="mb-1.5 block font-caslon text-[44px] normal-case leading-none tracking-normal text-forest-900 dark:text-cream-100"
+          >
             {tab}
           </span>
         )}

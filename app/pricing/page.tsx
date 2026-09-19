@@ -107,7 +107,6 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
   },
 ];
 
-
 /** A tier as a schedule column. The CTA and price come straight from the tier. */
 function tierToColumn(t: Tier): ScheduleColumn {
   return {

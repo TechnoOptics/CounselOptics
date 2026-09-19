@@ -3,13 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   Band,
-  BUTTON_INK,
-  BUTTON_OUTLINE_CREAM,
   Definitions,
   Entry,
   FilePage,
   FOCUS,
-  LINK,
   Memo,
   Schedule,
   Section,
@@ -17,6 +14,10 @@ import {
   SheetRow,
   Stamp,
 } from '../components/marketing/file';
+// The type roles are imported as a namespace, not by name: the focus guard
+// below holds every control role the module exports, including ones added
+// after this test was written.
+import * as roles from '../components/marketing/file/type';
 
 /**
  * The primitives every marketing page is built from. Rendered for real
@@ -47,6 +48,16 @@ describe('Band', () => {
     expect(column, 'FilePage no longer centres a named column').toBeTruthy();
     expect(out).toContain(column!);
   });
+  it('carries its own ground in dark theme, so a band is still a band', () => {
+    // N6. In light a band is an inversion: forest on cream paper. In dark the
+    // page ground is already that forest, so both bands sampled exactly the
+    // page colour and stopped reading as bands at all. The lift belongs to
+    // Band rather than to its two call sites, which pass different classes
+    // (bg-forest-950 on home, bg-paper inside the enterprise shell) for the
+    // same light-theme colour.
+    const out = html(createElement(Band, { className: 'bg-forest-950' }, 'x'));
+    expect(out).toContain('dark:bg-band');
+  });
 });
 
 describe('Section', () => {
@@ -69,6 +80,20 @@ describe('Section', () => {
     expect(id, 'the section does not point at a name').toBeTruthy();
     expect(out).toContain(`<div id="${id}"`);
     expect(out).toContain('In their words');
+  });
+  it('keeps the binder-tab glyph out of the accessible name', () => {
+    // N10. The id sits on the div that wraps both the Caslon tab letter and
+    // the Courier label, so without this the regions announce as "A What
+    // goes in" and "Intake Step 1 of 5". The letter is a binder tab, not a
+    // word: it is decoration for the eye and noise in the landmark list.
+    const out = html(createElement(Section, { tab: 'A', label: 'What goes in' }, 'body'));
+    expect(out).toMatch(/<span aria-hidden="true"[^>]*font-caslon[^>]*>A<\/span>/);
+  });
+  it('leaves an unlabelled section plain, rather than a nameless region', () => {
+    // Prose renders its body block as <Section label="">; a <section> with
+    // aria-labelledby pointing at empty text is a region with no name.
+    const out = html(createElement(Section, { label: '' }, 'body'));
+    expect(out).not.toContain('aria-labelledby');
   });
   it('gives the body column min-w-0 so a long headline cannot widen the page', () => {
     const out = html(createElement(Section, { label: 'x' }, 'body'));
@@ -198,9 +223,22 @@ describe('Entry', () => {
  */
 describe('keyboard focus', () => {
   it('is carried by every exported control role', () => {
-    for (const [name, cls] of Object.entries({ BUTTON_INK, BUTTON_OUTLINE_CREAM, LINK, FOCUS })) {
+    // N3: this used to name four constants by hand, which left LINK_CREAM
+    // (focused through LINK_SHAPE, by luck rather than by rule) unheld and
+    // would leave any role added tomorrow unheld too. Controls are the
+    // BUTTON_* and LINK_* roles; the type roles (H1, BODY, LABEL) are ink,
+    // not controls, and carry no ring.
+    const controls = Object.entries(roles).filter(([name]) => /^(?:BUTTON|LINK)/.test(name));
+    expect(controls.map(([name]) => name).sort()).toEqual([
+      'BUTTON_INK',
+      'BUTTON_OUTLINE_CREAM',
+      'LINK',
+      'LINK_CREAM',
+    ]);
+    for (const [name, cls] of controls) {
       expect(cls, `${name} has no focus-visible treatment`).toContain('focus-visible:');
     }
+    expect(FOCUS, 'the shared ring itself').toContain('focus-visible:');
   });
   it("is carried by Schedule's own outline CTA, which is not one of the roles", () => {
     const out = html(

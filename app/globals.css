@@ -447,10 +447,19 @@ html.dark .accent-scope,
   /* The case file (marketing). Paper is the ground, a sheet is a
      piece of the file, rule is the only border colour there. Redefined
      for dark in the html.dark, .dark, .enterprise-shell, .hq-shell
-     block below. */
+     block below.
+
+     --band is the ground a full-bleed Band paints (components/marketing/
+     file/Band.tsx): the home firm signpost and the enterprise cover. In
+     light a band is an inversion, forest on cream paper, so this is
+     forest-950, the colour those two surfaces already paint. It is lifted
+     for dark in the html.dark, .dark block below, and deliberately NOT in
+     the .enterprise-shell block: the cover is dark in both themes and must
+     keep this value while the page around it is light. */
   --paper: #fefcf3;
   --sheet: #fffdf8;
   --rule: #d9d0bb;
+  --band: #0a1f19;
   /* Gold, unchanged, and identical in both themes: only the text
      variants move between light and dark. */
   --accent: #d5bb7e;
@@ -478,6 +487,22 @@ html.dark,
   --info-text: #a5b4fc;
   --code-bg: rgba(0, 0, 0, 0.32);
   --code-fg: #6ee7b7;
+}
+
+/* The band's dark ground, and the one marketing token that must NOT be
+   shared with .enterprise-shell: the shell is dark inside a light page, and
+   there --band stays :root's forest-950 so the cover is unchanged in light.
+
+   In dark theme --paper is already that same forest-950, so a band painting
+   it was invisible: the enterprise cover, the home firm band and the page
+   all sampled #0a1f19. This is forest-800 from the :root ramp, one step up,
+   written as a literal because the shell remaps the whole forest scale to
+   zinc and bg-forest-800 inside it would paint #17171a. Cream-100 on it is
+   10.5:1, and the dark sheet (#0f2d24) reads BETTER against it (1.20) than
+   it did against the page ground (1.16). */
+html.dark,
+.dark {
+  --band: #173b30;
 }
 
 html,

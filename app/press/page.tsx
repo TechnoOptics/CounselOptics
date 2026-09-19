@@ -70,7 +70,7 @@ export default function PressPage() {
         </p>
       </header>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-5">
+      <section className="space-y-5">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           About Advottic
         </h2>
@@ -101,7 +101,7 @@ export default function PressPage() {
         </div>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-5">
+      <section className="space-y-5">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Fast facts
         </h2>
@@ -127,7 +127,7 @@ export default function PressPage() {
         </dl>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-5">
+      <section className="space-y-5">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Brand assets
         </h2>
@@ -163,7 +163,7 @@ export default function PressPage() {
         </p>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-5">
+      <section className="space-y-5">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Media contact
         </h2>
@@ -194,7 +194,7 @@ export default function PressPage() {
         </p>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-3 text-center">
+      <section className="space-y-3 text-center">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Want to try the product?
         </h2>
