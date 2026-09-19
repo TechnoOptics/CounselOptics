@@ -143,7 +143,7 @@ describe('paper, sheet and rule', () => {
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `npx vitest run tests/marketing-file-tokens.test.ts > /tmp/t1.log 2>&1; echo EXIT=$?; grep -a -E '×|✓|Tests ' /tmp/t1.log`
+Run: `npx vitest run tests/marketing-file-tokens.test.ts > /tmp/t1.log 2>&1; echo EXIT=$?; grep -a -E 'Tests |FAIL' /tmp/t1.log`
 Expected: EXIT=1, every `it` red (fonts not constructed, families missing, tokens missing).
 
 - [ ] **Step 3: Load the faces in the root layout**
@@ -2311,7 +2311,7 @@ export default function EnterprisePage() {
         body="Send a branded intake link. The client uploads their documents, captures the timeline in their words, and you watch the matter populate in real time. By the time you take their call, you have already read the file."
         defs={[
           { term: 'Branded form', def: 'Your domain, your colors.' },
-          { term: 'Auto-populated', def: 'Case metadata filled from the client’s answers.' },
+          { term: 'Auto-populated', def: "Case metadata filled from the client's answers." },
           { term: 'Isolated', def: 'The client never sees other matters.' },
         ]}
       />
@@ -2530,7 +2530,7 @@ function Ledger() {
 }
 ```
 
-Delete every function between the old `EnterprisePage` and `EnterpriseStructuredData` that is not `Cover`, `Step` or `Ledger` (ProveTheCase, EnterpriseHero, FirmDashboardMock, Workflow, FirmCapabilities, all the mocks, ProviderCard, ActionChip, ChannelRow, DmRow, ChatMessage, PaperclipIcon, CapabilityFrame, CapabilityCard, Compliance, CompareTable, EnterpriseInquiry, DotEmerald, ArrowRight and any other helper only they used). The `’` in the Intake definitions is a typographic apostrophe, which is allowed; em and en dashes are not.
+Delete every function between the old `EnterprisePage` and `EnterpriseStructuredData` that is not `Cover`, `Step` or `Ledger` (ProveTheCase, EnterpriseHero, FirmDashboardMock, Workflow, FirmCapabilities, all the mocks, ProviderCard, ActionChip, ChannelRow, DmRow, ChatMessage, PaperclipIcon, CapabilityFrame, CapabilityCard, Compliance, CompareTable, EnterpriseInquiry, DotEmerald, ArrowRight and any other helper only they used). The Intake definitions use a straight apostrophe, in a double-quoted string: no curly quotes, no em or en dashes.
 
 The Cover keeps `enterprise-shell` so `tests/consumer-live-defects.test.ts` and the dark eyebrow rule hold; the `H1` role carries `text-forest-900`, so the cover's `text-cream-100` override must come after it in the class string as written.
 

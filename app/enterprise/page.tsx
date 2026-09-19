@@ -5,13 +5,17 @@ import { EnterpriseSectorTabs } from '@/components/EnterpriseSectorTabs';
 import {
   Band,
   BODY,
+  BODY_CREAM,
   BUTTON_OUTLINE_CREAM,
   Definitions,
   Entry,
   FilePage,
+  H1_CREAM,
   H2,
   LABEL,
+  LABEL_CREAM,
   LINK,
+  LINK_CREAM,
   Memo,
   Section,
   Sheet,
@@ -49,7 +53,7 @@ export default function EnterprisePage() {
         body="Send a branded intake link. The client uploads their documents, captures the timeline in their words, and you watch the matter populate in real time. By the time you take their call, you have already read the file."
         defs={[
           { term: 'Branded form', def: 'Your domain, your colors.' },
-          { term: 'Auto-populated', def: 'Case metadata filled from the client’s answers.' },
+          { term: 'Auto-populated', def: "Case metadata filled from the client's answers." },
           { term: 'Isolated', def: 'The client never sees other matters.' },
         ]}
       />
@@ -125,12 +129,21 @@ export default function EnterprisePage() {
             kickerRight="Northwind Materials"
             title="Misappropriation of trade secrets"
           >
+            {/*
+              The citation is a Memo, not a SheetRow. SheetRow truncates its
+              middle column on purpose so a long filename cannot widen the
+              sheet, and in this column that cut the case name at
+              "Electro-Craft Corp. v. Con...". A citation that the reader
+              cannot read in full is worse than no citation.
+            */}
             <Memo
               label="Elements"
               text="A trade secret, reasonable measures to keep it secret, and acquisition by improper means."
             />
-            <SheetRow mark="Cite" text="Electro-Craft Corp. v. Controlled Motion, Inc." right="Verified" />
-            <SheetRow mark="" text="332 N.W.2d 890 (Minn. 1983)" />
+            <Memo
+              label="Cite, verified"
+              text="Electro-Craft Corp. v. Controlled Motion, Inc., 332 N.W.2d 890 (Minn. 1983)."
+            />
             <Memo label="Dropped" text="Unverified citations never reach the page." />
           </Sheet>
         </div>
@@ -180,14 +193,9 @@ function Cover() {
     <Band className="enterprise-shell bg-paper pb-14 pt-12 text-cream-100 sm:pb-20 sm:pt-16">
       <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
         <div className="min-w-0 lg:col-span-7">
-          <p className="font-courier text-[12.5px] uppercase tracking-[0.08em] text-cream-100/60">
-            Advottic for firms. In-house. Counsel.
-          </p>
-          {/* H1 with the ink swapped for the forest cover. */}
-          <h1 className="mt-3 font-caslon font-normal text-[clamp(40px,6vw,72px)] leading-[1.02] tracking-[-0.012em] text-balance text-cream-100">
-            Stop hunting for the right version of the file.
-          </h1>
-          <p className="mt-6 max-w-[62ch] font-public text-[17px] leading-[1.55] text-cream-100/80">
+          <p className={LABEL_CREAM}>Advottic for firms. In-house. Counsel.</p>
+          <h1 className={`${H1_CREAM} mt-3`}>Stop hunting for the right version of the file.</h1>
+          <p className={`${BODY_CREAM} mt-6`}>
             Every matter, one room. Every exhibit, one source of truth. Every attorney, paralegal and
             client on the same page. Sign documents inside the vault. Hand the audit log to opposing
             counsel without flinching.
@@ -196,18 +204,22 @@ function Cover() {
             <Link href="#inquiry" className={BUTTON_OUTLINE_CREAM}>
               Tell us about your firm
             </Link>
-            {/* LINK with the ink swapped for the forest cover. */}
-            <Link
-              href="#sectors"
-              className="font-public text-[15px] font-semibold text-cream-100 underline underline-offset-4 decoration-cream-100/50 hover:decoration-cream-100"
-            >
+            <Link href="#sectors" className={LINK_CREAM}>
               See what fits your team
             </Link>
           </div>
         </div>
         <div className="min-w-0 lg:col-span-5">
+          {/*
+            pb-24 reserves the stamp's own space; at pb-16 the rendered
+            stamp still crossed "Draft" on row 4 at every width. The `sm:`
+            copy is not a typo and is load-bearing: Sheet sets `sm:p-7`,
+            which lives in a media query and therefore beats a base-layer
+            `pb-*` at and above sm. Schedule.tsx's identical call passes
+            `pb-16` alone, correctly, because that Sheet is `sm:hidden`.
+          */}
           <Sheet
-            className="pb-16 sm:pb-16"
+            className="pb-24 sm:pb-24"
             tone="dark"
             kicker="Matter file"
             kickerRight="Commercial, trade secret"

@@ -4,15 +4,69 @@ import { describe, expect, it } from 'vitest';
 import { stripComments } from './support/strip-comments';
 
 /**
- * The home cover, held to the case-file spec: the accent makes exactly one
- * claim on the page and it is the hearing stamp; the headline is Caslon,
- * never italic, never gold; the copy column can shrink; the page owns the
- * one motion. Replaces tests/hero-accent-discipline.test.ts, whose hero
- * this cover replaces. Reads comment-stripped source and asserts calls and
- * classes, not names in prose.
+ * One gold per page, and only through Stamp.
+ *
+ * Spec section 8 asks for this guard to be "kept and extended to the
+ * pricing and enterprise covers". It used to read app/page.tsx only, with
+ * a partial copy of the gold rule in tests/firm-front-door.test.ts and
+ * another in tests/schedule-of-fees.test.ts; three owners of one rule is
+ * how a rule drifts, so all four marketing pages are held here and those
+ * two files keep only their own page-specific assertions.
+ *
+ * Reads comment-stripped source and asserts calls and classes, not names
+ * in prose. Replaces tests/hero-accent-discipline.test.ts, whose hero this
+ * cover replaces.
+ *
+ * KNOWN GAP, found by reading the rendered page on 2026-09-19 and left for
+ * the owner: this reads page source and does not follow imports, so a
+ * component rendered on a marketing page is outside it. One does carry its
+ * own gold today. components/EnterpriseInquiryForm.tsx paints a
+ * `bg-gold-metal` submit button ("Request a walkthrough", measured
+ * rgb(199,149,50) over a gold gradient), `text-gold-300` field labels and
+ * `focus:ring-gold-400`, which makes /enterprise spend the accent twice and
+ * contradicts the spec's "Buttons are ink on paper (or cream on forest),
+ * never gold". It is pre-existing rather than new on this branch and
+ * restyling a lead-generation form is an owner's call, so it is written
+ * down here rather than left true by omission.
  */
 const ROOT = join(__dirname, '..');
-const PAGE = stripComments(readFileSync(join(ROOT, 'app/page.tsx'), 'utf8'));
+const read = (rel: string) => stripComments(readFileSync(join(ROOT, rel), 'utf8'));
+const PAGE = read('app/page.tsx');
+
+/**
+ * How many times a file spends the accent. The pricing page never writes
+ * `<Stamp>`: it hands Schedule a `stamp={...}` prop, which is the same
+ * single claim on the reader's eye and has to count as one.
+ */
+const spends = (src: string) =>
+  (src.match(/<Stamp\b/g)?.length ?? 0) + (src.match(/\bstamp=\{/g)?.length ?? 0);
+
+const SURFACES: [string, number][] = [
+  ['app/page.tsx', 1],
+  ['app/pricing/page.tsx', 1],
+  ['app/features/page.tsx', 0],
+  ['app/enterprise/page.tsx', 1],
+  ['components/marketing/FeatureIndex.tsx', 0],
+];
+
+describe.each(SURFACES)('%s', (rel, expected) => {
+  const src = read(rel);
+  it(`spends the accent ${expected} time(s), and only through Stamp`, () => {
+    expect(spends(src)).toBe(expected);
+    expect(src).not.toMatch(/\b(?:bg|text|ring|border|from|via|to)-accent\b/);
+  });
+  it('carries no gold of its own', () => {
+    expect(src).not.toMatch(/\b(?:bg|text|ring|border|from|via|to)-(?:gold|amber)-[a-z0-9]+/);
+    expect(src).not.toMatch(/gold-metal|gold-shine|gold-pan/);
+    for (const hex of ['#d5bb7e', '#c2a66a', '#f2d896', '#e5c07c', '#b08229', '#d4a14a', '#c79532']) {
+      expect(src.toLowerCase()).not.toContain(hex);
+    }
+    expect(src).not.toMatch(/#[0-9a-fA-F]{6}\b/);
+  });
+  it('never sets the display face in italic', () => {
+    expect(src).not.toMatch(/\bitalic\b/);
+  });
+});
 
 function fn(name: string): string {
   const start = PAGE.search(new RegExp(`^function ${name}\\b`, 'm'));
@@ -22,25 +76,15 @@ function fn(name: string): string {
   return next === -1 ? rest : rest.slice(0, next);
 }
 
-describe('the cover spends the accent once, on the stamp', () => {
-  it('renders exactly one Stamp on the whole page, inside Cover', () => {
-    expect(PAGE.match(/<Stamp\b/g)?.length).toBe(1);
+describe('the home cover', () => {
+  it("is where the page's one Stamp lives", () => {
     expect(fn('Cover')).toMatch(/<Stamp\b/);
-  });
-  it('carries no other gold anywhere on the page', () => {
-    expect(PAGE).not.toMatch(/\b(?:bg|text|ring|border|from|via|to)-gold-[a-z0-9]+/);
-    expect(PAGE).not.toMatch(/gold-metal|gold-shine|gold-pan/);
-    for (const hex of ['#d5bb7e', '#c2a66a', '#f2d896', '#e5c07c', '#b08229', '#d4a14a', '#c79532']) {
-      expect(PAGE.toLowerCase()).not.toContain(hex);
-    }
-    expect(PAGE).not.toMatch(/#[0-9a-fA-F]{6}\b/);
   });
 });
 
 describe('the headline', () => {
-  it('is set with the shared H1 role and is never italic', () => {
+  it('is set with the shared H1 role', () => {
     expect(fn('Cover')).toMatch(/<h1 className=\{H1\}>/);
-    expect(PAGE).not.toMatch(/\bitalic\b/);
     expect(PAGE).not.toMatch(/font-display|font-serif|font-sans/);
   });
   it('keeps the copy column shrinkable', () => {

@@ -441,7 +441,11 @@ const FILES = [
     .filter((f) => !/^app\/counsel\/|^app\/portal\/|^components\/counsel\//.test(f))
     .filter((f) => !DARK_SEGMENTS.some((seg) => f.startsWith(seg)))
     .filter((f) => !SHELL.test(read(f))),
-  ...tracked(['components/marketing/file'], '.ts'),
+  // Same shell filter as the .tsx half above, not because that directory
+  // has a shell class today but because the comment on tracked() promises
+  // "a new always-dark surface removes itself the day it is added", and a
+  // list that skips the filter quietly stops keeping that promise.
+  ...tracked(['components/marketing/file'], '.ts').filter((f) => !SHELL.test(read(f))),
 ];
 
 /**

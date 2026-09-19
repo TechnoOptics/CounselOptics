@@ -227,6 +227,14 @@ the home page's `ApprovalToExecuted` and one Sheet (the queue, the reviewer's
 view, the signer's page, the executed chain). Then Definitions for the rest
 of the firm surface (intake, rooms, review for triage, audit, SSO).
 
+Amended 2026-09-19, as built: Safe Witness (C) and the middle two firm
+states (With legal, Sent) carry Definitions and no Sheet. A Sheet is for a
+screen that holds information, and on those three the information is the
+rule rather than the screen: what a Safe Witness alert contains, the four
+outcomes a reviewer can choose, what the signer sees before the pad opens.
+Rendering the same sentences twice on one entry, once as a sheet and once
+as terms, would say less, not more.
+
 ---
 
 ## 6. Enterprise: the firm's front door

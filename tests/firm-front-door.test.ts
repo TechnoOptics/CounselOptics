@@ -54,7 +54,8 @@ describe('the cover', () => {
   it('spends the one gold on the request-number stamp', () => {
     expect(PAGE.match(/<Stamp\b/g)?.length).toBe(1);
     expect(PAGE).toMatch(/<Stamp line1="Request" line2="REQ-0000412"/);
-    expect(PAGE).not.toMatch(/\b(?:bg|text|ring|border)-gold-|gold-metal|gold-shine|gold-pan|italic/);
+    // The gold rule itself lives in tests/cover-accent-discipline.test.ts,
+    // which holds all four marketing pages to it.
   });
 });
 
@@ -66,8 +67,11 @@ describe('the file below', () => {
   });
   it('keeps the sector tabs, the case-law review and the inquiry form', () => {
     expect(PAGE).toMatch(/<EnterpriseSectorTabs \/>/);
-    expect(PAGE).toMatch(/Electro-Craft Corp\. v\. Controlled Motion, Inc\./);
-    expect(PAGE).toMatch(/332 N\.W\.2d 890 \(Minn\. 1983\)/);
+    // Through Memo, which wraps. SheetRow truncates its middle column, and
+    // on the rendered page that cut the case name mid-word.
+    expect(PAGE).toMatch(
+      /<Memo\s+label="Cite, verified"\s+text="Electro-Craft Corp\. v\. Controlled Motion, Inc\., 332 N\.W\.2d 890 \(Minn\. 1983\)\."/,
+    );
     expect(PAGE).toMatch(/<EnterpriseInquiryForm \/>/);
   });
   it('dropped the mocks, the frames and the compare table', () => {

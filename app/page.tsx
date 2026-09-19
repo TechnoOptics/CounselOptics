@@ -8,6 +8,7 @@ import { HOME_FAQ } from '@/lib/home-faq';
 import {
   Band,
   BODY,
+  BODY_CREAM,
   BUTTON_INK,
   BUTTON_OUTLINE_CREAM,
   Definitions,
@@ -15,7 +16,9 @@ import {
   FOCUS,
   H1,
   H2,
+  H2_CREAM,
   LABEL,
+  LABEL_CREAM,
   LINK,
   Memo,
   Section,
@@ -140,7 +143,21 @@ function Cover({ signedIn }: { signedIn: boolean }) {
           <p className={`${LABEL} mt-5`}>No card to start. Cancel any time. Yours to export.</p>
         </div>
         <div className="min-w-0 lg:col-span-5">
-          <Sheet kicker="Case file" kickerRight="Small claims, claimant" title="Ramirez v. Oakline Rentals" assemble>
+          {/*
+            pb-24 reserves the stamp's own space. It is absolutely
+            positioned bottom-right and was landing on the last two rows:
+            on the rendered page it covered "Apr 9, 2025" at 1440 and both
+            dates below row B at 390. The `sm:` copy is not a typo and is
+            load-bearing: Sheet sets `sm:p-7`, which lives in a media query
+            and therefore beats a base-layer `pb-*` at and above sm.
+          */}
+          <Sheet
+            className="pb-24 sm:pb-24"
+            kicker="Case file"
+            kickerRight="Small claims, claimant"
+            title="Ramirez v. Oakline Rentals"
+            assemble
+          >
             <SheetRow mark="A" text="Signed lease agreement.pdf" right="Jan 3, 2024" />
             <SheetRow mark="B" text="Move-out photos (kitchen).jpg" right="Mar 30, 2025" />
             <SheetRow mark="C" text={'Text: "deposit next week".png'} right="Apr 6, 2025" />
@@ -224,9 +241,10 @@ function WhoCanSee() {
 }
 
 /**
- * The three quotes are the ones the retired marquee carried, verbatim from
- * components/TestimonialMarquee.tsx. If that file's wording differs from
- * what is written here, the file wins: copy it, do not edit it.
+ * The three quotes were carried over on 2026-09-05 from the retired
+ * components/TestimonialMarquee.tsx, byte for byte. That component is on
+ * docs/DESIGN.md's retired list and will be deleted, so this array is the
+ * source of record for them now; there is nothing left to copy from.
  */
 const QUOTES = [
   {
@@ -302,11 +320,9 @@ function FirmSignpost() {
     <Band className="mt-4 bg-forest-950 py-10 text-cream-100">
       <div className="grid items-center gap-6 lg:grid-cols-[1fr_auto]">
         <div>
-          <p className="font-courier text-[12.5px] uppercase tracking-[0.08em] text-cream-100/60">For firms</p>
-          <h2 className="mt-2 font-caslon text-[28px] font-normal leading-[1.1] tracking-[-0.01em] text-balance text-cream-100 sm:text-[34px] lg:text-[40px]">
-            Running a practice?
-          </h2>
-          <p className="mt-3 max-w-[62ch] font-public text-[17px] leading-[1.55] text-cream-100/80">
+          <p className={LABEL_CREAM}>For firms</p>
+          <h2 className={`${H2_CREAM} mt-2`}>Running a practice?</h2>
+          <p className={`${BODY_CREAM} mt-3`}>
             Advottic Counsel is the firm workspace: intake, evidence rooms, signing inside the vault,
             audit log, SSO. It has its own front door.
           </p>

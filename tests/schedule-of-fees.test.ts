@@ -23,7 +23,8 @@ describe('the schedule', () => {
   it('puts the one stamp on Pro', () => {
     expect(PAGE.match(/stampOn=/g)?.length).toBe(1);
     expect(PAGE).toMatch(/stampOn="pro"/);
-    expect(PAGE).not.toMatch(/\b(?:bg|text|ring|border)-gold-|gold-metal|amber-/);
+    // The gold rule itself lives in tests/cover-accent-discipline.test.ts,
+    // which holds all four marketing pages to it.
   });
   it('keeps the iOS branch that renders nothing purchasable', () => {
     expect(PAGE).toMatch(/serverPlatform === 'ios'/);
