@@ -23,6 +23,19 @@ const FILES = [
   'components/marketing/file/Schedule.tsx', 'components/marketing/file/FilePage.tsx',
   'components/marketing/file/Prose.tsx', 'components/marketing/file/Memo.tsx',
   'components/marketing/file/Entry.tsx', 'components/EnterpriseInquiryForm.tsx',
+  'components/SavingsCalculator.tsx',
+  /**
+   * N3-4. The four redesigned pages were the whole list, so the sweep did
+   * not reach the copy Prose wraps: the about h1 carried a typographic
+   * apostrophe, and so did the compare lede and three lines of
+   * what-is-advottic. These are the fourteen pages
+   * tests/inheriting-pages-wear-the-file.test.ts holds, in its order, and
+   * the two lists have to grow together.
+   */
+  ...[
+    'about', 'what-is-advottic', 'security', 'guides', 'glossary', 'compare', 'press',
+    'changelog', 'status', 'accessibility', 'terms', 'privacy', 'cookies', 'dmca',
+  ].map((p) => `app/${p}/page.tsx`),
 ];
 describe('the dash sweep', () => {
   it('positive control: the pattern matches', () => {

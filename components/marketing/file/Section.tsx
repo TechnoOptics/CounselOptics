@@ -38,6 +38,14 @@ export function Section({
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
   const labelId = label && slug ? `${slug}-label` : undefined;
+  // A tab of one or two characters is a binder glyph (A to H on the home and
+  // features pages, I and II on pricing): decoration for the eye, and noise
+  // in front of every region name in a landmark list. A longer tab is a word
+  // and it is the section's actual subject, because the pages that pass one
+  // put the word in `tab` and the ordinal in `label` ("Intake", "Step 1 of
+  // 5"); hiding those left five enterprise regions announcing as "Step 1 of
+  // 5" with no subject at all.
+  const tabIsGlyph = (tab ?? '').trim().length <= 2;
   return (
     <section
       id={id}
@@ -50,11 +58,11 @@ export function Section({
     >
       <div id={labelId} className={LABEL}>
         {tab && (
-          // The binder tab is a letter or a step name for the eye. It shares
-          // the labelling div with the Courier caption, so without aria-hidden
-          // every region announces the glyph first ("A What goes in").
+          // The tab shares the labelling div with the Courier caption, so a
+          // glyph left visible to the reader announces in front of every
+          // region name ("A What goes in").
           <span
-            aria-hidden
+            aria-hidden={tabIsGlyph || undefined}
             className="mb-1.5 block font-caslon text-[44px] normal-case leading-none tracking-normal text-forest-900 dark:text-cream-100"
           >
             {tab}

@@ -5,7 +5,7 @@ import { stripComments } from './support/strip-comments';
 
 /** The four pages carry no card grids, frames, photographs or marquee. */
 const ROOT = join(__dirname, '..');
-const PAGES = ['app/page.tsx', 'app/pricing/page.tsx', 'app/features/page.tsx', 'app/enterprise/page.tsx', 'components/marketing/FeatureIndex.tsx', 'components/EnterpriseInquiryForm.tsx'];
+const PAGES = ['app/page.tsx', 'app/pricing/page.tsx', 'app/features/page.tsx', 'app/enterprise/page.tsx', 'components/marketing/FeatureIndex.tsx', 'components/EnterpriseInquiryForm.tsx', 'components/SavingsCalculator.tsx'];
 describe.each(PAGES)('%s', (rel) => {
   const src = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
   it('has no card, frame, photo or marquee', () => {

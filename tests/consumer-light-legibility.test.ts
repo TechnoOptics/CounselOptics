@@ -649,7 +649,16 @@ describe('the consumer light surface', () => {
     // line moved onto the shared LABEL role. The same light/dark pairing
     // still renders on every page, expressed once instead of many times.
     //
-    // The floor is therefore 1974, re-derived from what the sweep reaches
+    // Ten more went with components/SavingsCalculator.tsx, whose chrome was
+    // restyled off the gold and onto the case-file roles: the same quiet-ink
+    // pair (`text-ink-500 dark:text-cream-100/55`) was written out on ten
+    // separate elements, and it is one `NOTE` constant and the shared LABEL
+    // role now. The file is still read: adding an unresolvable class to it
+    // makes the "knows what every measured class paints" arm above name
+    // `components/SavingsCalculator.tsx`, which was checked rather than
+    // assumed before this number came down.
+    //
+    // The floor is therefore 1964, re-derived from what the sweep reaches
     // today. A floor that has to come down for any OTHER reason is a broken
     // pathspec, which is the thing these numbers exist to catch: re-derive
     // it, do not nudge it.
@@ -660,7 +669,7 @@ describe('the consumer light surface', () => {
     expect(FILES.filter((f) => /^components\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(
       80,
     );
-    expect(MEASURED.length).toBeGreaterThanOrEqual(1974);
+    expect(MEASURED.length).toBeGreaterThanOrEqual(1964);
     expect(LISTED.length).toBeGreaterThanOrEqual(1100);
     // And the two halves together are the whole sweep, so neither can
     // grow by eating the other unnoticed.

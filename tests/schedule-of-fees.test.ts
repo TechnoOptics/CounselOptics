@@ -79,6 +79,19 @@ describe('the matrices say what each tier actually includes', () => {
    * withholds, and it still catches the middle dot because the dot is a
    * withholding.
    */
+  /**
+   * The tier a tier says it inherits, read off its own features[] prose, or
+   * null when it claims no inheritance. "Everything in X, plus" is how the
+   * marketing copy states it and X is the tier's name verbatim.
+   */
+  const parentNamed = (tier: { features: readonly string[] }) => {
+    for (const f of tier.features) {
+      const m = /^Everything in (.+?), plus/i.exec(f);
+      if (m) return m[1];
+    }
+    return null;
+  };
+
   const MIDDLE_DOT = '·';
   const WITHHELD = new Set(['No', MIDDLE_DOT, '-']);
   const GRADED = ['No', 'Alerts', 'With SMS'];
@@ -117,19 +130,37 @@ describe('the matrices say what each tier actually includes', () => {
     expect(strength('With SMS')).toBe(2);
   });
 
+  it('positive control: the parent is read out of the inheritance line', () => {
+    expect(parentNamed({ features: ['Everything in Growing Firm, plus:'] })).toBe('Growing Firm');
+    expect(parentNamed({ features: ['everything in Starter, plus'] })).toBe('Starter');
+    expect(parentNamed({ features: ['Two cases', 'Bella from Plus'] })).toBe(null);
+  });
+
   it.each(audiences)(
-    '%s: a tier that inherits the one below it never offers less on any row',
+    '%s: a tier that inherits another never offers less than it on any row',
     (_name, tiers, rows) => {
-      const inheriting = tiers.filter((t) => t.features.some((f) => /^Everything in .+, plus/i.test(f)));
+      // N3-5. This used to compare against tiers[i - 1] and assume the tier
+      // named in the line was the adjacent one: a line naming a non-adjacent
+      // tier would have been silently graded against the wrong column, and a
+      // tier at index 0 declaring inheritance would have thrown on
+      // tiers[-1].name instead of failing with a message. The name is parsed
+      // out of the line now and the parent is looked up by it.
+      const inheriting = tiers
+        .map((tier, i) => ({ tier, i, parent: parentNamed(tier) }))
+        .filter((e) => e.parent !== null);
       expect(inheriting.length, 'no tier expresses inheritance any more').toBeGreaterThan(0);
-      for (const tier of inheriting) {
-        const i = tiers.indexOf(tier);
+      for (const { tier, i, parent } of inheriting) {
+        const p = tiers.findIndex((t) => t.name === parent);
+        expect(
+          p,
+          `${tier.name} says it inherits "${parent}", which is not a tier on this schedule`,
+        ).toBeGreaterThan(-1);
         for (const row of rows) {
           expect(
             strength(row.cells[i]),
-            `${tier.name} inherits ${tiers[i - 1].name}, but "${row.label}" drops from ` +
-              `"${row.cells[i - 1]}" to "${row.cells[i]}"`,
-          ).toBeGreaterThanOrEqual(strength(row.cells[i - 1]));
+            `${tier.name} inherits ${parent}, but "${row.label}" drops from ` +
+              `"${row.cells[p]}" to "${row.cells[i]}"`,
+          ).toBeGreaterThanOrEqual(strength(row.cells[p]));
         }
       }
     },
@@ -144,18 +175,26 @@ describe('the matrices say what each tier actually includes', () => {
    * and up". What makes them derived rather than asserted is Enterprise's
    * own inheritance line, which is what puts them under the assertion above.
    */
-  it('sources the two repeated Enterprise cells through an inheritance line', () => {
+  it('sources every repeated Enterprise cell through an inheritance line', () => {
+    // N3-5. The exact list of repeated labels used to be pinned here, which
+    // would have turned red on any future row that legitimately repeats
+    // (a Yes on both columns) with a message about sourcing that does not
+    // explain that failure. What the test is for is the sourcing, so that
+    // is all it asserts now, and its message names the repeats it found.
     const [growing, enterprise] = FIRM_TIERS.slice(-2);
     expect([growing.name, enterprise.name]).toEqual(['Growing Firm', 'Enterprise']);
     const gi = FIRM_TIERS.indexOf(growing);
     const ei = FIRM_TIERS.indexOf(enterprise);
     const repeats = FIRM_ROWS.filter((r) => r.cells[ei] === r.cells[gi]).map((r) => r.label);
-    expect(repeats).toEqual(['Firm letterhead on PDFs', 'Employee Hub']);
     expect(
-      enterprise.features.some((f) => new RegExp(`^Everything in ${growing.name}, plus`).test(f)),
+      repeats.length,
+      `no ${enterprise.name} cell repeats ${growing.name} any more, so this test guards nothing`,
+    ).toBeGreaterThan(0);
+    expect(
+      parentNamed(enterprise),
       `${repeats.join(' and ')} repeat ${growing.name}'s cell on ${enterprise.name}, and only ` +
         `${enterprise.name}'s own features[] can source that`,
-    ).toBe(true);
+    ).toBe(growing.name);
   });
 
   it('reads the consumer ladder off lib/personal-tiers.ts', () => {

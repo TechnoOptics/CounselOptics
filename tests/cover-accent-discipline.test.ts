@@ -24,7 +24,11 @@ import { stripComments } from './support/strip-comments';
  * labels, `focus:ring-gold-400`), found by reading the rendered page on
  * 2026-09-19 and fixed on 2026-09-19 by restyling it to the case-file roles;
  * it now has its own row below rather than being left to the import blind
- * spot again.
+ * spot again. components/SavingsCalculator.tsx (rendered by app/pricing/page.tsx)
+ * was the same shape and the largest live instance of it: a `ring-gold-metal`
+ * tool chip, an `accent-gold-metal` slider and a `text-gold-700` figure label,
+ * found in the 2026-09-19 pricing capture as 994 pixels of #c79532. Restyled to
+ * the case-file roles on 2026-09-19 and given its own row here.
  *
  * THE ONE ALLOWANCE. components/marketing/file/type.ts is one import hop from
  * all four pages and it does name the accent: the keyboard focus ring (review
@@ -55,6 +59,7 @@ const SURFACES: [string, number][] = [
   ['app/enterprise/page.tsx', 1],
   ['components/marketing/FeatureIndex.tsx', 0],
   ['components/EnterpriseInquiryForm.tsx', 0],
+  ['components/SavingsCalculator.tsx', 0],
   [TYPE_ROLES, 0],
 ];
 

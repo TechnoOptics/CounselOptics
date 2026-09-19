@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from '@/components/ExternalLink';
+import { BUTTON_INK, FOCUS, LABEL, LINK } from '@/components/marketing/file';
 import { FIRM_TIER_PRICING } from '@/lib/firm-pricing';
 
 /**
@@ -145,6 +146,31 @@ function pickAdvotticTier(attorneys: number) {
   return ADVOTTIC_TIERS[2];
 }
 
+/**
+ * The worksheet's chrome, in the case file's own vocabulary.
+ *
+ * The calculator used to be a rounded card ringed in ink with a gold-ringed
+ * chip per tool, a gold slider and a gold "You save" label: a second gold on
+ * a page whose one gold is the stamp on Pro. It is a worksheet clipped into
+ * the schedule of fees now, so it borrows the two edges the file already
+ * uses, and nothing here paints an accent.
+ *
+ * `PANEL` is Sheet's edge (`rounded-[3px] border border-rule bg-sheet`)
+ * without Sheet's shadow, which stays the one shadow on the site. `TOOL` is
+ * SheetRow's dotted rule, so a tool reads as a line on a form rather than as
+ * a tile; the tick box beside it fills with ink when the tool is on.
+ * `COUNT` is the inquiry form's control shape. Every figure is Caslon and
+ * tabular, the same setting the price cells above it use.
+ */
+const PANEL = 'rounded-[3px] border border-rule bg-sheet';
+const TOOL =
+  `grid w-full grid-cols-[18px_1fr_auto] items-baseline gap-x-3 border-b border-dotted border-rule py-2.5 text-left hover:bg-forest-900/[0.04] dark:hover:bg-cream-100/5 ${FOCUS}`;
+const TICK = 'translate-y-[1px] inline-block h-3.5 w-3.5 rounded-[1px] border';
+const COUNT =
+  `w-20 rounded-[3px] border border-rule bg-transparent px-2 py-2.5 text-center font-courier text-[14px] tabular-nums text-forest-900 dark:text-cream-100 ${FOCUS}`;
+const FIGURE = 'mt-1 font-caslon text-[26px] leading-none tabular-nums text-forest-900 dark:text-cream-100';
+const NOTE = 'font-public text-[12px] leading-snug text-ink-600 dark:text-cream-100/60';
+
 const USD = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -185,26 +211,21 @@ export function SavingsCalculator() {
   }
 
   return (
-    <section
-      aria-label="Savings calculator"
-      className="rounded-2xl ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 p-6 sm:p-8 space-y-6"
-    >
+    <section aria-label="Savings calculator" className={`${PANEL} space-y-6 p-6 sm:p-7`}>
       <header className="space-y-2">
-        <p className="eyebrow">Savings calculator</p>
-        <h2 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+        <p className={LABEL}>Savings calculator</p>
+        <h2 className="font-caslon-text text-[22px] leading-tight text-forest-900 dark:text-cream-100">
           What does Advottic save your firm?
         </h2>
-        <p className="text-[13.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-prose">
+        <p className="max-w-[62ch] font-public text-[13.5px] leading-relaxed text-ink-700 dark:text-cream-100/80">
           Tick the tools you currently pay for, enter your attorney count, see
           the annual delta. Mid-tier list pricing; your real bill may differ.
         </p>
       </header>
 
-      <div className="space-y-3">
-        <p className="text-[12px] font-mono uppercase tracking-[0.18em] text-ink-500 dark:text-cream-100/55">
-          Tools you currently use
-        </p>
-        <ul className="grid sm:grid-cols-2 gap-2">
+      <div className="space-y-2">
+        <p className={LABEL}>Tools you currently use</p>
+        <ul className="grid sm:grid-cols-2 sm:gap-x-8">
           {TOOLS.map((t) => {
             const on = selected.has(t.id);
             return (
@@ -213,21 +234,23 @@ export function SavingsCalculator() {
                   type="button"
                   onClick={() => toggle(t.id)}
                   aria-pressed={on}
-                  className={`w-full text-left rounded-lg p-3 ring-1 transition-colors ${
-                    on
-                      ? 'ring-2 ring-gold-metal bg-amber-50/40 dark:ring-amber-500/60 dark:bg-amber-950/15'
-                      : 'ring-ink-200 dark:ring-forest-700/40 bg-cream-50/30 dark:bg-forest-900/40 hover:ring-ink-300'
-                  }`}
+                  className={TOOL}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-forest-900 dark:text-cream-100 text-[13.5px]">
-                      {t.name}
-                    </span>
-                    <span className="text-[11px] font-mono tabular-nums text-ink-600 dark:text-cream-100/65">
-                      {USD.format(t.pricePerUserMonth)}/seat/mo
-                    </span>
-                  </div>
-                  <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-snug mt-0.5">
+                  <span
+                    aria-hidden
+                    className={`${TICK} ${
+                      on
+                        ? 'border-forest-900 bg-forest-900 dark:border-cream-100 dark:bg-cream-100'
+                        : 'border-rule'
+                    }`}
+                  />
+                  <span className="min-w-0 font-public text-[13.5px] text-forest-900 dark:text-cream-100">
+                    {t.name}
+                  </span>
+                  <span className="font-courier text-[11.5px] tabular-nums text-ink-600 dark:text-cream-100/60">
+                    {USD.format(t.pricePerUserMonth)}/seat/mo
+                  </span>
+                  <p className={`${NOTE} col-start-2 col-span-2 mt-0.5`}>
                     {t.blurb}
                   </p>
                 </button>
@@ -238,10 +261,7 @@ export function SavingsCalculator() {
       </div>
 
       <div className="space-y-2">
-        <label
-          htmlFor="attorney-count"
-          className="text-[12px] font-mono uppercase tracking-[0.18em] text-ink-500 dark:text-cream-100/55 block"
-        >
+        <label htmlFor="attorney-count" className={`${LABEL} block`}>
           Number of attorneys
         </label>
         <div className="flex items-center gap-3">
@@ -252,7 +272,7 @@ export function SavingsCalculator() {
             max={50}
             value={attorneys}
             onChange={(e) => setAttorneys(Number(e.target.value))}
-            className="flex-1 accent-gold-metal"
+            className={`flex-1 accent-forest-900 dark:accent-cream-100 ${FOCUS}`}
             aria-valuemin={1}
             aria-valuemax={50}
             aria-valuenow={attorneys}
@@ -265,75 +285,58 @@ export function SavingsCalculator() {
             onChange={(e) =>
               setAttorneys(Math.max(1, Math.min(500, Number(e.target.value) || 1)))
             }
-            className="input w-20 text-center tabular-nums"
+            className={COUNT}
             aria-label="Number of attorneys (manual entry)"
           />
         </div>
       </div>
 
-      <div className="rounded-xl ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/30 dark:bg-forest-900/40 p-5 sm:p-6">
-        <div className="grid sm:grid-cols-3 gap-4">
+      <div className="border-t border-forest-900 pt-5 dark:border-cream-100/40">
+        <div className="grid gap-5 sm:grid-cols-3 sm:gap-6">
           <div>
-            <p className="text-[10.5px] font-mono uppercase tracking-[0.18em] text-ink-500 dark:text-cream-100/55">
-              Current annual spend
-            </p>
-            <p className="font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100 mt-1">
-              {USD.format(result.currentAnnual)}
-            </p>
-            <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+            <p className={LABEL}>Current annual spend</p>
+            <p className={FIGURE}>{USD.format(result.currentAnnual)}</p>
+            <p className={`${NOTE} mt-1.5`}>
               {selected.size} tool{selected.size === 1 ? '' : 's'} × {attorneys}{' '}
               attorney{attorneys === 1 ? '' : 's'}
             </p>
           </div>
-          <div>
-            <p className="text-[10.5px] font-mono uppercase tracking-[0.18em] text-ink-500 dark:text-cream-100/55">
-              Advottic annual cost
-            </p>
-            <p className="font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100 mt-1">
-              {USD.format(result.advotticAnnual)}
-            </p>
-            <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+          <div className="sm:border-l sm:border-rule sm:pl-6">
+            <p className={LABEL}>Advottic annual cost</p>
+            <p className={FIGURE}>{USD.format(result.advotticAnnual)}</p>
+            <p className={`${NOTE} mt-1.5`}>
               {result.advotticTier.name} ·{' '}
               {USD.format(result.advotticTier.pricePerUserMonth)}/seat/mo
             </p>
-            <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-0.5">
+            <p className={`${NOTE} mt-0.5`}>
               Includes {result.advotticTier.mattersPerAttorney} matters /
               attorney. Extras metered in Bella tokens.
             </p>
           </div>
-          <div>
-            <p className="text-[10.5px] font-mono uppercase tracking-[0.18em] text-gold-700 dark:text-amber-300">
-              You save
-            </p>
-            <p className="font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100 mt-1">
-              {USD.format(result.savings)}
-            </p>
-            <p className="text-[11.5px] text-emerald-700 dark:text-emerald-300 mt-0.5">
-              {result.pct}% less per year
-            </p>
+          <div className="sm:border-l sm:border-rule sm:pl-6">
+            <p className={LABEL}>You save</p>
+            <p className={FIGURE}>{USD.format(result.savings)}</p>
+            <p className={`${NOTE} mt-1.5`}>{result.pct}% less per year</p>
           </div>
         </div>
         {result.currentAnnual === 0 && (
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-3">
+          <p className={`${NOTE} mt-4`}>
             Tick at least one tool above to see the comparison.
           </p>
         )}
         {selected.size > 0 && result.savings === 0 && (
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-3">
+          <p className={`${NOTE} mt-4`}>
             At your scale and tool mix, Advottic isn&rsquo;t cheaper. Check
             the comparison pages below to see where each tool wins.
           </p>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 pt-1">
-        <Link
-          href="/sign-in?next=/counsel/onboarding"
-          className="btn-primary"
-        >
+      <div className="flex flex-wrap items-center gap-5 pt-1">
+        <Link href="/sign-in?next=/counsel/onboarding" className={BUTTON_INK}>
           Start a 7-day free trial
         </Link>
-        <Link href="/compare" className="btn-secondary">
+        <Link href="/compare" className={LINK}>
           See feature comparisons
         </Link>
       </div>
@@ -342,22 +345,22 @@ export function SavingsCalculator() {
           rate above next to the public pricing URL we sourced it
           from, plus the review date. Harvey does not publish list
           pricing so we mark it as industry-reported. Refresh quarterly. */}
-      <div className="space-y-2">
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+      <div className="space-y-2 border-t border-dotted border-rule pt-4">
+        <p className={`${NOTE} text-[11px] leading-relaxed`}>
           Per-seat list prices last reviewed{' '}
-          <span className="font-medium">{PRICING_REVIEWED_AT}</span> from
+          <span className="font-semibold">{PRICING_REVIEWED_AT}</span> from
           each vendor&rsquo;s public pricing page; we refresh quarterly.
           Negotiated annual contracts often differ. Advottic firm tiers
           described above do not change with the calculator.
         </p>
-        <details className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-          <summary className="cursor-pointer underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100">
+        <details className={`${NOTE} text-[11px] leading-relaxed`}>
+          <summary className={`cursor-pointer underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100 ${FOCUS}`}>
             Show sources for each rate
           </summary>
           <ul className="mt-2 space-y-1 pl-1">
             {TOOLS.map((t) => (
-              <li key={t.id} className="font-mono tabular-nums">
-                <span className="font-sans">{t.name}</span>{' '}
+              <li key={t.id} className="font-courier tabular-nums">
+                <span className="font-public">{t.name}</span>{' '}
                 {USD.format(t.pricePerUserMonth)}/seat/mo,{' '}
                 {t.sourceUrl ? (
                   <ExternalLink
@@ -367,7 +370,7 @@ export function SavingsCalculator() {
                     {t.sourceUrl.replace(/^https?:\/\//, '')}
                   </ExternalLink>
                 ) : (
-                  <span className="italic">
+                  <span className="font-public">
                     industry-reported (vendor does not publish list pricing)
                   </span>
                 )}

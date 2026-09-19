@@ -13,6 +13,7 @@ const FILES = [
   'components/marketing/file/Schedule.tsx', 'components/marketing/file/FilePage.tsx',
   'components/marketing/file/Prose.tsx', 'components/marketing/file/Memo.tsx',
   'components/marketing/file/Entry.tsx', 'components/EnterpriseInquiryForm.tsx',
+  'components/SavingsCalculator.tsx',
 ];
 const PAGES = FILES.filter((f) => f.startsWith('app/'));
 

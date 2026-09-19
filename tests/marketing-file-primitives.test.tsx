@@ -8,6 +8,7 @@ import {
   FilePage,
   FOCUS,
   Memo,
+  Prose,
   Schedule,
   Section,
   Sheet,
@@ -83,11 +84,26 @@ describe('Section', () => {
   });
   it('keeps the binder-tab glyph out of the accessible name', () => {
     // N10. The id sits on the div that wraps both the Caslon tab letter and
-    // the Courier label, so without this the regions announce as "A What
-    // goes in" and "Intake Step 1 of 5". The letter is a binder tab, not a
-    // word: it is decoration for the eye and noise in the landmark list.
-    const out = html(createElement(Section, { tab: 'A', label: 'What goes in' }, 'body'));
-    expect(out).toMatch(/<span aria-hidden="true"[^>]*font-caslon[^>]*>A<\/span>/);
+    // the Courier label, so without this the region announces as "A What
+    // goes in". A letter or a numeral is a binder tab: decoration for the
+    // eye and noise in the landmark list.
+    for (const glyph of ['A', 'E', 'I', 'II']) {
+      const out = html(createElement(Section, { tab: glyph, label: 'What goes in' }, 'body'));
+      expect(out, `${glyph} should be hidden`).toMatch(
+        new RegExp(`<span aria-hidden="true"[^>]*font-caslon[^>]*>${glyph}</span>`),
+      );
+    }
+  });
+  it('keeps a tab that is a word in the accessible name', () => {
+    // N3-1. Hiding the tab unconditionally cost the five enterprise regions
+    // their subject: they pass the word as `tab` and the ordinal as `label`
+    // (app/enterprise/page.tsx), so "Intake Step 1 of 5" announced as
+    // "Step 1 of 5". A word is the section's name, not a binder glyph.
+    for (const word of ['Intake', 'Packet', 'With legal']) {
+      const out = html(createElement(Section, { tab: word, label: 'Step 1 of 5' }, 'body'));
+      expect(out, `${word} should be announced`).not.toMatch(/aria-hidden/);
+      expect(out).toContain(`>${word}</span>`);
+    }
   });
   it('leaves an unlabelled section plain, rather than a nameless region', () => {
     // Prose renders its body block as <Section label="">; a <section> with
@@ -98,6 +114,44 @@ describe('Section', () => {
   it('gives the body column min-w-0 so a long headline cannot widen the page', () => {
     const out = html(createElement(Section, { label: 'x' }, 'body'));
     expect(out).toMatch(/<div class="min-w-0[^"]*">body<\/div>/);
+  });
+});
+
+describe('Prose', () => {
+  /**
+   * The body block's class list, with the entities React writes back out.
+   * A Tailwind arbitrary variant is full of `&` and `>`, and both are
+   * escaped in the rendered attribute, so a regex written the way the class
+   * is spelled in the source matches nothing and the assertion reads as a
+   * missing feature rather than as a missing unescape.
+   */
+  const proseBody = () => {
+    const out = html(createElement(Prose, { label: 'About', title: 'x', children: 'body' }));
+    const raw = /class="(max-w-\[72ch\][^"]*)"/.exec(out)?.[1] ?? '';
+    return raw.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+  };
+
+  it('gives a heading more air above it than below it', () => {
+    // N3-2. The body styles set the h2's face and size and no margin at all,
+    // and the pages Prose wraps set none of their own, so a heading had 32px
+    // above it (leading, at 1440) where two paragraphs of the same page had
+    // 46px between them: the heading read as the tail of the block above it
+    // rather than the head of the block below. Rendered rather than read off
+    // the source, so the comment explaining the rule cannot satisfy it.
+    const body = proseBody();
+    expect(body, 'the Prose body block is gone').toBeTruthy();
+    const top = /\[&_h2\]:mt-(\d+)/.exec(body)?.[1];
+    expect(top, 'an h2 in Prose has no top margin').toBeTruthy();
+    const bottom = /\[&_h2\]:mb-(\d+)/.exec(body)?.[1] ?? '0';
+    expect(Number(top)).toBeGreaterThan(Number(bottom));
+  });
+  it('keeps the first block tight to the headline above it', () => {
+    // The same margin on a page that opens on a heading, or on a wrapper
+    // whose own first child is one, would push the body away from the h1
+    // Section; margin collapsing carries it out through the wrapper.
+    const body = proseBody();
+    expect(body).toContain('[&>*:first-child]:mt-0');
+    expect(body).toContain('[&>*:first-child>h2:first-child]:mt-0');
   });
 });
 

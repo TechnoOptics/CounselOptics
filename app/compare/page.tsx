@@ -38,7 +38,7 @@ export default function CompareHubPage() {
     <Prose
       label="Compare"
       title="Honest, side-by-side comparisons."
-      lede="Real pricing. Real features. Where each tool wins, and where it loses. We name the competitor in the title because that’s what you searched for."
+      lede="Real pricing. Real features. Where each tool wins, and where it loses. We name the competitor in the title because that's what you searched for."
     >
       <BreadcrumbJsonLd
         items={[

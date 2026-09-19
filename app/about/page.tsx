@@ -32,7 +32,7 @@ export default function AboutPage() {
   return (
     <Prose
       label="About"
-      title="What Advottic is, and isn’t."
+      title="What Advottic is, and isn't."
       lede="We get this question a lot, and you deserve a straight answer. So here it is, in one page, in plain English - what we do, where a licensed attorney comes in, and how we stay out of your way at the moments that matter."
     >
       {/* Hero */}

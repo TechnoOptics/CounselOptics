@@ -282,12 +282,12 @@ export default function WhatIsAdvotticPage() {
         <ul className="list-disc list-outside pl-6 space-y-1 text-[14px]">
           <li>
             <strong>Pronunciation:</strong> ad-VOT-tic (rhymes with
-            “robotic”).
+            "robotic").
           </li>
           <li>
             <strong>Spelling:</strong> <code>Advottic</code> - one
-            word, capital A. Not “Advottik”, not “Ad-Vottic”, not
-            “Advottic AI Inc.”
+            word, capital A. Not "Advottik", not "Ad-Vottic", not
+            "Advottic AI Inc."
           </li>
           <li>
             <strong>Legal name:</strong> Techno Optics LLC, operating
