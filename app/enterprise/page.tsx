@@ -191,8 +191,47 @@ export default function EnterprisePage() {
 function Cover() {
   return (
     <Band className="enterprise-shell bg-paper pb-14 pt-12 text-cream-100 sm:pb-20 sm:pt-16">
-      <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
-        <div className="min-w-0 lg:col-span-7">
+      {/*
+        Two tracks with one gutter, not `lg:grid-cols-12` with eleven. A
+        twelve track grid applies the gutter between every pair of tracks,
+        so `lg:gap-14` spent 693px of the row on gaps: at 1024 each of the
+        twelve tracks measured 20.1px and `lg:col-span-5` rendered 352.4px,
+        not the 5/12 it reads as asking for; at 1280 and above, 425.8px.
+        This is the same shape the home cover carried, and it is written
+        out at app/page.tsx:117.
+
+        It was latent here rather than live. This cover sits inside a Band,
+        which is full bleed with FilePage's own 1200px column, so its row is
+        934px at 1024 and 1110px from 1280 up, against the 689px and 865px
+        Section leaves the home cover once its binder tab opens. The eleven
+        gutters never exceeded the row, no track collapsed to zero, and with
+        SheetRow wrapping instead of truncating no row was cut. What the
+        narrow sheet cost was lines: at 1024 the sheet's own kicker broke
+        "Matter file" and "Commercial, trade secret" over two lines each.
+
+        Even tracks rather than 7 and 5, as on the home cover and in Entry,
+        the copy-beside-a-sheet block the rest of the site is built from.
+        Measured against 7/5, 6/5 and 11/10 at 1024, 1152, 1280 and 1440,
+        what the sheet needs is any split at or near even: 7/5 leaves it
+        436px at 1440, where rows 1 and 2 still wrap, while even gives it
+        523.5px and every row one line from 1152 up. 11/10 reaches one line
+        too, 25px narrower, and nothing chooses between them on the page, so
+        even is the one to spell: it is what the home cover and Entry carry,
+        and a ratio the rendering does not ask for is a number nobody can
+        check later. The headline pays three lines instead of two, which is
+        what the home cover's headline does as well, and no line of it
+        overflows its column at any width: the longest measures 393.6px of
+        435.5px at 1024 and 461.2px of 523.5px at 1280.
+
+        At `lg`, not the `xl` the home cover holds itself back to. That `xl`
+        is about Section's 200px binder tab, which Band has no equivalent
+        of: this cover has 934px at 1024 where the home cover has 689px, so
+        an even split here is 435.5px a column, wider than the home cover
+        gets at any width. Entry already splits at `lg` on 689px. Below lg
+        the cover stacks, as it already did.
+      */}
+      <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14">
+        <div className="min-w-0">
           <p className={LABEL_CREAM}>Advottic for firms. In-house. Counsel.</p>
           <h1 className={`${H1_CREAM} mt-3`}>Stop hunting for the right version of the file.</h1>
           <p className={`${BODY_CREAM} mt-6`}>
@@ -209,7 +248,7 @@ function Cover() {
             </Link>
           </div>
         </div>
-        <div className="min-w-0 lg:col-span-5">
+        <div className="min-w-0">
           {/*
             pb-24 reserves the stamp's own space; at pb-16 the rendered
             stamp still crossed "Draft" on row 4 at every width. The `sm:`
