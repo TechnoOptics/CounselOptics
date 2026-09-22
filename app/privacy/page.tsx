@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Privacy Policy',
@@ -16,10 +17,8 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <article className="max-w-3xl mx-auto prose-sm space-y-6 text-ink-800 dark:text-cream-100/85 leading-relaxed">
+    <Prose label="Privacy" title="Privacy Policy">
       <header>
-        <p className="eyebrow mb-2">Privacy</p>
-        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">Privacy Policy</h1>
         <p className="text-xs text-ink-500 mt-1">Last updated: 2026-04-25</p>
       </header>
 
@@ -115,9 +114,9 @@ export default function PrivacyPage() {
             only. When a user triggers Safe Witness, we send Twilio the
             recipient phone number and the alert text (which includes a
             short verification PIN the user pre-shared with the contact,
-            the user&rsquo;s GPS location URL, and a tel:911 link). Twilio
+            the user's GPS location URL, and a tel:911 link). Twilio
             is not used for any marketing or recurring messaging. The
-            recipient must have been explicitly added to the user&rsquo;s
+            recipient must have been explicitly added to the user's
             Safe Witness contacts list inside Advottic before any
             message can be sent, and the user can remove the contact at
             any time from /profile to revoke future messages.
@@ -196,7 +195,7 @@ export default function PrivacyPage() {
           information from anyone under 18.
         </p>
         <p>
-          In line with the U.S. Children&rsquo;s Online Privacy Protection
+          In line with the U.S. Children's Online Privacy Protection
           Act (COPPA), if we learn that we have collected personal
           information from a child under 13 without verifiable parental
           consent, we will delete that information promptly. If you are a
@@ -243,14 +242,14 @@ export default function PrivacyPage() {
           <li>
             <strong>Tracking.</strong> The mobile apps do not track you across
             other apps or websites and do not include third-party advertising
-            SDKs. Apple&rsquo;s App Tracking Transparency prompt will not be
+            SDKs. Apple's App Tracking Transparency prompt will not be
             shown because we do not request the IDFA.
           </li>
           <li>
             <strong>Children.</strong> Same rule as the web service: the
             mobile apps are not directed at anyone under 18, and we do not
             knowingly collect personal information from anyone under 18.
-            See the &ldquo;Children&rdquo; section above for full details
+            See the "Children" section above for full details
             and the COPPA contact path.
           </li>
         </ul>
@@ -265,7 +264,7 @@ export default function PrivacyPage() {
           for any privacy-related question or to exercise a right above.
         </p>
       </Section>
-    </article>
+    </Prose>
   );
 }
 

@@ -3,7 +3,15 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Suspense } from 'react';
 import { headers } from 'next/headers';
-import { Inter, Saira_Condensed, Fraunces } from 'next/font/google';
+import {
+  Inter,
+  Saira_Condensed,
+  Fraunces,
+  Libre_Caslon_Display,
+  Libre_Caslon_Text,
+  Public_Sans,
+  Courier_Prime,
+} from 'next/font/google';
 import './globals.css';
 import { UserMenu } from '@/components/UserMenu';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -32,6 +40,7 @@ import { IdleLogout } from '@/components/IdleLogout';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { GetTheApp } from '@/components/GetTheApp';
 import { FooterCol } from '@/components/FooterCol';
+import { LABEL } from '@/components/marketing/file/type';
 import { NativePlatformBoot } from '@/components/NativePlatformBoot';
 import { nativePlatformFromUserAgent, nativeHtmlClass } from '@/lib/platform';
 import { BlankScreenWatchdog } from '@/components/BlankScreenWatchdog';
@@ -88,6 +97,35 @@ const display = Fraunces({
   weight: ['400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-display',
+});
+
+// The case-file faces for the public marketing site. See
+// docs/superpowers/specs/2026-09-05-marketing-case-file-design.md section 2.1.
+// Inter and Fraunces above stay for the signed-in shells.
+const caslon = Libre_Caslon_Display({
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
+  variable: '--font-caslon',
+});
+const caslonText = Libre_Caslon_Text({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+  variable: '--font-caslon-text',
+});
+const publicSans = Public_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '800'],
+  display: 'swap',
+  variable: '--font-public',
+});
+const courier = Courier_Prime({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  display: 'swap',
+  variable: '--font-courier',
 });
 
 // Resolve the canonical site URL for metadataBase, OG images, and
@@ -522,7 +560,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang={serverLanguage ?? 'en'}
-      className={`${sans.variable} ${wordmark.variable} ${display.variable} ${nativeClass} ${surfaceClass ?? ''}`.trim()}
+      className={`${sans.variable} ${wordmark.variable} ${display.variable} ${caslon.variable} ${caslonText.variable} ${publicSans.variable} ${courier.variable} ${nativeClass} ${surfaceClass ?? ''}`.trim()}
       suppressHydrationWarning
     >
       <head>
@@ -588,7 +626,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   content below the iOS notch AND the Android 15+
                   status bar - see the --safe-top definition in
                   globals.css for why env() alone fails on Android. */}
-              <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[var(--safe-top)]">
+              <div className="relative z-30 bg-forest-950 pt-[var(--safe-top)]">
                 <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between">
                   <Link
                     href={signedIn ? '/cases' : '/'}
@@ -613,6 +651,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     />
                   </Link>
                   <div className="flex items-center gap-1">
+                    {!signedIn && (
+                      <nav aria-label="Site" className="mr-4 hidden items-center gap-6 md:flex">
+                        <Link href="/pricing" data-hide-in-app className="font-public text-[14px] font-medium text-cream-100/85 no-underline hover:text-cream-100">Pricing</Link>
+                        <Link href="/features" className="font-public text-[14px] font-medium text-cream-100/85 no-underline hover:text-cream-100">Features</Link>
+                        <Link href="/enterprise" className="font-public text-[14px] font-medium text-cream-100/85 no-underline hover:text-cream-100">For firms</Link>
+                        <Link href="/what-is-advottic" className="font-public text-[14px] font-medium text-cream-100/85 no-underline hover:text-cream-100">What Advottic is</Link>
+                      </nav>
+                    )}
                     {/* Signed IN: the language selector lives inside the
                         account menu (UserMenu) so it no longer overlaps the
                         Advottic wordmark on narrow mobile widths. Signed OUT
@@ -749,30 +795,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
         </SafeMount>
         {showSiteChrome && (
-        <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
-          <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
+        <footer className="border-t border-forest-900 bg-paper font-public dark:border-cream-100/40">
+          <div className="mx-auto max-w-[1200px] px-4 py-8 text-[12px] text-ink-600 dark:text-cream-100/60 sm:px-6 lg:px-10 sm:py-10">
             {/* Get-the-app row: real <a> links to the store listings so
                 a brand search can surface the install option, and so
                 visitors can download from any page. Google Play is live;
                 the App Store badge appears automatically once iOS is
                 live (NEXT_PUBLIC_IOS_APP_LIVE - see lib/app-links). */}
-            <div
-              data-hide-in-app
-              className="pb-6 mb-6 border-b border-ink-100 dark:border-forest-700/40 flex flex-wrap items-center justify-between gap-4"
-            >
+            <div data-hide-in-app className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-rule pb-6">
               <div>
-                <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
-                  Get the Advottic app
-                </p>
-                <p className="mt-0.5 text-[11px]">
-                  Your cases, legal tools, and Safe Alert, on your phone.
-                </p>
+                <p className={LABEL}>Get the Advottic app</p>
+                <p className="mt-0.5 text-[11px]">Your cases, legal tools, and Safe Alert, on your phone.</p>
               </div>
               <GetTheApp />
             </div>
             <div className="grid gap-6 sm:gap-8 grid-cols-2 md:grid-cols-4">
               <div className="space-y-1.5 col-span-2 md:col-span-1">
-                <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
+                <p className={LABEL}>
                   Advottic
                 </p>
                 <p className="leading-relaxed">
@@ -830,21 +869,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <span className="block">Operated from Minnesota, USA.</span>
               </FooterCol>
             </div>
-            <div className="mt-6 sm:mt-8 pt-4 sm:pt-5 border-t border-ink-100 dark:border-forest-700/40 flex flex-wrap items-center justify-between gap-2">
-              <p className="font-mono tracking-tight">
-                © {new Date().getFullYear()} Advottic LLC. All rights reserved.
-              </p>
-              <p className="text-ink-500 dark:text-cream-100/70">
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-rule pt-5 font-courier text-[11.5px]">
+              <p>© {new Date().getFullYear()} Advottic LLC. All rights reserved.</p>
+              <p>
                 Powered by{' '}
-                <ExternalLink
-                  href="https://technooptics.com"
-                  className="font-semibold text-forest-900 dark:text-cream-100 underline-offset-2 hover:underline hover:text-gold-700 dark:hover:text-gold-300 transition-colors"
-                >
+                <ExternalLink href="https://technooptics.com" className="font-bold no-underline hover:underline">
                   Techno Optics LLC
                 </ExternalLink>
               </p>
             </div>
-            <p className="mt-3 text-[10px] leading-relaxed text-ink-500 dark:text-cream-100/70 max-w-3xl">
+            <p className="mt-4 max-w-[90ch] font-courier text-[11.5px] leading-relaxed">
               Advottic is a service of Techno Optics LLC. Advottic Review and Bella generate
               informational content automatically; outputs may be incomplete, outdated, or
               wrong and are not legal advice. Always consult a licensed attorney in your

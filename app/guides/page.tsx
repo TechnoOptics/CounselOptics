@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { GUIDES } from '@/lib/guides';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata: Metadata = {
   title: { absolute: 'Legal-prep guides · Advottic' },
@@ -36,22 +37,15 @@ export default function GuidesIndexPage() {
     })),
   };
   return (
-    <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-8 text-ink-800 dark:text-cream-100/85 leading-relaxed">
+    <Prose
+      label="Guides"
+      title="Specific questions, plain-English answers."
+      lede="Each guide is a calm checklist for a specific legal-prep moment: what to do today, what to do this week, and which hotlines to call if things are urgent. Not legal advice."
+    >
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <header className="space-y-2">
-        <p className="eyebrow">Guides</p>
-        <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Specific questions, plain-English answers.
-        </h1>
-        <p className="text-base text-ink-600 dark:text-cream-100/70 max-w-2xl">
-          Each guide is a calm checklist for a specific legal-prep
-          moment: what to do today, what to do this week, and which
-          hotlines to call if things are urgent. Not legal advice.
-        </p>
-      </header>
 
       <ul className="space-y-5">
         {GUIDES.map((g) => (
@@ -90,6 +84,6 @@ export default function GuidesIndexPage() {
           before acting on any of them.
         </p>
       </section>
-    </article>
+    </Prose>
   );
 }

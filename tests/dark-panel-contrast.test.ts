@@ -331,12 +331,35 @@ describe('the hand-painted dark panels clear their own grounds', () => {
     }
   });
 
-  it('gives the enterprise sector tagline the full ink on its gold tab', () => {
+  it('keeps the enterprise sector tagline at full ink on its selected tab, whatever dilutes it', () => {
     // forest-950 at 65% on bg-gold-metal measured 3.50:1. The alpha was
-    // buying nothing the gold ground did not already give.
-    const tabs = src('components/EnterpriseSectorTabs.tsx');
-    expect(tabs).not.toMatch(/text-forest-950\/\d+/);
-    expect(tabs).toContain("'text-forest-950'");
+    // buying nothing the gold ground did not already give. Task 7 dropped
+    // the gold tab for a solid forest/cream fill, but a second dilution
+    // mechanism was still landing on the selected tab: opacity-70 on the
+    // tagline span, applied unconditionally regardless of selection. This
+    // reads the tagline span's class branches directly and rejects EITHER
+    // an alpha-suffixed colour class or an opacity utility on the SELECTED
+    // branch; the unselected branch is free to carry either as its quiet
+    // treatment.
+    const tabs = code('components/EnterpriseSectorTabs.tsx');
+    const span = /<span className=\{([\s\S]*?)\}>\{s\.tagline\}<\/span>/.exec(tabs);
+    expect(span, 'the tagline span moved, or no longer takes a dynamic className').not.toBeNull();
+    const expr = span![1];
+    const branches =
+      /sector\s*===\s*s\.key\s*\?\s*'([^']*)'\s*:\s*'([^']*)'/.exec(expr) ??
+      /s\.key\s*===\s*sector\s*\?\s*'([^']*)'\s*:\s*'([^']*)'/.exec(expr);
+    expect(
+      branches,
+      'the tagline class no longer branches on whether its tab is selected',
+    ).not.toBeNull();
+    const selected = branches![1];
+    expect(selected, 'the selected tagline still carries an opacity utility').not.toMatch(
+      /opacity-\d+/,
+    );
+    expect(
+      selected,
+      'the selected tagline still carries an alpha-suffixed colour class',
+    ).not.toMatch(/\/\d+/);
   });
 
   it('names the theme on the dark strips that paint from status tokens', () => {

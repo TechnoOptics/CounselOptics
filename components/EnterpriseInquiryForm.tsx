@@ -2,6 +2,18 @@
 
 import { useState } from 'react';
 import { submitEnterpriseInquiryAction } from '@/lib/actions';
+import { BUTTON_INK, FOCUS, LABEL, LINK } from '@/components/marketing/file';
+
+/**
+ * The form sits in the "Talk to us" Section, on the ordinary paper ground
+ * (theme-aware forest ink on light, cream on dark), not on the forest cover.
+ * `CONTROL` is the one input/select/textarea shape so the seven controls
+ * cannot drift from each other: a ruled edge (`border-rule`, the case
+ * file's only border colour), a transparent ground rather than a floating
+ * card, and the shared `FOCUS` ring.
+ */
+const CONTROL =
+  `w-full rounded-[3px] border border-rule bg-transparent px-3 py-2.5 font-public text-sm text-forest-900 placeholder-ink-400 dark:text-cream-100 dark:placeholder-cream-100/35 ${FOCUS}`;
 
 const SECTORS = [
   { value: 'firm', label: 'Private firm' },
@@ -53,21 +65,16 @@ export function EnterpriseInquiryForm() {
   if (submitted) {
     return (
       <div className="space-y-4">
-        <p className="text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-300">
-          Inquiry received
-        </p>
-        <h3 className="font-display text-2xl tracking-tight text-cream-100">
+        <p className={LABEL}>Inquiry received</p>
+        <h3 className="font-public text-lg font-semibold text-forest-900 dark:text-cream-100">
           Thanks for reaching out.
         </h3>
-        <p className="text-sm leading-relaxed text-cream-100/80">
+        <p className="text-sm leading-relaxed text-ink-700 dark:text-cream-100/80">
           A real human will read your inquiry and reply within one business day. While you wait,
           you&apos;re welcome to start a free personal trial - it runs the same software your
           firm would use, just sized for one matter.
         </p>
-        <a
-          href="/cases/new"
-          className="inline-flex items-center gap-2 mt-2 text-sm font-semibold text-gold-300 underline-offset-4 hover:underline"
-        >
+        <a href="/cases/new" className={`${LINK} inline-flex items-center gap-2 mt-2`}>
           Try the personal experience while you wait
           <ArrowRight />
         </a>
@@ -78,7 +85,7 @@ export function EnterpriseInquiryForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="firm-name" className="block text-[11px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-1.5">
+        <label htmlFor="firm-name" className={`${LABEL} block mb-1.5`}>
           Firm or organization name *
         </label>
         <input
@@ -87,14 +94,14 @@ export function EnterpriseInquiryForm() {
           type="text"
           required
           maxLength={200}
-          className="w-full rounded-lg border border-cream-100/20 bg-forest-950/60 px-3 py-2.5 text-sm text-cream-100 placeholder-cream-100/35 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400"
+          className={CONTROL}
           placeholder="e.g. Smith &amp; Jones LLP"
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="contact-name" className="block text-[11px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-1.5">
+          <label htmlFor="contact-name" className={`${LABEL} block mb-1.5`}>
             Your name *
           </label>
           <input
@@ -103,12 +110,12 @@ export function EnterpriseInquiryForm() {
             type="text"
             required
             maxLength={120}
-            className="w-full rounded-lg border border-cream-100/20 bg-forest-950/60 px-3 py-2.5 text-sm text-cream-100 placeholder-cream-100/35 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400"
+            className={CONTROL}
             placeholder="Jane Doe"
           />
         </div>
         <div>
-          <label htmlFor="contact-role" className="block text-[11px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-1.5">
+          <label htmlFor="contact-role" className={`${LABEL} block mb-1.5`}>
             Your role
           </label>
           <input
@@ -116,14 +123,14 @@ export function EnterpriseInquiryForm() {
             name="contactRole"
             type="text"
             maxLength={120}
-            className="w-full rounded-lg border border-cream-100/20 bg-forest-950/60 px-3 py-2.5 text-sm text-cream-100 placeholder-cream-100/35 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400"
+            className={CONTROL}
             placeholder="Managing Partner"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="email" className="block text-[11px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-1.5">
+        <label htmlFor="email" className={`${LABEL} block mb-1.5`}>
           Work email *
         </label>
         <input
@@ -132,14 +139,14 @@ export function EnterpriseInquiryForm() {
           type="email"
           required
           maxLength={200}
-          className="w-full rounded-lg border border-cream-100/20 bg-forest-950/60 px-3 py-2.5 text-sm text-cream-100 placeholder-cream-100/35 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400"
+          className={CONTROL}
           placeholder="jane@firm.com"
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="sector" className="block text-[11px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-1.5">
+          <label htmlFor="sector" className={`${LABEL} block mb-1.5`}>
             Sector *
           </label>
           <select
@@ -147,33 +154,33 @@ export function EnterpriseInquiryForm() {
             name="sector"
             required
             defaultValue=""
-            className="w-full rounded-lg border border-cream-100/20 bg-forest-950/60 px-3 py-2.5 text-sm text-cream-100 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400"
+            className={CONTROL}
           >
             <option value="" disabled>
               Pick one
             </option>
             {SECTORS.map((s) => (
-              <option key={s.value} value={s.value} className="bg-forest-950 text-cream-100">
+              <option key={s.value} value={s.value}>
                 {s.label}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label htmlFor="size" className="block text-[11px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-1.5">
+          <label htmlFor="size" className={`${LABEL} block mb-1.5`}>
             Team size
           </label>
           <select
             id="size"
             name="size"
             defaultValue=""
-            className="w-full rounded-lg border border-cream-100/20 bg-forest-950/60 px-3 py-2.5 text-sm text-cream-100 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400"
+            className={CONTROL}
           >
             <option value="" disabled>
               Pick one
             </option>
             {SIZES.map((s) => (
-              <option key={s.value} value={s.value} className="bg-forest-950 text-cream-100">
+              <option key={s.value} value={s.value}>
                 {s.label}
               </option>
             ))}
@@ -182,7 +189,7 @@ export function EnterpriseInquiryForm() {
       </div>
 
       <div>
-        <label htmlFor="message" className="block text-[11px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-1.5">
+        <label htmlFor="message" className={`${LABEL} block mb-1.5`}>
           Anything else we should know?
         </label>
         <textarea
@@ -190,7 +197,7 @@ export function EnterpriseInquiryForm() {
           name="message"
           rows={4}
           maxLength={2000}
-          className="w-full rounded-lg border border-cream-100/20 bg-forest-950/60 px-3 py-2.5 text-sm text-cream-100 placeholder-cream-100/35 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400 resize-none"
+          className={`${CONTROL} resize-none`}
           placeholder="Practice areas, what you use today, deadline pressure, anything that helps us prep the demo."
         />
       </div>
@@ -204,12 +211,12 @@ export function EnterpriseInquiryForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+        className={`${BUTTON_INK} w-full justify-center disabled:opacity-60 disabled:cursor-not-allowed`}
       >
         {pending ? 'Sending...' : 'Request a walkthrough'}
         <ArrowRight />
       </button>
-      <p className="text-[11px] text-cream-100/55 leading-relaxed">
+      <p className="text-[11px] text-ink-600/80 dark:text-cream-100/55 leading-relaxed">
         By submitting you agree to receive a one-time reply from us. We do not put you on a
         marketing list. We don&apos;t share your contact details with anyone.
       </p>

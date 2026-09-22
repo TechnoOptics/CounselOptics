@@ -24,6 +24,10 @@ const config: Config = {
           'Times New Roman',
           'serif',
         ],
+        caslon: ['var(--font-caslon)', 'Georgia', 'serif'],
+        'caslon-text': ['var(--font-caslon-text)', 'Georgia', 'serif'],
+        public: ['var(--font-public)', 'system-ui', 'sans-serif'],
+        courier: ['var(--font-courier)', 'Courier New', 'monospace'],
       },
       // 5-stop display scale so callsites can use a single named token
       // instead of arbitrary text-[44px] values that drift over time.
@@ -37,6 +41,15 @@ const config: Config = {
         'display-xl': ['4.5rem', { lineHeight: '0.98', letterSpacing: '-0.02em' }],
       },
       colors: {
+        // The case file (marketing). Paper is the ground, a sheet is a
+        // piece of the file, rule is the only border colour there.
+        paper: 'var(--paper)',
+        sheet: 'var(--sheet)',
+        rule: 'var(--rule)',
+        // The ground a full-bleed Band paints. Equal to paper's forest in
+        // light; lifted one forest step in dark, where paper is already that
+        // forest and a band painting it disappeared.
+        band: 'var(--band)',
         // Semantic TEXT tokens. See the block at the top of
         // app/globals.css for the derivation and its contrast proof, and
         // lib/accent-text.ts for the arithmetic.

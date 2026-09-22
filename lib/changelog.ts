@@ -55,7 +55,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     category: 'feature',
     title: 'Safe Witness live location tracking',
     summary:
-      'After a Safe Witness press, the watch + web client now ping the user’s position every 30 seconds. Contacts see a moving dot + breadcrumb trail on /safe/alert/[id]. Tracking continues until the user explicitly stops it.',
+      "After a Safe Witness press, the watch + web client now ping the user's position every 30 seconds. Contacts see a moving dot + breadcrumb trail on /safe/alert/[id]. Tracking continues until the user explicitly stops it.",
     link: '/safe',
   },
   {

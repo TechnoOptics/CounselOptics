@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { LABEL } from '@/components/marketing/file/type';
 
 /**
  * Collapsible footer column.
@@ -29,7 +30,7 @@ export function FooterCol({
         aria-expanded={open}
         className="flex w-full items-center justify-between py-1 text-left"
       >
-        <span className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
+        <span className={LABEL}>
           {title}
         </span>
         <span

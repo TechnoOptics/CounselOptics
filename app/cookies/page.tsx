@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Cookie Policy',
@@ -16,10 +17,8 @@ export const metadata = {
 
 export default function CookiePolicyPage() {
   return (
-    <div className="max-w-3xl mx-auto space-y-6 text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">
+    <Prose label="Cookies" title="Cookie Policy">
       <header>
-        <p className="eyebrow mb-2">Legal</p>
-        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">Cookie Policy</h1>
         <p className="text-xs text-ink-500 mt-2">Last updated: 2026-04-25</p>
       </header>
 
@@ -28,23 +27,25 @@ export default function CookiePolicyPage() {
           Advottic uses <strong>essential cookies only</strong>. We do not run advertising
           trackers, do not sell your data, and do not embed third-party analytics today.
         </p>
-        <table className="w-full text-xs border border-ink-200 rounded-md mt-3 overflow-hidden">
-          <thead className="bg-cream-50 text-forest-900">
-            <tr>
-              <th className="text-left px-3 py-2">Name</th>
-              <th className="text-left px-3 py-2">Purpose</th>
-              <th className="text-left px-3 py-2">Lifespan</th>
-              <th className="text-left px-3 py-2">Category</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-ink-100">
-            <Row name="sb-* (Supabase auth)" purpose="Keeps you signed in." life="~7 days" cat="Strictly necessary" />
-            <Row name="advottic_csrf" purpose="CSRF protection for form posts." life="Session" cat="Strictly necessary" />
-            <Row name="bella-conversation (localStorage)" purpose="Remembers your in-progress chat with Bella." life="Session" cat="Functional" />
-            <Row name="case-tabs:&lt;id&gt; (sessionStorage)" purpose="Remembers the active tab on a case detail page." life="Session" cat="Functional" />
-            <Row name="co-cookie-ack (localStorage)" purpose="Records your cookie preferences so we don't ask again." life="Until cleared" cat="Strictly necessary" />
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border border-ink-200 rounded-md mt-3 overflow-hidden">
+            <thead className="bg-cream-50 text-forest-900">
+              <tr>
+                <th className="text-left px-3 py-2">Name</th>
+                <th className="text-left px-3 py-2">Purpose</th>
+                <th className="text-left px-3 py-2">Lifespan</th>
+                <th className="text-left px-3 py-2">Category</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              <Row name="sb-* (Supabase auth)" purpose="Keeps you signed in." life="~7 days" cat="Strictly necessary" />
+              <Row name="advottic_csrf" purpose="CSRF protection for form posts." life="Session" cat="Strictly necessary" />
+              <Row name="bella-conversation (localStorage)" purpose="Remembers your in-progress chat with Bella." life="Session" cat="Functional" />
+              <Row name="case-tabs:&lt;id&gt; (sessionStorage)" purpose="Remembers the active tab on a case detail page." life="Session" cat="Functional" />
+              <Row name="co-cookie-ack (localStorage)" purpose="Records your cookie preferences so we don't ask again." life="Until cleared" cat="Strictly necessary" />
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       <Section title="Your choices">
@@ -77,7 +78,7 @@ export default function CookiePolicyPage() {
         <Link href="/privacy" className="underline">Privacy Policy</Link> and{' '}
         <Link href="/terms" className="underline">Terms</Link>.
       </p>
-    </div>
+    </Prose>
   );
 }
 

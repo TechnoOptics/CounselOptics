@@ -1,5 +1,6 @@
 import { ExternalLink } from '@/components/ExternalLink';
 import { adminGetLiveHealth } from '@/lib/hq-storage';
+import { Prose } from '@/components/marketing/file';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -27,7 +28,20 @@ export default async function StatusPage() {
   const overall = live?.ok ? 'green' : live ? 'red' : 'unknown';
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-16 space-y-10">
+    /*
+      The headline is "Status", a name. docs/DESIGN.md: "A status is not a
+      headline. Headline type is for names of things. Sentences are body."
+      The live sentence had been passed to Prose as the h1, which also left
+      the dot alone in a flex row with nothing beside it; both read together
+      below, which is what the dot is there for.
+
+      The Courier label is the binder tab, and every other inheriting page
+      sets it to the part of the site the page belongs to (Privacy, Press,
+      Changelog), not to a repeat of the headline. "Status" over "Status"
+      printed the word twice; this page is the operational readout, which is
+      what the metadata calls it.
+    */
+    <Prose label="Operations" title="Status">
       <header className="space-y-4">
         <div className="flex items-center gap-3">
           <span className="relative inline-flex h-3 w-3">
@@ -51,13 +65,13 @@ export default async function StatusPage() {
               }`}
             />
           </span>
-          <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em]">
+          <p className="m-0 font-public text-[17px] font-semibold">
             {overall === 'green'
               ? 'All systems operational'
               : overall === 'red'
                 ? 'Some systems are degraded'
                 : 'Unable to probe right now'}
-          </h1>
+          </p>
         </div>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
           Live readout. Each component is probed when this page loads, with
@@ -156,7 +170,7 @@ export default async function StatusPage() {
         Last probed {live ? new Date().toISOString() : 'never'} ·{' '}
         {live ? `${live.totalLatencyMs} ms total` : ''}
       </p>
-    </div>
+    </Prose>
   );
 }
 

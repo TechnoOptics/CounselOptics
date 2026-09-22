@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CHANGELOG } from '@/lib/changelog';
 import { isIosSellRoute } from '@/lib/platform';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata: Metadata = {
   title: { absolute: 'Changelog · Advottic' },
@@ -126,16 +127,12 @@ export default function ChangelogPage() {
   };
 
   return (
-    <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-8 text-ink-800 dark:text-cream-100/85 leading-relaxed">
+    <Prose label="Changelog" title="What we've shipped.">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
       />
       <header className="space-y-2">
-        <p className="eyebrow">Changelog</p>
-        <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          What we've shipped.
-        </h1>
         <p className="text-base text-ink-600 dark:text-cream-100/70 max-w-2xl">
           Most-recent first. Subscribe via{' '}
           <a href="/feed.xml" className="underline">
@@ -178,6 +175,6 @@ export default function ChangelogPage() {
           );
         })}
       </ol>
-    </article>
+    </Prose>
   );
 }

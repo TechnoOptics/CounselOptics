@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { COMPARISONS } from '@/lib/comparisons';
 import { BreadcrumbJsonLd, ItemListJsonLd } from '@/components/seo/JsonLd';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Advottic compared to every major legal-tech tool',
@@ -34,7 +35,11 @@ export default function CompareHubPage() {
   }
 
   return (
-    <div className="space-y-16 sm:space-y-20 pb-20 animate-fade-up">
+    <Prose
+      label="Compare"
+      title="Honest, side-by-side comparisons."
+      lede="Real pricing. Real features. Where each tool wins, and where it loses. We name the competitor in the title because that's what you searched for."
+    >
       <BreadcrumbJsonLd
         items={[
           { name: 'Home', href: '/' },
@@ -52,17 +57,6 @@ export default function CompareHubPage() {
           href: `/compare/${c.slug}`,
         }))}
       />
-      <header className="text-center space-y-4 max-w-3xl mx-auto pt-4 sm:pt-8 px-4">
-        <p className="eyebrow justify-center">Comparisons</p>
-        <h1 className="font-display text-[40px] sm:text-[56px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Honest, side-by-side comparisons.
-        </h1>
-        <p className="text-base text-ink-600 dark:text-cream-100/70 leading-relaxed">
-          Real pricing. Real features. Where each tool wins, and where it
-          loses. We name the competitor in the title because that&rsquo;s
-          what you searched for.
-        </p>
-      </header>
       {Array.from(grouped.entries()).map(([category, items]) => (
         <section
           key={category}
@@ -110,6 +104,6 @@ export default function CompareHubPage() {
           </Link>
         </div>
       </section>
-    </div>
+    </Prose>
   );
 }

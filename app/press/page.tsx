@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 import { isIosAppRequest } from '@/lib/ios-gate';
+import { Prose } from '@/components/marketing/file';
 
 export const metadata = {
   title: 'Press kit',
@@ -47,7 +48,7 @@ const FACTS: Array<{ label: string; value: string }> = [
 export default function PressPage() {
   const isIos = isIosAppRequest();
   return (
-    <div className="space-y-16 sm:space-y-20 pb-20 animate-fade-up">
+    <Prose label="Press" title="For journalists & analysts.">
       <BreadcrumbJsonLd
         items={[
           { name: 'Home', href: '/' },
@@ -55,11 +56,7 @@ export default function PressPage() {
         ]}
       />
 
-      <header className="text-center space-y-4 max-w-3xl mx-auto pt-4 sm:pt-8 px-4">
-        <p className="eyebrow justify-center">Press kit</p>
-        <h1 className="font-display text-[40px] sm:text-[56px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          For journalists &amp; analysts.
-        </h1>
+      <header className="space-y-4">
         <p className="text-base text-ink-600 dark:text-cream-100/70 leading-relaxed">
           Everything you need to write about Advottic, in one page.
           For interviews, embargo requests, or product demos, email{' '}
@@ -73,7 +70,7 @@ export default function PressPage() {
         </p>
       </header>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-5">
+      <section className="space-y-5">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           About Advottic
         </h2>
@@ -86,7 +83,7 @@ export default function PressPage() {
             always-on AI legal assistant. Law firms use Advottic
             Counsel to run their entire practice: case management,
             time and billing, IOLTA trust accounting, e-signature, and
-            an AI agent that takes action inside the firm&rsquo;s
+            an AI agent that takes action inside the firm's
             tools (drafting documents, running conflict checks,
             starting time entries on its own).
           </p>
@@ -104,7 +101,7 @@ export default function PressPage() {
         </div>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-5">
+      <section className="space-y-5">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Fast facts
         </h2>
@@ -130,15 +127,15 @@ export default function PressPage() {
         </dl>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-5">
+      <section className="space-y-5">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Brand assets
         </h2>
         <p className="text-[14.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-prose">
-          Always preserve the wordmark&rsquo;s aspect ratio. Use the
+          Always preserve the wordmark's aspect ratio. Use the
           dark variant on light backgrounds and the light variant on
           dark / colored backgrounds. Minimum clear space on all sides
-          equals the cap-height of the &ldquo;A&rdquo;.
+          equals the cap-height of the "A".
         </p>
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="rounded-xl ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white p-6 flex items-center justify-center">
@@ -166,7 +163,7 @@ export default function PressPage() {
         </p>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-5">
+      <section className="space-y-5">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Media contact
         </h2>
@@ -197,7 +194,7 @@ export default function PressPage() {
         </p>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 space-y-3 text-center">
+      <section className="space-y-3 text-center">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Want to try the product?
         </h2>
@@ -211,6 +208,6 @@ export default function PressPage() {
           </Link>
         </div>
       </section>
-    </div>
+    </Prose>
   );
 }

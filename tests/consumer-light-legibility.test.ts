@@ -381,14 +381,14 @@ const composite = (paint: Paint, ground: string): string => {
  * green. The shell filter reads the files rather than listing routes, so
  * a new always-dark surface removes itself the day it is added.
  */
-function tracked(dirs: string[]): string[] {
+function tracked(dirs: string[], ext = '.tsx'): string[] {
   return execFileSync('git', ['ls-files', '--', ...dirs], {
     cwd: fileURLToPath(root),
     encoding: 'utf8',
     maxBuffer: 1 << 24,
   })
     .split('\n')
-    .filter((f) => f && f.endsWith('.tsx'));
+    .filter((f) => f && f.endsWith(ext));
 }
 
 const SHELL = /counselShellClass|counsel-shell|hq-shell|enterprise-shell/;
@@ -426,10 +426,27 @@ const DARK_SEGMENTS = tracked(['app'])
   .filter((f) => /(?:^|\/)layout\.tsx$/.test(f) && SHELL.test(read(f)))
   .map((f) => f.replace(/layout\.tsx$/, ''));
 
-const FILES = tracked(['app', 'components'])
-  .filter((f) => !/^app\/counsel\/|^app\/portal\/|^components\/counsel\//.test(f))
-  .filter((f) => !DARK_SEGMENTS.some((seg) => f.startsWith(seg)))
-  .filter((f) => !SHELL.test(read(f)));
+/**
+ * The marketing pages spell their light/dark pairs once in
+ * components/marketing/file's shared class-string constants
+ * (H1/H2/BODY/LABEL/BUTTON_INK/...) rather than inline on every page, and
+ * a sweep that reads only `.tsx` files never sees that module: a page
+ * moving its own `text-gold-700 dark:text-gold-300` onto a shared
+ * constant makes the occurrence disappear from MEASURED with no change
+ * in what actually renders. Reading the constants module too keeps the
+ * count honest as more pages migrate onto it.
+ */
+const FILES = [
+  ...tracked(['app', 'components'])
+    .filter((f) => !/^app\/counsel\/|^app\/portal\/|^components\/counsel\//.test(f))
+    .filter((f) => !DARK_SEGMENTS.some((seg) => f.startsWith(seg)))
+    .filter((f) => !SHELL.test(read(f))),
+  // Same shell filter as the .tsx half above, not because that directory
+  // has a shell class today but because the comment on tracked() promises
+  // "a new always-dark surface removes itself the day it is added", and a
+  // list that skips the filter quietly stops keeping that promise.
+  ...tracked(['components/marketing/file'], '.ts').filter((f) => !SHELL.test(read(f))),
+];
 
 /**
  * The component classes that paint a DARK fill with no `bg-*` utility at
@@ -606,6 +623,50 @@ describe('the consumer light surface', () => {
     // light theme paints none of them. A floor that has to be lowered
     // for any OTHER reason is a broken pathspec, which is the thing
     // these numbers exist to catch - re-derive it, do not nudge it.
+    //
+    // MEASURED's floor has been re-derived twice as the case-file redesign
+    // replaced per-page literals with shared roles, and both times the
+    // occurrences moved or merged rather than escaping the sweep.
+    //
+    // First, app/features/page.tsx traded its own `dark:` pairs
+    // (`text-gold-700 dark:text-gold-300`, the gold hero rule, the display
+    // h1) for the H1/BODY/LABEL constants in components/marketing/file/
+    // type.ts, and the count fell from 2000 to 1997 purely because this
+    // sweep read `.tsx` only and could not see a `.ts` constants module.
+    // That is a broken pathspec, not a coverage loss, and the fix was to
+    // widen FILES to `components/marketing/file/*.ts` rather than to lower
+    // the number.
+    //
+    // Then real duplication went away. Fourteen inheriting pages (about,
+    // what-is-advottic, security, guides, glossary, compare, press,
+    // changelog, status, accessibility, terms, privacy, cookies, dmca) each
+    // carried their own h1/eyebrow/lede className literals, every one
+    // distinct even where the concept repeated, and components/marketing/
+    // file/Prose.tsx replaced all fourteen with one call onto H1 and BODY.
+    // Two more went in the final fix wave: Sheet's right-hand column became
+    // `text-current opacity-70` so it follows the Sheet's tone instead of
+    // naming its own quiet ink, and app/security/page.tsx's "Last reviewed"
+    // line moved onto the shared LABEL role. The same light/dark pairing
+    // still renders on every page, expressed once instead of many times.
+    //
+    // Ten more went with components/SavingsCalculator.tsx, whose chrome was
+    // restyled off the gold and onto the case-file roles: the same quiet-ink
+    // pair (`text-ink-500 dark:text-cream-100/55`) was written out on ten
+    // separate elements, and it is one `NOTE` constant and the shared LABEL
+    // role now. The file is still read: adding an unresolvable class to it
+    // makes the "knows what every measured class paints" arm above name
+    // `components/SavingsCalculator.tsx`, which was checked rather than
+    // assumed before this number came down.
+    //
+    // One more went out in round 5 of the pricing-page fix wave:
+    // components/SavingsCalculator.tsx's own `<h2 ... dark:text-cream-100>`
+    // was deleted outright (it duplicated the page-level "What does
+    // Advottic save your firm?" h2 in app/pricing/page.tsx, a few pixels
+    // apart), not merged into a shared role, so the sweep genuinely reaches
+    // one fewer element. The floor is therefore 1963, re-derived from what
+    // the sweep reaches today. A floor that has to come down for any OTHER
+    // reason is a broken pathspec, which is the thing these numbers exist
+    // to catch: re-derive it, do not nudge it.
     expect(DARK_SEGMENTS).toContain('app/admin/');
     expect(FILES.some((f) => f.startsWith('app/admin/'))).toBe(false);
     expect(FILES.length).toBeGreaterThanOrEqual(315);
@@ -613,7 +674,7 @@ describe('the consumer light surface', () => {
     expect(FILES.filter((f) => /^components\/[^/]+\.tsx$/.test(f)).length).toBeGreaterThanOrEqual(
       80,
     );
-    expect(MEASURED.length).toBeGreaterThanOrEqual(2000);
+    expect(MEASURED.length).toBeGreaterThanOrEqual(1963);
     expect(LISTED.length).toBeGreaterThanOrEqual(1100);
     // And the two halves together are the whole sweep, so neither can
     // grow by eating the other unnoticed.
