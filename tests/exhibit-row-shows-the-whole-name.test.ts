@@ -32,7 +32,36 @@ import { stripComments } from './support/strip-comments';
 
 const ROOT = join(__dirname, '..');
 const SHEET = stripComments(readFileSync(join(ROOT, 'components/marketing/file/Sheet.tsx'), 'utf8'));
-const HOME = stripComments(readFileSync(join(ROOT, 'app/page.tsx'), 'utf8'));
+
+/**
+ * The two covers that lay copy beside a Sheet, and the breakpoint each one
+ * splits at. They are held by one parameterised block rather than two
+ * copies: the enterprise cover carried this exact defect and was left out of
+ * the first fix because it was latent there, and a second hand-written copy
+ * of these assertions is how the two would drift.
+ *
+ * The breakpoints differ on purpose and the difference is the point of the
+ * last assertion. The home cover is inside a Section, which opens a 200px
+ * binder tab at `lg` and leaves 689px for the whole cover at 1024; the
+ * enterprise cover is inside a Band, which is full bleed with FilePage's own
+ * column and has 934px there, so it can split a breakpoint earlier.
+ */
+const COVERS = [
+  {
+    page: 'home',
+    file: 'app/page.tsx',
+    marker: 'Left: editorial copy block',
+    split: 'xl',
+    tooEarly: 'lg',
+  },
+  {
+    page: 'enterprise',
+    file: 'app/enterprise/page.tsx',
+    marker: 'Advottic for firms. In-house. Counsel.',
+    split: 'lg',
+    tooEarly: 'md',
+  },
+] as const;
 
 /** SheetRow's body, so a class on Sheet or Stamp cannot answer for a row. */
 function sheetRowBody(): string {
@@ -86,30 +115,45 @@ describe('a SheetRow shows the whole exhibit name', () => {
   });
 });
 
-describe('the home cover gives the sheet a real column', () => {
+describe.each(COVERS)('the $page cover gives the sheet a real column', (cover) => {
+  const src = stripComments(readFileSync(join(ROOT, cover.file), 'utf8'));
+
+  /**
+   * The classes on the innermost grid that opens above the copy column: the
+   * LAST match before the marker, not the first. app/enterprise/page.tsx has
+   * an `Entry`-shaped `grid gap-8 lg:grid-cols-2` further up the file, and a
+   * first-match read picks that one up, where it would satisfy the
+   * breakpoint assertion and fail the tracks one for the wrong reason.
+   */
+  function coverGrid(): string {
+    const at = src.indexOf(cover.marker);
+    expect(at, `the cover copy column is gone from ${cover.file}`).toBeGreaterThan(-1);
+    const all = [...src.slice(0, at).matchAll(/<div className="(grid [^"]*)">\s*$/gm)];
+    const grid = all.length ? all[all.length - 1][1] : '';
+    expect(grid, 'the cover is no longer a grid').toBeTruthy();
+    return grid;
+  }
+
   it('does not lay the cover on a twelve track grid', () => {
     // Eleven gutters at `gap-14` are 693px. No twelve track grid on this page
     // survives that, whatever the spans on its children say.
-    expect(HOME).not.toMatch(/grid-cols-12/);
-    expect(HOME).not.toMatch(/col-span-\d/);
+    expect(src).not.toMatch(/grid-cols-12/);
+    expect(src).not.toMatch(/col-span-\d/);
   });
 
   it('splits the cover into two tracks with one gutter', () => {
-    const at = HOME.indexOf('Left: editorial copy block');
-    expect(at, 'the cover copy column is gone').toBeGreaterThan(-1);
-    const grid = /<div className="(grid [^"]*)">\s*$/m.exec(HOME.slice(0, at))?.[1] ?? '';
-    expect(grid, 'the cover is no longer a grid').toBeTruthy();
-    expect(grid).toMatch(/grid-cols-\[minmax\(0,1fr\)_minmax\(0,1fr\)\]/);
+    expect(coverGrid()).toMatch(/grid-cols-\[minmax\(0,1fr\)_minmax\(0,1fr\)\]/);
   });
 
-  it('holds the split back to xl, because lg is where the binder tab opens', () => {
-    // Section turns on its 200px tab column at lg, which leaves 689px for the
-    // whole cover at 1024. Split there, the sheet cannot be wider than about
-    // 260px and the 61px display headline cannot be narrower than its own
-    // longest word; below xl the cover stacks instead.
-    const at = HOME.indexOf('Left: editorial copy block');
-    const grid = /<div className="(grid [^"]*)">\s*$/m.exec(HOME.slice(0, at))?.[1] ?? '';
-    expect(grid).toMatch(/\bxl:grid-cols-/);
-    expect(grid).not.toMatch(/\blg:grid-cols-/);
+  it(`splits at ${cover.split}, and no earlier`, () => {
+    // Home: Section turns on its 200px tab column at lg, which leaves 689px
+    // for the whole cover at 1024. Split there, the sheet cannot be wider
+    // than about 260px and the 61px display headline cannot be narrower than
+    // its own longest word. Enterprise: Band has no tab, so 1024 leaves
+    // 934px and an even split is 435.5px a column, which the rendered page
+    // carries. Below its own breakpoint each cover stacks instead.
+    const grid = coverGrid();
+    expect(grid).toMatch(new RegExp(`\\b${cover.split}:grid-cols-`));
+    expect(grid).not.toMatch(new RegExp(`\\b${cover.tooEarly}:grid-cols-`));
   });
 });
