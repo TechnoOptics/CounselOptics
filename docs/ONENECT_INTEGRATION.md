@@ -1,6 +1,10 @@
-# Zinpro ↔ Advottic corporate legal integration
+# OneNect ↔ Advottic corporate legal integration
 
-**Hand this document to the Zinpro app team.** It is self-contained: everything
+OneNect is a multi-tenant companion app for any corporation, organisation or
+faith institution. Zinpro, the first OneNect tenant on Advottic, is the
+worked example used throughout this document.
+
+**Hand this document to the OneNect app team.** It is self-contained: everything
 needed to file and follow legal requests in Advottic on behalf of company
 employees. That covers the API, the event webhooks, the screens the app
 should present, and what the legal team controls from their side.
@@ -9,25 +13,25 @@ should present, and what the legal team controls from their side.
 
 ## 1. The model in one paragraph
 
-The company holds a **firm/enterprise Advottic license**. The Zinpro app talks
+The company holds a **firm/enterprise Advottic license**. The OneNect app talks
 to Advottic with one **firm-scoped API token**. When an employee files a legal
-request in Zinpro, Advottic **provisions that employee automatically** (their
+request in OneNect, Advottic **provisions that employee automatically** (their
 email domain must match the company's registered domains, which is the trust
 anchor) and creates the ticket straight into the legal team's **Intake inbox**,
 where lawyers triage, respond, request documents, run conflict checks, and
 convert requests into full matters. The legal team is **notified instantly**
 (in-app bell + email) when a ticket or reply arrives. Replies flow back over
-the same API and over a **signed webhook**, so Zinpro can update its UI and
+the same API and over a **signed webhook**, so OneNect can update its UI and
 push-notify the employee without polling. When the employee later signs in to
 Advottic itself (via **SSO/SAML with their work email**), their account
-already exists and every ticket they ever filed from Zinpro is waiting in
+already exists and every ticket they ever filed from OneNect is waiting in
 their Hub portal, along with the full employee toolset (documents, templates,
 signatures, secure sharing, @-mentions, chat).
 
 ```mermaid
 sequenceDiagram
-    participant E as Employee (Zinpro app)
-    participant Z as Zinpro backend
+    participant E as Employee (OneNect app)
+    participant Z as OneNect backend
     participant A as Advottic Partner API
     participant L as Legal team (Advottic Counsel)
     Z->>A: GET /api/partner/v1/config
@@ -50,25 +54,43 @@ sequenceDiagram
 
 ---
 
+## One integration, many tenants
+
+OneNect is not written for one company. Any corporation, organisation or
+faith institution can run it as the companion app for its own people, and
+each one is a separate OneNect tenant. Advottic sees a tenant the same way it
+sees any other firm client: a company that holds a firm/enterprise Advottic
+license.
+
+Every tenant that holds a firm licence mints its own firm-scoped token at
+Profile → API tokens. Tokens are never shared across tenants: each one is
+bound to a single firm, and the partner API confines every call made with it
+to that firm's own data. A tenant's employees are only ever provisioned from
+that tenant's registered email domains, the allow-list a firm admin sets in
+Counsel → Settings → Access and that `lib/access-requests.ts` enforces on
+every ticket.
+
+---
+
 ## 2. What the integration includes
 
 | Capability | How it works |
 |---|---|
-| File a legal request from Zinpro | `POST /tickets`: JIT-provisions the employee, lands in the legal Intake inbox |
-| **Legal-team-configured intake questions** | Legal defines them in Advottic; Zinpro fetches them from `GET /config` and renders them on the request form |
+| File a legal request from OneNect | `POST /tickets`: JIT-provisions the employee, lands in the legal Intake inbox |
+| **Legal-team-configured intake questions** | Legal defines them in Advottic; OneNect fetches them from `GET /config` and renders them on the request form |
 | **Acknowledgment popup** | Legal writes the message (usually their response-time promise); returned on every ticket create; show it to the employee immediately |
 | Two-way conversation | Employee replies via API; legal replies appear in `GET /tickets/:id` and arrive via webhook |
 | **Instant legal-team notification** | Every new ticket and employee reply rings the legal team's in-app bell **and** emails the firm's owners/admins |
 | **Employee email notifications** | Advottic emails the employee directly when legal replies, and when the request is converted to a matter or closed, even if they never reopen the app |
-| **Outbound webhooks** | HMAC-SHA256-signed POSTs to the Zinpro backend on legal replies and status changes, to drive real-time UI updates and your own push notifications |
+| **Outbound webhooks** | HMAC-SHA256-signed POSTs to the OneNect backend on legal replies and status changes, to drive real-time UI updates and your own push notifications |
 | **Stale-request reminders** | If a ticket sits unanswered past the window legal configured, the legal team is automatically nudged (bell + email); repeats at most once per window |
 | Status pipeline | `in_progress → conflict_check_passed/flagged → engaged → converted` (or `rejected`), all visible via API and webhook |
-| Full experience on the web | On first SSO sign-in the employee's Zinpro-filed tickets are already in their Advottic Hub portal, with @-mentions, document library, forms, signatures, secure sharing |
+| Full experience on the web | On first SSO sign-in the employee's OneNect-filed tickets are already in their Advottic Hub portal, with @-mentions, document library, forms, signatures, secure sharing |
 
 > Note on @-mentions and chat: inside Advottic, intake threads and firm chat
 > support @-mentions with notifications and email. Over the partner API,
 > messages are plain text. Employees get the full mention/chat experience
-> when they sign in at advottic.com; Zinpro is the quick companion.
+> when they sign in at advottic.com; OneNect is the quick companion.
 
 ---
 
@@ -79,7 +101,7 @@ sequenceDiagram
    any employee outside these domains.
 2. **Mint the integration token**: Profile → API tokens → create a token with
    the **firm scope** and **write** scope. It looks like `adv_...` and is
-   shown once. Store it in the Zinpro backend's secret manager. (Rotate/revoke from
+   shown once. Store it in the OneNect backend's secret manager. (Rotate/revoke from
    the same screen at any time.)
 3. **Configure the partner panel**: Counsel → Settings → **Partner app
    integration**:
@@ -88,11 +110,11 @@ sequenceDiagram
      e.g. *"Thanks, your request has reached the legal team. We usually
      respond within 2 business days; urgent matters are triaged first."*
    - **Intake questions**: up to 12 questions (free text, choice list, or
-     yes/no; each optionally required) that the Zinpro form must ask. Answers
+     yes/no; each optionally required) that the OneNect form must ask. Answers
      show on the request in the Intake inbox.
-   - **Event webhook**: paste the Zinpro backend's https endpoint; Advottic
+   - **Event webhook**: paste the OneNect backend's https endpoint; Advottic
      mints a signing secret (`whsec_...`) you can reveal and rotate here. Give
-     both the URL and the secret to the Zinpro team.
+     both the URL and the secret to the OneNect team.
    - **Reminder window**: hours before an unanswered request nudges the
      team again (default 24; 0 turns reminders off).
 4. **(Recommended) SSO**: connect the company IdP via SAML (Counsel →
@@ -101,7 +123,7 @@ sequenceDiagram
 
 ---
 
-## 4. How the Zinpro app should lay out the experience
+## 4. How the OneNect app should lay out the experience
 
 Four surfaces. Each maps to exactly one API call (plus the webhook feed).
 
@@ -193,7 +215,7 @@ Two complementary channels. Use both:
 
 - **Webhooks (preferred)**: Advottic POSTs to your backend on every legal
   reply and status change (§6). Relay to the app via your own push channel.
-- **Polling (fallback / belt-and-braces)**: `GET /tickets/:id` every 60–120 s
+- **Polling (fallback / belt-and-braces)**: `GET /tickets/:id` every 60-120 s
   while a ticket screen is open, and on app-open / pull-to-refresh.
 
 Advottic also emails the employee directly on legal replies and terminal
@@ -293,7 +315,7 @@ ticket's employee (403 otherwise).
 
 ---
 
-## 6. Webhooks (Advottic → Zinpro backend)
+## 6. Webhooks (Advottic → OneNect backend)
 
 Configured by the firm admin in Counsel → Settings → Partner app integration
 (URL + signing secret). Advottic POSTs JSON to that URL on:
@@ -362,7 +384,7 @@ re-serialization).
 ### 6.3 Delivery semantics
 
 Delivery is **at-most-once, best-effort** (10-second timeout, no automatic
-retries in v1). Respond `200` quickly and process async. Keep the 60–120 s
+retries in v1). Respond `200` quickly and process async. Keep the 60-120 s
 polling as the safety net; the polled `GET /tickets/{id}` is always the
 source of truth. The signing secret can be rotated in the Advottic settings
 panel at any time; coordinate rotation with the firm admin.
@@ -371,10 +393,10 @@ panel at any time; coordinate rotation with the firm admin.
 
 ## 7. Who gets notified of what (the full matrix)
 
-| Trigger | Legal team | Employee | Zinpro backend |
+| Trigger | Legal team | Employee | OneNect backend |
 |---|---|---|---|
-| Ticket created from Zinpro | Bell + email (owners/admins) | Acknowledgment popup (API response) | None (it made the call) |
-| Employee replies from Zinpro | Bell + email | None | None (it made the call) |
+| Ticket created from OneNect | Bell + email (owners/admins) | Acknowledgment popup (API response) | None (it made the call) |
+| Employee replies from OneNect | Bell + email | None | None (it made the call) |
 | Legal replies | None | **Email** ("Legal replied…", link to portal) | **Webhook** `ticket.legal_replied` |
 | Conflict check runs / clears | (visible in Counsel) | None | **Webhook** `ticket.status_changed` |
 | Request converted to a matter | None | **Email** ("Your request became a matter") | **Webhook** `ticket.status_changed` |
@@ -454,19 +476,19 @@ curl -s https://advottic.com/api/partner/v1/config \
   conflict check, document requests and uploads, thread replies with
   @-mentions, meeting scheduling, convert-to-case. New tickets and replies
   ring their bell and email the admins; stale ones nudge automatically.
-- **Employee (Zinpro app)**: answer the firm's questions → file → see the
+- **Employee (OneNect app)**: answer the firm's questions → file → see the
   legal team's acknowledgment → track status → read/answer the lawyer's
-  messages, kept fresh by webhook-driven updates. Zinpro is the quick
+  messages, kept fresh by webhook-driven updates. OneNect is the quick
   companion.
 - **Employee (advottic.com, SSO)**: full Hub portal: every ticket (including
-  Zinpro-filed ones, auto-claimed on first sign-in), the conversation with
+  OneNect-filed ones, auto-claimed on first sign-in), the conversation with
   @-mentions and bell notifications, document library, templates/forms,
-  signature requests, secure sharing. Zinpro never blocks the full
+  signature requests, secure sharing. OneNect never blocks the full
   experience; it accelerates it.
 
 ---
 
-## 10. Security model (for the Zinpro team's review)
+## 10. Security model (for the OneNect team's review)
 
 - One bearer token per firm, SHA-256-stored, revocable, scope-checked
   (`write`) on every call; all data access is confined to that firm.
@@ -489,18 +511,18 @@ curl -s https://advottic.com/api/partner/v1/config \
 
 **Firm admin (in Advottic)**
 - [ ] Internal domains registered (Settings → Access)
-- [ ] Partner token minted and handed to Zinpro via a secret channel
+- [ ] Partner token minted and handed to OneNect via a secret channel
 - [ ] Settings → Partner app integration: acknowledgment message written,
       intake questions configured, webhook URL + secret set, reminder window
       chosen
 - [ ] (Recommended) SSO connected
 
-**Zinpro team**
+**OneNect team**
 - [ ] Token stored in secret manager; never in the mobile app binary
 - [ ] `GET /config` wired; questions rendered; required-marking enforced
 - [ ] Acknowledgment popup shown from the API response (not hard-coded)
 - [ ] Webhook endpoint live; signature + timestamp verified; 200-fast
-- [ ] Polling fallback in place (60–120 s on open ticket screens)
+- [ ] Polling fallback in place (60-120 s on open ticket screens)
 - [ ] `externalId` set on every create; retries rely on idempotency
 - [ ] Smoke test: file → see it in the legal Intake inbox → legal replies →
       webhook received → employee email received → status badge updates

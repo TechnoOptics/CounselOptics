@@ -803,7 +803,7 @@ In order, against the Zinpro firm and the `nda` type: build the form in the buil
 
 - [ ] **Step 2: Update the integration document**
 
-Add the optional `formVersionId` to `docs/ZINPRO_INTEGRATION.md` **only if** Zinpro has confirmed they want it. Otherwise leave the document unchanged and note in the plan's completion that it was deliberately deferred.
+Add the optional `formVersionId` to `docs/ONENECT_INTEGRATION.md` **only if** Zinpro has confirmed they want it. Otherwise leave the document unchanged and note in the plan's completion that it was deliberately deferred.
 
 - [ ] **Step 3: Final verification and commit**
 
@@ -821,6 +821,6 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Spec coverage.** Data model → Task 4. Payload schema and invariants → Task 1. Builder interaction → Task 7. Rendering and validation → Tasks 2, 6, 8. Partner projection → Tasks 3, 9. Permissions → Tasks 4, 5. Migration and compatibility → Task 4. Testing → Tasks 1, 2, 3, 5, 10. v1 scope and definition of done → Task 10.
 
-**Deliberately deferred**, matching the spec's out-of-scope list: multiple conditions and AND/OR groups, file upload as a question type, per-question analytics, the `ZINPRO_INTEGRATION.md` contract change until Zinpro agrees, light mode, and QR mobile signing.
+**Deliberately deferred**, matching the spec's out-of-scope list: multiple conditions and AND/OR groups, file upload as a question type, per-question analytics, the `ONENECT_INTEGRATION.md` contract change until Zinpro agrees, light mode, and QR mobile signing.
 
 **Known gap.** Tasks 6, 7 and 8 are UI and are verified in the browser rather than by unit test. The logic they depend on is pure and fully tested in Tasks 1, 2 and 3, which is where the correctness risk actually sits.
