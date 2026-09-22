@@ -69,3 +69,27 @@ describe('app/security/page.tsx sub-processor table', () => {
     expect(src).toMatch(/<div className="overflow-x-auto">\s*<table/);
   });
 });
+
+/**
+ * N5-3. Prose.tsx:59 carries `[&_.eyebrow:has(+h2)]:mt-12` and
+ * `[&_.eyebrow+h2]:mt-0` so a `.eyebrow` kicker takes the block's top
+ * margin instead of the h2 it names. The class-list pin on Prose (above)
+ * only sees that those selectors exist, not that the pages which rely on
+ * them still put the kicker paragraph directly in front of its h2. Of the
+ * fourteen pages this file covers, only about and security use the
+ * `.eyebrow` shape (each via its own page-local `Section` helper); guides
+ * and changelog use a different kicker (a category/date row inside the
+ * `<li>`, already spaced by the list's own `space-y`) and are not this
+ * rule's concern. If a page-local Section helper grows a wrapper between
+ * the `<p className="eyebrow">` and its `<h2>`, N4-1's inversion (48px of
+ * space stranded on the block above instead of sitting on the heading)
+ * returns silently, because nothing else here reads that adjacency.
+ */
+const EYEBROW_H2_PAGES = ['about', 'security'];
+
+describe.each(EYEBROW_H2_PAGES)('app/%s/page.tsx kicker', (p) => {
+  const src = stripComments(readFileSync(join(ROOT, `app/${p}/page.tsx`), 'utf8'));
+  it('the eyebrow paragraph is immediately followed by the h2 it names', () => {
+    expect(src).toMatch(/<p className="eyebrow[^"]*">\{eyebrow\}<\/p>[\s}]*<h2\b/);
+  });
+});

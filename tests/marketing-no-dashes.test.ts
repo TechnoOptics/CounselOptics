@@ -48,8 +48,12 @@ const FILES = [
    * N4-2, second half. The listed pages render copy they import, so a data
    * module is as much marketing source as the page is: changelog entries and
    * glossary definitions each carried a literal U+2019 outside the sweep.
+   *
+   * N5-2. `lib/comparisons.ts` (/compare) and `lib/guides.ts` (/guides) are
+   * the same shape as the two above and were left out when this half of the
+   * array was added; both were clean, which is why the gap went unnoticed.
    */
-  'lib/changelog.ts', 'lib/glossary.ts',
+  'lib/changelog.ts', 'lib/glossary.ts', 'lib/comparisons.ts', 'lib/guides.ts',
 ];
 describe('the dash sweep', () => {
   it('positive control: the pattern matches', () => {
