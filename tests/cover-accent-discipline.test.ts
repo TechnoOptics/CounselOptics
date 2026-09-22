@@ -109,7 +109,11 @@ describe('the headline', () => {
     expect(PAGE).not.toMatch(/font-display|font-serif|font-sans/);
   });
   it('keeps the copy column shrinkable', () => {
-    expect(fn('Cover')).toMatch(/Left: editorial copy block[\s\S]{0,80}className="min-w-0 lg:col-span-7"/);
+    // The `lg:col-span-7` that used to be spelled here went with the cover's
+    // twelve track grid: eleven gutters at gap-14 left each track 14.3px, so
+    // the spans never delivered 7 and 5 and the sheet beside this column cut
+    // every exhibit name. min-w-0, which is the claim, is unchanged.
+    expect(fn('Cover')).toMatch(/Left: editorial copy block[\s\S]{0,80}className="min-w-0"/);
   });
 });
 

@@ -212,9 +212,14 @@ describe('the homepage hero is not clipped on a narrow phone', () => {
   }
 
   it('lets the hero copy column shrink below its min-content width', () => {
+    // The `lg:col-span-7` this used to assert alongside min-w-0 is gone: the
+    // cover's twelve track grid spent eleven gutters and left each track at
+    // 14.3px, so the spans never delivered the 7 and 5 they read as asking
+    // for and the sheet beside this column clipped every exhibit name. The
+    // cover is two even tracks from xl now, and min-w-0, which is what this
+    // guard is actually about, is unchanged.
     const cls = gridChildClasses(HOME, 'Left: editorial copy block');
     expect(cls.split(/\s+/)).toContain('min-w-0');
-    expect(cls).toMatch(/lg:col-span-7/);
   });
 
   it('lets both product-showcase columns shrink too', () => {

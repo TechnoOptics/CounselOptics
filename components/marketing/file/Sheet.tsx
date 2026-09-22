@@ -59,6 +59,19 @@ export function Sheet({
  * named quiet ink so it follows whichever tone the Sheet around it chose;
  * SheetRow is called directly by pages and these are server components, so
  * there is no context to read the tone from.
+ *
+ * The name wraps; it does not truncate. A long name still must not widen the
+ * sheet, and `min-w-0` plus `overflow-wrap: anywhere` holds that: both floor
+ * the middle track's min-content contribution at zero, so the sheet's width
+ * stays a property of the layout around it rather than of its longest row.
+ * `truncate` held the same floor and cost the reader the content: on the home
+ * cover at 1024 every exhibit name was cut to about three characters
+ * ("Signed leas...", "Move-out p..."), and a filename cut that short is not a
+ * filename. The date is short and fixed, so it keeps the `auto` track and
+ * `whitespace-nowrap`; the name is the content, so it takes what is left and
+ * runs on to a second line. `items-baseline` keeps the mark and the date on
+ * the first line's baseline, so a two-line row still reads as one line on a
+ * form.
  */
 export function SheetRow({ mark, text, right }: { mark: string; text: ReactNode; right?: ReactNode }) {
   return (
@@ -67,8 +80,8 @@ export function SheetRow({ mark, text, right }: { mark: string; text: ReactNode;
       className="grid grid-cols-[34px_1fr_auto] items-baseline gap-3.5 border-b border-dotted border-rule py-2.5 last:border-b-0"
     >
       <b className="font-bold">{mark}</b>
-      <span className="min-w-0 truncate">{text}</span>
-      <span className="tabular-nums text-current opacity-70">{right}</span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">{text}</span>
+      <span className="whitespace-nowrap tabular-nums text-current opacity-70">{right}</span>
     </div>
   );
 }
