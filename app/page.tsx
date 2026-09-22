@@ -114,11 +114,34 @@ function HomeStructuredData() {
 function Cover({ signedIn }: { signedIn: boolean }) {
   return (
     <Section label="Cover" first>
-      <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
+      {/*
+        Two tracks with one gutter, not `lg:grid-cols-12` with eleven. A
+        twelve track grid applies the gutter between every pair of tracks,
+        so `lg:gap-14` spent 693px of an 865px row on gaps: each track
+        measured 14.3px and `lg:col-span-5` rendered 324px, not the 5/12 it
+        reads as asking for. At 1024 the eleven gutters exceeded the row
+        outright, every track collapsed to 0, and the two columns were
+        nothing but gaps; the sheet came out 252px and its exhibit names
+        were cut to about three characters each.
+
+        Even tracks rather than 7 and 5. The sheet is this page's evidence
+        for its own headline, and Entry, the copy-beside-a-sheet block every
+        other section on the site is built from, already splits evenly. The
+        headline costs nothing for the change: it breaks over the same three
+        lines at 401px as at 478px, and the even sheet puts every exhibit
+        name on exactly two lines instead of a ragged two and three.
+
+        The split waits for `xl` because Section opens its 200px binder tab
+        at `lg`, leaving 689px for the whole cover at 1024: too little for a
+        61px display headline beside a document, whichever way it is cut.
+        Below xl the cover stacks, as it already does at 768, where the
+        sheet is 714px and every name sits on one line.
+      */}
+      <div className="grid items-center gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:gap-14">
         {/* min-w-0 so the display headline can never set this column wider
             than a 375px phone; that overflow was a live defect on the
             previous hero and a guard reads the marker below. */}{/* Left: editorial copy block */}
-        <div className="min-w-0 lg:col-span-7">
+        <div className="min-w-0">
           <h1 className={H1}>Walk into court with everything in order.</h1>
           <p className={`${BODY} mt-6`}>
             Most cases are built quietly, one note and one document at a time. Advottic gives you
@@ -142,7 +165,7 @@ function Cover({ signedIn }: { signedIn: boolean }) {
           </div>
           <p className={`${LABEL} mt-5`}>No card to start. Cancel any time. Yours to export.</p>
         </div>
-        <div className="min-w-0 lg:col-span-5">
+        <div className="min-w-0">
           {/*
             pb-24 reserves the stamp's own space. It is absolutely
             positioned bottom-right and was landing on the last two rows:

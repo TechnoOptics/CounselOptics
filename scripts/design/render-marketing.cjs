@@ -127,11 +127,14 @@ const PROBE = () => {
     }
   }
 
-  // Text the reader cannot see. SheetRow truncates its middle column on
-  // purpose so a long filename cannot widen the sheet, so a hit here is a
-  // copy length to weigh, not automatically a defect; it is reported
-  // because a citation cut at "Electro-Craft Corp. v. Con..." looked
-  // exactly like the deliberate ones until somebody read the capture.
+  // Text the reader cannot see. A long filename must still never widen a
+  // sheet, but SheetRow holds that with `min-w-0` and `overflow-wrap:
+  // anywhere` rather than with `truncate`, so nothing on these pages is cut
+  // on purpose any more and every hit here is a defect. It used to be a copy
+  // length to weigh, and that reading is what let four exhibit names ship
+  // cut to about three characters: a citation cut at "Electro-Craft Corp. v.
+  // Con..." looked exactly like the deliberate ones until somebody read the
+  // capture, and so did they.
   const cut = [];
   for (const el of [...document.querySelectorAll('[data-row] span, h1, h2')].filter(visible)) {
     if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).textOverflow === 'ellipsis') {
