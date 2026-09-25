@@ -159,6 +159,14 @@ Against the seeded local stack, sign in and assert the page reaches
 - Produces: PNGs under `public/screens/`, and a manifest whose entries are
   `{ id, route, width, theme, alt, commit }`. Tasks 4, 5 and 6 read `id` and
   `alt`; Task 7's guard reads every field.
+- **Filename convention, binding:** each entry's image is
+  `public/screens/<id>.png`, exactly the entry's `id` and nothing else.
+  `Screen` (Task 4, already built) derives intrinsic width and height by
+  reading that file's PNG IHDR chunk, because the manifest carries no height.
+  A capture script that names files any other way breaks `Screen` with a raw
+  ENOENT rather than a useful error. This was discovered in Task 4's review
+  and written here because a convention that lives only in a task report is
+  a convention the next implementer does not have.
 
 - [ ] **Step 1: Write the failing manifest test**
 
