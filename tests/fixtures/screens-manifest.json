@@ -1,0 +1,10 @@
+[
+  {
+    "id": "case-file",
+    "route": "/cases/1",
+    "width": 1440,
+    "theme": "light",
+    "alt": "A case file listing four exhibits, from the signed lease to the hearing notice.",
+    "commit": "abc1234"
+  }
+]

@@ -1,6 +1,8 @@
+import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import fixtureManifest from './fixtures/screens-manifest.json';
 import {
   Band,
   Definitions,
@@ -15,10 +17,43 @@ import {
   SheetRow,
   Stamp,
 } from '../components/marketing/file';
+// Screen is imported from its own module, not the barrel above: see the
+// comment in components/marketing/file/index.ts for why (it reads
+// node:fs/node:path, and the barrel is also imported by client components
+// for their string roles alone).
+import { Screen } from '../components/marketing/file/Screen';
 // The type roles are imported as a namespace, not by name: the focus guard
 // below holds every control role the module exports, including ones added
 // after this test was written.
 import * as roles from '../components/marketing/file/type';
+
+/**
+ * Screen (Task 4 of the screen-grabs plan) reads two things off disk at
+ * build time: the manifest JSON (`readFileSync(path, 'utf8')`) and the PNG
+ * bytes for the matched entry (`readFileSync(path)`, no encoding, so it
+ * comes back a Buffer). `public/screens/manifest.json` does not exist yet -
+ * Tasks 1 to 3, which would seed and capture it, are blocked on a schema
+ * finding - so this test never touches the real manifest. It supplies its
+ * own fixture instead (`tests/fixtures/screens-manifest.json` and
+ * `tests/fixtures/case-file.png`, a real 4x3 PNG) through a `node:fs` module
+ * mock keyed on that same encoding argument, which is the least intrusive
+ * of the options the brief allows: Screen's own props (`id`, `caption`) are
+ * exactly what tasks 5 and 6 call, untouched by any test-only prop or path
+ * argument, and no env var is left in the production code for a stray
+ * setting to mis-point in production.
+ */
+const FIXTURE_IMAGE_PATH = path.join(__dirname, 'fixtures', 'case-file.png');
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    readFileSync: (target: Parameters<typeof actual.readFileSync>[0], encoding?: BufferEncoding) => {
+      if (encoding === 'utf8') return JSON.stringify(fixtureManifest);
+      return actual.readFileSync(FIXTURE_IMAGE_PATH);
+    },
+  };
+});
 
 /**
  * The primitives every marketing page is built from. Rendered for real
@@ -211,6 +246,37 @@ describe('Sheet', () => {
     expect(out).toContain('text-accent-text');
     expect(out).toContain('rotate-[-6deg]');
     expect(out).not.toMatch(/bg-gold|text-gold|gold-metal/);
+  });
+});
+
+describe('Screen', () => {
+  it('renders alt text from the manifest and never the word screenshot', () => {
+    const out = html(createElement(Screen, { id: 'case-file', caption: 'The case file' }));
+    const img = /<img[^>]*>/.exec(out)?.[0];
+    expect(img, 'no img rendered').toBeTruthy();
+    const alt = /alt="([^"]*)"/.exec(img!)?.[1];
+    expect(alt).toBeTruthy();
+    expect(alt?.toLowerCase()).not.toContain('screenshot');
+    expect(/width="(\d+)"/.exec(img!)?.[1]).toBeTruthy();
+    expect(/height="(\d+)"/.exec(img!)?.[1]).toBeTruthy();
+  });
+  it('reads the intrinsic width and height off the real PNG, not a guess', () => {
+    // The fixture is a genuine 4x3 PNG; these are its actual IHDR values,
+    // not numbers invented for this test.
+    const out = html(createElement(Screen, { id: 'case-file', caption: 'The case file' }));
+    expect(out).toMatch(/<img[^>]*width="4"/);
+    expect(out).toMatch(/<img[^>]*height="3"/);
+  });
+  it('throws at build time when the id is absent from the manifest, rather than rendering a hole', () => {
+    expect(() => html(createElement(Screen, { id: 'not-a-real-id', caption: 'x' }))).toThrow(
+      /not-a-real-id/,
+    );
+  });
+  it('sits in a Sheet, puts the caption in Courier, and adds no gold', () => {
+    const out = html(createElement(Screen, { id: 'case-file', caption: 'The case file' }));
+    expect(out).toContain('bg-sheet');
+    expect(out).toMatch(/font-courier[^>]*>The case file/);
+    expect(out).not.toMatch(/bg-gold|text-gold|gold-metal|data-stamp/);
   });
 });
 
